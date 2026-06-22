@@ -15,6 +15,118 @@ from models.elo import EloModel
 from models.devig import devig_market
 
 
+def _format_markets(raw: dict, team_a: str, team_b: str) -> dict:
+    """
+    Transform the raw markets dict into frontend-friendly form:
+    - percentages rounded to 1dp
+    - human labels substituted for team_a / team_b
+    - best recommendation flagged
+    """
+    if not raw:
+        return {}
+
+    def pct(v):
+        return round(float(v) * 100, 1)
+
+    result = {}
+
+    # Match Result 2-Up
+    mr2 = raw.get("match_result_2up", {})
+    if mr2:
+        home_2up = pct(mr2.get("home_win_2up", 0))
+        away_2up = pct(mr2.get("away_win_2up", 0))
+        result["match_result_2up"] = {
+            "label": "Match Result – 2 Up",
+            "options": [
+                {"label": f"{team_a} to win by 2+", "prob": home_2up,
+                 "best": home_2up >= away_2up},
+                {"label": f"{team_b} to win by 2+", "prob": away_2up,
+                 "best": away_2up > home_2up},
+                {"label": "Neither wins by 2+", "prob": pct(mr2.get("not_2up", 0)),
+                 "best": False},
+            ],
+        }
+
+    # Correct Score (top 6)
+    cs = raw.get("correct_score", [])
+    if cs:
+        result["correct_score"] = {
+            "label": "Correct Score (most likely)",
+            "scores": [
+                {"label": f"{team_a} {s['score_home']}–{s['score_away']} {team_b}",
+                 "prob": pct(s["prob"]),
+                 "best": i == 0}
+                for i, s in enumerate(cs[:6])
+            ],
+        }
+
+    # Spread
+    sp = raw.get("spread", [])
+    if sp:
+        result["spread"] = {
+            "label": "Spread (Home handicap)",
+            "lines": [
+                {
+                    "line": s["line"],
+                    "label": s["label"],
+                    "p_home_covers": pct(s["p_home_covers"]),
+                    "p_away_covers": pct(s["p_away_covers"]),
+                    "p_push": pct(s["p_push"]),
+                    "team_a": team_a,
+                    "team_b": team_b,
+                }
+                for s in sp
+            ],
+        }
+
+    # Winner Push if Tied
+    wp = raw.get("winner_push_if_tied", {})
+    if wp:
+        home_nd = pct(wp.get("p_home_no_draw", 0))
+        away_nd = pct(wp.get("p_away_no_draw", 0))
+        result["winner_push_if_tied"] = {
+            "label": "Winner (Push if Tied)",
+            "options": [
+                {"label": team_a, "prob": home_nd, "best": home_nd >= away_nd},
+                {"label": team_b, "prob": away_nd, "best": away_nd > home_nd},
+            ],
+            "draw_prob": pct(wp.get("p_draw", 0)),
+        }
+
+    # Next Shot on Target
+    sot = raw.get("next_shot_on_target", {})
+    if sot:
+        home_sot = pct(sot.get("p_home_next_sot", 0))
+        away_sot = pct(sot.get("p_away_next_sot", 0))
+        result["next_shot_on_target"] = {
+            "label": "Next Shot on Target",
+            "options": [
+                {"label": team_a, "prob": home_sot, "best": home_sot >= away_sot},
+                {"label": team_b, "prob": away_sot, "best": away_sot > home_sot},
+            ],
+            "note": sot.get("note", ""),
+        }
+
+    # Method of Goal 2
+    mg = raw.get("method_of_goal_2", {})
+    if mg:
+        methods = [
+            {"label": "Foot",    "prob": pct(mg.get("foot", 0))},
+            {"label": "Header",  "prob": pct(mg.get("header", 0))},
+            {"label": "Penalty", "prob": pct(mg.get("penalty", 0))},
+        ]
+        best = max(methods, key=lambda x: x["prob"])
+        for m in methods:
+            m["best"] = m["label"] == best["label"]
+        result["method_of_goal_2"] = {
+            "label": "Method of Goal 2",
+            "options": methods,
+            "note": mg.get("note", ""),
+        }
+
+    return result
+
+
 def _safe_float(val, default=None):
     try:
         return float(val) if val is not None else default
@@ -197,6 +309,10 @@ def run_analysis(user_query: str) -> dict:
         "description": fetched.get("team_b", {}).get("description", ""),
     }
 
+    # ── Format markets for frontend ───────────────────────────────────────────
+    raw_markets = prediction.get("markets", {})
+    formatted_markets = _format_markets(raw_markets, team_a, team_b)
+
     return {
         "match_id": match_id,
         "team_a": team_a,
@@ -217,5 +333,6 @@ def run_analysis(user_query: str) -> dict:
         "raw_sources": raw_sources,
         "team_a_raw": team_a_raw,
         "team_b_raw": team_b_raw,
+        "markets": formatted_markets,
         "steps": steps,
     }

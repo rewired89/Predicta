@@ -10,6 +10,7 @@ from db.database import get_db
 from fetchers.signals import fetch_signals_for_match
 from models.elo import EloModel
 from models.glicko import Glicko2Model
+from models.markets import compute_all_markets
 from models.dixon_coles import predict as dc_predict, strengths_from_signals, explain as dc_explain
 from models.devig import devig_market, american_to_decimal
 from models.kelly import kelly_stake, explain_kelly
@@ -111,6 +112,7 @@ def predict_match(
     prob_a = prob_b = prob_draw = None
     rating_detail = ""
 
+    markets: dict = {}
     if sport == "soccer":
         # Elo-based win prob
         elo_pa, elo_pb = elo_model.win_probability(part_a, part_b)
@@ -137,6 +139,12 @@ def predict_match(
         rating_detail = (
             f"a {abs(ra-rb):.0f}-point Elo {'advantage' if ra>rb else 'deficit'} "
             f"and Dixon-Coles xG model (μ_home={dc['mu_home']:.2f}, μ_away={dc['mu_away']:.2f})"
+        )
+        # Compute all sportsbook markets from the score matrix
+        markets = compute_all_markets(
+            str_a["attack"], str_a["defense"],
+            str_b["attack"], str_b["defense"],
+            neutral=neutral,
         )
     elif sport in ("tennis", "table_tennis"):
         glicko_pa, glicko_pb = glicko_model.win_probability(part_a, part_b, sport, surface)
@@ -180,6 +188,7 @@ def predict_match(
         "kelly": kelly,
         "kelly_note": explain_kelly(kelly),
         "market": market,
+        "markets": markets,
     }
 
 

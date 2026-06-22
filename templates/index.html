@@ -394,6 +394,79 @@
     margin-bottom: 24px;
   }
 
+  /* ── Market cards ───────────────────────────────────────── */
+  .market-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .market-title {
+    padding: 11px 14px;
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .market-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .market-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .market-row-label {
+    font-size: .82rem;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .market-bar-wrap {
+    flex: 0 0 80px;
+    background: var(--bg);
+    border-radius: 99px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .market-bar { height: 100%; border-radius: 99px; }
+  .market-pct { font-size: .82rem; font-weight: 700; min-width: 38px; text-align: right; }
+  .market-best .market-row-label { color: var(--blue); }
+  .market-best .market-pct { color: var(--blue); }
+  .market-best .market-bar { background: var(--blue); }
+  .market-other .market-bar { background: var(--border); }
+  .market-other .market-pct { color: var(--muted); }
+
+  .market-note {
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .spread-table { width: 100%; font-size: .76rem; border-collapse: collapse; }
+  .spread-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: .68rem;
+    text-transform: uppercase;
+    padding: 4px 6px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+  }
+  .spread-table th:first-child { text-align: left; }
+  .spread-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; }
+  .spread-table td:first-child { text-align: left; color: var(--text); }
+  .spread-table tr:last-child td { border-bottom: none; }
+  .spread-highlight td { color: var(--blue); font-weight: 700; }
+  .market-card-wide { grid-column: 1 / -1; }
+
+  @media (max-width: 560px) {
+    #markets-grid { grid-template-columns: 1fr; }
+    .market-card-wide { grid-column: auto; }
+  }
+
   /* ── Responsive ──────────────────────────────────────── */
   @media (max-width: 560px) {
     .hero-title { font-size: 1.4rem; }
@@ -487,6 +560,14 @@
         <span class="conf-badge" id="conf-badge">—</span>
         <span id="conf-note"></span>
       </div>
+    </div>
+
+    <!-- Sportsbook markets section -->
+    <div id="markets-section" style="display:none; margin-top:20px;">
+      <h3 style="font-size:.88rem; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin:0 0 12px;">
+        Sportsbook markets
+      </h3>
+      <div id="markets-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"></div>
     </div>
 
     <!-- Raw data accordion section -->
@@ -811,6 +892,9 @@ async function runAnalysis() {
     // Trace
     document.getElementById("trace-pre").textContent = JSON.stringify(data.steps, null, 2);
 
+    // ── Markets ──────────────────────────────────────────────────────────────
+    renderMarkets(data.markets || {}, data.team_a, data.team_b, data.sport);
+
     document.getElementById("results").style.display = "block";
     document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -824,6 +908,133 @@ async function runAnalysis() {
     btn.disabled = false;
     document.getElementById("spinner").style.display = "none";
     document.getElementById("btn-text").textContent = "Analyze";
+  }
+}
+
+// ── Markets renderer ─────────────────────────────────────────────────────────
+function marketOptionRow(opt) {
+  const cls = opt.best ? "market-best" : "market-other";
+  return `<div class="market-row ${cls}">
+    <span class="market-row-label">${opt.label}</span>
+    <div class="market-bar-wrap"><div class="market-bar" style="width:${opt.prob}%"></div></div>
+    <span class="market-pct">${opt.prob}%</span>
+  </div>`;
+}
+
+function renderMarkets(markets, teamA, teamB, sport) {
+  const section = document.getElementById("markets-section");
+  const grid = document.getElementById("markets-grid");
+  grid.innerHTML = "";
+
+  if (!markets || Object.keys(markets).length === 0 || sport !== "soccer") {
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "block";
+
+  // ── Winner Push if Tied ─────────────────────────────────────────────────
+  const wp = markets.winner_push_if_tied;
+  if (wp) {
+    const card = document.createElement("div");
+    card.className = "market-card";
+    card.innerHTML = `<div class="market-title">${wp.label}</div>
+      <div class="market-body">
+        ${wp.options.map(marketOptionRow).join("")}
+        <div class="market-note">Draw probability: ${wp.draw_prob}% — refunded if tied</div>
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  // ── Match Result 2-Up ───────────────────────────────────────────────────
+  const mr2 = markets.match_result_2up;
+  if (mr2) {
+    const card = document.createElement("div");
+    card.className = "market-card";
+    card.innerHTML = `<div class="market-title">${mr2.label}</div>
+      <div class="market-body">
+        ${mr2.options.map(marketOptionRow).join("")}
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  // ── Next Shot on Target ─────────────────────────────────────────────────
+  const sot = markets.next_shot_on_target;
+  if (sot) {
+    const card = document.createElement("div");
+    card.className = "market-card";
+    card.innerHTML = `<div class="market-title">${sot.label}</div>
+      <div class="market-body">
+        ${sot.options.map(marketOptionRow).join("")}
+        ${sot.note ? `<div class="market-note">${sot.note}</div>` : ""}
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  // ── Method of Goal 2 ────────────────────────────────────────────────────
+  const mg = markets.method_of_goal_2;
+  if (mg) {
+    const card = document.createElement("div");
+    card.className = "market-card";
+    card.innerHTML = `<div class="market-title">${mg.label}</div>
+      <div class="market-body">
+        ${mg.options.map(marketOptionRow).join("")}
+        ${mg.note ? `<div class="market-note">${mg.note}</div>` : ""}
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  // ── Correct Score ───────────────────────────────────────────────────────
+  const cs = markets.correct_score;
+  if (cs) {
+    const card = document.createElement("div");
+    card.className = "market-card market-card-wide";
+    const rows = cs.scores.map(s => `
+      <div class="market-row ${s.best ? 'market-best' : 'market-other'}">
+        <span class="market-row-label" style="min-width:180px">${s.label}</span>
+        <div class="market-bar-wrap" style="flex:0 0 120px">
+          <div class="market-bar" style="width:${Math.min(s.prob * 15, 100)}%"></div>
+        </div>
+        <span class="market-pct">${s.prob}%</span>
+      </div>`).join("");
+    card.innerHTML = `<div class="market-title">${cs.label}</div>
+      <div class="market-body">${rows}</div>`;
+    grid.appendChild(card);
+  }
+
+  // ── Spread ──────────────────────────────────────────────────────────────
+  const sp = markets.spread;
+  if (sp) {
+    const card = document.createElement("div");
+    card.className = "market-card market-card-wide";
+    // Find the line closest to 50/50 for home covers as "fair line"
+    const fairLine = sp.lines.reduce((best, l) =>
+      Math.abs(l.p_home_covers - 50) < Math.abs(best.p_home_covers - 50) ? l : best, sp.lines[0]);
+
+    const tableRows = sp.lines.map(l => {
+      const isFair = l.line === fairLine.line;
+      return `<tr class="${isFair ? 'spread-highlight' : ''}">
+        <td>${l.label}${isFair ? ' ★' : ''}</td>
+        <td>${l.p_home_covers}%</td>
+        <td>${l.p_push}%</td>
+        <td>${l.p_away_covers}%</td>
+      </tr>`;
+    }).join("");
+
+    card.innerHTML = `<div class="market-title">${sp.label}</div>
+      <div class="market-body" style="padding:8px 14px">
+        <table class="spread-table">
+          <thead><tr>
+            <th>Line</th>
+            <th>${teamA} covers</th>
+            <th>Push</th>
+            <th>${teamB} covers</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <div class="market-note" style="margin-top:8px">★ = closest to 50/50 line (fair handicap)</div>
+      </div>`;
+    grid.appendChild(card);
   }
 }
 
