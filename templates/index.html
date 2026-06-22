@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0b1120;
+    --surface:  #131d30;
+    --border:   #1e2d47;
+    --blue:     #38bdf8;
+    --blue-dim: #1e4a6e;
+    --green:    #22c55e;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --radius:   10px;
+  }
+
+  html { font-size: 15px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo { font-size: 1.4rem; font-weight: 700; color: var(--blue); letter-spacing: -.5px; }
+  header .badge {
+    background: var(--blue-dim);
+    color: var(--blue);
+    font-size: .7rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+    letter-spacing: .5px;
+  }
+  header nav { margin-left: auto; display: flex; gap: 18px; }
+  header nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: .85rem;
+    transition: color .2s;
+  }
+  header nav a:hover { color: var(--text); }
+
+  /* ── Main layout ─────────────────────────────────────── */
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px 0; }
+
+  /* ── Hero prompt ─────────────────────────────────────── */
+  .hero-title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .hero-title span { color: var(--blue); }
+  .hero-sub {
+    color: var(--muted);
+    font-size: .9rem;
+    margin-bottom: 28px;
+  }
+
+  .prompt-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .prompt-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: .95rem;
+    padding: 12px 16px;
+    resize: vertical;
+    min-height: 90px;
+    outline: none;
+    transition: border-color .2s;
+    font-family: inherit;
+  }
+  textarea:focus { border-color: var(--blue); }
+  textarea::placeholder { color: var(--muted); }
+
+  .prompt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .examples {
+    font-size: .78rem;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .example-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+    white-space: nowrap;
+  }
+  .example-chip:hover { border-color: var(--blue); color: var(--blue); }
+
+  .analyze-btn {
+    background: var(--blue);
+    color: #000;
+    font-weight: 700;
+    font-size: .9rem;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity .2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .analyze-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .analyze-btn:hover:not(:disabled) { opacity: .85; }
+
+  /* ── Spinner ─────────────────────────────────────────── */
+  .spinner {
+    display: none;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,0,0,.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Status bar ──────────────────────────────────────── */
+  #status-bar {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-top: 20px;
+    font-size: .85rem;
+    color: var(--muted);
+  }
+  #status-bar .step-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .step-pill {
+    font-size: .72rem;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  .step-pill.pending  { background: var(--border); color: var(--muted); }
+  .step-pill.running  { background: #1e4a6e; color: var(--blue); animation: pulse 1.2s ease infinite; }
+  .step-pill.done     { background: #14532d; color: var(--green); }
+  .step-pill.error    { background: #450a0a; color: var(--red); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+
+  /* ── Results ─────────────────────────────────────────── */
+  #results { display: none; margin-top: 28px; }
+
+  .prediction-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .match-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .team-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+    min-width: 120px;
+  }
+  .vs-badge {
+    background: var(--border);
+    color: var(--muted);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: .8rem;
+    font-weight: 700;
+  }
+  .match-meta { text-align: center; font-size: .78rem; color: var(--muted); margin-bottom: 20px; }
+
+  /* ── Probability bars ───────────────────────────────── */
+  .prob-section { margin-bottom: 22px; }
+  .prob-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .prob-label { font-size: .82rem; font-weight: 600; min-width: 90px; }
+  .prob-bar-wrap {
+    flex: 1;
+    background: var(--bg);
+    border-radius: 99px;
+    height: 12px;
+    overflow: hidden;
+  }
+  .prob-bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    width: 0%;
+  }
+  .bar-a    { background: var(--blue); }
+  .bar-draw { background: var(--amber); }
+  .bar-b    { background: #a78bfa; }
+  .prob-pct { font-size: .9rem; font-weight: 700; min-width: 44px; text-align: right; }
+  .pct-a    { color: var(--blue); }
+  .pct-draw { color: var(--amber); }
+  .pct-b    { color: #a78bfa; }
+
+  /* ── Narrative ──────────────────────────────────────── */
+  .narrative {
+    background: var(--bg);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    font-size: .95rem;
+    line-height: 1.65;
+    margin-bottom: 18px;
+  }
+
+  /* ── Scorer pill ─────────────────────────────────────── */
+  .scorer-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .scorer-pill {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: .82rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .scorer-pill .lbl { color: var(--muted); font-size: .7rem; font-weight: 600; text-transform: uppercase; }
+  .scorer-pill .val { font-weight: 700; }
+
+  /* ── Confidence badge ───────────────────────────────── */
+  .confidence-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .82rem; color: var(--muted); }
+  .conf-badge {
+    padding: 2px 10px;
+    border-radius: 99px;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .conf-low    { background: #450a0a; color: var(--red); }
+  .conf-medium { background: #451a03; color: var(--amber); }
+  .conf-high   { background: #14532d; color: var(--green); }
+
+  /* ── Accordion (raw data) ────────────────────────────── */
+  .raw-section { margin-top: 20px; }
+  .accordion {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .accordion-header {
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .88rem;
+    font-weight: 600;
+    user-select: none;
+    transition: background .15s;
+  }
+  .accordion-header:hover { background: var(--border); }
+  .accordion-header .icon {
+    color: var(--muted);
+    font-size: .75rem;
+    transition: transform .2s;
+  }
+  .accordion-header.open .icon { transform: rotate(180deg); }
+  .accordion-body {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 16px 18px;
+  }
+  .accordion-body.open { display: block; }
+
+  /* ── Source list ─────────────────────────────────────── */
+  .source-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: .82rem;
+  }
+  .source-item:last-child { border-bottom: none; }
+  .source-label { font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .source-url { color: var(--blue); font-size: .75rem; word-break: break-all; }
+  .source-snippet { color: var(--muted); margin-top: 3px; }
+
+  /* ── Signal table ─────────────────────────────────────── */
+  .signal-table { width: 100%; font-size: .82rem; border-collapse: collapse; }
+  .signal-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: .72rem;
+    text-transform: uppercase;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .signal-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  .signal-table tr:last-child td { border-bottom: none; }
+  .sig-val { font-weight: 700; color: var(--blue); }
+
+  /* ── Last 5 mini-table ───────────────────────────────── */
+  .last5-table { width: 100%; font-size: .78rem; border-collapse: collapse; }
+  .last5-table th {
+    color: var(--muted);
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .last5-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .last5-table tr:last-child td { border-bottom: none; }
+  .result-win  { color: var(--green); font-weight: 700; }
+  .result-draw { color: var(--amber); font-weight: 700; }
+  .result-loss { color: var(--red);   font-weight: 700; }
+
+  /* ── Error card ──────────────────────────────────────── */
+  #error-card {
+    display: none;
+    background: #1a0505;
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-top: 20px;
+    font-size: .88rem;
+    color: #fca5a5;
+  }
+
+  /* ── Paper mode banner ────────────────────────────────── */
+  .paper-banner {
+    font-size: .75rem;
+    background: #1a1000;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    padding: 6px 14px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 24px;
+  }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 560px) {
+    .hero-title { font-size: 1.4rem; }
+    .match-header { gap: 10px; }
+    .team-name { font-size: 1.05rem; min-width: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Predicta</div>
+  <div class="badge">PAPER MODE</div>
+  <nav>
+    <a href="/report">Report</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<main>
+  <div class="paper-banner">⚠ Paper mode — no real wagers are placed or assumed.</div>
+
+  <h1 class="hero-title">Ask about any <span>match</span>.</h1>
+  <p class="hero-sub">Type a natural language question. The system fetches real data, runs the statistical model, and explains the probabilities.</p>
+
+  <div class="prompt-card">
+    <div class="prompt-label">Match query</div>
+    <textarea id="query-input" placeholder="e.g. Analyze the match between Argentina and Austria in June 2024. Who is likely to win and who might score?"></textarea>
+    <div class="prompt-row">
+      <div class="examples">
+        <span class="example-chip" onclick="fillExample(this)">Argentina vs Austria, June 2024</span>
+        <span class="example-chip" onclick="fillExample(this)">Real Madrid vs Barcelona, El Clasico 2025</span>
+        <span class="example-chip" onclick="fillExample(this)">England vs France World Cup 2026</span>
+      </div>
+      <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">
+        <span class="spinner" id="spinner"></span>
+        <span id="btn-text">Analyze</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <div style="font-weight:600; color: var(--text);">Analyzing…</div>
+    <div class="step-list" id="step-list"></div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-card"></div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Prediction card -->
+    <div class="prediction-card">
+      <div class="match-header">
+        <div class="team-name" id="res-team-a"></div>
+        <div class="vs-badge">VS</div>
+        <div class="team-name" id="res-team-b"></div>
+      </div>
+      <div class="match-meta" id="res-meta"></div>
+
+      <!-- Probability bars -->
+      <div class="prob-section">
+        <div class="prob-row">
+          <div class="prob-label" id="bar-label-a">Team A</div>
+          <div class="prob-bar-wrap"><div class="prob-bar bar-a" id="bar-a"></div></div>
+          <div class="prob-pct pct-a" id="pct-a">—</div>
+        </div>
+        <div class="prob-row" id="draw-row">
+          <div class="prob-label">Draw</div>
+          <div class="prob-bar-wrap"><div class="prob-bar bar-draw" id="bar-draw"></div></div>
+          <div class="prob-pct pct-draw" id="pct-draw">—</div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-label" id="bar-label-b">Team B</div>
+          <div class="prob-bar-wrap"><div class="prob-bar bar-b" id="bar-b"></div></div>
+          <div class="prob-pct pct-b" id="pct-b">—</div>
+        </div>
+      </div>
+
+      <!-- Narrative -->
+      <div class="narrative" id="res-narrative"></div>
+
+      <!-- Scorers -->
+      <div class="scorer-row" id="scorer-row"></div>
+
+      <!-- Confidence + model note -->
+      <div class="confidence-row">
+        <span>Data confidence:</span>
+        <span class="conf-badge" id="conf-badge">—</span>
+        <span id="conf-note"></span>
+      </div>
+    </div>
+
+    <!-- Raw data accordion section -->
+    <div class="raw-section">
+      <h3 style="font-size:.88rem; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin:22px 0 12px;">
+        Raw data — verify the model didn't hallucinate
+      </h3>
+
+      <!-- AI signals -->
+      <div class="accordion" id="acc-signals">
+        <div class="accordion-header" onclick="toggleAcc('signals')">
+          <span>AI-interpreted signals used in model</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-signals">
+          <table class="signal-table" id="signal-table">
+            <thead><tr><th>Team</th><th>Signal</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div style="margin-top:12px; font-size:.78rem; color:var(--muted);" id="signal-notes-text"></div>
+        </div>
+      </div>
+
+      <!-- Web sources -->
+      <div class="accordion" id="acc-sources">
+        <div class="accordion-header" onclick="toggleAcc('sources')">
+          <span>Web sources fetched</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-sources">
+          <div id="sources-list"></div>
+        </div>
+      </div>
+
+      <!-- Team A last 5 -->
+      <div class="accordion" id="acc-last5a">
+        <div class="accordion-header" onclick="toggleAcc('last5a')">
+          <span id="last5a-title">Team A — last 5 results</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-last5a">
+          <table class="last5-table" id="last5a-table">
+            <thead><tr><th>Date</th><th>Home</th><th>Score</th><th>Away</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Team B last 5 -->
+      <div class="accordion" id="acc-last5b">
+        <div class="accordion-header" onclick="toggleAcc('last5b')">
+          <span id="last5b-title">Team B — last 5 results</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-last5b">
+          <table class="last5-table" id="last5b-table">
+            <thead><tr><th>Date</th><th>Home</th><th>Score</th><th>Away</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Squad -->
+      <div class="accordion" id="acc-squad">
+        <div class="accordion-header" onclick="toggleAcc('squad')">
+          <span>Squads / Key players</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-squad">
+          <div id="squad-content"></div>
+        </div>
+      </div>
+
+      <!-- Pipeline trace -->
+      <div class="accordion" id="acc-trace">
+        <div class="accordion-header" onclick="toggleAcc('trace')">
+          <span>Pipeline execution trace</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-trace">
+          <pre id="trace-pre" style="font-size:.72rem; color:var(--muted); white-space:pre-wrap; word-break:break-word;"></pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+const STEPS = [
+  { id: "parse",     label: "Parse query" },
+  { id: "fetch",     label: "Fetch web data" },
+  { id: "signals",   label: "Interpret signals" },
+  { id: "engine",    label: "Run model" },
+  { id: "narrative", label: "Generate narrative" },
+];
+
+function setStepStatus(id, status) {
+  const el = document.getElementById("step-" + id);
+  if (!el) return;
+  el.className = "step-pill " + status;
+}
+
+function buildStepList() {
+  const list = document.getElementById("step-list");
+  list.innerHTML = "";
+  STEPS.forEach(s => {
+    const el = document.createElement("span");
+    el.id = "step-" + s.id;
+    el.className = "step-pill pending";
+    el.textContent = s.label;
+    list.appendChild(el);
+  });
+}
+
+function fillExample(el) {
+  document.getElementById("query-input").value = el.textContent.trim();
+}
+
+function toggleAcc(id) {
+  const header = document.querySelector(`#acc-${id} .accordion-header`);
+  const body   = document.getElementById(`acc-body-${id}`);
+  header.classList.toggle("open");
+  body.classList.toggle("open");
+}
+
+function setBar(barId, pctId, value) {
+  setTimeout(() => {
+    document.getElementById(barId).style.width = value + "%";
+    document.getElementById(pctId).textContent = value + "%";
+  }, 100);
+}
+
+function buildLast5Table(tbodyId, rows, focusTeam) {
+  const tbody = document.querySelector(`#${tbodyId} tbody`);
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">No data available</td></tr>';
+    return;
+  }
+  tbody.innerHTML = "";
+  rows.forEach(r => {
+    const isHome = (r.home || "").toLowerCase().includes(focusTeam.toLowerCase());
+    const won = (isHome && r.winner === "home") || (!isHome && r.winner === "away");
+    const lost = (isHome && r.winner === "away") || (!isHome && r.winner === "home");
+    const cls = r.winner === "draw" ? "result-draw" : (won ? "result-win" : "result-loss");
+    const label = r.winner === "draw" ? "D" : (won ? "W" : "L");
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.date || "—"}</td>
+      <td>${r.home || "—"}</td>
+      <td>${r.score_home ?? "?"} – ${r.score_away ?? "?"}</td>
+      <td>${r.away || "—"}</td>
+      <td class="${cls}">${label}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function runAnalysis() {
+  const query = document.getElementById("query-input").value.trim();
+  if (!query) return;
+
+  // Reset UI
+  document.getElementById("results").style.display = "none";
+  document.getElementById("error-card").style.display = "none";
+  const statusBar = document.getElementById("status-bar");
+  statusBar.style.display = "block";
+  buildStepList();
+
+  const btn = document.getElementById("analyze-btn");
+  btn.disabled = true;
+  document.getElementById("spinner").style.display = "block";
+  document.getElementById("btn-text").textContent = "Analyzing…";
+
+  // Animate steps progressively
+  const stepIds = ["parse", "fetch", "signals", "engine", "narrative"];
+  let si = 0;
+  setStepStatus(stepIds[0], "running");
+  const stepTimer = setInterval(() => {
+    if (si < stepIds.length - 1) {
+      setStepStatus(stepIds[si], "done");
+      si++;
+      setStepStatus(stepIds[si], "running");
+    }
+  }, 2200);
+
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+
+    clearInterval(stepTimer);
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || err.error || "Server error");
+    }
+
+    const data = await res.json();
+
+    if (data.error) {
+      clearInterval(stepTimer);
+      stepIds.forEach(id => setStepStatus(id, "error"));
+      const ec = document.getElementById("error-card");
+      ec.style.display = "block";
+      ec.textContent = data.error;
+      return;
+    }
+
+    // Mark all done
+    stepIds.forEach(id => setStepStatus(id, "done"));
+
+    // ── Populate results ────────────────────────────────────────────────────
+    document.getElementById("res-team-a").textContent = data.team_a;
+    document.getElementById("res-team-b").textContent = data.team_b;
+    document.getElementById("bar-label-a").textContent = data.team_a;
+    document.getElementById("bar-label-b").textContent = data.team_b;
+    document.getElementById("res-meta").textContent =
+      `${data.sport.replace("_"," ")}  ·  ${data.date}`;
+
+    setBar("bar-a", "pct-a", data.prob_a);
+    setBar("bar-b", "pct-b", data.prob_b);
+
+    const drawRow = document.getElementById("draw-row");
+    if (data.sport === "soccer" && data.prob_draw > 0) {
+      drawRow.style.display = "flex";
+      setBar("bar-draw", "pct-draw", data.prob_draw);
+    } else {
+      drawRow.style.display = "none";
+    }
+
+    document.getElementById("res-narrative").textContent = data.narrative;
+
+    // Scorers
+    const scorerRow = document.getElementById("scorer-row");
+    scorerRow.innerHTML = "";
+    if (data.likely_scorer_a) {
+      scorerRow.innerHTML += `<div class="scorer-pill">
+        <span class="lbl">Likely scorer · ${data.team_a}</span>
+        <span class="val">${data.likely_scorer_a}</span>
+      </div>`;
+    }
+    if (data.likely_scorer_b) {
+      scorerRow.innerHTML += `<div class="scorer-pill">
+        <span class="lbl">Likely scorer · ${data.team_b}</span>
+        <span class="val">${data.likely_scorer_b}</span>
+      </div>`;
+    }
+
+    // Confidence
+    const conf = data.data_confidence || "low";
+    const confBadge = document.getElementById("conf-badge");
+    confBadge.textContent = conf;
+    confBadge.className = "conf-badge conf-" + conf;
+    document.getElementById("conf-note").textContent = data.signal_notes
+      ? data.signal_notes.substring(0, 120) + (data.signal_notes.length > 120 ? "…" : "")
+      : "";
+
+    // Signal table
+    const tbody = document.querySelector("#signal-table tbody");
+    tbody.innerHTML = "";
+    (data.ai_signals || []).forEach(s => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${s.team}</td><td>${s.signal}</td><td class="sig-val">${s.value}</td><td style="color:var(--muted); font-size:.72rem">${s.source}</td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById("signal-notes-text").textContent = data.signal_notes || "";
+
+    // Web sources
+    const sourcesList = document.getElementById("sources-list");
+    sourcesList.innerHTML = "";
+    if (!data.raw_sources || data.raw_sources.length === 0) {
+      sourcesList.innerHTML = '<div style="color:var(--muted);font-size:.82rem">No external sources fetched.</div>';
+    } else {
+      data.raw_sources.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "source-item";
+        div.innerHTML = `
+          <div class="source-label">${s.label}</div>
+          ${s.url ? `<div class="source-url">${s.url}</div>` : ""}
+          <div class="source-snippet">${s.snippet || ""}</div>`;
+        sourcesList.appendChild(div);
+      });
+    }
+
+    // Last 5 tables
+    document.getElementById("last5a-title").textContent = `${data.team_a} — last 5 results`;
+    document.getElementById("last5b-title").textContent = `${data.team_b} — last 5 results`;
+    buildLast5Table("last5a-table", data.team_a_raw?.last5, data.team_a);
+    buildLast5Table("last5b-table", data.team_b_raw?.last5, data.team_b);
+
+    // Squad
+    const squadContent = document.getElementById("squad-content");
+    squadContent.innerHTML = "";
+    for (const [teamName, rawData] of [[data.team_a, data.team_a_raw], [data.team_b, data.team_b_raw]]) {
+      const players = rawData?.key_players || [];
+      const h = document.createElement("div");
+      h.style.cssText = "font-weight:700; font-size:.85rem; margin:10px 0 6px;";
+      h.textContent = teamName;
+      squadContent.appendChild(h);
+      if (players.length === 0) {
+        const p = document.createElement("div");
+        p.style.cssText = "color:var(--muted); font-size:.78rem;";
+        p.textContent = "No player data available.";
+        squadContent.appendChild(p);
+      } else {
+        const table = document.createElement("table");
+        table.className = "signal-table";
+        table.innerHTML = `<thead><tr><th>Player</th><th>Position</th><th>Nationality</th></tr></thead>`;
+        const tb = document.createElement("tbody");
+        players.forEach(p => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${p.name || "—"}</td><td>${p.position || "—"}</td><td>${p.nationality || "—"}</td>`;
+          tb.appendChild(tr);
+        });
+        table.appendChild(tb);
+        squadContent.appendChild(table);
+      }
+    }
+
+    // Trace
+    document.getElementById("trace-pre").textContent = JSON.stringify(data.steps, null, 2);
+
+    document.getElementById("results").style.display = "block";
+    document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  } catch (err) {
+    clearInterval(stepTimer);
+    stepIds.forEach(id => setStepStatus(id, "error"));
+    const ec = document.getElementById("error-card");
+    ec.style.display = "block";
+    ec.textContent = "Error: " + err.message;
+  } finally {
+    btn.disabled = false;
+    document.getElementById("spinner").style.display = "none";
+    document.getElementById("btn-text").textContent = "Analyze";
+  }
+}
+
+// Allow Ctrl+Enter / Cmd+Enter to submit
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("query-input").addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") runAnalysis();
+  });
+});
+</script>
+</body>
+</html>

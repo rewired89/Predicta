@@ -4,15 +4,20 @@ Run with: uvicorn app:app --reload
 """
 from __future__ import annotations
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from db.database import init_db, get_db
 from engine import predict_match, record_outcome
 from models.calibration import compute_metrics_from_db
 from models.devig import devig_market
+
+TEMPLATES_DIR = Path(__file__).parent / "templates"
 from fetchers.odds import log_manual_odds
 from fetchers.signals import log_signal
 
@@ -184,9 +189,31 @@ def calibration(method: Optional[str] = None):
 
 # ── Report ────────────────────────────────────────────────────────────────────
 
-@app.get("/report", response_class=None)
+@app.get("/report")
 def html_report():
-    from fastapi.responses import HTMLResponse
     from report import generate_html_report
-    html = generate_html_report()
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=generate_html_report())
+
+
+# ── Main UI ───────────────────────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return HTMLResponse(content=(TEMPLATES_DIR / "index.html").read_text(encoding="utf-8"))
+
+
+# ── Analyze (natural language → full pipeline) ────────────────────────────────
+
+class AnalyzeRequest(BaseModel):
+    query: str
+
+
+@app.post("/analyze")
+def analyze(body: AnalyzeRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze import run_analysis
+    result = run_analysis(body.query)
+    if "error" in result and not result.get("team_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result

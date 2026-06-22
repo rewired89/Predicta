@@ -1,0 +1,154 @@
+"""
+AI orchestration layer.
+Uses Claude to:
+  1. Parse natural language match queries
+  2. Interpret fetched web data into model signals
+  3. Generate plain-language prediction narratives
+"""
+from __future__ import annotations
+import json
+import os
+import re
+from typing import Optional
+
+import anthropic
+
+MODEL = "claude-haiku-4-5-20251001"
+
+
+def _client() -> anthropic.Anthropic:
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set.")
+    return anthropic.Anthropic(api_key=key)
+
+
+# ── 1. Parse the natural-language query ──────────────────────────────────────
+
+PARSE_SYSTEM = """You extract structured match information from a user query.
+Return ONLY valid JSON with keys:
+  team_a (string), team_b (string), date (ISO date string or null),
+  sport (one of: soccer, tennis, table_tennis), notes (any extra context).
+No markdown, no prose — raw JSON only."""
+
+
+def parse_query(user_text: str) -> dict:
+    client = _client()
+    msg = client.messages.create(
+        model=MODEL,
+        max_tokens=256,
+        system=PARSE_SYSTEM,
+        messages=[{"role": "user", "content": user_text}],
+    )
+    raw = msg.content[0].text.strip()
+    # Strip markdown code fences if present
+    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+    raw = re.sub(r"\n?```$", "", raw)
+    return json.loads(raw)
+
+
+# ── 2. Interpret fetched data into model signals ──────────────────────────────
+
+SIGNALS_SYSTEM = """You are a sports analytics assistant. Given data about a match (which may be from
+live APIs or may be empty if no live data was available), produce numerical signals for a
+football/soccer prediction model.
+
+If the fetched data is empty or sparse, use your training knowledge about the teams, their
+typical recent form, key players, and historical Elo/Glicko levels — but set confidence="low"
+and clearly state in signal_notes what is from training knowledge vs live data.
+
+Return ONLY valid JSON with this exact schema (use null for any value you cannot determine):
+{
+  "team_a": {
+    "xg_for_avg5": <float|null>,
+    "xg_against_avg5": <float|null>,
+    "form_weighted10": <float 0-1|null>,
+    "rest_days": <int|null>,
+    "key_player_out_flag": <0 or 1>,
+    "injury_note": <string|null>,
+    "elo_rating": <float|null>
+  },
+  "team_b": { <same keys> },
+  "neutral_site": <0 or 1>,
+  "likely_scorer_a": <player name string|null>,
+  "likely_scorer_b": <player name string|null>,
+  "confidence": <"low"|"medium"|"high">,
+  "signal_notes": <string — must state which values came from live API data vs AI training knowledge>
+}
+
+For form_weighted10: 1.0=perfect form, 0.5=mixed, 0.0=terrible.
+For xg estimates from training knowledge: top national team ~1.6-1.8 xG for, average ~1.2-1.4.
+Set confidence="high" only if live API data was provided. "medium" if partial live data. "low" if all from training knowledge.
+No markdown, raw JSON only."""
+
+
+def interpret_signals(team_a: str, team_b: str, fetched_data: dict) -> dict:
+    client = _client()
+    prompt = f"""
+Match: {team_a} vs {team_b}
+Fetched data:
+{json.dumps(fetched_data, indent=2, default=str)[:6000]}
+
+Extract the signals."""
+
+    msg = client.messages.create(
+        model=MODEL,
+        max_tokens=800,
+        system=SIGNALS_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = msg.content[0].text.strip()
+    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+    raw = re.sub(r"\n?```$", "", raw)
+    return json.loads(raw)
+
+
+# ── 3. Generate narrative sentence ────────────────────────────────────────────
+
+NARRATIVE_SYSTEM = """You are a sports prediction analyst. Write a clear, confident, 2-3 sentence
+prediction summary based on the model output and match context.
+
+Rules:
+- Name the favourite team and their win probability (as a percentage)
+- Name the most likely goal scorer for the favourite if available
+- Briefly state the top reason (Elo advantage, form, xG strength, etc.)
+- End with a one-sentence caveat about uncertainty
+- Tone: analytical, not hype. No emojis.
+- Keep it under 80 words total."""
+
+
+def generate_narrative(
+    team_a: str,
+    team_b: str,
+    prob_a: float,
+    prob_b: float,
+    prob_draw: Optional[float],
+    explanation: str,
+    signals: dict,
+    fetched_context: dict,
+) -> str:
+    client = _client()
+
+    scorer_a = signals.get("likely_scorer_a") or "unknown"
+    scorer_b = signals.get("likely_scorer_b") or "unknown"
+    signal_notes = signals.get("signal_notes", "")
+    confidence = signals.get("confidence", "medium")
+
+    prompt = f"""
+Match: {team_a} vs {team_b}
+Model probabilities: {team_a}={prob_a*100:.1f}%  Draw={prob_draw*100:.1f}%  {team_b}={prob_b*100:.1f}%
+Model explanation: {explanation}
+Likely scorer {team_a}: {scorer_a}
+Likely scorer {team_b}: {scorer_b}
+Signal notes: {signal_notes}
+Data confidence: {confidence}
+
+Write the prediction narrative."""
+
+    msg = client.messages.create(
+        model=MODEL,
+        max_tokens=200,
+        system=NARRATIVE_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return msg.content[0].text.strip()
