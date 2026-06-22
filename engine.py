@@ -123,10 +123,15 @@ def predict_match(
             defense_away=str_b["defense"],
             neutral=neutral,
         )
-        # Blend Elo (40%) with Dixon-Coles (60%)
-        prob_a = 0.4 * elo_pa + 0.6 * dc["prob_home"]
-        prob_draw = dc["prob_draw"] * 0.6 + 0.0  # Elo has no draw term
-        prob_b = 1 - prob_a - prob_draw
+        # Draw probability comes entirely from DC (Elo has no draw term).
+        # Elo contributes as a conditional win-probability given the match is decisive.
+        # This preserves the full DC draw without the 40% Elo weight suppressing it.
+        prob_draw = dc["prob_draw"]
+        p_decisive = 1.0 - prob_draw
+        dc_home_ratio = dc["prob_home"] / (dc["prob_home"] + dc["prob_away"])
+        blended_ratio = 0.4 * elo_pa + 0.6 * dc_home_ratio
+        prob_a = p_decisive * blended_ratio
+        prob_b = 1.0 - prob_a - prob_draw
         ra = elo_model.get_rating(part_a)
         rb = elo_model.get_rating(part_b)
         rating_detail = (

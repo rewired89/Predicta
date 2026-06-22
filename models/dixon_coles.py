@@ -76,8 +76,10 @@ def strengths_from_signals(signals: dict) -> dict:
     xg_for = signals.get("xg_for_avg5", 1.35)
     xg_against = signals.get("xg_against_avg5", 1.35)
     league_avg = 1.35  # typical top-division average
+    # attack > 1.0 = above-average scoring; defense > 1.0 = weak defense (concedes more)
+    # mu_home = league_avg * attack_home * defense_away, so weak away defense inflates home goals
     attack = xg_for / league_avg if league_avg else 1.0
-    defense = league_avg / xg_against if xg_against else 1.0
+    defense = xg_against / league_avg if league_avg else 1.0
     return {"attack": max(attack, 0.1), "defense": max(defense, 0.1)}
 
 
