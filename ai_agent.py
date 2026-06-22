@@ -70,14 +70,25 @@ Return ONLY valid JSON with this exact schema (use null for any value you cannot
   },
   "team_b": { <same keys> },
   "neutral_site": <0 or 1>,
-  "likely_scorer_a": <player name string|null>,
-  "likely_scorer_b": <player name string|null>,
+  "likely_scorer_a": <single top player name string|null>,
+  "likely_scorer_b": <single top player name string|null>,
+  "top_scorers_a": [
+    {"name": <string>, "position": <string>, "goal_prob": <float 0-1>},
+    ...up to 6 players ranked by goal probability for team_a...
+  ],
+  "top_scorers_b": [
+    {"name": <string>, "position": <string>, "goal_prob": <float 0-1>},
+    ...up to 6 players ranked by goal probability for team_b...
+  ],
   "confidence": <"low"|"medium"|"high">,
   "signal_notes": <string — must state which values came from live API data vs AI training knowledge>
 }
 
 For form_weighted10: 1.0=perfect form, 0.5=mixed, 0.0=terrible.
 For xg estimates from training knowledge: top national team ~1.6-1.8 xG for, average ~1.2-1.4.
+For goal_prob: probability the player scores at least one goal in THIS match (0-1).
+  Typical ranges: elite striker 0.25-0.40, good forward 0.15-0.25, midfielder 0.05-0.15, defender 0.02-0.08.
+  Distribute the team xG across players by their role, minutes, and historical scoring rate.
 Set confidence="high" only if live API data was provided. "medium" if partial live data. "low" if all from training knowledge.
 No markdown, raw JSON only."""
 

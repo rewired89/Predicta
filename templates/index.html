@@ -260,25 +260,37 @@
     margin-bottom: 18px;
   }
 
-  /* ── Scorer pill ─────────────────────────────────────── */
-  .scorer-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 18px;
+  /* ── Scorer section ──────────────────────────────────── */
+  .scorers-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
   }
-  .scorer-pill {
+  @media (max-width: 560px) { .scorers-section { grid-template-columns: 1fr; } }
+  .scorer-card {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 14px;
-    font-size: .82rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    overflow: hidden;
   }
-  .scorer-pill .lbl { color: var(--muted); font-size: .7rem; font-weight: 600; text-transform: uppercase; }
-  .scorer-pill .val { font-weight: 700; }
+  .scorer-card-title {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .scorer-list { padding: 8px 12px; display: flex; flex-direction: column; gap: 7px; }
+  .scorer-item { display: flex; align-items: center; gap: 8px; }
+  .scorer-rank { font-size: .7rem; color: var(--muted); min-width: 16px; text-align: center; }
+  .scorer-name { font-size: .82rem; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scorer-pos  { font-size: .68rem; color: var(--muted); min-width: 52px; text-align: right; }
+  .scorer-bar-wrap { flex: 0 0 60px; background: var(--border); border-radius: 99px; height: 6px; overflow: hidden; }
+  .scorer-bar  { height: 100%; border-radius: 99px; background: var(--blue); }
+  .scorer-pct  { font-size: .78rem; font-weight: 700; color: var(--blue); min-width: 34px; text-align: right; }
 
   /* ── Confidence badge ───────────────────────────────── */
   .confidence-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .82rem; color: var(--muted); }
@@ -552,7 +564,16 @@
       <div class="narrative" id="res-narrative"></div>
 
       <!-- Scorers -->
-      <div class="scorer-row" id="scorer-row"></div>
+      <div class="scorers-section" id="scorers-section" style="display:none">
+        <div class="scorer-card">
+          <div class="scorer-card-title" id="scorer-title-a">Likely scorers</div>
+          <div class="scorer-list" id="scorer-list-a"></div>
+        </div>
+        <div class="scorer-card">
+          <div class="scorer-card-title" id="scorer-title-b">Likely scorers</div>
+          <div class="scorer-list" id="scorer-list-b"></div>
+        </div>
+      </div>
 
       <!-- Confidence + model note -->
       <div class="confidence-row">
@@ -803,20 +824,30 @@ async function runAnalysis() {
     document.getElementById("res-narrative").textContent = data.narrative;
 
     // Scorers
-    const scorerRow = document.getElementById("scorer-row");
-    scorerRow.innerHTML = "";
-    if (data.likely_scorer_a) {
-      scorerRow.innerHTML += `<div class="scorer-pill">
-        <span class="lbl">Likely scorer · ${data.team_a}</span>
-        <span class="val">${data.likely_scorer_a}</span>
-      </div>`;
+    function buildScorerList(listId, titleId, teamName, scorers, fallbackName) {
+      const list = document.getElementById(listId);
+      const title = document.getElementById(titleId);
+      title.textContent = `Likely scorers · ${teamName}`;
+      list.innerHTML = "";
+      const items = scorers && scorers.length > 0 ? scorers : (fallbackName ? [{name: fallbackName, position: "", goal_prob: null}] : []);
+      if (items.length === 0) return false;
+      const maxProb = Math.max(...items.map(s => s.goal_prob || 0), 0.01);
+      items.forEach((s, i) => {
+        const pct = s.goal_prob != null ? Math.round(s.goal_prob * 100) : null;
+        const barW = s.goal_prob != null ? Math.round((s.goal_prob / maxProb) * 100) : 0;
+        list.innerHTML += `<div class="scorer-item">
+          <span class="scorer-rank">${i + 1}</span>
+          <span class="scorer-name">${s.name}</span>
+          <span class="scorer-pos">${s.position || ""}</span>
+          <div class="scorer-bar-wrap"><div class="scorer-bar" style="width:${barW}%"></div></div>
+          <span class="scorer-pct">${pct != null ? pct + "%" : "—"}</span>
+        </div>`;
+      });
+      return true;
     }
-    if (data.likely_scorer_b) {
-      scorerRow.innerHTML += `<div class="scorer-pill">
-        <span class="lbl">Likely scorer · ${data.team_b}</span>
-        <span class="val">${data.likely_scorer_b}</span>
-      </div>`;
-    }
+    const hasA = buildScorerList("scorer-list-a", "scorer-title-a", data.team_a, data.top_scorers_a, data.likely_scorer_a);
+    const hasB = buildScorerList("scorer-list-b", "scorer-title-b", data.team_b, data.top_scorers_b, data.likely_scorer_b);
+    document.getElementById("scorers-section").style.display = (hasA || hasB) ? "grid" : "none";
 
     // Confidence
     const conf = data.data_confidence || "low";

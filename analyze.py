@@ -11,6 +11,7 @@ from db.database import get_db, init_db
 from engine import predict_match
 from fetchers.thesportsdb import fetch_match_context
 from fetchers.signals import log_signal
+from fetchers.odds import fetch_odds_snapshot
 from models.elo import EloModel
 from models.devig import devig_market
 
@@ -260,6 +261,18 @@ def run_analysis(user_query: str) -> dict:
             if val is not None:
                 log_signal(match_id, name, team_b, signal_value=val, source="ai_interpreted")
 
+        # Fetch live odds if ODDS_API_KEY is set (stored in DB for engine to use)
+        try:
+            odds_results = fetch_odds_snapshot(match_id, sport)
+            if odds_results and not odds_results[0].get("error"):
+                steps.append({"step": "odds_fetch", "status": "ok",
+                               "snapshots": len(odds_results)})
+            else:
+                steps.append({"step": "odds_fetch", "status": "skipped",
+                               "reason": (odds_results[0].get("error") if odds_results else "no key")})
+        except Exception as exc:
+            steps.append({"step": "odds_fetch", "status": "error", "error": str(exc)})
+
         prediction = predict_match(match_id, method="ai_analysis", bankroll=1000.0)
         steps.append({"step": "engine", "status": "ok", "prob_a": prediction.get("prob_a")})
 
@@ -325,6 +338,8 @@ def run_analysis(user_query: str) -> dict:
         "prob_b": round(prediction["prob_b"] * 100, 1),
         "likely_scorer_a": signals.get("likely_scorer_a"),
         "likely_scorer_b": signals.get("likely_scorer_b"),
+        "top_scorers_a": signals.get("top_scorers_a", []),
+        "top_scorers_b": signals.get("top_scorers_b", []),
         "model_explanation": prediction.get("explanation", ""),
         "kelly_note": prediction.get("kelly_note", ""),
         "data_confidence": signals.get("confidence", "low"),
