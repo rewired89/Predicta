@@ -1,0 +1,309 @@
+"""
+Alpaca Markets API wrapper.
+Handles market data (bars, quotes, snapshots) and paper trading orders.
+Set ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL in .env
+"""
+from __future__ import annotations
+import os
+import requests
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
+DATA_BASE_URL = "https://data.alpaca.markets"
+PAPER_BASE_URL = "https://paper-api.alpaca.markets"
+
+
+def _headers() -> dict:
+    key = os.environ.get("ALPACA_API_KEY", "")
+    secret = os.environ.get("ALPACA_SECRET_KEY", "")
+    if not key or not secret:
+        raise RuntimeError("ALPACA_API_KEY and ALPACA_SECRET_KEY must be set in .env")
+    return {
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret,
+        "Accept": "application/json",
+    }
+
+
+def _get(url: str, params: dict = None) -> dict:
+    try:
+        r = requests.get(url, headers=_headers(), params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.HTTPError as e:
+        return {"error": str(e), "status_code": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _post(url: str, body: dict) -> dict:
+    try:
+        r = requests.post(url, headers=_headers(), json=body, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.HTTPError as e:
+        try:
+            detail = r.json()
+        except Exception:
+            detail = r.text
+        return {"error": str(e), "detail": detail}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _delete(url: str) -> dict:
+    try:
+        r = requests.delete(url, headers=_headers(), timeout=10)
+        r.raise_for_status()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Market data ───────────────────────────────────────────────────────────────
+
+def get_bars(symbol: str, timeframe: str = "5Min", limit: int = 78) -> list[dict]:
+    """
+    Fetch OHLCV bars. timeframe: 1Min, 5Min, 15Min, 1Hour, 1Day.
+    Default 78 bars = ~1 full trading day of 5-min candles.
+    """
+    url = f"{DATA_BASE_URL}/v2/stocks/{symbol}/bars"
+    params = {
+        "timeframe": timeframe,
+        "limit": limit,
+        "feed": "iex",
+        "sort": "asc",
+    }
+    data = _get(url, params)
+    if "error" in data:
+        return []
+    bars = data.get("bars", [])
+    return [
+        {
+            "t": b["t"],
+            "o": b["o"],
+            "h": b["h"],
+            "l": b["l"],
+            "c": b["c"],
+            "v": b["v"],
+            "vw": b.get("vw", b["c"]),  # vwap per bar
+        }
+        for b in bars
+    ]
+
+
+def get_daily_bars(symbol: str, days: int = 60) -> list[dict]:
+    """Fetch daily OHLCV bars for swing/context analysis."""
+    start = (datetime.now(timezone.utc) - timedelta(days=days + 10)).strftime("%Y-%m-%d")
+    url = f"{DATA_BASE_URL}/v2/stocks/{symbol}/bars"
+    params = {
+        "timeframe": "1Day",
+        "start": start,
+        "limit": days,
+        "feed": "iex",
+        "sort": "asc",
+    }
+    data = _get(url, params)
+    if "error" in data:
+        return []
+    return data.get("bars", [])
+
+
+def get_snapshot(symbol: str) -> dict:
+    """
+    Get latest quote, trade, and daily bar for a symbol.
+    Returns: price, change_pct, volume, prev_close, pre_market_price
+    """
+    url = f"{DATA_BASE_URL}/v2/stocks/{symbol}/snapshot"
+    data = _get(url, {"feed": "iex"})
+    if "error" in data:
+        return {"error": data["error"], "symbol": symbol}
+
+    lt = data.get("latestTrade", {})
+    lq = data.get("latestQuote", {})
+    db = data.get("dailyBar", {})
+    pb = data.get("prevDailyBar", {})
+    mb = data.get("minuteBar", {})
+
+    price = lt.get("p") or mb.get("c") or db.get("c") or 0
+    prev_close = pb.get("c", price)
+    change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0
+
+    return {
+        "symbol": symbol,
+        "price": round(price, 4),
+        "prev_close": round(prev_close, 4),
+        "change_pct": round(change_pct, 2),
+        "open": db.get("o", 0),
+        "high": db.get("h", 0),
+        "low": db.get("l", 0),
+        "volume": db.get("v", 0),
+        "vwap_day": db.get("vw", 0),
+        "bid": lq.get("bp", 0),
+        "ask": lq.get("ap", 0),
+    }
+
+
+def get_snapshots(symbols: list[str]) -> dict[str, dict]:
+    """Batch snapshot for multiple symbols (up to 1000)."""
+    if not symbols:
+        return {}
+    url = f"{DATA_BASE_URL}/v2/stocks/snapshots"
+    params = {"symbols": ",".join(symbols), "feed": "iex"}
+    data = _get(url, params)
+    if "error" in data:
+        return {}
+    result = {}
+    for sym, snap in data.items():
+        lt = snap.get("latestTrade", {})
+        pb = snap.get("prevDailyBar", {})
+        db = snap.get("dailyBar", {})
+        price = lt.get("p") or db.get("c") or 0
+        prev_close = pb.get("c", price)
+        change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0
+        result[sym] = {
+            "symbol": sym,
+            "price": round(price, 4),
+            "prev_close": round(prev_close, 4),
+            "change_pct": round(change_pct, 2),
+            "open": db.get("o", 0),
+            "high": db.get("h", 0),
+            "low": db.get("l", 0),
+            "volume": db.get("v", 0),
+            "vwap_day": db.get("vw", 0),
+        }
+    return result
+
+
+def get_top_movers(limit: int = 20) -> dict:
+    """Get top gainers and losers for today (market movers endpoint)."""
+    url = f"{DATA_BASE_URL}/v1beta1/screener/stocks/movers"
+    params = {"top": limit}
+    data = _get(url, params)
+    if "error" in data:
+        return {"gainers": [], "losers": [], "error": data["error"]}
+    return {
+        "gainers": data.get("gainers", []),
+        "losers": data.get("losers", []),
+    }
+
+
+def get_most_active(limit: int = 20) -> list[dict]:
+    """Get most active stocks by volume today."""
+    url = f"{DATA_BASE_URL}/v1beta1/screener/stocks/most-actives"
+    params = {"top": limit, "by": "volume"}
+    data = _get(url, params)
+    if "error" in data:
+        return []
+    return data.get("most_actives", [])
+
+
+# ── Paper trading orders ──────────────────────────────────────────────────────
+
+def place_order(
+    symbol: str,
+    qty: float,
+    side: str,           # "buy" or "sell"
+    order_type: str,     # "market", "limit", "stop", "stop_limit"
+    limit_price: Optional[float] = None,
+    stop_price: Optional[float] = None,
+    time_in_force: str = "day",
+    client_order_id: Optional[str] = None,
+) -> dict:
+    """Place a paper trading order."""
+    body: dict = {
+        "symbol": symbol,
+        "qty": str(qty),
+        "side": side,
+        "type": order_type,
+        "time_in_force": time_in_force,
+    }
+    if limit_price is not None:
+        body["limit_price"] = str(round(limit_price, 2))
+    if stop_price is not None:
+        body["stop_price"] = str(round(stop_price, 2))
+    if client_order_id:
+        body["client_order_id"] = client_order_id
+
+    url = f"{PAPER_BASE_URL}/v2/orders"
+    return _post(url, body)
+
+
+def place_bracket_order(
+    symbol: str,
+    qty: float,
+    side: str,
+    entry_price: Optional[float],   # None = market entry
+    take_profit: float,
+    stop_loss: float,
+) -> dict:
+    """
+    Bracket order: entry + take_profit limit + stop_loss stop.
+    Best way to set entry/target/stop in one shot.
+    """
+    body: dict = {
+        "symbol": symbol,
+        "qty": str(qty),
+        "side": side,
+        "type": "limit" if entry_price else "market",
+        "time_in_force": "day",
+        "order_class": "bracket",
+        "take_profit": {"limit_price": str(round(take_profit, 2))},
+        "stop_loss": {"stop_price": str(round(stop_loss, 2))},
+    }
+    if entry_price:
+        body["limit_price"] = str(round(entry_price, 2))
+
+    url = f"{PAPER_BASE_URL}/v2/orders"
+    return _post(url, body)
+
+
+def get_orders(status: str = "open") -> list[dict]:
+    """List paper trading orders. status: open, closed, all"""
+    url = f"{PAPER_BASE_URL}/v2/orders"
+    data = _get(url, {"status": status, "limit": 50})
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def cancel_order(order_id: str) -> dict:
+    url = f"{PAPER_BASE_URL}/v2/orders/{order_id}"
+    return _delete(url)
+
+
+def get_positions() -> list[dict]:
+    """Get all open paper trading positions."""
+    url = f"{PAPER_BASE_URL}/v2/positions"
+    data = _get(url)
+    if isinstance(data, list):
+        return [
+            {
+                "symbol": p["symbol"],
+                "qty": float(p["qty"]),
+                "side": p["side"],
+                "avg_entry": float(p["avg_entry_price"]),
+                "current_price": float(p["current_price"]),
+                "unrealized_pl": float(p["unrealized_pl"]),
+                "unrealized_plpc": round(float(p["unrealized_plpc"]) * 100, 2),
+                "market_value": float(p["market_value"]),
+            }
+            for p in data
+        ]
+    return []
+
+
+def get_account() -> dict:
+    """Get paper trading account summary."""
+    url = f"{PAPER_BASE_URL}/v2/account"
+    data = _get(url)
+    if "error" in data:
+        return data
+    return {
+        "equity": float(data.get("equity", 0)),
+        "cash": float(data.get("cash", 0)),
+        "buying_power": float(data.get("buying_power", 0)),
+        "portfolio_value": float(data.get("portfolio_value", 0)),
+        "daytrade_count": data.get("daytrade_count", 0),
+        "pattern_day_trader": data.get("pattern_day_trader", False),
+    }

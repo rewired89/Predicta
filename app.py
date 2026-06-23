@@ -245,3 +245,108 @@ def analyze_trade(body: TradeRequest):
     if "error" in result:
         raise HTTPException(500, detail=result["error"])
     return result
+
+
+# ── Intraday / Alpaca endpoints ───────────────────────────────────────────────
+
+class ScanRequest(BaseModel):
+    symbols: Optional[list[str]] = None
+    use_movers: bool = False
+
+
+@app.post("/scan")
+def scan_market(body: ScanRequest):
+    from models.trading.screener import run_screener
+    result = run_screener(body.symbols, body.use_movers)
+    return result
+
+
+class IntradayRequest(BaseModel):
+    symbol: str
+    bankroll: float = 10000.0
+
+
+@app.post("/intraday")
+def intraday_analysis(body: IntradayRequest):
+    from fetchers.alpaca import get_bars, get_daily_bars, get_snapshot
+    from models.trading.intraday import compute_intraday_signals, _avg_daily_volume
+
+    snap = get_snapshot(body.symbol)
+    if "error" in snap:
+        raise HTTPException(400, snap["error"])
+    intraday = get_bars(body.symbol, "5Min", 78)
+    daily = get_daily_bars(body.symbol, 60)
+    avg_vol = sum(b.get("v", 0) for b in daily[-20:]) / 20 if daily else 1_000_000
+    result = compute_intraday_signals(intraday, daily, snap, avg_vol)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+
+    # Kelly position sizing
+    from models.trading.kelly import kelly_from_signals
+    score = result["score"]["value"]
+    atr_pct = result["levels"].get("atr", 0) / snap["price"] * 100 if snap.get("price") else 1.5
+    kelly = kelly_from_signals(score, atr_pct, body.bankroll)
+
+    return {
+        "symbol": body.symbol,
+        "snapshot": snap,
+        "intraday_bars": intraday[-30:],
+        "score": result["score"],
+        "signals": result["signals"],
+        "levels": result["levels"],
+        "kelly": kelly,
+    }
+
+
+class OrderRequest(BaseModel):
+    symbol: str
+    qty: float
+    side: str               # "buy" or "sell"
+    order_type: str = "limit"
+    limit_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    use_bracket: bool = False
+    take_profit: Optional[float] = None
+    stop_loss: Optional[float] = None
+
+
+@app.post("/trade/order", status_code=201)
+def place_trade(body: OrderRequest):
+    from fetchers.alpaca import place_order, place_bracket_order
+    if body.use_bracket and body.take_profit and body.stop_loss:
+        result = place_bracket_order(
+            body.symbol, body.qty, body.side,
+            body.limit_price, body.take_profit, body.stop_loss,
+        )
+    else:
+        result = place_order(
+            body.symbol, body.qty, body.side, body.order_type,
+            body.limit_price, body.stop_price,
+        )
+    if "error" in result:
+        raise HTTPException(400, result.get("detail") or result["error"])
+    return result
+
+
+@app.get("/trade/orders")
+def list_orders(status: str = "open"):
+    from fetchers.alpaca import get_orders
+    return get_orders(status)
+
+
+@app.delete("/trade/orders/{order_id}")
+def cancel_trade(order_id: str):
+    from fetchers.alpaca import cancel_order
+    return cancel_order(order_id)
+
+
+@app.get("/trade/positions")
+def get_positions():
+    from fetchers.alpaca import get_positions
+    return get_positions()
+
+
+@app.get("/trade/account")
+def get_account():
+    from fetchers.alpaca import get_account
+    return get_account()
