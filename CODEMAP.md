@@ -1,0 +1,2107 @@
+# Predicta — CodeMap
+> Auto-generated index of every function, class, and key variable.
+> **Protocol**: Read this before touching any code. Update the relevant entry in the same commit as any code change.
+
+---
+
+## db/database.py
+
+---
+name: DB_PATH
+type: variable
+file: db/database.py
+purpose: Absolute path to the SQLite database file (predicta.db at project root).
+inputs: none
+outputs: pathlib.Path
+calls: none
+called_by: init_db, get_db
+mutates: none
+---
+
+---
+name: SCHEMA_PATH
+type: variable
+file: db/database.py
+purpose: Absolute path to the SQL schema file used to initialize the database.
+inputs: none
+outputs: pathlib.Path
+calls: none
+called_by: init_db
+mutates: none
+---
+
+---
+name: init_db
+type: function
+file: db/database.py
+purpose: Create all database tables by executing schema.sql; safe to call repeatedly (CREATE IF NOT EXISTS).
+inputs: db_path: Path = DB_PATH
+outputs: none
+calls: sqlite3.connect, SCHEMA_PATH.read_text
+called_by: startup (app.py), run_analysis (analyze.py)
+mutates: predicta.db (creates tables)
+---
+
+---
+name: get_db
+type: function
+file: db/database.py
+purpose: Context manager that yields an open SQLite connection with Row factory and foreign keys on; commits on exit or rolls back on exception.
+inputs: db_path: Path = DB_PATH
+outputs: yields sqlite3.Connection
+calls: sqlite3.connect
+called_by: EloModel, Glicko2Model, predict_match, record_outcome, _market_consensus, log_signal, get_signals_for_match, fetch_signals_for_match, log_manual_odds, fetch_odds_snapshot, compute_metrics_from_db, generate_html_report, create_match, list_matches, get_match, add_signal, get_signals, list_predictions, get_odds, add_outcome, list_orders (app.py), _gather_training_data (ml_layer.py)
+mutates: predicta.db
+---
+
+---
+
+## models/elo.py
+
+---
+name: IMPORTANCE_K
+type: variable
+file: models/elo.py
+purpose: Maps match importance labels to Elo K-factor values controlling how much ratings shift per result.
+inputs: none
+outputs: dict[str, int]
+calls: none
+called_by: EloModel.update
+mutates: none
+---
+
+---
+name: DEFAULT_K
+type: variable
+file: models/elo.py
+purpose: Fallback K-factor (30) for importance labels not in IMPORTANCE_K.
+inputs: none
+outputs: int
+calls: none
+called_by: EloModel.update
+mutates: none
+---
+
+---
+name: DEFAULT_RATING
+type: variable
+file: models/elo.py
+purpose: Starting Elo rating (1500) assigned to any team not yet in the database.
+inputs: none
+outputs: float
+calls: none
+called_by: EloModel.get_rating, EloModel.explain
+mutates: none
+---
+
+---
+name: _goal_diff_multiplier
+type: function
+file: models/elo.py
+purpose: Returns a multiplier (1.0–2.25+) based on goal difference to scale the K-factor; larger wins move ratings more.
+inputs: goal_diff: int
+outputs: float
+calls: abs
+called_by: EloModel.update
+mutates: none
+---
+
+---
+name: _expected
+type: function
+file: models/elo.py
+purpose: Calculates expected score for team A given both Elo ratings using the standard Elo formula.
+inputs: rating_a: float, rating_b: float
+outputs: float (0–1)
+calls: none
+called_by: EloModel.win_probability, EloModel.update, EloModel.explain
+mutates: none
+---
+
+---
+name: EloModel
+type: class
+file: models/elo.py
+purpose: World Football Elo system — stores ratings in SQLite and provides win probability + update methods.
+inputs: none (stateless; reads/writes DB)
+outputs: none
+calls: get_db
+called_by: predict_match, record_outcome, run_analysis
+mutates: elo_ratings table
+---
+
+---
+name: EloModel.get_rating
+type: function
+file: models/elo.py
+purpose: Retrieves a team's current Elo rating from DB; returns DEFAULT_RATING if not found.
+inputs: team: str
+outputs: float
+calls: get_db
+called_by: EloModel.win_probability, EloModel.update, EloModel.explain, predict_match
+mutates: none
+---
+
+---
+name: EloModel.set_rating
+type: function
+file: models/elo.py
+purpose: Upserts a team's Elo rating into the elo_ratings table.
+inputs: team: str, rating: float
+outputs: none
+calls: get_db
+called_by: EloModel.update, run_analysis
+mutates: elo_ratings table
+---
+
+---
+name: EloModel.win_probability
+type: function
+file: models/elo.py
+purpose: Returns (prob_a_wins, prob_b_wins) for two teams based on their Elo ratings; ignores draw.
+inputs: team_a: str, team_b: str
+outputs: tuple[float, float]
+calls: get_rating, _expected
+called_by: predict_match
+mutates: none
+---
+
+---
+name: EloModel.update
+type: function
+file: models/elo.py
+purpose: Updates both teams' Elo ratings after a match result using goal-difference-scaled K-factor.
+inputs: team_a: str, team_b: str, score_a: int, score_b: int, importance: str = "default"
+outputs: tuple[float, float] (new ratings)
+calls: get_rating, _goal_diff_multiplier, _expected, set_rating
+called_by: record_outcome
+mutates: elo_ratings table
+---
+
+---
+name: EloModel.explain
+type: function
+file: models/elo.py
+purpose: Returns a human-readable string describing the Elo rating gap and win probability.
+inputs: team_a: str, team_b: str
+outputs: str
+calls: get_rating, win_probability
+called_by: none (utility)
+mutates: none
+---
+
+---
+
+## models/glicko.py
+
+---
+name: Glicko2Model
+type: class
+file: models/glicko.py
+purpose: Glicko-2 rating system for tennis and table tennis, supporting per-surface ratings stored in SQLite.
+inputs: none
+outputs: none
+calls: get_db, glicko2 package
+called_by: predict_match, record_outcome
+mutates: glicko2_ratings table
+---
+
+---
+name: Glicko2Model.get_rating
+type: function
+file: models/glicko.py
+purpose: Retrieves Glicko-2 rating, RD, and volatility for a participant/sport/surface; returns defaults if not found.
+inputs: participant: str, sport: str, surface: str = "all"
+outputs: dict {rating, rd, volatility}
+calls: get_db
+called_by: Glicko2Model.win_probability, Glicko2Model.update, Glicko2Model.explain
+mutates: none
+---
+
+---
+name: Glicko2Model.set_rating
+type: function
+file: models/glicko.py
+purpose: Upserts a Glicko-2 rating record for a participant/sport/surface combination.
+inputs: participant: str, sport: str, surface: str, rating: float, rd: float, volatility: float
+outputs: none
+calls: get_db
+called_by: Glicko2Model.update
+mutates: glicko2_ratings table
+---
+
+---
+name: Glicko2Model.win_probability
+type: function
+file: models/glicko.py
+purpose: Approximates win probability from Glicko-2 rating difference using the logistic expected score formula with RD uncertainty.
+inputs: participant_a: str, participant_b: str, sport: str, surface: str = "all"
+outputs: tuple[float, float]
+calls: get_rating, math.log, math.sqrt
+called_by: predict_match
+mutates: none
+---
+
+---
+name: Glicko2Model.update
+type: function
+file: models/glicko.py
+purpose: Updates winner and loser Glicko-2 ratings after a match outcome.
+inputs: winner: str, loser: str, sport: str, surface: str = "all"
+outputs: none
+calls: get_rating, glicko2.Player.update_player, set_rating
+called_by: record_outcome
+mutates: glicko2_ratings table
+---
+
+---
+
+## models/dixon_coles.py
+
+---
+name: TAU
+type: variable
+file: models/dixon_coles.py
+purpose: Dixon-Coles rho parameter (0.1) controlling the strength of the low-score correlation correction.
+inputs: none
+outputs: float
+calls: none
+called_by: _dc_adjustment, predict
+mutates: none
+---
+
+---
+name: HOME_ADVANTAGE
+type: variable
+file: models/dixon_coles.py
+purpose: Multiplicative home advantage factor (1.15) applied to home team's attack mu.
+inputs: none
+outputs: float
+calls: none
+called_by: predict
+mutates: none
+---
+
+---
+name: _dc_adjustment
+type: function
+file: models/dixon_coles.py
+purpose: Applies the Dixon-Coles correction factor to adjust probability of low-score outcomes (0-0, 1-0, 0-1, 1-1).
+inputs: goals_home: int, goals_away: int, mu_h: float, mu_a: float, tau: float
+outputs: float (adjustment multiplier)
+calls: none
+called_by: predict
+mutates: none
+---
+
+---
+name: predict
+type: function
+file: models/dixon_coles.py
+purpose: Computes home/draw/away win probabilities and expected goals using a Dixon-Coles Poisson model from attack/defense strength values.
+inputs: attack_home: float, defense_home: float, attack_away: float, defense_away: float, league_avg_goals: float = 1.35, neutral: bool = False
+outputs: dict {prob_home, prob_draw, prob_away, mu_home, mu_away}
+calls: poisson.pmf, _dc_adjustment, np.zeros, np.tril, np.triu, np.trace
+called_by: predict_match
+mutates: none
+---
+
+---
+name: strengths_from_signals
+type: function
+file: models/dixon_coles.py
+purpose: Converts xG signal values from the signals dict into attack/defense multipliers relative to league average (1.0 = average).
+inputs: signals: dict
+outputs: dict {attack: float, defense: float}
+calls: none
+called_by: predict_match
+mutates: none
+---
+
+---
+name: explain
+type: function
+file: models/dixon_coles.py
+purpose: Returns a human-readable string summarizing the Dixon-Coles model output (expected goals and win probabilities).
+inputs: result: dict, team_home: str, team_away: str
+outputs: str
+calls: none
+called_by: none (utility)
+mutates: none
+---
+
+---
+
+## models/markets.py
+
+---
+name: build_score_matrix
+type: function
+file: models/markets.py
+purpose: Builds the full Dixon-Coles score probability matrix (home goals × away goals) and returns it along with expected goals.
+inputs: attack_home, defense_home, attack_away, defense_away: float, league_avg_goals: float = 1.35, neutral: bool = False, max_goals: int = 7, tau: float = 0.1
+outputs: tuple (np.ndarray matrix, mu_home: float, mu_away: float)
+calls: poisson.pmf, np.zeros
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: match_result_2up
+type: function
+file: models/markets.py
+purpose: Computes probability that home wins by 2+, away wins by 2+, or neither, from the score matrix.
+inputs: matrix: np.ndarray
+outputs: dict {home_win_2up, away_win_2up, not_2up}
+calls: none
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: correct_score
+type: function
+file: models/markets.py
+purpose: Returns the top N most likely exact scorelines ranked by probability from the score matrix.
+inputs: matrix: np.ndarray, top_n: int = 8
+outputs: list[dict {score_home, score_away, label, prob}]
+calls: none
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: spread
+type: function
+file: models/markets.py
+purpose: Computes Asian handicap/spread probabilities for the home team covering each handicap line.
+inputs: matrix: np.ndarray, lines: list[float] = None
+outputs: list[dict {line, label, p_home_covers, p_push, p_away_covers}]
+calls: none
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: winner_push_if_tied
+type: function
+file: models/markets.py
+purpose: Returns 2-way market probabilities where a draw results in a push (void/refund).
+inputs: matrix: np.ndarray
+outputs: dict {p_home_win, p_away_win, p_draw, p_home_no_draw, p_away_no_draw}
+calls: np.tril, np.triu, np.trace
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: next_shot_on_target
+type: function
+file: models/markets.py
+purpose: Estimates which team gets the next shot on target based on xG pace ratio (mu values).
+inputs: mu_home: float, mu_away: float
+outputs: dict {p_home_next_sot, p_away_next_sot, note}
+calls: none
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: method_of_goal
+type: function
+file: models/markets.py
+purpose: Returns foot/header/penalty probability distribution for a specific goal number, optionally adjusted for team aerial index.
+inputs: goal_number: int = 2, home_aerial_index: float = 1.0, away_aerial_index: float = 1.0, attacker_is_home: Optional[bool] = None
+outputs: dict {goal_number, foot, header, penalty, note}
+calls: none
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: corners_market
+type: function
+file: models/markets.py
+purpose: Builds corner kick markets (totals O/U, first corner team probability, corners handicap) using a Poisson model from average corner stats.
+inputs: home_corners_for, home_corners_against, away_corners_for, away_corners_against: float, lines: list[float] = None
+outputs: dict {lambda_home, lambda_away, lambda_total, totals, first_corner, handicap, note}
+calls: poisson.cdf, poisson.pmf
+called_by: compute_all_markets
+mutates: none
+---
+
+---
+name: compute_all_markets
+type: function
+file: models/markets.py
+purpose: Orchestrates all market calculators and returns a single dict with every sportsbook market derived from the score matrix.
+inputs: attack_home, defense_home, attack_away, defense_away: float, league_avg_goals: float = 1.35, neutral: bool = False, home_aerial_index, away_aerial_index: float = 1.0, home_corners_for, home_corners_against, away_corners_for, away_corners_against: float
+outputs: dict {mu_home, mu_away, match_result_2up, correct_score, spread, winner_push_if_tied, next_shot_on_target, method_of_goal_2, corners}
+calls: build_score_matrix, match_result_2up, correct_score, spread, winner_push_if_tied, next_shot_on_target, method_of_goal, corners_market
+called_by: predict_match
+mutates: none
+---
+
+---
+
+## models/kelly.py
+
+---
+name: KELLY_FRACTION
+type: variable
+file: models/kelly.py
+purpose: Default Kelly fraction (0.25 = quarter-Kelly) applied to limit position size conservatively.
+inputs: none
+outputs: float
+calls: none
+called_by: kelly_stake
+mutates: none
+---
+
+---
+name: kelly_stake
+type: function
+file: models/kelly.py
+purpose: Computes recommended paper stake using quarter-Kelly formula from model probability and decimal odds.
+inputs: your_prob: float, decimal_odds: float, bankroll: float, fraction: float = KELLY_FRACTION
+outputs: dict {edge, full_kelly_fraction, applied_kelly_fraction, recommended_stake, bankroll, paper_mode, note}
+calls: none
+called_by: predict_match
+mutates: none
+---
+
+---
+name: explain_kelly
+type: function
+file: models/kelly.py
+purpose: Returns a human-readable string describing the Kelly stake recommendation or why no stake is suggested.
+inputs: result: dict (output of kelly_stake)
+outputs: str
+calls: none
+called_by: predict_match
+mutates: none
+---
+
+---
+
+## models/calibration.py
+
+---
+name: brier_score
+type: function
+file: models/calibration.py
+purpose: Computes mean squared error between predicted probabilities and binary outcomes (lower is better).
+inputs: predictions: list[float], outcomes: list[int]
+outputs: float
+calls: np.mean
+called_by: compute_metrics_from_db
+mutates: none
+---
+
+---
+name: log_loss_score
+type: function
+file: models/calibration.py
+purpose: Computes log-loss (cross-entropy) between predicted probabilities and binary outcomes (lower is better).
+inputs: predictions: list[float], outcomes: list[int], eps: float = 1e-7
+outputs: float
+calls: math.log
+called_by: compute_metrics_from_db
+mutates: none
+---
+
+---
+name: reliability_curve
+type: function
+file: models/calibration.py
+purpose: Buckets predictions into decile bins and returns mean predicted vs actual win rate per bin for calibration analysis.
+inputs: predictions: list[float], outcomes: list[int], n_bins: int = 10
+outputs: list[dict {bin_lower, bin_upper, mean_predicted, mean_actual, count}]
+calls: none
+called_by: compute_metrics_from_db
+mutates: none
+---
+
+---
+name: compute_metrics_from_db
+type: function
+file: models/calibration.py
+purpose: Pulls matched prediction/outcome pairs from DB and computes Brier score, log-loss, and reliability curve.
+inputs: method: Optional[str] = None
+outputs: dict {n, brier_score, log_loss, reliability_curve} or {error}
+calls: get_db, brier_score, log_loss_score, reliability_curve
+called_by: calibration (app.py), generate_html_report
+mutates: none
+---
+
+---
+
+## models/devig.py
+
+---
+name: american_to_decimal
+type: function
+file: models/devig.py
+purpose: Converts American moneyline odds to decimal format.
+inputs: american: float
+outputs: float
+calls: none
+called_by: _market_consensus (engine.py), user/CLI usage
+mutates: none
+---
+
+---
+name: decimal_to_implied
+type: function
+file: models/devig.py
+purpose: Converts decimal odds to implied probability (1 / decimal odds).
+inputs: decimal: float
+outputs: float
+calls: none
+called_by: devig_market
+mutates: none
+---
+
+---
+name: devig_market
+type: function
+file: models/devig.py
+purpose: Removes bookmaker vig from a set of decimal odds and returns normalized fair probabilities.
+inputs: prices: dict {a, b, draw?} of decimal odds
+outputs: dict {a, b, draw?} of fair probabilities (sum to 1)
+calls: decimal_to_implied
+called_by: add_odds (app.py), _market_consensus (engine.py), run_analysis
+mutates: none
+---
+
+---
+name: clv
+type: function
+file: models/devig.py
+purpose: Computes Closing Line Value — how much your model probability exceeds the vig-free closing line (positive = edge).
+inputs: your_implied_prob: float, closing_prices: dict, outcome_key: str = "a"
+outputs: float
+calls: devig_market
+called_by: none (utility)
+mutates: none
+---
+
+---
+
+## models/ml_layer.py
+
+---
+name: MIN_SAMPLES
+type: variable
+file: models/ml_layer.py
+purpose: Minimum number of resolved predictions (50) before the ML model will train; below this the Elo/Glicko baseline is more reliable.
+inputs: none
+outputs: int
+calls: none
+called_by: train
+mutates: none
+---
+
+---
+name: FEATURE_SIGNALS
+type: variable
+file: models/ml_layer.py
+purpose: List of signal names used as features for the ML calibration model.
+inputs: none
+outputs: list[str]
+calls: none
+called_by: _gather_training_data, predict
+mutates: none
+---
+
+---
+name: _gather_training_data
+type: function
+file: models/ml_layer.py
+purpose: Queries DB for predictions + outcomes + signals and assembles feature matrix X and label vector y for training.
+inputs: none
+outputs: tuple (X: list[list], y: list[int])
+calls: get_db
+called_by: train
+mutates: none
+---
+
+---
+name: train
+type: function
+file: models/ml_layer.py
+purpose: Trains a calibrated logistic regression or GBM model on historical prediction data and saves it to disk with joblib.
+inputs: model_path: str = MODEL_PATH_DEFAULT, use_gbm: bool = False
+outputs: dict {status, samples, model_path} or {error}
+calls: _gather_training_data, LogisticRegression, GradientBoostingClassifier, CalibratedClassifierCV, joblib.dump
+called_by: none (invoked manually / via CLI)
+mutates: ml_model.json (creates/overwrites)
+---
+
+---
+name: predict
+type: function
+file: models/ml_layer.py
+purpose: Loads a saved ML model and returns predicted win probability for a feature dict; returns None on any failure.
+inputs: features: dict, model_path: str = MODEL_PATH_DEFAULT
+outputs: Optional[float]
+calls: joblib.load, np.array
+called_by: none (invoked manually / via CLI)
+mutates: none
+---
+
+---
+
+## models/trading/signals.py
+
+---
+name: compute_signals
+type: function
+file: models/trading/signals.py
+purpose: Entry point for daily trading signal computation — runs all indicators on OHLCV history and returns a unified signals dict.
+inputs: history: list[dict] (OHLCV, oldest first)
+outputs: dict {trend, momentum, volatility, volume, expected_move, support_resistance, score}
+calls: _trend, _momentum, _volatility, _volume, _expected_move, _support_resistance, _composite_score
+called_by: run_trade_analysis
+mutates: none
+---
+
+---
+name: _sma
+type: function
+file: models/trading/signals.py
+purpose: Computes simple moving average of the last n values in an array.
+inputs: arr: np.ndarray, n: int
+outputs: float
+calls: none
+called_by: _trend, _volatility
+mutates: none
+---
+
+---
+name: _trend
+type: function
+file: models/trading/signals.py
+purpose: Determines bull/bear/neutral trend direction and strength from MA20/MA50/MA200 alignment with weighted votes.
+inputs: closes: np.ndarray
+outputs: dict {direction, strength, votes, mas}
+calls: _sma
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _rsi
+type: function
+file: models/trading/signals.py
+purpose: Computes RSI(period) from a closing price array using simple average gain/loss.
+inputs: closes: np.ndarray, period: int = 14
+outputs: float (0–100)
+calls: np.diff, np.where
+called_by: _momentum
+mutates: none
+---
+
+---
+name: _momentum
+type: function
+file: models/trading/signals.py
+purpose: Returns RSI(14), RSI signal label, and 5-day/20-day rate of change.
+inputs: closes: np.ndarray
+outputs: dict {rsi, rsi_signal, roc_5d, roc_20d}
+calls: _rsi
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _atr
+type: function
+file: models/trading/signals.py
+purpose: Computes Average True Range over the last period bars.
+inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray, period: int = 14
+outputs: float
+calls: np.mean
+called_by: _volatility
+mutates: none
+---
+
+---
+name: _volatility
+type: function
+file: models/trading/signals.py
+purpose: Computes ATR, ATR%, annualized historical volatility (20-day), and Bollinger Bands with %B position.
+inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray
+outputs: dict {atr, atr_pct, hv_annual, bollinger}
+calls: _atr, _sma, np.log, np.diff, math.sqrt
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _volume
+type: function
+file: models/trading/signals.py
+purpose: Computes current volume relative to 20-day average and assigns a signal label.
+inputs: volumes: np.ndarray
+outputs: dict {current, avg_20d, relative, signal}
+calls: none
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _expected_move
+type: function
+file: models/trading/signals.py
+purpose: Calculates ±1σ and ±2σ expected price range for the next trading session based on 20-day historical volatility.
+inputs: closes: np.ndarray, days_ahead: int = 1
+outputs: dict {days, pct_1sigma, upper/lower_1sigma, pct_2sigma, upper/lower_2sigma, prob_up}
+calls: np.log, np.diff, math.sqrt
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _support_resistance
+type: function
+file: models/trading/signals.py
+purpose: Identifies support and resistance levels from 60-day swing highs and lows plus the 25th/75th percentile mid levels.
+inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray
+outputs: dict {resistance, mid_resistance, support, mid_support, pct_to_resistance, pct_to_support}
+calls: np.percentile
+called_by: compute_signals
+mutates: none
+---
+
+---
+name: _composite_score
+type: function
+file: models/trading/signals.py
+purpose: Combines trend (40%), RSI momentum (30%), 20-day ROC (20%), and Bollinger %B (10%) into a composite score from -100 to +100.
+inputs: signals: dict (output of compute_signals)
+outputs: dict {value, label, color, reasons}
+calls: none
+called_by: compute_signals
+mutates: none
+---
+
+---
+
+## models/trading/kelly.py
+
+---
+name: trading_kelly
+type: function
+file: models/trading/kelly.py
+purpose: Computes quarter-Kelly position size for a trade using win rate and average win/loss percentages.
+inputs: win_rate: float, avg_win_pct: float, avg_loss_pct: float, bankroll: float = 10000.0, fraction: float = 0.25
+outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
+calls: none
+called_by: kelly_from_signals
+mutates: none
+---
+
+---
+name: kelly_from_signals
+type: function
+file: models/trading/kelly.py
+purpose: Estimates Kelly position size directly from composite signal score (–100 to +100) and ATR volatility, without needing historical trade stats.
+inputs: score: float, atr_pct: float, bankroll: float = 10000.0
+outputs: dict (output of trading_kelly)
+calls: trading_kelly
+called_by: run_trade_analysis, intraday_analysis (app.py)
+mutates: none
+---
+
+---
+
+## models/trading/intraday.py
+
+---
+name: WEIGHTS
+type: variable
+file: models/trading/intraday.py
+purpose: Signal weight dictionary mapping each intraday signal name to its ensemble contribution (sums to ~1.0).
+inputs: none
+outputs: dict[str, float]
+calls: none
+called_by: _composite
+mutates: none
+---
+
+---
+name: SCORE_LABELS
+type: variable
+file: models/trading/intraday.py
+purpose: Ordered threshold-to-label pairs for classifying composite intraday score into Strong Buy / Buy / Neutral / Sell / Strong Sell.
+inputs: none
+outputs: list[tuple[int, str]]
+calls: none
+called_by: _composite
+mutates: none
+---
+
+---
+name: _ema
+type: function
+file: models/trading/intraday.py
+purpose: Computes Exponential Moving Average for a list of values and pads the output to match input length.
+inputs: values: list[float], period: int
+outputs: list[float]
+calls: none
+called_by: none (utility available)
+mutates: none
+---
+
+---
+name: _rsi
+type: function
+file: models/trading/intraday.py
+purpose: Computes RSI(period) from a list of closing prices using simple average gain/loss method.
+inputs: closes: list[float], period: int = 9
+outputs: float (0–100)
+calls: none
+called_by: _sig_rsi
+mutates: none
+---
+
+---
+name: _vwap
+type: function
+file: models/trading/intraday.py
+purpose: Computes cumulative VWAP from the first bar of the session using typical price × volume.
+inputs: bars: list[dict]
+outputs: list[float]
+calls: none
+called_by: _sig_vwap
+mutates: none
+---
+
+---
+name: _atr
+type: function
+file: models/trading/intraday.py
+purpose: Computes Average True Range over the last period bars from intraday OHLCV data.
+inputs: bars: list[dict], period: int = 14
+outputs: float
+calls: none
+called_by: _trade_levels
+mutates: none
+---
+
+---
+name: _bollinger
+type: function
+file: models/trading/intraday.py
+purpose: Computes Bollinger Bands (20-period, 2σ) and %B position for intraday closes.
+inputs: closes: list[float], period: int = 20
+outputs: dict {upper, mid, lower, pct_b}
+calls: math.sqrt
+called_by: _sig_bollinger
+mutates: none
+---
+
+---
+name: _sig_vwap
+type: function
+file: models/trading/intraday.py
+purpose: Computes VWAP deviation signal — price above/below session VWAP and extent of overextension.
+inputs: bars: list[dict], snapshot: dict
+outputs: dict {vwap, deviation_pct, label, score}
+calls: _vwap
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_opening_range
+type: function
+file: models/trading/intraday.py
+purpose: Determines if price has broken above or below the first-15-minute opening range and scores the breakout strength.
+inputs: bars: list[dict]
+outputs: dict {or_high, or_low, or_range, label, score}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_rsi
+type: function
+file: models/trading/intraday.py
+purpose: Computes RSI-9 signal from intraday bars and labels it overbought/bearish/neutral/bullish/oversold.
+inputs: bars: list[dict]
+outputs: dict {rsi9, label, score}
+calls: _rsi
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_relative_volume
+type: function
+file: models/trading/intraday.py
+purpose: Compares today's session volume to historical daily average to score volume confirmation of signals.
+inputs: bars: list[dict], daily_avg_volume: float
+outputs: dict {today_volume, avg_volume, rel_vol, label, score}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_gap
+type: function
+file: models/trading/intraday.py
+purpose: Measures pre-market gap from previous close and scores its direction and fill probability (gaps >2% fill ~65% of the time).
+inputs: snapshot: dict
+outputs: dict {gap_pct, direction, fill_prob, score}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_trend_bias
+type: function
+file: models/trading/intraday.py
+purpose: Assesses daily trend regime by checking whether price is above MA20 and MA50, scoring bullish or bearish bias.
+inputs: daily_bars: list[dict]
+outputs: dict {ma20, ma50, above_ma20, above_ma50, label, score}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_bollinger
+type: function
+file: models/trading/intraday.py
+purpose: Computes Bollinger %B for intraday closes and scores position (near lower band = bullish reversion candidate).
+inputs: bars: list[dict]
+outputs: dict {upper, mid, lower, pct_b, label, score}
+calls: _bollinger
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_volume_surge
+type: function
+file: models/trading/intraday.py
+purpose: Detects whether the last 3 bars show a ≥2× volume spike vs the session average, confirming signal momentum.
+inputs: bars: list[dict]
+outputs: dict {surge, recent_avg_vol, session_avg_vol, ratio, label, score}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _trade_levels
+type: function
+file: models/trading/intraday.py
+purpose: Calculates specific entry, stop-loss, and two take-profit levels based on 1.5× and 2.5× ATR from current price.
+inputs: bars: list[dict], snapshot: dict, side: str ("long" or "short")
+outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio}
+calls: _atr
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _composite
+type: function
+file: models/trading/intraday.py
+purpose: Combines all 8 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons.
+inputs: signals: dict (individual signal dicts)
+outputs: dict {value, label, reasons}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: compute_intraday_signals
+type: function
+file: models/trading/intraday.py
+purpose: Main entry point — runs all 8 intraday signals plus ensemble scoring and ATR-based trade levels from intraday bars, daily bars, and a live snapshot.
+inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0
+outputs: dict {signals, score, levels}
+calls: _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _trade_levels
+called_by: intraday_analysis (app.py), _analyze_one (screener.py)
+mutates: none
+---
+
+---
+
+## models/trading/screener.py
+
+---
+name: DEFAULT_WATCHLIST
+type: variable
+file: models/trading/screener.py
+purpose: Default list of 16 large-cap liquid symbols scanned when no custom watchlist is provided.
+inputs: none
+outputs: list[str]
+calls: none
+called_by: run_screener
+mutates: none
+---
+
+---
+name: _avg_daily_volume
+type: function
+file: models/trading/screener.py
+purpose: Computes average daily volume from the last 20 daily bars for use as the relative volume baseline.
+inputs: daily_bars: list[dict]
+outputs: float
+calls: none
+called_by: _analyze_one
+mutates: none
+---
+
+---
+name: _analyze_one
+type: function
+file: models/trading/screener.py
+purpose: Fetches intraday and daily bars for one symbol and computes all signals; returns a ranked result dict or None on failure.
+inputs: symbol: str, snapshot: dict
+outputs: Optional[dict] {symbol, price, change_pct, volume, score, label, reasons, side, entry, stop, target1, target2, rr_ratio, atr, signals}
+calls: get_bars, get_daily_bars, _avg_daily_volume, compute_intraday_signals
+called_by: run_screener (via ThreadPoolExecutor)
+mutates: none
+---
+
+---
+name: run_screener
+type: function
+file: models/trading/screener.py
+purpose: Scans a watchlist or today's top movers/most active stocks in parallel, computes intraday signals for each, and returns a ranked list sorted by composite score.
+inputs: symbols: Optional[list[str]] = None, use_movers: bool = False, max_workers: int = 8
+outputs: dict {count, symbols_scanned, results}
+calls: get_top_movers, get_most_active, get_snapshots, _analyze_one (ThreadPoolExecutor)
+called_by: scan_market (app.py)
+mutates: none
+---
+
+---
+
+## fetchers/thesportsdb.py
+
+---
+name: _tsdb_get
+type: function
+file: fetchers/thesportsdb.py
+purpose: Makes an authenticated GET request to TheSportsDB API using the configured API key.
+inputs: path: str, params: dict = {}
+outputs: dict (JSON response)
+calls: httpx.Client.get
+called_by: search_team, last5_from_tsdb, fetch_h2h, search_players
+mutates: none
+---
+
+---
+name: _espn_get
+type: function
+file: fetchers/thesportsdb.py
+purpose: Makes a GET request to ESPN's public API with a browser User-Agent header to avoid blocks.
+inputs: url: str, params: dict = {}
+outputs: dict (JSON response)
+calls: httpx.Client.get
+called_by: _espn_last5_by_scoreboard
+mutates: none
+---
+
+---
+name: search_team
+type: function
+file: fetchers/thesportsdb.py
+purpose: Searches TheSportsDB for a soccer team by name and returns the first matching team dict.
+inputs: name: str
+outputs: Optional[dict]
+calls: _tsdb_get
+called_by: fetch_match_context
+mutates: none
+---
+
+---
+name: last5_from_tsdb
+type: function
+file: fetchers/thesportsdb.py
+purpose: Tries multiple TheSportsDB season endpoints and formats to retrieve the last 5 completed results for a team ID.
+inputs: team_id: str
+outputs: list[dict]
+calls: _tsdb_get
+called_by: fetch_match_context
+mutates: none
+---
+
+---
+name: fetch_h2h
+type: function
+file: fetchers/thesportsdb.py
+purpose: Retrieves the last 5 head-to-head results between two team IDs from TheSportsDB.
+inputs: team_id_a: str, team_id_b: str
+outputs: list[dict]
+calls: _tsdb_get
+called_by: fetch_match_context
+mutates: none
+---
+
+---
+name: search_players
+type: function
+file: fetchers/thesportsdb.py
+purpose: Searches TheSportsDB for players associated with a team name.
+inputs: team_name: str
+outputs: list[dict]
+calls: _tsdb_get
+called_by: fetch_match_context
+mutates: none
+---
+
+---
+name: _parse_espn_events
+type: function
+file: fetchers/thesportsdb.py
+purpose: Filters and normalizes ESPN scoreboard response into a list of completed match dicts for a specific team name.
+inputs: data: dict, name_lower: str
+outputs: list[dict]
+calls: none
+called_by: _espn_last5_by_scoreboard
+mutates: none
+---
+
+---
+name: _espn_last5_by_scoreboard
+type: function
+file: fetchers/thesportsdb.py
+purpose: Searches ESPN scoreboards across 14 major soccer leagues over the past 12 months to find the last 5 results for a team without needing a team ID.
+inputs: name: str
+outputs: list[dict]
+calls: _espn_get, _parse_espn_events
+called_by: fetch_match_context
+mutates: none
+---
+
+---
+name: fetch_match_context
+type: function
+file: fetchers/thesportsdb.py
+purpose: Main data fetcher — retrieves team profiles, last 5 results, squad, and H2H for both teams from TheSportsDB and ESPN, with full source transparency.
+inputs: team_a: str, team_b: str
+outputs: dict {team_a, team_b, h2h, sources}
+calls: search_team, last5_from_tsdb, _espn_last5_by_scoreboard, search_players, fetch_h2h, _normalize_last5
+called_by: run_analysis
+mutates: none
+---
+
+---
+name: _normalize_last5
+type: function
+file: fetchers/thesportsdb.py
+purpose: Converts raw TheSportsDB or ESPN event dicts into a consistent frontend format with date, home, away, scores, and winner fields.
+inputs: raw: list[dict]
+outputs: list[dict {date, home, away, score_home, score_away, winner}]
+calls: none
+called_by: fetch_match_context, last5_from_tsdb, fetch_h2h
+mutates: none
+---
+
+---
+
+## fetchers/odds.py
+
+---
+name: SPORT_MAP
+type: variable
+file: fetchers/odds.py
+purpose: Maps Predicta sport names to The Odds API sport keys for API requests.
+inputs: none
+outputs: dict[str, Optional[str]]
+calls: none
+called_by: fetch_odds_snapshot
+mutates: none
+---
+
+---
+name: fetch_odds_snapshot
+type: function
+file: fetchers/odds.py
+purpose: Fetches current odds from The Odds API for a sport/league and persists them to odds_snapshots table; returns list of inserted records or error if key not set.
+inputs: match_id: int, sport: str, league_key: Optional[str] = None, market: str = "h2h"
+outputs: list[dict]
+calls: _get_api_key, httpx.Client.get, get_db
+called_by: run_analysis
+mutates: odds_snapshots table
+---
+
+---
+name: log_manual_odds
+type: function
+file: fetchers/odds.py
+purpose: Persists a manually entered odds snapshot to the database and returns its row ID.
+inputs: match_id: int, book: str, market: str, price_a: float, price_b: float, price_draw: Optional[float] = None
+outputs: int (row ID)
+calls: get_db
+called_by: add_odds (app.py)
+mutates: odds_snapshots table
+---
+
+---
+
+## fetchers/signals.py
+
+---
+name: _save_signal
+type: function
+file: fetchers/signals.py
+purpose: Inserts a single signal row into the signals table within an existing DB connection.
+inputs: conn, match_id: int, signal_name: str, participant: Optional[str], signal_value: Optional[float], signal_text: Optional[str], source: str
+outputs: none
+calls: conn.execute
+called_by: log_signal
+mutates: signals table
+---
+
+---
+name: log_signal
+type: function
+file: fetchers/signals.py
+purpose: Persists a single signal value for a match participant to the database.
+inputs: match_id: int, signal_name: str, participant: Optional[str], signal_value: Optional[float], signal_text: Optional[str], source: str = "manual"
+outputs: none
+calls: get_db, _save_signal
+called_by: add_signal (app.py), run_analysis
+mutates: signals table
+---
+
+---
+name: get_signals_for_match
+type: function
+file: fetchers/signals.py
+purpose: Retrieves all signals for a match and returns them as a nested dict keyed by participant then signal name.
+inputs: match_id: int
+outputs: dict {participant: {signal_name: value}}
+calls: get_db
+called_by: fetch_signals_for_match, get_signals (app.py)
+mutates: none
+---
+
+---
+name: compute_form_weighted
+type: function
+file: fetchers/signals.py
+purpose: Computes an exponentially decayed form score from recent match results (1=win, 0.5=draw, 0=loss) with configurable decay.
+inputs: results: list[float], n: int = 10, decay: float = 0.9
+outputs: float (0–1)
+calls: none
+called_by: none (utility)
+mutates: none
+---
+
+---
+name: compute_h2h_decayed
+type: function
+file: fetchers/signals.py
+purpose: Computes a time-decayed head-to-head win probability for participant A from a list of historical results with dates.
+inputs: h2h_results: list[tuple[float, str]], decay: float = 0.85
+outputs: float (0–1)
+calls: none
+called_by: none (utility)
+mutates: none
+---
+
+---
+name: fetch_signals_for_match
+type: function
+file: fetchers/signals.py
+purpose: Retrieves pre-stored signals for a match structured for model input (alias for get_signals_for_match).
+inputs: match_id: int
+outputs: dict
+calls: get_signals_for_match
+called_by: predict_match (engine.py)
+mutates: none
+---
+
+---
+
+## fetchers/market_data.py
+
+---
+name: fetch_ticker
+type: function
+file: fetchers/market_data.py
+purpose: Fetches OHLCV history, current price snapshot, fundamentals, moving averages, and analyst recs for a ticker symbol via yfinance.
+inputs: symbol: str, period: str = "3mo"
+outputs: dict {symbol, history, price, fundamentals, moving_averages, analyst, sources} or {error}
+calls: yf.Ticker, ticker.history, ticker.info, ticker.recommendations
+called_by: run_trade_analysis
+mutates: none
+---
+
+---
+name: _detect_asset_type
+type: function
+file: fetchers/market_data.py
+purpose: Classifies a ticker as stock, etf, fund, crypto, forex, or futures based on yfinance quoteType and symbol format.
+inputs: info: dict, symbol: str
+outputs: str
+calls: none
+called_by: fetch_ticker
+mutates: none
+---
+
+---
+name: search_ticker
+type: function
+file: fetchers/market_data.py
+purpose: Searches yfinance for tickers matching a company name or partial symbol and returns top 5 matches.
+inputs: query: str
+outputs: list[dict {symbol, name, exchange, type}]
+calls: yf.Search
+called_by: run_trade_analysis
+mutates: none
+---
+
+---
+
+## fetchers/alpaca.py
+
+---
+name: DATA_BASE_URL
+type: variable
+file: fetchers/alpaca.py
+purpose: Base URL for Alpaca market data API (IEX feed, real-time data).
+inputs: none
+outputs: str
+calls: none
+called_by: get_bars, get_daily_bars, get_snapshot, get_snapshots, get_top_movers, get_most_active
+mutates: none
+---
+
+---
+name: PAPER_BASE_URL
+type: variable
+file: fetchers/alpaca.py
+purpose: Base URL for Alpaca paper trading API (order placement, positions, account).
+inputs: none
+outputs: str
+calls: none
+called_by: place_order, place_bracket_order, get_orders, cancel_order, get_positions, get_account
+mutates: none
+---
+
+---
+name: _headers
+type: function
+file: fetchers/alpaca.py
+purpose: Builds Alpaca authentication headers from ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables; raises RuntimeError if missing.
+inputs: none
+outputs: dict
+calls: os.environ.get
+called_by: _get, _post, _delete
+mutates: none
+---
+
+---
+name: _get
+type: function
+file: fetchers/alpaca.py
+purpose: Makes an authenticated GET request to any Alpaca endpoint and returns parsed JSON or an error dict.
+inputs: url: str, params: dict = None
+outputs: dict
+calls: _headers, requests.get
+called_by: get_bars, get_daily_bars, get_snapshot, get_snapshots, get_top_movers, get_most_active, get_orders, get_positions, get_account
+mutates: none
+---
+
+---
+name: _post
+type: function
+file: fetchers/alpaca.py
+purpose: Makes an authenticated POST request to any Alpaca endpoint and returns parsed JSON or an error dict with detail.
+inputs: url: str, body: dict
+outputs: dict
+calls: _headers, requests.post
+called_by: place_order, place_bracket_order
+mutates: Alpaca paper account (creates orders)
+---
+
+---
+name: _delete
+type: function
+file: fetchers/alpaca.py
+purpose: Makes an authenticated DELETE request to cancel an Alpaca order; returns status ok or error dict.
+inputs: url: str
+outputs: dict
+calls: _headers, requests.delete
+called_by: cancel_order
+mutates: Alpaca paper account (cancels order)
+---
+
+---
+name: get_bars
+type: function
+file: fetchers/alpaca.py
+purpose: Fetches OHLCV bars for a symbol at a given timeframe (default 5-min, 78 bars = one full trading day).
+inputs: symbol: str, timeframe: str = "5Min", limit: int = 78
+outputs: list[dict {t, o, h, l, c, v, vw}]
+calls: _get
+called_by: _analyze_one (screener.py), intraday_analysis (app.py)
+mutates: none
+---
+
+---
+name: get_daily_bars
+type: function
+file: fetchers/alpaca.py
+purpose: Fetches daily OHLCV bars for context and trend analysis over the past N days.
+inputs: symbol: str, days: int = 60
+outputs: list[dict]
+calls: _get
+called_by: _analyze_one (screener.py), intraday_analysis (app.py)
+mutates: none
+---
+
+---
+name: get_snapshot
+type: function
+file: fetchers/alpaca.py
+purpose: Fetches latest quote, trade, daily bar, and previous close for a single symbol to build a price snapshot.
+inputs: symbol: str
+outputs: dict {symbol, price, prev_close, change_pct, open, high, low, volume, vwap_day, bid, ask}
+calls: _get
+called_by: intraday_analysis (app.py)
+mutates: none
+---
+
+---
+name: get_snapshots
+type: function
+file: fetchers/alpaca.py
+purpose: Batch-fetches snapshots for multiple symbols in one API call for efficient screener operation.
+inputs: symbols: list[str]
+outputs: dict[str, dict] (keyed by symbol)
+calls: _get
+called_by: run_screener
+mutates: none
+---
+
+---
+name: get_top_movers
+type: function
+file: fetchers/alpaca.py
+purpose: Retrieves today's top gaining and losing stocks from Alpaca's screener endpoint.
+inputs: limit: int = 20
+outputs: dict {gainers: list, losers: list}
+calls: _get
+called_by: run_screener
+mutates: none
+---
+
+---
+name: get_most_active
+type: function
+file: fetchers/alpaca.py
+purpose: Retrieves today's most actively traded stocks by volume from Alpaca's screener endpoint.
+inputs: limit: int = 20
+outputs: list[dict]
+calls: _get
+called_by: run_screener
+mutates: none
+---
+
+---
+name: place_order
+type: function
+file: fetchers/alpaca.py
+purpose: Places a paper trading order (market, limit, stop, or stop-limit) on Alpaca.
+inputs: symbol: str, qty: float, side: str, order_type: str, limit_price: Optional[float], stop_price: Optional[float], time_in_force: str = "day", client_order_id: Optional[str]
+outputs: dict (Alpaca order response or error)
+calls: _post
+called_by: place_trade (app.py)
+mutates: Alpaca paper account (creates order)
+---
+
+---
+name: place_bracket_order
+type: function
+file: fetchers/alpaca.py
+purpose: Places a bracket order (entry + take-profit limit + stop-loss stop) as a single atomic Alpaca order.
+inputs: symbol: str, qty: float, side: str, entry_price: Optional[float], take_profit: float, stop_loss: float
+outputs: dict (Alpaca order response or error)
+calls: _post
+called_by: place_trade (app.py)
+mutates: Alpaca paper account (creates bracket order)
+---
+
+---
+name: get_orders
+type: function
+file: fetchers/alpaca.py
+purpose: Lists paper trading orders filtered by status (open, closed, or all).
+inputs: status: str = "open"
+outputs: list[dict]
+calls: _get
+called_by: list_orders (app.py)
+mutates: none
+---
+
+---
+name: cancel_order
+type: function
+file: fetchers/alpaca.py
+purpose: Cancels an open paper trading order by order ID.
+inputs: order_id: str
+outputs: dict {status: "ok"} or error
+calls: _delete
+called_by: cancel_trade (app.py)
+mutates: Alpaca paper account (cancels order)
+---
+
+---
+name: get_positions
+type: function
+file: fetchers/alpaca.py
+purpose: Retrieves all open paper trading positions with symbol, quantity, entry, current price, and unrealized P&L.
+inputs: none
+outputs: list[dict {symbol, qty, side, avg_entry, current_price, unrealized_pl, unrealized_plpc, market_value}]
+calls: _get
+called_by: get_positions (app.py)
+mutates: none
+---
+
+---
+name: get_account
+type: function
+file: fetchers/alpaca.py
+purpose: Retrieves paper trading account summary including equity, cash, buying power, and day trade count.
+inputs: none
+outputs: dict {equity, cash, buying_power, portfolio_value, daytrade_count, pattern_day_trader}
+calls: _get
+called_by: get_account (app.py)
+mutates: none
+---
+
+---
+
+## engine.py
+
+---
+name: elo_model
+type: variable
+file: engine.py
+purpose: Module-level shared EloModel instance used across all prediction calls.
+inputs: none
+outputs: EloModel
+calls: EloModel()
+called_by: predict_match, record_outcome
+mutates: elo_ratings table (via EloModel methods)
+---
+
+---
+name: glicko_model
+type: variable
+file: engine.py
+purpose: Module-level shared Glicko2Model instance used across all prediction calls.
+inputs: none
+outputs: Glicko2Model
+calls: Glicko2Model()
+called_by: predict_match, record_outcome
+mutates: glicko2_ratings table (via Glicko2Model methods)
+---
+
+---
+name: _market_consensus
+type: function
+file: engine.py
+purpose: Averages vig-free probabilities across all stored odds snapshots for a match to build a market consensus.
+inputs: match_id: int
+outputs: Optional[dict {fair_probs, n_books}]
+calls: get_db, devig_market
+called_by: predict_match
+mutates: none
+---
+
+---
+name: _build_explanation
+type: function
+file: engine.py
+purpose: Constructs a human-readable explanation string from model inputs including form, injury notes, Elo gap, and market consensus.
+inputs: sport, participant_a, participant_b, prob_a, signals_a, signals_b, market, rating_detail: various
+outputs: str
+calls: none
+called_by: predict_match
+mutates: none
+---
+
+---
+name: predict_match
+type: function
+file: engine.py
+purpose: Full prediction pipeline for a stored match — fetches signals, runs Elo/Glicko/Dixon-Coles, blends probabilities, computes markets, persists prediction, returns result dict.
+inputs: match_id: int, method: str = "model_v1", bankroll: float = 1000.0, surface: str = "all"
+outputs: dict {prediction_id, match_id, sport, prob_a, prob_b, prob_draw, explanation, kelly, kelly_note, market, markets}
+calls: get_db, fetch_signals_for_match, elo_model.win_probability, strengths_from_signals, dc_predict, compute_all_markets, glicko_model.win_probability, _market_consensus, _build_explanation, kelly_stake, explain_kelly
+called_by: predict (app.py), run_analysis
+mutates: predictions table
+---
+
+---
+name: record_outcome
+type: function
+file: engine.py
+purpose: Records a match result, updates match status to "final", and optionally updates Elo/Glicko ratings.
+inputs: match_id: int, result: str, score_a: Optional[int], score_b: Optional[int], update_ratings: bool = True, importance: str = "default", surface: str = "all"
+outputs: dict {status, result, new_rating_a?, new_rating_b?}
+calls: get_db, elo_model.update, glicko_model.update
+called_by: add_outcome (app.py)
+mutates: outcomes table, matches table, elo_ratings or glicko2_ratings table
+---
+
+---
+
+## analyze.py
+
+---
+name: _format_markets
+type: function
+file: analyze.py
+purpose: Transforms raw market probability dicts from the engine into frontend-ready format with percentage labels, best-option flags, and team name substitution.
+inputs: raw: dict, team_a: str, team_b: str
+outputs: dict {match_result_2up, correct_score, spread, winner_push_if_tied, next_shot_on_target, method_of_goal_2, corners}
+calls: none
+called_by: run_analysis
+mutates: none
+---
+
+---
+name: _safe_float
+type: function
+file: analyze.py
+purpose: Safely converts a value to float, returning a default if conversion fails or value is None.
+inputs: val: any, default: any = None
+outputs: Optional[float]
+calls: float
+called_by: run_analysis
+mutates: none
+---
+
+---
+name: run_analysis
+type: function
+file: analyze.py
+purpose: Complete end-to-end sports analysis pipeline: parse query → fetch web data → AI interprets signals → create match + log signals → run prediction engine → AI generates narrative → return full result dict.
+inputs: user_query: str
+outputs: dict {match_id, team_a, team_b, prob_a, prob_draw, prob_b, narrative, markets, top_scorers_a/b, h2h, raw_sources, steps, ...}
+calls: init_db, parse_query, fetch_match_context, interpret_signals, EloModel.set_rating, get_db, log_signal, fetch_odds_snapshot, predict_match, generate_narrative, _format_markets, devig_market
+called_by: analyze (app.py)
+mutates: matches, signals, odds_snapshots, predictions tables
+---
+
+---
+
+## analyze_trading.py
+
+---
+name: _parse_ticker
+type: function
+file: analyze_trading.py
+purpose: Extracts a ticker symbol from a natural language query using regex heuristics or falls back to AI parsing via parse_trade_query.
+inputs: query: str
+outputs: str (ticker symbol, uppercase)
+calls: re.match, parse_trade_query
+called_by: run_trade_analysis
+mutates: none
+---
+
+---
+name: run_trade_analysis
+type: function
+file: analyze_trading.py
+purpose: Full trading analysis pipeline: parse ticker → fetch market data → compute signals → Kelly sizing → AI narrative → return result dict.
+inputs: query: str, bankroll: float = 10000.0
+outputs: dict {symbol, price, fundamentals, moving_averages, trend, momentum, volatility, volume, expected_move, support_resistance, score, kelly, narrative, raw_sources, history, steps}
+calls: _parse_ticker, fetch_ticker, search_ticker, compute_signals, kelly_from_signals, generate_trade_narrative
+called_by: analyze_trade (app.py)
+mutates: none
+---
+
+---
+
+## ai_agent.py
+
+---
+name: MODEL
+type: variable
+file: ai_agent.py
+purpose: Claude model identifier used for all sports AI calls (claude-haiku-4-5-20251001).
+inputs: none
+outputs: str
+calls: none
+called_by: parse_query, interpret_signals, generate_narrative
+mutates: none
+---
+
+---
+name: _client
+type: function
+file: ai_agent.py
+purpose: Creates and returns an authenticated Anthropic client from ANTHROPIC_API_KEY; raises RuntimeError if key missing.
+inputs: none
+outputs: anthropic.Anthropic
+calls: os.environ.get, anthropic.Anthropic
+called_by: parse_query, interpret_signals, generate_narrative
+mutates: none
+---
+
+---
+name: parse_query
+type: function
+file: ai_agent.py
+purpose: Sends a user's natural language match query to Claude and returns structured JSON with team names, sport, date, and notes.
+inputs: user_text: str
+outputs: dict {team_a, team_b, date, sport, notes}
+calls: _client, client.messages.create, json.loads, re.sub
+called_by: run_analysis
+mutates: none
+---
+
+---
+name: interpret_signals
+type: function
+file: ai_agent.py
+purpose: Sends fetched match context to Claude and returns quantified model signals (xG, form, Elo, corners, top scorers, injury flags) as a structured dict.
+inputs: team_a: str, team_b: str, fetched_data: dict
+outputs: dict {team_a signals, team_b signals, neutral_site, likely_scorer_a/b, top_scorers_a/b, confidence, signal_notes}
+calls: _client, client.messages.create, json.loads, re.sub
+called_by: run_analysis
+mutates: none
+---
+
+---
+name: generate_narrative
+type: function
+file: ai_agent.py
+purpose: Sends model probabilities and signal context to Claude and returns a 2–3 sentence plain-language prediction narrative.
+inputs: team_a, team_b, prob_a, prob_b, prob_draw, explanation, signals, fetched_context: various
+outputs: str
+calls: _client, client.messages.create
+called_by: run_analysis
+mutates: none
+---
+
+---
+
+## ai_agent_trading.py
+
+---
+name: MODEL
+type: variable
+file: ai_agent_trading.py
+purpose: Claude model identifier used for trading AI calls (claude-haiku-4-5-20251001).
+inputs: none
+outputs: str
+calls: none
+called_by: parse_trade_query, generate_trade_narrative
+mutates: none
+---
+
+---
+name: _client
+type: function
+file: ai_agent_trading.py
+purpose: Creates and returns an authenticated Anthropic client from ANTHROPIC_API_KEY; raises RuntimeError if key missing.
+inputs: none
+outputs: anthropic.Anthropic
+calls: os.environ.get, anthropic.Anthropic
+called_by: parse_trade_query, generate_trade_narrative
+mutates: none
+---
+
+---
+name: parse_trade_query
+type: function
+file: ai_agent_trading.py
+purpose: Sends a user's natural language trading query to Claude and returns the extracted ticker symbol in uppercase.
+inputs: query: str
+outputs: str (ticker symbol)
+calls: _client, client.messages.create
+called_by: _parse_ticker (analyze_trading.py)
+mutates: none
+---
+
+---
+name: generate_trade_narrative
+type: function
+file: ai_agent_trading.py
+purpose: Sends signal data and Kelly sizing to Claude and returns a 3-sentence trading analysis under 90 words ending with the paper-mode disclaimer.
+inputs: symbol: str, market_data: dict, signals: dict, kelly: dict
+outputs: str
+calls: _client, client.messages.create
+called_by: run_trade_analysis
+mutates: none
+---
+
+---
+
+## report.py
+
+---
+name: generate_html_report
+type: function
+file: report.py
+purpose: Queries all matches, predictions, and outcomes from DB and renders a self-contained dark-themed HTML report with calibration metrics.
+inputs: none
+outputs: str (HTML)
+calls: get_db, compute_metrics_from_db
+called_by: html_report (app.py)
+mutates: none
+---
+
+---
+
+## app.py (FastAPI routes and Pydantic models)
+
+---
+name: app
+type: variable
+file: app.py
+purpose: The FastAPI application instance that registers all routes and middleware.
+inputs: none
+outputs: FastAPI
+calls: FastAPI()
+called_by: uvicorn (entrypoint)
+mutates: none
+---
+
+---
+name: startup
+type: hook
+file: app.py
+purpose: FastAPI startup event handler that initializes the SQLite database on server start.
+inputs: none
+outputs: none
+calls: init_db
+called_by: FastAPI on_event("startup")
+mutates: predicta.db
+---
+
+---
+name: create_match
+type: function
+file: app.py
+purpose: POST /matches — validates sport and inserts a new match record, returning its ID.
+inputs: body: MatchCreate
+outputs: dict {match_id}
+calls: get_db
+called_by: HTTP POST /matches
+mutates: matches table
+---
+
+---
+name: list_matches
+type: function
+file: app.py
+purpose: GET /matches — returns all matches optionally filtered by sport and/or status.
+inputs: sport: Optional[str], status: Optional[str]
+outputs: list[dict]
+calls: get_db
+called_by: HTTP GET /matches
+mutates: none
+---
+
+---
+name: get_match
+type: function
+file: app.py
+purpose: GET /matches/{id} — returns a single match by ID or 404.
+inputs: match_id: int
+outputs: dict
+calls: get_db
+called_by: HTTP GET /matches/{match_id}
+mutates: none
+---
+
+---
+name: add_signal
+type: function
+file: app.py
+purpose: POST /matches/{id}/signals — logs a signal value for a match participant.
+inputs: match_id: int, body: SignalCreate
+outputs: dict {status: "ok"}
+calls: log_signal
+called_by: HTTP POST /matches/{match_id}/signals
+mutates: signals table
+---
+
+---
+name: predict
+type: function
+file: app.py
+purpose: POST /matches/{id}/predict — runs the prediction engine for a match and returns full prediction result.
+inputs: match_id: int, body: PredictRequest
+outputs: dict (prediction result)
+calls: predict_match
+called_by: HTTP POST /matches/{match_id}/predict
+mutates: predictions table
+---
+
+---
+name: add_odds
+type: function
+file: app.py
+purpose: POST /matches/{id}/odds — logs manual odds and returns fair de-vigged probabilities.
+inputs: match_id: int, body: OddsCreate
+outputs: dict {snapshot_id, fair_probs}
+calls: log_manual_odds, devig_market
+called_by: HTTP POST /matches/{match_id}/odds
+mutates: odds_snapshots table
+---
+
+---
+name: add_outcome
+type: function
+file: app.py
+purpose: POST /matches/{id}/outcome — records a match result and optionally updates ratings.
+inputs: match_id: int, body: OutcomeCreate
+outputs: dict (record_outcome result)
+calls: record_outcome
+called_by: HTTP POST /matches/{match_id}/outcome
+mutates: outcomes table, matches table, ratings tables
+---
+
+---
+name: calibration
+type: function
+file: app.py
+purpose: GET /calibration — returns Brier score, log-loss, and reliability curve for all or a specific method's predictions.
+inputs: method: Optional[str]
+outputs: dict (calibration metrics)
+calls: compute_metrics_from_db
+called_by: HTTP GET /calibration
+mutates: none
+---
+
+---
+name: html_report
+type: function
+file: app.py
+purpose: GET /report — generates and returns the full HTML prediction tracker report.
+inputs: none
+outputs: HTMLResponse
+calls: generate_html_report
+called_by: HTTP GET /report
+mutates: none
+---
+
+---
+name: analyze
+type: function
+file: app.py
+purpose: POST /analyze — runs the full sports analysis pipeline from a natural language query.
+inputs: body: AnalyzeRequest
+outputs: dict (full analysis result)
+calls: run_analysis
+called_by: HTTP POST /analyze
+mutates: matches, signals, predictions tables
+---
+
+---
+name: analyze_trade
+type: function
+file: app.py
+purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query.
+inputs: body: TradeRequest
+outputs: dict (trading analysis result)
+calls: run_trade_analysis
+called_by: HTTP POST /analyze-trade
+mutates: none
+---
+
+---
+name: scan_market
+type: function
+file: app.py
+purpose: POST /scan — runs the market screener across a watchlist or today's top movers and returns ranked signal results.
+inputs: body: ScanRequest
+outputs: dict {count, symbols_scanned, results}
+calls: run_screener
+called_by: HTTP POST /scan
+mutates: none
+---
+
+---
+name: intraday_analysis
+type: function
+file: app.py
+purpose: POST /intraday — fetches live Alpaca bars and computes full intraday signal analysis plus Kelly sizing for a single symbol.
+inputs: body: IntradayRequest
+outputs: dict {symbol, snapshot, intraday_bars, score, signals, levels, kelly}
+calls: get_snapshot, get_bars, get_daily_bars, compute_intraday_signals, kelly_from_signals
+called_by: HTTP POST /intraday
+mutates: none
+---
+
+---
+name: place_trade
+type: function
+file: app.py
+purpose: POST /trade/order — places a paper trading order or bracket order on Alpaca.
+inputs: body: OrderRequest
+outputs: dict (Alpaca order response)
+calls: place_order, place_bracket_order
+called_by: HTTP POST /trade/order
+mutates: Alpaca paper account
+---
+
+---
+name: list_orders
+type: function
+file: app.py
+purpose: GET /trade/orders — lists Alpaca paper trading orders by status.
+inputs: status: str = "open"
+outputs: list[dict]
+calls: get_orders
+called_by: HTTP GET /trade/orders
+mutates: none
+---
+
+---
+name: cancel_trade
+type: function
+file: app.py
+purpose: DELETE /trade/orders/{id} — cancels an open Alpaca paper trading order.
+inputs: order_id: str
+outputs: dict
+calls: cancel_order
+called_by: HTTP DELETE /trade/orders/{order_id}
+mutates: Alpaca paper account
+---
+
+---
+name: get_positions
+type: function
+file: app.py
+purpose: GET /trade/positions — returns all open Alpaca paper trading positions with P&L.
+inputs: none
+outputs: list[dict]
+calls: get_positions (fetchers/alpaca.py)
+called_by: HTTP GET /trade/positions
+mutates: none
+---
+
+---
+name: get_account
+type: function
+file: app.py
+purpose: GET /trade/account — returns Alpaca paper account summary (equity, cash, buying power).
+inputs: none
+outputs: dict
+calls: get_account (fetchers/alpaca.py)
+called_by: HTTP GET /trade/account
+mutates: none
+---
