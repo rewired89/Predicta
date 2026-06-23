@@ -50,8 +50,8 @@ class MatchCreate(BaseModel):
 
 @app.post("/matches", status_code=201)
 def create_match(body: MatchCreate):
-    if body.sport not in ("soccer", "table_tennis", "tennis"):
-        raise HTTPException(400, "sport must be soccer, table_tennis, or tennis")
+    if body.sport not in ("soccer", "table_tennis", "tennis", "baseball"):
+        raise HTTPException(400, "sport must be soccer, table_tennis, tennis, or baseball")
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO matches (sport, league, participant_a, participant_b,
@@ -226,6 +226,22 @@ def analyze(body: AnalyzeRequest):
         raise HTTPException(400, "Query cannot be empty")
     from analyze import run_analysis
     result = run_analysis(body.query)
+    if "error" in result and not result.get("team_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class BaseballRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-baseball")
+def analyze_baseball(body: BaseballRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_baseball import run_baseball_analysis
+    result = run_baseball_analysis(body.query, body.bankroll)
     if "error" in result and not result.get("team_a"):
         raise HTTPException(500, detail=result["error"])
     return result
