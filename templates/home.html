@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080d14;
+    --surface:  #0e1520;
+    --surface2: #131d2e;
+    --border:   #1a2840;
+    --green:    #00e676;
+    --green-dim:#00e67622;
+    --green-glow: 0 0 32px #00e67633;
+    --blue:     #38bdf8;
+    --text:     #e2e8f0;
+    --muted:    #5a7299;
+    --radius:   14px;
+  }
+
+  html { font-size: 15px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  header {
+    background: rgba(8,13,20,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo { font-size: 1.3rem; font-weight: 800; color: var(--green); letter-spacing: -.5px; }
+  .badge {
+    background: #00e67618;
+    color: var(--green);
+    font-size: .65rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    border: 1px solid #00e67630;
+  }
+  header nav { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+  header nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: .82rem;
+    font-weight: 500;
+    transition: color .2s;
+  }
+  header nav a:hover { color: var(--text); }
+  header nav a.active { color: var(--green); }
+
+  /* ── Hero ───────────────────────────────────────────────── */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 24px 120px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* green radial glow behind content */
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, #00e67610 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 16px;
+  }
+
+  .hero-title {
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -.5px;
+    margin-bottom: 18px;
+  }
+  .hero-title .accent { color: var(--green); }
+
+  .hero-sub {
+    color: var(--muted);
+    font-size: 1rem;
+    max-width: 480px;
+    line-height: 1.6;
+    margin-bottom: 60px;
+  }
+
+  /* ── Category cards ─────────────────────────────────────── */
+  .cards {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 780px;
+  }
+
+  .card {
+    flex: 1 1 300px;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px 32px;
+    text-decoration: none;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .25s, transform .25s, box-shadow .25s;
+    cursor: pointer;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--green-dim) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+  }
+  .card:hover { border-color: var(--green); transform: translateY(-4px); box-shadow: var(--green-glow); }
+  .card:hover::before { opacity: 1; }
+
+  .card-icon {
+    font-size: 2.6rem;
+    line-height: 1;
+    filter: grayscale(0.2);
+  }
+
+  .card-label {
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green);
+    opacity: .7;
+  }
+
+  .card-title {
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .card-desc {
+    font-size: .84rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .card-arrow {
+    margin-top: auto;
+    padding-top: 16px;
+    font-size: .8rem;
+    color: var(--green);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity .25s, transform .25s;
+  }
+  .card:hover .card-arrow { opacity: 1; transform: translateX(0); }
+
+  /* ── Footer ─────────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 20px;
+    font-size: .75rem;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 560px) {
+    .cards { flex-direction: column; align-items: center; }
+    .card { max-width: 100%; }
+    .hero-title { font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Predicta</div>
+  <div class="badge">PAPER MODE</div>
+  <nav>
+    <a href="/" class="active">Home</a>
+    <a href="/sports">Sports</a>
+    <a href="/trading">Markets</a>
+    <a href="/report">Report</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="hero-eyebrow">AI-Powered Analysis</div>
+  <h1 class="hero-title">Your edge in<br><span class="accent">data-driven</span> decisions.</h1>
+  <p class="hero-sub">Statistical models, live data feeds, and AI narratives — choose your arena.</p>
+
+  <div class="cards">
+
+    <a class="card" href="/sports">
+      <div class="card-icon">🏟️</div>
+      <div class="card-label">Category</div>
+      <div class="card-title">Sports</div>
+      <div class="card-desc">Soccer and baseball predictions powered by Elo, Glicko-2, and Dixon-Coles models with real-time data.</div>
+      <div class="card-arrow">Explore → </div>
+    </a>
+
+    <a class="card" href="/trading">
+      <div class="card-icon">📈</div>
+      <div class="card-label">Category</div>
+      <div class="card-title">Stock Market</div>
+      <div class="card-desc">Intraday signals, trend analysis, volatility models, and Kelly-sized position recommendations.</div>
+      <div class="card-arrow">Explore → </div>
+    </a>
+
+  </div>
+</div>
+
+<footer>Predicta · Paper mode only · No real wagers or trades are placed.</footer>
+
+</body>
+</html>

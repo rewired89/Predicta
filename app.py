@@ -205,8 +205,23 @@ def html_report():
 # ── Main UI ───────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+def home():
+    return HTMLResponse(content=(TEMPLATES_DIR / "home.html").read_text(encoding="utf-8"))
+
+
+@app.get("/sports", response_class=HTMLResponse)
+def sports():
+    return HTMLResponse(content=(TEMPLATES_DIR / "sports.html").read_text(encoding="utf-8"))
+
+
+@app.get("/soccer", response_class=HTMLResponse)
+def soccer():
     return HTMLResponse(content=(TEMPLATES_DIR / "index.html").read_text(encoding="utf-8"))
+
+
+@app.get("/baseball", response_class=HTMLResponse)
+def baseball_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "baseball.html").read_text(encoding="utf-8"))
 
 
 @app.get("/trading", response_class=HTMLResponse)
