@@ -1,6 +1,9 @@
 """
-MLB Stats API fetcher.
-Public API — no key required.
+ESPN MLB data fetcher.
+Uses the same unofficial ESPN API already used by fetchers/thesportsdb.py for soccer.
+No API key or registration required.
+
+Egress requirement: add site.api.espn.com to your network egress settings.
 """
 from __future__ import annotations
 import difflib
@@ -10,14 +13,15 @@ from typing import Optional
 
 import httpx
 
-BASE_URL = "https://statsapi.mlb.com/api/v1"
-TIMEOUT = 15.0
+ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb"
+TIMEOUT   = 15.0
 
-LEAGUE_AVG_RUNS = 4.5       # 2024 MLB runs per team per game
-LEAGUE_AVG_FIP = 4.00       # 2024 MLB FIP baseline
-FIP_CONSTANT = 3.20         # constant added to raw FIP to align with ERA scale
+LEAGUE_AVG_RUNS    = 4.5    # 2024 MLB runs per team per game
+LEAGUE_AVG_FIP     = 4.00   # 2024 MLB FIP baseline
+FIP_CONSTANT       = 3.20   # added to raw FIP to align with ERA scale
+LEAGUE_AVG_WRC_PLUS = 100.0
 
-# 3-year park run factors by team abbreviation (1.0 = perfectly neutral)
+# 3-year park run factors by ESPN team abbreviation (1.0 = neutral)
 PARK_FACTORS: dict[str, float] = {
     "COL": 1.19,
     "CIN": 1.08,
@@ -51,9 +55,29 @@ PARK_FACTORS: dict[str, float] = {
     "SF":  0.92,
 }
 
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
+
+def _espn_get(path: str, params: dict | None = None) -> dict:
+    """GET from ESPN API; returns parsed JSON or {} on any failure."""
+    url = f"{ESPN_BASE}{path}"
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            resp = client.get(url, params=params or {}, headers=_HEADERS)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception:
+        return {}
+
 
 def _f(val, default: float = 0.0) -> float:
-    """Safe float conversion — MLB API mixes strings and numbers."""
+    """Safe float — handles ESPN strings like '.265' and None."""
     if val is None:
         return default
     try:
@@ -62,39 +86,66 @@ def _f(val, default: float = 0.0) -> float:
         return default
 
 
-def _ip(ip_str) -> float:
-    """Convert MLB IP string '100.2' (100 innings + 2 outs) to decimal innings."""
+def _stat(stats_list: list, *names: str, default: float = 0.0) -> float:
+    """Extract value from ESPN stats array by name (tries multiple aliases)."""
+    lookup = {s.get("name", "").lower(): _f(s.get("value"), default) for s in stats_list}
+    for name in names:
+        val = lookup.get(name.lower())
+        if val is not None:
+            return val
+    return default
+
+
+def _ip_from_espn(ip_val) -> float:
+    """
+    ESPN returns IP as a decimal where the tenths digit represents outs (0–2).
+    e.g. 95.1 means 95 innings + 1 out = 95.333 decimal innings.
+    If already a large decimal like 95.333, use directly.
+    """
     try:
-        s = str(ip_str or "0").strip()
-        parts = s.split(".")
-        full = int(parts[0]) if parts[0] else 0
-        outs = int(parts[1]) if len(parts) > 1 and parts[1] else 0
-        return full + outs / 3
-    except (ValueError, IndexError):
+        v = float(ip_val or 0)
+        tenths = round((v % 1) * 10)
+        if tenths in (1, 2):          # MLB fractional format (95.1 or 95.2)
+            return int(v) + tenths / 3
+        return v                       # already decimal innings
+    except (ValueError, TypeError):
         return 0.0
 
 
-def _mlb_get(path: str, params: dict | None = None) -> dict:
-    url = f"{BASE_URL}{path}"
-    try:
-        with httpx.Client(timeout=TIMEOUT) as client:
-            resp = client.get(url, params=params or {})
-            resp.raise_for_status()
-            return resp.json()
-    except Exception:
-        return {}
+def compute_fip(stats: list) -> Optional[float]:
+    """
+    Compute FIP from ESPN pitching stats list.
+    FIP = ((13×HR) + (3×BB) - (2×K)) / IP + FIP_constant
+    Note: HBP usually absent from ESPN; excluded (minor effect).
+    """
+    hr  = _stat(stats, "homeRunsAllowed", "homeRuns", "hr")
+    bb  = _stat(stats, "walks", "baseOnBalls", "bb")
+    k   = _stat(stats, "strikeouts", "so", "k")
+    ip  = _ip_from_espn(_stat(stats, "inningsPitched", "ip") or
+                        _stat(stats, "inningsPitchedFull"))
+    if ip < 1:
+        return None
+    return round(((13 * hr) + (3 * bb) - (2 * k)) / ip + FIP_CONSTANT, 2)
 
+
+# ── Team list ─────────────────────────────────────────────────────────────────
 
 def _all_teams() -> list[dict]:
-    data = _mlb_get("/teams", {"sportId": 1, "season": datetime.now(timezone.utc).year})
-    return data.get("teams", [])
+    data = _espn_get("/teams")
+    teams = []
+    for sport in data.get("sports", []):
+        for league in sport.get("leagues", []):
+            for entry in league.get("teams", []):
+                teams.append(entry.get("team", entry))
+    return teams
 
 
 def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
-    """Fuzzy-match a user-supplied name to an MLB team object."""
+    """Fuzzy-match a user-supplied name to an ESPN MLB team object."""
     candidates: dict[str, dict] = {}
     for t in teams:
-        for key in ("name", "teamName", "abbreviation", "locationName", "shortName", "clubName"):
+        for key in ("displayName", "shortDisplayName", "abbreviation",
+                    "location", "name", "nickname"):
             val = t.get(key, "")
             if val:
                 candidates[val.lower()] = t
@@ -114,200 +165,241 @@ def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
     return None
 
 
-def _current_season() -> int:
-    return datetime.now(timezone.utc).year
+# ── Standings ─────────────────────────────────────────────────────────────────
+
+def _get_all_records() -> dict[str, dict]:
+    """
+    Fetch all team W-L records from standings.
+    Returns {team_id: {wins, losses, games_played, win_pct, run_differential}}.
+    """
+    data = _espn_get("/standings")
+    records: dict[str, dict] = {}
+
+    def _walk(node):
+        if isinstance(node, dict):
+            # If this is a standings node with entries
+            for entry in node.get("standings", {}).get("entries", []):
+                tid = str(entry.get("team", {}).get("id", ""))
+                if not tid:
+                    continue
+                stats = entry.get("stats", [])
+                wins  = int(_stat(stats, "wins"))
+                losses = int(_stat(stats, "losses"))
+                gp = wins + losses
+                rd = int(_stat(stats, "pointDifferential", "runDifferential"))
+                records[tid] = {
+                    "wins":             wins,
+                    "losses":           losses,
+                    "games_played":     gp,
+                    "win_pct":          round(wins / gp, 3) if gp > 0 else 0.5,
+                    "run_differential": rd,
+                }
+            for child in node.get("children", []):
+                _walk(child)
+
+    _walk(data)
+    return records
 
 
-def compute_fip(stat: dict) -> Optional[float]:
+# ── Scoreboard / game finder ──────────────────────────────────────────────────
+
+def _get_scoreboard(date_str: str) -> list[dict]:
+    """Get all MLB events for a given date (YYYY-MM-DD)."""
+    date_compact = date_str.replace("-", "")
+    data = _espn_get("/scoreboard", {"dates": date_compact})
+    return data.get("events", [])
+
+
+def _find_game(events: list[dict], team_a_id: str, team_b_id: str
+               ) -> tuple[Optional[dict], Optional[dict]]:
     """
-    FIP = ((13×HR) + (3×(BB+HBP)) - (2×K)) / IP + FIP_constant
-    Returns None when IP < 1.
+    Returns (event, competition) for the game between the two teams,
+    or (None, None) if not found.
     """
-    try:
-        hr  = _f(stat.get("homeRuns", 0))
-        bb  = _f(stat.get("baseOnBalls", 0))
-        hbp = _f(stat.get("hitBatsmen", 0))
-        k   = _f(stat.get("strikeOuts", 0))
-        ip  = _ip(stat.get("inningsPitched", "0"))
-        if ip < 1:
+    for event in events:
+        for comp in event.get("competitions", []):
+            ids = {str(c.get("team", {}).get("id", ""))
+                   for c in comp.get("competitors", [])}
+            if team_a_id in ids and team_b_id in ids:
+                return event, comp
+    return None, None
+
+
+def _extract_probable(comp: dict, side: str) -> Optional[dict]:
+    """Extract probable pitcher {id, name, era, stats_list} for home or away."""
+    for c in comp.get("competitors", []):
+        if c.get("homeAway", "").lower() != side:
+            continue
+        probables = c.get("probables", [])
+        if not probables:
             return None
-        return round(((13 * hr) + (3 * (bb + hbp)) - (2 * k)) / ip + FIP_CONSTANT, 2)
-    except ZeroDivisionError:
-        return None
+        p = probables[0]
+        athlete = p.get("athlete", {})
+        stats   = p.get("statistics", [])
+        era     = _f(next(
+            (s.get("value") for s in stats
+             if s.get("name", "").upper() == "ERA"), None
+        ))
+        return {
+            "id":   str(athlete.get("id", "") or p.get("id", "") or p.get("athleteId", "")),
+            "name": athlete.get("displayName") or athlete.get("shortName") or "TBD",
+            "era":  era or LEAGUE_AVG_FIP,
+            "stats_from_scoreboard": stats,
+        }
+    return None
 
 
-def get_pitcher_season_stats(person_id: int, season: int) -> dict:
-    data = _mlb_get(f"/people/{person_id}/stats", {
-        "stats": "season",
-        "group": "pitching",
-        "season": season,
-    })
-    splits = (data.get("stats") or [{}])[0].get("splits", [])
-    if not splits:
+# ── Pitcher season stats ──────────────────────────────────────────────────────
+
+def _get_pitcher_stats(athlete_id: str) -> dict:
+    """
+    Fetch detailed season pitching stats for a player from ESPN.
+    Returns ERA, FIP (computed), WHIP, K/9, BB/9, IP, GS.
+    """
+    if not athlete_id:
         return {}
-    raw = splits[0].get("stat", {})
-    ip = _ip(raw.get("inningsPitched"))
-    fip = compute_fip(raw)
-    era = _f(raw.get("era"))
+    data = _espn_get(f"/athletes/{athlete_id}/statistics")
+
+    # ESPN wraps stats in various structures — try both
+    stats: list = []
+    for section in data.get("statistics", []):
+        if isinstance(section, dict):
+            inner = section.get("stats", section.get("statistics", []))
+            if inner:
+                stats = inner
+                break
+        # Sometimes it's a flat list
+        if isinstance(section, list):
+            stats = section
+            break
+
+    if not stats:
+        # Fall back to splits structure
+        splits = data.get("splits", {}).get("categories", [])
+        for cat in splits:
+            if "pitch" in cat.get("name", "").lower():
+                stats = cat.get("stats", [])
+                break
+
+    if not stats:
+        return {}
+
+    era   = _stat(stats, "ERA", "era", default=LEAGUE_AVG_FIP)
+    whip  = _stat(stats, "WHIP", "whip")
+    k9    = _stat(stats, "strikeoutsPerNineInnings", "K9", "so9")
+    bb9   = _stat(stats, "walksPerNineInnings", "BB9", "bb9")
+    gs    = int(_stat(stats, "gamesStarted", "gs"))
+    ip    = _ip_from_espn(_stat(stats, "inningsPitched", "ip"))
+    fip   = compute_fip(stats)
+
+    if not k9 and ip > 0:
+        k = _stat(stats, "strikeouts", "so", "k")
+        k9 = round(k / ip * 9, 2) if ip > 0 else 0.0
+    if not bb9 and ip > 0:
+        bb = _stat(stats, "walks", "baseOnBalls", "bb")
+        bb9 = round(bb / ip * 9, 2) if ip > 0 else 0.0
+
     return {
-        "era":           era,
-        "fip":           fip if fip is not None else era,
-        "whip":          _f(raw.get("whip")),
-        "k9":            _f(raw.get("strikeoutsPer9Inn")),
-        "bb9":           _f(raw.get("walksPer9Inn")),
-        "k_bb":          _f(raw.get("strikeoutWalkRatio")),
+        "era":             era,
+        "fip":             fip if fip is not None else era,
+        "whip":            whip,
+        "k9":              k9,
+        "bb9":             bb9,
         "innings_pitched": round(ip, 1),
-        "games_started": int(_f(raw.get("gamesStarted"))),
+        "games_started":   gs,
     }
 
 
-def get_pitcher_recent_games(person_id: int, season: int, limit: int = 5) -> list[dict]:
-    data = _mlb_get(f"/people/{person_id}/stats", {
-        "stats": "gameLog",
-        "group": "pitching",
-        "season": season,
-        "gameType": "R",
-    })
-    splits = (data.get("stats") or [{}])[0].get("splits", [])
-    starts = [s for s in splits if int(_f(s.get("stat", {}).get("gamesStarted"))) >= 1]
-    starts = starts[-limit:]
-    result = []
-    for s in reversed(starts):
-        stat = s.get("stat", {})
-        result.append({
-            "date": s.get("date", ""),
-            "ip":   round(_ip(stat.get("inningsPitched")), 1),
-            "era_game": _f(stat.get("era")),
-            "k":    int(_f(stat.get("strikeOuts"))),
-            "bb":   int(_f(stat.get("baseOnBalls"))),
-            "hr":   int(_f(stat.get("homeRuns"))),
-            "runs": int(_f(stat.get("runs"))),
-        })
-    return result
+# ── Team batting stats ────────────────────────────────────────────────────────
 
+def _get_team_hitting(team_id: str) -> dict:
+    """
+    Fetch team batting season stats. Returns wRC+ (OPS-derived), OPS, runs/game.
+    """
+    data = _espn_get(f"/teams/{team_id}/statistics")
 
-def get_team_hitting_stats(team_id: int, season: int) -> dict:
-    data = _mlb_get(f"/teams/{team_id}/stats", {
-        "stats": "season",
-        "group": "hitting",
-        "season": season,
-    })
-    splits = (data.get("stats") or [{}])[0].get("splits", [])
-    if not splits:
-        return {}
-    raw = splits[0].get("stat", {})
-    ops  = _f(raw.get("ops"))
-    runs = _f(raw.get("runs"))
-    gp   = max(_f(raw.get("gamesPlayed"), 1), 1)
-    pa   = max(_f(raw.get("plateAppearances"), 1), 1)
-    # wRC+ approximation: scale OPS against 2024 league avg (.730)
+    stats: list = []
+    for section in data.get("statistics", []):
+        if isinstance(section, dict):
+            name = section.get("name", "").lower()
+            if "batt" in name or "hitting" in name or "offens" in name:
+                stats = section.get("stats", [])
+                break
+            # might be a flat list under "splits"
+    if not stats:
+        # Try splits / categories structure
+        splits = data.get("splits", {}).get("categories", [])
+        for cat in splits:
+            if "batt" in cat.get("name", "").lower() or "hit" in cat.get("name", "").lower():
+                stats = cat.get("stats", [])
+                break
+
+    if not stats:
+        # Try top-level stats array (some ESPN endpoints return everything flat)
+        stats = data.get("stats", [])
+
+    ops  = _stat(stats, "OPS", "ops", "onBasePlusSlugging")
+    avg  = _stat(stats, "battingAverage", "avg", "average")
+    obp  = _stat(stats, "onBasePercentage", "obp")
+    slg  = _stat(stats, "sluggingPercentage", "slg")
+    runs = _stat(stats, "runs", "runsScored", "r")
+    gp   = _stat(stats, "gamesPlayed", "gp") or 1
+    k_n  = _stat(stats, "strikeouts", "so", "k")
+    bb_n = _stat(stats, "walks", "baseOnBalls", "bb")
+    pa   = _stat(stats, "plateAppearances", "pa") or max(gp * 36, 1)
+
+    # wRC+ approximation from OPS (2024 MLB avg OPS ~.730)
     wrc_plus = round((ops / 0.730) * 100) if ops > 0 else 100
+
     return {
         "ops":           round(ops, 3),
-        "avg":           _f(raw.get("avg")),
-        "obp":           _f(raw.get("obp")),
-        "slg":           _f(raw.get("slg")),
-        "k_pct":         round(_f(raw.get("strikeOuts")) / pa, 3),
-        "bb_pct":        round(_f(raw.get("baseOnBalls")) / pa, 3),
-        "runs_per_game": round(runs / gp, 2),
+        "avg":           round(avg, 3),
+        "obp":           round(obp, 3),
+        "slg":           round(slg, 3),
+        "k_pct":         round(k_n / pa, 3) if pa > 0 else 0.0,
+        "bb_pct":        round(bb_n / pa, 3) if pa > 0 else 0.0,
+        "runs_per_game": round(runs / gp, 2) if gp > 0 else 0.0,
         "wrc_plus":      wrc_plus,
     }
 
 
-def get_team_pitching_stats(team_id: int, season: int) -> dict:
-    data = _mlb_get(f"/teams/{team_id}/stats", {
-        "stats": "season",
-        "group": "pitching",
-        "season": season,
-    })
-    splits = (data.get("stats") or [{}])[0].get("splits", [])
-    if not splits:
-        return {}
-    raw = splits[0].get("stat", {})
-    era = _f(raw.get("era"))
-    fip = compute_fip(raw)
-    return {
-        "era":  era,
-        "fip":  fip if fip is not None else era,
-        "whip": _f(raw.get("whip")),
-        "k9":   _f(raw.get("strikeoutsPer9Inn")),
-        "bb9":  _f(raw.get("walksPer9Inn")),
+# ── Starter builder ───────────────────────────────────────────────────────────
+
+def _build_starter(probable: Optional[dict]) -> dict:
+    """Build complete starter dict, fetching detailed stats if we have an athlete ID."""
+    _default = {
+        "name": "TBD",
+        "fip":  LEAGUE_AVG_FIP,
+        "era":  LEAGUE_AVG_FIP,
+        "whip": 0.0, "k9": 0.0, "bb9": 0.0,
+        "innings_pitched": 0, "games_started": 0, "recent_games": [],
     }
+    if not probable:
+        return _default
+
+    result = {**_default,
+              "name": probable["name"],
+              "era":  probable["era"],
+              "fip":  probable["era"]}   # will improve if we get detailed stats
+
+    athlete_id = probable.get("id", "")
+    if athlete_id:
+        detailed = _get_pitcher_stats(athlete_id)
+        if detailed:
+            result.update({
+                "fip":             detailed.get("fip") or probable["era"],
+                "era":             detailed.get("era") or probable["era"],
+                "whip":            detailed.get("whip", 0.0),
+                "k9":              detailed.get("k9", 0.0),
+                "bb9":             detailed.get("bb9", 0.0),
+                "innings_pitched": detailed.get("innings_pitched", 0),
+                "games_started":   detailed.get("games_started", 0),
+            })
+
+    return result
 
 
-def get_team_record(team_id: int, season: int) -> dict:
-    data = _mlb_get("/standings", {
-        "leagueId":      "103,104",
-        "season":         season,
-        "standingsTypes": "regularSeason",
-    })
-    for division in data.get("records", []):
-        for rec in division.get("teamRecords", []):
-            if rec.get("team", {}).get("id") == team_id:
-                w  = int(rec.get("wins", 0))
-                l  = int(rec.get("losses", 0))
-                gp = w + l
-                pct = w / gp if gp > 0 else 0.5
-                return {
-                    "wins":            w,
-                    "losses":          l,
-                    "games_played":    gp,
-                    "win_pct":         round(pct, 3),
-                    "run_differential": int(_f(rec.get("runDifferential"))),
-                }
-    return {"wins": 0, "losses": 0, "games_played": 0, "win_pct": 0.500, "run_differential": 0}
-
-
-def get_schedule(date_str: str) -> list[dict]:
-    data = _mlb_get("/schedule", {
-        "sportId": 1,
-        "date":    date_str,
-        "hydrate": "probablePitcher,team,venue",
-    })
-    games = []
-    for date_entry in data.get("dates", []):
-        games.extend(date_entry.get("games", []))
-    return games
-
-
-def _find_game(team_a_id: int, team_b_id: int, date_str: str) -> Optional[dict]:
-    for game in get_schedule(date_str):
-        home_id = game.get("teams", {}).get("home", {}).get("team", {}).get("id")
-        away_id = game.get("teams", {}).get("away", {}).get("team", {}).get("id")
-        if {home_id, away_id} == {team_a_id, team_b_id}:
-            return game
-    return None
-
-
-def _extract_pitcher(game: dict, side: str) -> Optional[dict]:
-    p = game.get("teams", {}).get(side, {}).get("probablePitcher")
-    if p:
-        return {"id": p.get("id"), "name": p.get("fullName", "TBD")}
-    return None
-
-
-def _build_starter(pitcher_info: Optional[dict], season: int) -> dict:
-    if not pitcher_info or not pitcher_info.get("id"):
-        return {"name": "TBD", "fip": LEAGUE_AVG_FIP, "era": LEAGUE_AVG_FIP,
-                "whip": 0.0, "k9": 0.0, "bb9": 0.0, "k_bb": 0.0,
-                "innings_pitched": 0, "games_started": 0, "recent_games": []}
-    pid = pitcher_info["id"]
-    stats = get_pitcher_season_stats(pid, season)
-    recent = get_pitcher_recent_games(pid, season, limit=5)
-    return {
-        "name":            pitcher_info["name"],
-        "id":              pid,
-        "fip":             stats.get("fip") or LEAGUE_AVG_FIP,
-        "era":             stats.get("era", LEAGUE_AVG_FIP),
-        "whip":            stats.get("whip", 0.0),
-        "k9":              stats.get("k9", 0.0),
-        "bb9":             stats.get("bb9", 0.0),
-        "k_bb":            stats.get("k_bb", 0.0),
-        "innings_pitched": stats.get("innings_pitched", 0),
-        "games_started":   stats.get("games_started", 0),
-        "recent_games":    recent,
-    }
-
+# ── Main entry point ──────────────────────────────────────────────────────────
 
 def fetch_baseball_context(
     team_a: str,
@@ -315,16 +407,25 @@ def fetch_baseball_context(
     game_date: Optional[str] = None,
 ) -> dict:
     """
-    Main entry point — fetches all data for a baseball matchup:
-    team records, hitting stats, probable starters (with FIP), park factor.
-    Returns a structured dict ready for the analysis pipeline.
+    Fetch all data for a baseball matchup from ESPN:
+    team records, hitting stats, probable starters with FIP, park factor.
+    Returns a structured dict compatible with analyze_baseball.py.
     """
-    season = _current_season()
     if not game_date:
         game_date = datetime.now(timezone.utc).date().isoformat()
 
     sources: list[dict] = []
     all_teams = _all_teams()
+
+    if not all_teams:
+        return {
+            "error": (
+                "ESPN MLB API unreachable. "
+                "Please add site.api.espn.com to your network egress settings — "
+                "no registration needed, it's the same host used for soccer data."
+            ),
+            "sources": sources,
+        }
 
     mlb_a = _match_team(team_a, all_teams)
     mlb_b = _match_team(team_b, all_teams)
@@ -334,76 +435,71 @@ def fetch_baseball_context(
     if not mlb_b:
         return {"error": f"Could not find MLB team matching '{team_b}'", "sources": sources}
 
-    id_a, id_b     = mlb_a["id"], mlb_b["id"]
-    name_a, name_b = mlb_a["name"], mlb_b["name"]
-    abbr_a, abbr_b = mlb_a.get("abbreviation", ""), mlb_b.get("abbreviation", "")
+    id_a    = str(mlb_a["id"])
+    id_b    = str(mlb_b["id"])
+    name_a  = mlb_a.get("displayName", team_a)
+    name_b  = mlb_b.get("displayName", team_b)
+    abbr_a  = mlb_a.get("abbreviation", "")
+    abbr_b  = mlb_b.get("abbreviation", "")
 
     sources.append({
-        "label":   "MLB Stats API – Teams",
-        "url":     f"{BASE_URL}/teams?sportId=1",
-        "snippet": f"Matched '{team_a}' → {name_a} (ID {id_a}),  '{team_b}' → {name_b} (ID {id_b})",
+        "label":   "ESPN MLB API – Teams",
+        "url":     f"{ESPN_BASE}/teams",
+        "snippet": f"Matched '{team_a}' → {name_a} ({abbr_a}),  '{team_b}' → {name_b} ({abbr_b})",
     })
 
-    # ── Game / schedule ──────────────────────────────────────────────────────
-    game = _find_game(id_a, id_b, game_date)
-    venue       = ""
-    park_factor = 1.00
-    home_team_id: Optional[int] = None
+    # ── Records ────────────────────────────────────────────────────────────
+    all_records = _get_all_records()
+    record_a = all_records.get(id_a,
+               {"wins": 0, "losses": 0, "games_played": 0, "win_pct": 0.5, "run_differential": 0})
+    record_b = all_records.get(id_b,
+               {"wins": 0, "losses": 0, "games_played": 0, "win_pct": 0.5, "run_differential": 0})
 
-    if game:
-        venue        = game.get("venue", {}).get("name", "")
-        home_team_id = game.get("teams", {}).get("home", {}).get("team", {}).get("id")
-        home_abbr    = abbr_a if home_team_id == id_a else abbr_b
-        park_factor  = PARK_FACTORS.get(home_abbr, 1.00)
+    # ── Game / venue / park factor ─────────────────────────────────────────
+    events = _get_scoreboard(game_date)
+    event, comp = _find_game(events, id_a, id_b)
+
+    venue        = ""
+    park_factor  = 1.00
+    home_team_id: Optional[str] = None
+
+    if event and comp:
+        venue = comp.get("venue", {}).get("fullName", "")
+        for c in comp.get("competitors", []):
+            if c.get("homeAway", "").lower() == "home":
+                home_team_id = str(c.get("team", {}).get("id", ""))
+                break
+        home_abbr   = abbr_a if home_team_id == id_a else abbr_b
+        park_factor = PARK_FACTORS.get(home_abbr, 1.00)
         sources.append({
-            "label":   f"MLB Stats API – Schedule {game_date}",
-            "url":     f"{BASE_URL}/schedule?sportId=1&date={game_date}",
+            "label":   f"ESPN MLB API – Schedule {game_date}",
+            "url":     f"{ESPN_BASE}/scoreboard?dates={game_date.replace('-','')}",
             "snippet": f"Game found: {name_a} vs {name_b} at {venue} (park factor {park_factor})",
         })
     else:
-        # No scheduled game found — default home to team_a
-        home_team_id = id_a
+        home_team_id = id_a          # default team_a as home
         park_factor  = PARK_FACTORS.get(abbr_a, 1.00)
         sources.append({
-            "label":   f"MLB Stats API – Schedule {game_date}",
-            "url":     f"{BASE_URL}/schedule?sportId=1&date={game_date}",
+            "label":   f"ESPN MLB API – Schedule {game_date}",
+            "url":     f"{ESPN_BASE}/scoreboard?dates={game_date.replace('-','')}",
             "snippet": f"No game found on {game_date}. Assuming {name_a} is home (park factor {park_factor}).",
         })
 
     is_home_a = (home_team_id == id_a)
 
-    # ── Team stats ───────────────────────────────────────────────────────────
-    hitting_a  = get_team_hitting_stats(id_a, season)
-    hitting_b  = get_team_hitting_stats(id_b, season)
-    pitching_a = get_team_pitching_stats(id_a, season)
-    pitching_b = get_team_pitching_stats(id_b, season)
-    record_a   = get_team_record(id_a, season)
-    record_b   = get_team_record(id_b, season)
-
-    sources.append({
-        "label":   "MLB Stats API – Team Stats",
-        "url":     f"{BASE_URL}/teams/stats",
-        "snippet": (
-            f"{name_a}: wRC+ {hitting_a.get('wrc_plus','?')}, "
-            f"OPS {hitting_a.get('ops','?')}, Team ERA {pitching_a.get('era','?')} | "
-            f"{name_b}: wRC+ {hitting_b.get('wrc_plus','?')}, "
-            f"OPS {hitting_b.get('ops','?')}, Team ERA {pitching_b.get('era','?')}"
-        ),
-    })
-
-    # ── Probable starters ────────────────────────────────────────────────────
-    if game:
+    # ── Probable starters ──────────────────────────────────────────────────
+    if comp:
         side_a = "home" if is_home_a else "away"
         side_b = "away" if is_home_a else "home"
-        starter_a = _build_starter(_extract_pitcher(game, side_a), season)
-        starter_b = _build_starter(_extract_pitcher(game, side_b), season)
+        starter_a = _build_starter(_extract_probable(comp, side_a))
+        starter_b = _build_starter(_extract_probable(comp, side_b))
     else:
-        starter_a = _build_starter(None, season)
-        starter_b = _build_starter(None, season)
+        starter_a = _build_starter(None)
+        starter_b = _build_starter(None)
 
     sources.append({
-        "label":   "MLB Stats API – Probable Pitchers",
-        "url":     f"{BASE_URL}/people/stats",
+        "label":   "ESPN MLB API – Probable Pitchers",
+        "url":     f"{ESPN_BASE}/scoreboard",
         "snippet": (
             f"{name_a} starter: {starter_a['name']} "
             f"(FIP {starter_a['fip']}, ERA {starter_a['era']}) | "
@@ -412,29 +508,42 @@ def fetch_baseball_context(
         ),
     })
 
+    # ── Team hitting ───────────────────────────────────────────────────────
+    hitting_a = _get_team_hitting(id_a)
+    hitting_b = _get_team_hitting(id_b)
+
+    sources.append({
+        "label":   "ESPN MLB API – Team Stats",
+        "url":     f"{ESPN_BASE}/teams/statistics",
+        "snippet": (
+            f"{name_a}: wRC+ {hitting_a.get('wrc_plus','?')}, OPS {hitting_a.get('ops','?')} | "
+            f"{name_b}: wRC+ {hitting_b.get('wrc_plus','?')}, OPS {hitting_b.get('ops','?')}"
+        ),
+    })
+
     return {
         "team_a": {
-            "name":         name_a,
-            "id":           id_a,
-            "abbreviation": abbr_a,
-            "is_home":      is_home_a,
-            "record":       record_a,
-            "hitting":      hitting_a,
-            "team_pitching": pitching_a,
-            "starter":      starter_a,
+            "name":          name_a,
+            "id":            id_a,
+            "abbreviation":  abbr_a,
+            "is_home":       is_home_a,
+            "record":        record_a,
+            "hitting":       hitting_a,
+            "team_pitching": {},        # team-level pitching not needed for model
+            "starter":       starter_a,
         },
         "team_b": {
-            "name":         name_b,
-            "id":           id_b,
-            "abbreviation": abbr_b,
-            "is_home":      not is_home_a,
-            "record":       record_b,
-            "hitting":      hitting_b,
-            "team_pitching": pitching_b,
-            "starter":      starter_b,
+            "name":          name_b,
+            "id":            id_b,
+            "abbreviation":  abbr_b,
+            "is_home":       not is_home_a,
+            "record":        record_b,
+            "hitting":       hitting_b,
+            "team_pitching": {},
+            "starter":       starter_b,
         },
         "game": {
-            "game_pk":    game.get("gamePk") if game else None,
+            "game_pk":    event.get("id") if event else None,
             "date":       game_date,
             "venue":      venue,
             "park_factor": park_factor,

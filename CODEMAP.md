@@ -2139,14 +2139,14 @@ mutates: matches table (rename → recreate → copy → drop old)
 ## fetchers/baseball.py
 
 ---
-name: BASE_URL
+name: ESPN_BASE
 type: variable
 file: fetchers/baseball.py
-purpose: Base URL for the public MLB Stats API (no key required).
+purpose: Base URL for the public ESPN MLB API (no key required; same host used by soccer fetcher).
 inputs: none
 outputs: str
 calls: none
-called_by: _mlb_get
+called_by: _espn_get, fetch_baseball_context (source labels)
 mutates: none
 ---
 
@@ -2166,11 +2166,11 @@ mutates: none
 name: LEAGUE_AVG_FIP
 type: variable
 file: fetchers/baseball.py
-purpose: 2024 MLB league-average FIP (4.00), used as pitcher quality baseline in run model.
+purpose: 2024 MLB league-average FIP (4.00), used as pitcher quality baseline and default for TBD starters.
 inputs: none
 outputs: float
 calls: none
-called_by: expected_runs (baseball_market.py), _build_starter
+called_by: expected_runs (baseball_market.py), _build_starter, _extract_probable, _get_pitcher_stats
 mutates: none
 ---
 
@@ -2190,7 +2190,7 @@ mutates: none
 name: PARK_FACTORS
 type: variable
 file: fetchers/baseball.py
-purpose: Dict mapping MLB team abbreviations to 3-year park run factors (1.0 = neutral). Used to scale expected runs.
+purpose: Dict mapping ESPN MLB team abbreviations to 3-year park run factors (1.0 = neutral). Covers all 30 MLB venues.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -2199,38 +2199,62 @@ mutates: none
 ---
 
 ---
-name: _f
+name: _espn_get
 type: function
 file: fetchers/baseball.py
-purpose: Safe float conversion for MLB API fields that may be strings (e.g. ".260" for avg) or None.
-inputs: val: any, default: float = 0.0
-outputs: float
-calls: float
-called_by: compute_fip, get_pitcher_season_stats, get_pitcher_recent_games, get_team_hitting_stats, get_team_pitching_stats, get_team_record
-mutates: none
----
-
----
-name: _ip
-type: function
-file: fetchers/baseball.py
-purpose: Converts MLB inningsPitched string ("100.2" = 100 innings + 2 outs) to decimal innings (100.667).
-inputs: ip_str: any
-outputs: float
-calls: none
-called_by: compute_fip, get_pitcher_season_stats, get_pitcher_recent_games
-mutates: none
----
-
----
-name: _mlb_get
-type: function
-file: fetchers/baseball.py
-purpose: GET request to the MLB Stats API; returns parsed JSON or empty dict on failure/timeout.
+purpose: GET request to ESPN MLB API with browser User-Agent; returns parsed JSON or {} on any failure.
 inputs: path: str, params: dict | None
 outputs: dict
 calls: httpx.Client.get
-called_by: _all_teams, get_pitcher_season_stats, get_pitcher_recent_games, get_team_hitting_stats, get_team_pitching_stats, get_team_record, get_schedule
+called_by: _all_teams, _get_all_records, _get_scoreboard, _get_pitcher_stats, _get_team_hitting
+mutates: none
+---
+
+---
+name: _f
+type: function
+file: fetchers/baseball.py
+purpose: Safe float conversion for ESPN fields that may be strings (e.g. ".265") or None.
+inputs: val: any, default: float = 0.0
+outputs: float
+calls: float
+called_by: _stat, _get_all_records, compute_fip, _extract_probable, _get_pitcher_stats, _get_team_hitting
+mutates: none
+---
+
+---
+name: _stat
+type: function
+file: fetchers/baseball.py
+purpose: Extracts a value from ESPN's name/value stats array by trying multiple name aliases.
+inputs: stats_list: list, *names: str, default: float = 0.0
+outputs: float
+calls: _f
+called_by: _get_all_records, compute_fip, _get_pitcher_stats, _get_team_hitting
+mutates: none
+---
+
+---
+name: _ip_from_espn
+type: function
+file: fetchers/baseball.py
+purpose: Converts ESPN's IP format (95.1 = 95 innings + 1 out) to decimal innings (95.333). Handles both fractional and decimal formats.
+inputs: ip_val: any
+outputs: float
+calls: none
+called_by: compute_fip, _get_pitcher_stats
+mutates: none
+---
+
+---
+name: compute_fip
+type: function
+file: fetchers/baseball.py
+purpose: Computes FIP from ESPN pitching stats list: ((13×HR + 3×BB - 2×K) / IP) + FIP_constant.
+inputs: stats: list (ESPN name/value array)
+outputs: Optional[float]
+calls: _stat, _ip_from_espn
+called_by: _get_pitcher_stats
 mutates: none
 ---
 
@@ -2238,10 +2262,10 @@ mutates: none
 name: _all_teams
 type: function
 file: fetchers/baseball.py
-purpose: Fetches the full list of active MLB teams for the current season.
+purpose: Fetches all active MLB teams from ESPN /teams endpoint and flattens the nested sports/leagues/teams structure.
 inputs: none
 outputs: list[dict]
-calls: _mlb_get
+calls: _espn_get
 called_by: fetch_baseball_context
 mutates: none
 ---
@@ -2250,7 +2274,7 @@ mutates: none
 name: _match_team
 type: function
 file: fetchers/baseball.py
-purpose: Fuzzy-matches a user-supplied team name (e.g. "Yankees", "NYY", "New York") to an MLB team object using difflib.
+purpose: Fuzzy-matches a user-supplied team name to an ESPN MLB team object using multiple name fields and difflib (cutoff 0.45).
 inputs: name: str, teams: list[dict]
 outputs: Optional[dict]
 calls: difflib.get_close_matches
@@ -2259,86 +2283,26 @@ mutates: none
 ---
 
 ---
-name: compute_fip
+name: _get_all_records
 type: function
 file: fetchers/baseball.py
-purpose: Computes FIP from raw MLB API pitching stats: ((13×HR + 3×(BB+HBP) - 2×K) / IP) + FIP_constant.
-inputs: stat: dict (raw MLB API stat block)
-outputs: Optional[float]
-calls: _f, _ip
-called_by: get_pitcher_season_stats, get_team_pitching_stats
-mutates: none
----
-
----
-name: get_pitcher_season_stats
-type: function
-file: fetchers/baseball.py
-purpose: Fetches a pitcher's season ERA, FIP, WHIP, K/9, BB/9 from the MLB Stats API; computes FIP from raw stats.
-inputs: person_id: int, season: int
-outputs: dict {era, fip, whip, k9, bb9, k_bb, innings_pitched, games_started}
-calls: _mlb_get, compute_fip, _ip, _f
-called_by: _build_starter
-mutates: none
----
-
----
-name: get_pitcher_recent_games
-type: function
-file: fetchers/baseball.py
-purpose: Fetches a pitcher's last N game log entries (starts only) with IP, ERA, K, BB, HR, runs per outing.
-inputs: person_id: int, season: int, limit: int = 5
-outputs: list[dict {date, ip, era_game, k, bb, hr, runs}]
-calls: _mlb_get, _ip, _f
-called_by: _build_starter
-mutates: none
----
-
----
-name: get_team_hitting_stats
-type: function
-file: fetchers/baseball.py
-purpose: Fetches team season hitting stats and computes wRC+ approximation (OPS/0.730 × 100) plus K%/BB%.
-inputs: team_id: int, season: int
-outputs: dict {ops, avg, obp, slg, k_pct, bb_pct, runs_per_game, wrc_plus}
-calls: _mlb_get, _f
+purpose: Fetches all team W-L records from ESPN /standings; walks nested children to collect {team_id: {wins, losses, win_pct, run_differential}}.
+inputs: none
+outputs: dict[str, dict]
+calls: _espn_get, _stat
 called_by: fetch_baseball_context
 mutates: none
 ---
 
 ---
-name: get_team_pitching_stats
+name: _get_scoreboard
 type: function
 file: fetchers/baseball.py
-purpose: Fetches team season pitching aggregate (ERA, FIP, WHIP, K/9, BB/9) — proxy for overall pitching quality.
-inputs: team_id: int, season: int
-outputs: dict {era, fip, whip, k9, bb9}
-calls: _mlb_get, compute_fip, _f
-called_by: fetch_baseball_context
-mutates: none
----
-
----
-name: get_team_record
-type: function
-file: fetchers/baseball.py
-purpose: Fetches team wins, losses, win%, and run differential from MLB standings.
-inputs: team_id: int, season: int
-outputs: dict {wins, losses, games_played, win_pct, run_differential}
-calls: _mlb_get, _f
-called_by: fetch_baseball_context
-mutates: none
----
-
----
-name: get_schedule
-type: function
-file: fetchers/baseball.py
-purpose: Fetches MLB schedule for a given date with probable pitchers and venue hydrated.
+purpose: Gets all MLB events for a given date (YYYY-MM-DD) from ESPN /scoreboard.
 inputs: date_str: str
-outputs: list[dict] (game objects)
-calls: _mlb_get
-called_by: _find_game
+outputs: list[dict] (ESPN event objects)
+calls: _espn_get
+called_by: fetch_baseball_context
 mutates: none
 ---
 
@@ -2346,22 +2310,46 @@ mutates: none
 name: _find_game
 type: function
 file: fetchers/baseball.py
-purpose: Scans the schedule for a specific date to find the game between two team IDs.
-inputs: team_a_id: int, team_b_id: int, date_str: str
-outputs: Optional[dict]
-calls: get_schedule
+purpose: Scans ESPN scoreboard events for the competition between two team IDs; returns (event, competition) tuple or (None, None).
+inputs: events: list[dict], team_a_id: str, team_b_id: str
+outputs: tuple[Optional[dict], Optional[dict]]
+calls: none
 called_by: fetch_baseball_context
 mutates: none
 ---
 
 ---
-name: _extract_pitcher
+name: _extract_probable
 type: function
 file: fetchers/baseball.py
-purpose: Extracts probable pitcher id and name from a schedule game dict for a given side (home/away).
-inputs: game: dict, side: str
-outputs: Optional[dict {id, name}]
-calls: none
+purpose: Extracts probable pitcher {id, name, era, stats_from_scoreboard} for home or away side from an ESPN competition object.
+inputs: comp: dict, side: str ("home" or "away")
+outputs: Optional[dict]
+calls: _f
+called_by: fetch_baseball_context
+mutates: none
+---
+
+---
+name: _get_pitcher_stats
+type: function
+file: fetchers/baseball.py
+purpose: Fetches detailed season pitching stats (ERA, FIP, WHIP, K/9, BB/9, IP, GS) for an athlete from ESPN /athletes/{id}/statistics.
+inputs: athlete_id: str
+outputs: dict {era, fip, whip, k9, bb9, innings_pitched, games_started}
+calls: _espn_get, _stat, _ip_from_espn, compute_fip, _f
+called_by: _build_starter
+mutates: none
+---
+
+---
+name: _get_team_hitting
+type: function
+file: fetchers/baseball.py
+purpose: Fetches team batting stats from ESPN /teams/{id}/statistics; computes wRC+ approximation (OPS/0.730 × 100).
+inputs: team_id: str
+outputs: dict {ops, avg, obp, slg, k_pct, bb_pct, runs_per_game, wrc_plus}
+calls: _espn_get, _stat, _f
 called_by: fetch_baseball_context
 mutates: none
 ---
@@ -2370,10 +2358,10 @@ mutates: none
 name: _build_starter
 type: function
 file: fetchers/baseball.py
-purpose: Builds a complete starter profile dict from a pitcher info stub; fetches season stats and recent game log; returns league-average defaults if pitcher is TBD.
-inputs: pitcher_info: Optional[dict], season: int
-outputs: dict {name, id?, fip, era, whip, k9, bb9, k_bb, innings_pitched, games_started, recent_games}
-calls: get_pitcher_season_stats, get_pitcher_recent_games
+purpose: Builds a complete starter profile dict from a probable-pitcher stub; fetches detailed stats via _get_pitcher_stats; returns league-average defaults if pitcher is TBD or unknown.
+inputs: probable: Optional[dict]
+outputs: dict {name, fip, era, whip, k9, bb9, innings_pitched, games_started, recent_games}
+calls: _get_pitcher_stats
 called_by: fetch_baseball_context
 mutates: none
 ---
@@ -2382,10 +2370,10 @@ mutates: none
 name: fetch_baseball_context
 type: function
 file: fetchers/baseball.py
-purpose: Main entry point — resolves team names via fuzzy match, fetches game schedule, probable starters (with FIP), team hitting/pitching stats, park factor, and team records from the MLB Stats API.
+purpose: Main entry point — resolves team names, fetches records, scoreboard game, probable starters (with FIP), team hitting stats, and park factor from ESPN. Falls back gracefully if game not found.
 inputs: team_a: str, team_b: str, game_date: Optional[str]
 outputs: dict {team_a, team_b, game, sources} or {error, sources}
-calls: _all_teams, _match_team, _find_game, get_team_hitting_stats, get_team_pitching_stats, get_team_record, _extract_pitcher, _build_starter
+calls: _all_teams, _match_team, _get_all_records, _get_scoreboard, _find_game, _extract_probable, _build_starter, _get_team_hitting
 called_by: run_baseball_analysis
 mutates: none
 ---
@@ -2570,7 +2558,7 @@ mutates: none
 name: interpret_baseball_signals
 type: function
 file: ai_agent_baseball.py
-purpose: Fallback when MLB Stats API is unreachable — Claude estimates wRC+, starter FIP/ERA, park factor, and win% from training knowledge with confidence=low.
+purpose: Fallback when ESPN API is unreachable — Claude estimates wRC+, starter FIP/ERA, park factor, and win% from training knowledge with confidence=low.
 inputs: team_a: str, team_b: str, notes: str = ""
 outputs: dict {team_a signals, team_b signals, park_factor, home_team, confidence, notes}
 calls: _client, client.messages.create, json.loads, re.sub
@@ -2622,7 +2610,7 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball pipeline: parse query → fetch MLB Stats API → Poisson run model → Elo blend → compute markets → persist to DB → Kelly sizing → AI narrative → return result dict.
+purpose: Full baseball pipeline: parse query → fetch ESPN MLB API → Poisson run model → Elo blend → compute markets → persist to DB → Kelly sizing → AI narrative → return result dict.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, starters, team_stats, markets, narrative, raw_sources, steps, …}
 calls: parse_baseball_query, fetch_baseball_context, expected_runs, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
