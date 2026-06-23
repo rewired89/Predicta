@@ -10,7 +10,7 @@ from typing import Optional
 # Load .env file automatically if present (pip install python-dotenv)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 except ImportError:
     pass
 
