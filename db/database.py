@@ -6,11 +6,36 @@ DB_PATH = Path(__file__).parent.parent / "predicta.db"
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
+def _migrate_sport_check(conn: sqlite3.Connection) -> None:
+    """One-time migration: widen matches.sport CHECK to include 'baseball'."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='matches'"
+    ).fetchone()
+    if row and "'baseball'" not in row[0]:
+        conn.executescript("""
+            ALTER TABLE matches RENAME TO _matches_bak;
+            CREATE TABLE matches (
+                id INTEGER PRIMARY KEY,
+                sport TEXT NOT NULL CHECK(sport IN ('soccer','table_tennis','tennis','baseball')),
+                league TEXT,
+                participant_a TEXT NOT NULL,
+                participant_b TEXT NOT NULL,
+                scheduled_at TEXT NOT NULL,
+                status TEXT DEFAULT 'scheduled' CHECK(status IN ('scheduled','live','final')),
+                venue TEXT,
+                neutral_site INTEGER DEFAULT 0
+            );
+            INSERT INTO matches SELECT * FROM _matches_bak;
+            DROP TABLE _matches_bak;
+        """)
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     schema = SCHEMA_PATH.read_text()
-    with sqlite3.connect(db_path) as conn:
-        conn.executescript(schema)
-        conn.commit()
+    conn = sqlite3.connect(db_path)
+    conn.executescript(schema)
+    _migrate_sport_check(conn)
+    conn.close()
 
 
 @contextmanager
