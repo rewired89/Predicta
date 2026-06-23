@@ -154,8 +154,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     except Exception as exc:
         steps.append({"step": "mlb_fetch", "status": "fallback",
                       "error": str(exc),
-                      "note": "MLB Stats API unreachable — using AI signal estimates. "
-                              "Add statsapi.mlb.com to your network egress settings for live data."})
+                      "note": "ESPN API unreachable — using AI signal estimates from training knowledge."})
         ai_fallback = True
 
     if ai_fallback:
