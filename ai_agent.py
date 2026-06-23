@@ -66,7 +66,9 @@ Return ONLY valid JSON with this exact schema (use null for any value you cannot
     "rest_days": <int|null>,
     "key_player_out_flag": <0 or 1>,
     "injury_note": <string|null>,
-    "elo_rating": <float|null>
+    "elo_rating": <float|null>,
+    "corners_for_avg5": <float|null>,
+    "corners_against_avg5": <float|null>
   },
   "team_b": { <same keys> },
   "neutral_site": <0 or 1>,
@@ -89,6 +91,8 @@ For xg estimates from training knowledge: top national team ~1.6-1.8 xG for, ave
 For goal_prob: probability the player scores at least one goal in THIS match (0-1).
   Typical ranges: elite striker 0.25-0.40, good forward 0.15-0.25, midfielder 0.05-0.15, defender 0.02-0.08.
   Distribute the team xG across players by their role, minutes, and historical scoring rate.
+For corners_for_avg5: average corner kicks WON per game in last 5. Top teams ~6-8, average ~4-6, defensive ~3-4.
+For corners_against_avg5: average corner kicks CONCEDED per game in last 5.
 Set confidence="high" only if live API data was provided. "medium" if partial live data. "low" if all from training knowledge.
 No markdown, raw JSON only."""
 

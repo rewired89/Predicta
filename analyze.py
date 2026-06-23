@@ -125,6 +125,40 @@ def _format_markets(raw: dict, team_a: str, team_b: str) -> dict:
             "note": mg.get("note", ""),
         }
 
+    # Corners
+    co = raw.get("corners", {})
+    if co:
+        result["corners"] = {
+            "label": "Corner Kicks",
+            "lambda_home": co.get("lambda_home"),
+            "lambda_away": co.get("lambda_away"),
+            "lambda_total": co.get("lambda_total"),
+            "totals": [
+                {
+                    "line": t["line"],
+                    "label": t["label"],
+                    "p_over":  round(t["p_over"] * 100, 1),
+                    "p_under": round(t["p_under"] * 100, 1),
+                }
+                for t in co.get("totals", [])
+            ],
+            "first_corner": {
+                "p_home": round(co["first_corner"]["p_home"] * 100, 1),
+                "p_away": round(co["first_corner"]["p_away"] * 100, 1),
+            },
+            "handicap": [
+                {
+                    "line": h["line"],
+                    "label": h["label"],
+                    "p_home_covers": round(h["p_home_covers"] * 100, 1),
+                    "p_away_covers": round(h["p_away_covers"] * 100, 1),
+                    "p_push":        round(h["p_push"] * 100, 1),
+                }
+                for h in co.get("handicap", [])
+            ],
+            "note": co.get("note", ""),
+        }
+
     return result
 
 
@@ -236,18 +270,22 @@ def run_analysis(user_query: str) -> dict:
 
         # Log all signals the AI extracted
         signal_map_a = {
-            "xg_for_avg5":       _safe_float(sig_a.get("xg_for_avg5")),
-            "xg_against_avg5":   _safe_float(sig_a.get("xg_against_avg5")),
-            "form_weighted10":   _safe_float(sig_a.get("form_weighted10")),
-            "rest_days":         _safe_float(sig_a.get("rest_days")),
+            "xg_for_avg5":         _safe_float(sig_a.get("xg_for_avg5")),
+            "xg_against_avg5":     _safe_float(sig_a.get("xg_against_avg5")),
+            "form_weighted10":     _safe_float(sig_a.get("form_weighted10")),
+            "rest_days":           _safe_float(sig_a.get("rest_days")),
             "key_player_out_flag": _safe_float(sig_a.get("key_player_out_flag"), 0),
+            "corners_for_avg5":    _safe_float(sig_a.get("corners_for_avg5")),
+            "corners_against_avg5":_safe_float(sig_a.get("corners_against_avg5")),
         }
         signal_map_b = {
-            "xg_for_avg5":       _safe_float(sig_b.get("xg_for_avg5")),
-            "xg_against_avg5":   _safe_float(sig_b.get("xg_against_avg5")),
-            "form_weighted10":   _safe_float(sig_b.get("form_weighted10")),
-            "rest_days":         _safe_float(sig_b.get("rest_days")),
+            "xg_for_avg5":         _safe_float(sig_b.get("xg_for_avg5")),
+            "xg_against_avg5":     _safe_float(sig_b.get("xg_against_avg5")),
+            "form_weighted10":     _safe_float(sig_b.get("form_weighted10")),
+            "rest_days":           _safe_float(sig_b.get("rest_days")),
             "key_player_out_flag": _safe_float(sig_b.get("key_player_out_flag"), 0),
+            "corners_for_avg5":    _safe_float(sig_b.get("corners_for_avg5")),
+            "corners_against_avg5":_safe_float(sig_b.get("corners_against_avg5")),
         }
         if sig_a.get("injury_note"):
             log_signal(match_id, "injury_note", team_a, signal_text=sig_a["injury_note"])
@@ -321,6 +359,7 @@ def run_analysis(user_query: str) -> dict:
         "key_players": fetched.get("team_b", {}).get("key_players", []),
         "description": fetched.get("team_b", {}).get("description", ""),
     }
+    h2h_raw = fetched.get("h2h", [])
 
     # ── Format markets for frontend ───────────────────────────────────────────
     raw_markets = prediction.get("markets", {})
@@ -348,6 +387,7 @@ def run_analysis(user_query: str) -> dict:
         "raw_sources": raw_sources,
         "team_a_raw": team_a_raw,
         "team_b_raw": team_b_raw,
+        "h2h": h2h_raw,
         "markets": formatted_markets,
         "steps": steps,
     }

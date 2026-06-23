@@ -623,6 +623,20 @@
         </div>
       </div>
 
+      <!-- Head to Head -->
+      <div class="accordion" id="acc-h2h">
+        <div class="accordion-header" onclick="toggleAcc('h2h')">
+          <span id="h2h-title">Head to Head</span>
+          <span class="icon">▼</span>
+        </div>
+        <div class="accordion-body" id="acc-body-h2h">
+          <table class="last5-table" id="h2h-table">
+            <thead><tr><th>Date</th><th>Home</th><th>Score</th><th>Away</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Team A last 5 -->
       <div class="accordion" id="acc-last5a">
         <div class="accordion-header" onclick="toggleAcc('last5a')">
@@ -885,6 +899,10 @@ async function runAnalysis() {
       });
     }
 
+    // H2H
+    document.getElementById("h2h-title").textContent = `Head to Head: ${data.team_a} vs ${data.team_b}`;
+    buildLast5Table("h2h-table", data.h2h, data.team_a);
+
     // Last 5 tables
     document.getElementById("last5a-title").textContent = `${data.team_a} — last 5 results`;
     document.getElementById("last5b-title").textContent = `${data.team_b} — last 5 results`;
@@ -1066,6 +1084,65 @@ function renderMarkets(markets, teamA, teamB, sport) {
         <div class="market-note" style="margin-top:8px">★ = closest to 50/50 line (fair handicap)</div>
       </div>`;
     grid.appendChild(card);
+  }
+  // ── Corners ─────────────────────────────────────────────────────────────────
+  const co = markets.corners;
+  if (co) {
+    // Total corners O/U card
+    const totCard = document.createElement("div");
+    totCard.className = "market-card market-card-wide";
+    const fairLine = co.totals.reduce((b, t) => Math.abs(t.p_over - 50) < Math.abs(b.p_over - 50) ? t : b, co.totals[0]);
+    const totRows = co.totals.map(t => {
+      const isFair = t.line === fairLine.line;
+      return `<tr class="${isFair ? 'spread-highlight' : ''}">
+        <td>Over ${t.line}${isFair ? ' ★' : ''}</td>
+        <td>${t.p_over}%</td>
+        <td>${t.p_under}%</td>
+      </tr>`;
+    }).join("");
+    totCard.innerHTML = `<div class="market-title">Corner Kicks — Total O/U
+      <span style="font-weight:400; margin-left:8px; color:var(--muted)">
+        exp. ${teamA} ${co.lambda_home} · ${teamB} ${co.lambda_away} · total ${co.lambda_total}
+      </span>
+    </div>
+    <div class="market-body" style="padding:8px 14px">
+      <table class="spread-table">
+        <thead><tr><th>Line</th><th>Over</th><th>Under</th></tr></thead>
+        <tbody>${totRows}</tbody>
+      </table>
+      <div class="market-note" style="margin-top:8px">★ = closest to 50/50 (fair total line)</div>
+    </div>`;
+    grid.appendChild(totCard);
+
+    // First corner + handicap card
+    const fc = co.first_corner;
+    const fcBest = fc.p_home >= fc.p_away ? teamA : teamB;
+    const hcRows = co.handicap.map(h => `<tr>
+      <td>${h.label}</td><td>${h.p_home_covers}%</td><td>${h.p_push}%</td><td>${h.p_away_covers}%</td>
+    </tr>`).join("");
+    const fcCard = document.createElement("div");
+    fcCard.className = "market-card market-card-wide";
+    fcCard.innerHTML = `<div class="market-title">Corner Kicks — First Corner &amp; Handicap</div>
+    <div class="market-body">
+      <div class="market-row ${fc.p_home >= fc.p_away ? 'market-best' : 'market-other'}">
+        <span class="market-row-label">First corner — ${teamA}</span>
+        <div class="market-bar-wrap"><div class="market-bar" style="width:${fc.p_home}%"></div></div>
+        <span class="market-pct">${fc.p_home}%</span>
+      </div>
+      <div class="market-row ${fc.p_away > fc.p_home ? 'market-best' : 'market-other'}">
+        <span class="market-row-label">First corner — ${teamB}</span>
+        <div class="market-bar-wrap"><div class="market-bar" style="width:${fc.p_away}%"></div></div>
+        <span class="market-pct">${fc.p_away}%</span>
+      </div>
+      <div style="margin-top:10px">
+        <table class="spread-table">
+          <thead><tr><th>Home handicap</th><th>${teamA} covers</th><th>Push</th><th>${teamB} covers</th></tr></thead>
+          <tbody>${hcRows}</tbody>
+        </table>
+      </div>
+      ${co.note ? `<div class="market-note" style="margin-top:8px">${co.note}</div>` : ""}
+    </div>`;
+    grid.appendChild(fcCard);
   }
 }
 

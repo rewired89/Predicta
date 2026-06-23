@@ -203,6 +203,83 @@ def method_of_goal(
     }
 
 
+# ── Corners market ────────────────────────────────────────────────────────────
+
+def corners_market(
+    home_corners_for: float = 5.0,
+    home_corners_against: float = 4.5,
+    away_corners_for: float = 4.5,
+    away_corners_against: float = 5.0,
+    lines: list[float] = None,
+) -> dict:
+    """
+    Corner kick markets using a Poisson model.
+    Total corners = home_for + away_for (independent Poisson processes).
+    Lines: total corners O/U, first corner team, corners handicap.
+    """
+    from scipy.stats import poisson
+
+    # Expected corners each team wins (blend their for + opponent's against)
+    lambda_home = (home_corners_for + away_corners_against) / 2
+    lambda_away = (away_corners_for + home_corners_against) / 2
+    lambda_total = lambda_home + lambda_away
+
+    if lines is None:
+        lines = [7.5, 8.5, 9.5, 10.5, 11.5, 12.5]
+
+    totals = []
+    for line in lines:
+        p_over  = float(1 - poisson.cdf(int(line), lambda_total))
+        p_under = float(poisson.cdf(int(line), lambda_total))
+        totals.append({
+            "line": line,
+            "label": f"Total corners {line}",
+            "p_over":  round(p_over, 4),
+            "p_under": round(p_under, 4),
+        })
+
+    # First corner probability (proportional to corner-winning rate)
+    total_lambda = lambda_home + lambda_away
+    p_home_first = lambda_home / total_lambda if total_lambda > 0 else 0.5
+    p_away_first = lambda_away / total_lambda if total_lambda > 0 else 0.5
+
+    # Corners handicap lines for home team
+    handicap_lines = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
+    handicap = []
+    max_corners = 30
+    for hline in handicap_lines:
+        p_cover = 0.0
+        p_push  = 0.0
+        for ch in range(max_corners + 1):
+            for ca in range(max_corners + 1):
+                p = poisson.pmf(ch, lambda_home) * poisson.pmf(ca, lambda_away)
+                margin = ch - ca + hline
+                if abs(margin) < 0.01:
+                    p_push  += float(p)
+                elif margin > 0:
+                    p_cover += float(p)
+        handicap.append({
+            "line": hline,
+            "label": f"Home {'+' if hline > 0 else ''}{hline}",
+            "p_home_covers": round(p_cover, 4),
+            "p_away_covers": round(1.0 - p_cover - p_push, 4),
+            "p_push":        round(p_push, 4),
+        })
+
+    return {
+        "lambda_home": round(lambda_home, 2),
+        "lambda_away": round(lambda_away, 2),
+        "lambda_total": round(lambda_total, 2),
+        "totals": totals,
+        "first_corner": {
+            "p_home": round(p_home_first, 4),
+            "p_away": round(p_away_first, 4),
+        },
+        "handicap": handicap,
+        "note": "Poisson model using avg corners for/against; adjust with live corner data.",
+    }
+
+
 # ── Full market bundle ────────────────────────────────────────────────────────
 
 def compute_all_markets(
@@ -214,6 +291,10 @@ def compute_all_markets(
     neutral: bool = False,
     home_aerial_index: float = 1.0,
     away_aerial_index: float = 1.0,
+    home_corners_for: float = 5.0,
+    home_corners_against: float = 4.5,
+    away_corners_for: float = 4.5,
+    away_corners_against: float = 5.0,
 ) -> dict:
     """Compute every market and return as a single dict."""
     matrix, mu_h, mu_a = build_score_matrix(
@@ -229,4 +310,8 @@ def compute_all_markets(
         "winner_push_if_tied": winner_push_if_tied(matrix),
         "next_shot_on_target": next_shot_on_target(mu_h, mu_a),
         "method_of_goal_2": method_of_goal(2, home_aerial_index, away_aerial_index),
+        "corners": corners_market(
+            home_corners_for, home_corners_against,
+            away_corners_for, away_corners_against,
+        ),
     }

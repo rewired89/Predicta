@@ -145,6 +145,10 @@ def predict_match(
             str_a["attack"], str_a["defense"],
             str_b["attack"], str_b["defense"],
             neutral=neutral,
+            home_corners_for=float(sig_a.get("corners_for_avg5") or 5.0),
+            home_corners_against=float(sig_a.get("corners_against_avg5") or 4.5),
+            away_corners_for=float(sig_b.get("corners_for_avg5") or 4.5),
+            away_corners_against=float(sig_b.get("corners_against_avg5") or 5.0),
         )
     elif sport in ("tennis", "table_tennis"):
         glicko_pa, glicko_pb = glicko_model.win_probability(part_a, part_b, sport, surface)
