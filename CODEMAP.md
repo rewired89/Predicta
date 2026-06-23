@@ -1218,7 +1218,7 @@ mutates: none
 name: SPORT_MAP
 type: variable
 file: fetchers/odds.py
-purpose: Maps Predicta sport names to The Odds API sport keys for API requests.
+purpose: Maps Predicta sport names to default domestic-league Odds API sport keys; international soccer uses INTL_SOCCER_KEYS first.
 inputs: none
 outputs: dict[str, Optional[str]]
 calls: none
@@ -1227,13 +1227,37 @@ mutates: none
 ---
 
 ---
+name: INTL_SOCCER_KEYS
+type: variable
+file: fetchers/odds.py
+purpose: Ordered list of Odds API sport keys for international soccer (World Cup, Euros, Nations League, etc.) probed before the domestic fallback.
+inputs: none
+outputs: list[str]
+calls: none
+called_by: fetch_odds_snapshot
+mutates: none
+---
+
+---
+name: _fetch_from_key
+type: function
+file: fetchers/odds.py
+purpose: Fetches raw event list from a single Odds API sport key; returns empty list on HTTP error.
+inputs: api_key: str, sport_key: str, market: str
+outputs: list
+calls: httpx.Client.get
+called_by: fetch_odds_snapshot
+mutates: none
+---
+
+---
 name: fetch_odds_snapshot
 type: function
 file: fetchers/odds.py
-purpose: Fetches current odds from The Odds API for a sport/league and persists them to odds_snapshots table; returns list of inserted records or error if key not set.
+purpose: Fetches current odds from The Odds API and persists to odds_snapshots; for soccer auto-probes international competition keys before falling back to EPL.
 inputs: match_id: int, sport: str, league_key: Optional[str] = None, market: str = "h2h"
 outputs: list[dict]
-calls: _get_api_key, httpx.Client.get, get_db
+calls: _get_api_key, _fetch_from_key, get_db
 called_by: run_analysis
 mutates: odds_snapshots table
 ---

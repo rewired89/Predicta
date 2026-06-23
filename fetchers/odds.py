@@ -13,15 +13,41 @@ import httpx
 from db.database import get_db
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
+# The Odds API sport keys — maps our internal sport name to a default league.
+# For international matches (World Cup, Euros, Nations League) pass league_key
+# explicitly to fetch_odds_snapshot; these defaults cover domestic club soccer.
 SPORT_MAP = {
     "soccer": "soccer_epl",
-    "tennis": "tennis_atp_french_open",
+    "tennis": "tennis_atp_us_open",
     "table_tennis": None,  # not covered by The Odds API
 }
+
+# International soccer competitions available on The Odds API
+INTL_SOCCER_KEYS = [
+    "soccer_fifa_world_cup",
+    "soccer_uefa_euro_qualification",
+    "soccer_uefa_nations_league",
+    "soccer_conmebol_copa_america",
+    "soccer_concacaf_gold_cup",
+    "soccer_africa_cup_of_nations",
+]
 
 
 def _get_api_key() -> Optional[str]:
     return os.environ.get("ODDS_API_KEY")
+
+
+def _fetch_from_key(api_key: str, sport_key: str, market: str) -> list:
+    """Fetch raw event list from one Odds API sport key. Returns [] on error."""
+    url = f"{ODDS_API_BASE}/sports/{sport_key}/odds"
+    params = {"apiKey": api_key, "regions": "eu", "markets": market, "oddsFormat": "decimal"}
+    try:
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError:
+        return []
 
 
 def fetch_odds_snapshot(
@@ -32,26 +58,32 @@ def fetch_odds_snapshot(
 ) -> list[dict]:
     """
     Fetch current odds from The Odds API and persist to odds_snapshots.
+    For soccer with no explicit league_key, probes international competitions
+    first (World Cup, Euros, Nations League) then falls back to EPL as default.
     Returns list of inserted snapshot dicts.
     """
     api_key = _get_api_key()
     if not api_key:
         return [{"error": "ODDS_API_KEY not set. Export it in your environment."}]
 
-    sport_key = league_key or SPORT_MAP.get(sport)
-    if not sport_key:
-        return [{"error": f"No Odds API key configured for sport '{sport}'."}]
+    if league_key:
+        keys_to_try = [league_key]
+    elif sport == "soccer":
+        keys_to_try = INTL_SOCCER_KEYS + [SPORT_MAP["soccer"]]
+    else:
+        fallback = SPORT_MAP.get(sport)
+        if not fallback:
+            return [{"error": f"No Odds API key configured for sport '{sport}'."}]
+        keys_to_try = [fallback]
 
-    url = f"{ODDS_API_BASE}/sports/{sport_key}/odds"
-    params = {"apiKey": api_key, "regions": "eu", "markets": market, "oddsFormat": "decimal"}
+    data = []
+    for key in keys_to_try:
+        data = _fetch_from_key(api_key, key, market)
+        if data:
+            break
 
-    try:
-        with httpx.Client(timeout=15) as client:
-            resp = client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.HTTPError as exc:
-        return [{"error": str(exc)}]
+    if not data:
+        return [{"error": "No odds found across any configured sport keys."}]
 
     now = datetime.now(timezone.utc).isoformat()
     inserted = []
