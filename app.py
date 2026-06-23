@@ -209,6 +209,11 @@ def index():
     return HTMLResponse(content=(TEMPLATES_DIR / "index.html").read_text(encoding="utf-8"))
 
 
+@app.get("/trading", response_class=HTMLResponse)
+def trading():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading.html").read_text(encoding="utf-8"))
+
+
 # ── Analyze (natural language → full pipeline) ────────────────────────────────
 
 class AnalyzeRequest(BaseModel):
@@ -222,5 +227,21 @@ def analyze(body: AnalyzeRequest):
     from analyze import run_analysis
     result = run_analysis(body.query)
     if "error" in result and not result.get("team_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class TradeRequest(BaseModel):
+    query: str
+    bankroll: float = 10000.0
+
+
+@app.post("/analyze-trade")
+def analyze_trade(body: TradeRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_trading import run_trade_analysis
+    result = run_trade_analysis(body.query, body.bankroll)
+    if "error" in result:
         raise HTTPException(500, detail=result["error"])
     return result
