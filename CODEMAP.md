@@ -1878,7 +1878,7 @@ mutates: none
 name: generate_html_report
 type: function
 file: report.py
-purpose: Queries all matches, predictions, and outcomes from DB and renders a self-contained dark-themed HTML report with calibration metrics.
+purpose: Queries all matches, predictions, and outcomes from DB and renders a self-contained dark-themed HTML report with calibration metrics and a nav bar linking back to Sports, Trading, and API pages.
 inputs: none
 outputs: str (HTML)
 calls: get_db, compute_metrics_from_db
@@ -2150,10 +2150,10 @@ mutates: matches, signals, predictions tables
 name: _migrate_sport_check
 type: function
 file: db/database.py
-purpose: One-time migration — recreates matches table with updated sport CHECK constraint that includes 'baseball'.
+purpose: One-time migration — recreates matches table with updated sport CHECK constraint that includes 'baseball'; cleans up any leftover _matches_bak from a previously interrupted run before attempting.
 inputs: conn: sqlite3.Connection
 outputs: none
-calls: conn.execute, conn.executescript
+calls: conn.execute, conn.commit
 called_by: init_db
 mutates: matches table (rename → recreate → copy → drop old)
 ---

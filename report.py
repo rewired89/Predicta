@@ -59,7 +59,13 @@ def generate_html_report() -> str:
 <meta charset="utf-8">
 <title>Predicta — Report</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; margin: 2rem; background: #0f172a; color: #e2e8f0; }}
+  body {{ font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }}
+  nav {{ background: #0f172a; border-bottom: 1px solid #1e293b; padding: 0 2rem;
+         display: flex; align-items: center; gap: 2rem; height: 56px; }}
+  nav .brand {{ font-size: 1.2rem; font-weight: 700; color: #38bdf8; text-decoration: none; }}
+  nav a {{ color: #94a3b8; text-decoration: none; font-size: 0.9rem; font-weight: 500; }}
+  nav a:hover, nav a.active {{ color: #f1f5f9; }}
+  .content {{ margin: 2rem; }}
   h1 {{ color: #38bdf8; }}
   .metrics {{ display: flex; gap: 2rem; margin: 1rem 0 2rem; }}
   .metric {{ background: #1e293b; padding: 1rem 1.5rem; border-radius: 8px; }}
@@ -76,6 +82,14 @@ def generate_html_report() -> str:
 </style>
 </head>
 <body>
+<nav>
+  <a class="brand" href="/">Predicta</a>
+  <a href="/">Sports</a>
+  <a href="/trading">Trading</a>
+  <a href="/report" class="active">Report</a>
+  <a href="/docs">API</a>
+</nav>
+<div class="content">
 <h1>Predicta — Prediction Tracker</h1>
 <div class="paper-mode">PAPER MODE — No real wagers tracked or placed.</div>
 <div class="metrics">
@@ -94,5 +108,6 @@ def generate_html_report() -> str:
 {rows_html}
 </tbody>
 </table>
+</div>
 </body>
 </html>"""
