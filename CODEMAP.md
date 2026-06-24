@@ -3228,6 +3228,42 @@ mutates: none
 ---
 
 ---
+name: _fatigue_decay
+type: function
+file: analyze_table_tennis.py
+purpose: Exponential performance decay from intraday match load. f(n)=exp(-0.12*max(0,n-2)). n=3→0.887, n=4→0.787, n=5→0.698.
+inputs: matches_played: int
+outputs: float (0,1]
+calls: math.exp
+called_by: _fatigue_adjustment
+mutates: none
+---
+
+---
+name: _fatigue_adjustment
+type: function
+file: analyze_table_tennis.py
+purpose: Converts per-player exponential decay to a centred probability nudge. Returns prob nudge for prob_a (positive = A is fresher). Replaces old linear 3pp/match rule.
+inputs: matches_today_a: int, matches_today_b: int
+outputs: float in [-0.5, 0.5]
+calls: _fatigue_decay
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: _line_movement_edge
+type: function
+file: analyze_table_tennis.py
+purpose: Sharp money signal from line movement. Threshold 5pp for club circuits (Setka/TT Cup/ukr_dl/czk_dl), 10pp for ITTF/WTT. Returns nudge to prob_a capped at ±8pp.
+inputs: open_a/b: float?, curr_a/b: float?, circuit: str = "ittf"
+outputs: float nudge
+calls: none
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
 name: analyze_table_tennis
 type: function
 file: app.py
@@ -3301,6 +3337,66 @@ outputs: dict {name, recent_form?, recent_n?, ranking?, source, profile_url}
 calls: setka_search_player, setka_player_profile, ttcup_search_player, ttcup_player_profile
 called_by: fetch_table_tennis_context (fetchers/table_tennis.py)
 mutates: none
+---
+
+---
+name: setka_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Count how many matches a player has completed today on Setka Cup. Used for intraday fatigue calculation.
+inputs: player_id: str, match_date: str? (ISO "YYYY-MM-DD")
+outputs: int (0–8)
+calls: _get
+called_by: get_matches_today
+mutates: none
+---
+
+---
+name: ttcup_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Count how many matches a TT Cup player has completed today.
+inputs: player_id: str, match_date: str?
+outputs: int (0–8)
+calls: _get
+called_by: get_matches_today
+mutates: none
+---
+
+---
+name: get_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Look up a club TT player's intraday match count. Tries Setka Cup then TT Cup. Called automatically by run_table_tennis_analysis when matches_today=0 and circuit is club.
+inputs: name: str, match_date: str?
+outputs: int
+calls: setka_search_player, setka_matches_today, ttcup_search_player, ttcup_matches_today
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: lookup_player_profile
+type: function
+file: fetchers/setka.py
+purpose: Return style/grip/hand for a circuit player from data/tt_player_profiles.json. Exact match first, then token-overlap fuzzy (≥2 tokens). Called when context returns default "all-round" style.
+inputs: name: str
+outputs: dict {style, grip, hand} or {}
+calls: _load_profiles (lazy-loaded JSON cache)
+called_by: run_table_tennis_analysis (step 2b)
+mutates: none
+---
+
+---
+name: tt_player_profiles.json
+type: variable
+file: data/tt_player_profiles.json
+purpose: Static style/grip/hand profile dictionary for ~100 Setka Cup and TT Cup circuit regulars. Keyed by full player name. Activates style and handedness signals for players invisible to ITTF/WTT/TSDB.
+inputs: none
+outputs: JSON dict
+calls: none
+called_by: lookup_player_profile
+mutates: none (static file — update when new regulars join the circuit)
 ---
 
 ---
