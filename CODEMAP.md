@@ -2047,6 +2047,30 @@ mutates: none
 ---
 
 ---
+name: resolve_pending
+type: function
+file: app.py
+purpose: POST /resolve-pending — trigger auto-resolve of all unresolved match predictions. Fetches actual results from Setka Cup / TT Cup and records outcomes automatically. dry_run=true previews without writing.
+inputs: dry_run: bool = False
+outputs: dict {attempted, resolved, failed, skipped, details}
+calls: run_auto_resolve
+called_by: HTTP POST /resolve-pending
+mutates: outcomes table (unless dry_run)
+---
+
+---
+name: signal_accuracy
+type: function
+file: app.py
+purpose: GET /signal-accuracy — show per-signal accuracy lift (high vs low) to identify which model inputs are most predictive. Used to guide blend weight tuning.
+inputs: none
+outputs: dict {signal_name: {n, accuracy_high, accuracy_low, lift}}
+calls: _signal_accuracy_summary
+called_by: HTTP GET /signal-accuracy
+mutates: none
+---
+
+---
 name: calibration
 type: function
 file: app.py
@@ -3447,6 +3471,70 @@ called_by: lookup_player_profile
 mutates: none (static file — update when new regulars join the circuit)
 ---
 
+---
+
+## fetchers/results_collector.py
+
+---
+name: fetch_match_result
+type: function
+file: fetchers/results_collector.py
+purpose: Unified entry point — try Setka Cup then TT Cup to fetch the actual result of a completed match. Returns {result, score_a, score_b, source} or None.
+inputs: player_a, player_b: str, match_date: str (ISO), sport: str, tour: str
+outputs: Optional[dict]
+calls: setka_fetch_result, ttcup_fetch_result
+called_by: run_auto_resolve
+mutates: none
+---
+
+---
+name: setka_fetch_result
+type: function
+file: fetchers/results_collector.py
+purpose: Fetch a Setka Cup match result via H2H page then player profile fallback. Parses score, determines winner, handles name-position ambiguity.
+inputs: player_a, player_b: str, match_date: str, tolerance_days: int = 1
+outputs: Optional[dict {result, score_a, score_b, source, raw}]
+calls: setka_search_player, setka_h2h, setka_player_profile
+called_by: fetch_match_result
+mutates: none
+---
+
+---
+name: ttcup_fetch_result
+type: function
+file: fetchers/results_collector.py
+purpose: Fetch a TT Cup match result via H2H page then player profile fallback.
+inputs: player_a, player_b: str, match_date: str, tolerance_days: int = 1
+outputs: Optional[dict]
+calls: ttcup_search_player, _get
+called_by: fetch_match_result
+mutates: none
+---
+
+## tasks/auto_resolve.py
+
+---
+name: run_auto_resolve
+type: function
+file: tasks/auto_resolve.py
+purpose: Scan DB for unresolved predictions past scheduled_at. Fetch actual results from Setka/TT Cup and record outcomes automatically. Returns summary with per-match status. dry_run=True fetches but doesn't write.
+inputs: dry_run: bool = False
+outputs: dict {attempted, resolved, failed, skipped, details}
+calls: _pending_matches, fetch_match_result, record_outcome
+called_by: resolve_pending (app.py), startup thread, CLI
+mutates: outcomes table
+---
+
+---
+name: _signal_accuracy_summary
+type: function
+file: tasks/auto_resolve.py
+purpose: After outcomes accumulate, compute per-signal accuracy lift. Shows which signals (AQI, RQI, form, fatigue...) actually correlate with correct predictions. Guides blend weight tuning.
+inputs: none
+outputs: dict {signal_name: {n, accuracy_high, accuracy_low, lift}} sorted by |lift|
+calls: get_db
+called_by: signal_accuracy (app.py)
+mutates: none
 ---
 
 ## fetchers/ittf.py

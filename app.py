@@ -29,6 +29,16 @@ app = FastAPI(title="Predicta", description="Multi-sport prediction & calibratio
 @app.on_event("startup")
 def startup():
     init_db()
+    # Kick off a background auto-resolve pass on startup so any results
+    # that came in while the server was down get picked up immediately.
+    import threading
+    def _bg_resolve():
+        try:
+            from tasks.auto_resolve import run_auto_resolve
+            run_auto_resolve()
+        except Exception:
+            pass
+    threading.Thread(target=_bg_resolve, daemon=True).start()
 
 
 # ── Match endpoints ─────────────────────────────────────────────────────────
@@ -225,6 +235,34 @@ def pending_outcomes():
             ORDER BY m.scheduled_at DESC
         """).fetchall()
     return [dict(r) for r in rows]
+
+
+@app.post("/resolve-pending")
+def resolve_pending(dry_run: bool = False):
+    """
+    Trigger auto-resolve: scan all predictions past their scheduled time,
+    fetch actual results from Setka Cup / TT Cup, and record outcomes.
+
+    dry_run=true: fetch results but don't write to DB (preview mode).
+    Returns a summary with per-match status and source.
+    """
+    from tasks.auto_resolve import run_auto_resolve
+    return run_auto_resolve(dry_run=dry_run)
+
+
+@app.get("/signal-accuracy")
+def signal_accuracy():
+    """
+    Show which signals have the highest lift (accuracy when signal is high vs low).
+    Useful for identifying which model inputs are actually predictive and
+    should have higher blend weights.
+    Requires at least 5 resolved predictions per signal.
+    """
+    from tasks.auto_resolve import _signal_accuracy_summary
+    result = _signal_accuracy_summary()
+    if not result:
+        return {"message": "Not enough resolved predictions yet. Needs at least 5 per signal."}
+    return result
 
 
 # ── Accuracy & Calibration ────────────────────────────────────────────────────
