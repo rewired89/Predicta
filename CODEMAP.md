@@ -3028,3 +3028,129 @@ calls: run_tennis_analysis
 called_by: HTTP POST /analyze-tennis
 mutates: matches, signals, predictions tables
 ---
+
+## fetchers/table_tennis.py
+
+---
+name: fetch_table_tennis_context
+type: function
+file: fetchers/table_tennis.py
+purpose: Fetch table tennis match context from TheSportsDB. Returns player stats, last10 results, H2H summary.
+inputs: player_a: str, player_b: str, tour: str = "ittf"
+outputs: dict {player_a, player_b, h2h, sources}
+calls: _tsdb_search_player, _tsdb_player_last10, _normalize_tt_results, _tsdb_get
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: attack_quality_index
+type: function
+file: fetchers/table_tennis.py
+purpose: Composite AQI — 100=tour average. Built from attack win rate and 3rd ball win rate.
+inputs: attack_win_rate: float|None, third_ball_win_rate: float|None
+outputs: float
+calls: none
+called_by: fetch_table_tennis_context
+mutates: none
+---
+
+---
+name: return_quality_index
+type: function
+file: fetchers/table_tennis.py
+purpose: RQI — 100=tour average. Built from return point win rate.
+inputs: return_win_rate: float|None
+outputs: float
+calls: none
+called_by: fetch_table_tennis_context
+mutates: none
+---
+
+## ai_agent_table_tennis.py
+
+---
+name: parse_table_tennis_query
+type: function
+file: ai_agent_table_tennis.py
+purpose: Claude Haiku — extract player_a, player_b, tour, date, notes from natural language query.
+inputs: user_text: str
+outputs: dict
+calls: anthropic.messages.create
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: interpret_table_tennis_signals
+type: function
+file: ai_agent_table_tennis.py
+purpose: AI fallback — Claude estimates AQI, RQI, ranking, form, style when TSDB returns no data.
+inputs: player_a, player_b, tour, notes
+outputs: dict {player_a, player_b, h2h_advantage, style_edge, notes}
+calls: anthropic.messages.create
+called_by: run_table_tennis_analysis (fallback path)
+mutates: none
+---
+
+---
+name: generate_table_tennis_narrative
+type: function
+file: ai_agent_table_tennis.py
+purpose: Claude Haiku — generate 2-3 sentence prediction narrative for a table tennis match.
+inputs: player_a, player_b, prob_a, prob_b, explanation, context
+outputs: str
+calls: anthropic.messages.create
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+## analyze_table_tennis.py
+
+---
+name: run_table_tennis_analysis
+type: function
+file: analyze_table_tennis.py
+purpose: Full table tennis pipeline: parse → TSDB fetch → AQI/RQI model → style adjustment → form → Glicko-2 → persist → Kelly → narrative.
+inputs: user_query: str, bankroll: float = 1000.0
+outputs: dict with match_id, player_a/b, prob_a/b, player_stats, h2h, narrative, steps
+calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
+called_by: analyze_table_tennis endpoint (app.py)
+mutates: matches, signals, predictions tables
+---
+
+---
+name: _attack_return_win_prob
+type: function
+file: analyze_table_tennis.py
+purpose: Logistic win probability from AQI/RQI differentials. Same sensitivity as tennis serve model (±40 ≈ 65%/35%).
+inputs: aqi_a, rqi_b, aqi_b, rqi_a: float
+outputs: float (P(player_a wins))
+calls: math.exp
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: _style_edge
+type: function
+file: analyze_table_tennis.py
+purpose: Small prob nudge (±4pp) for style matchup — attacker vs chopper/defender historically favours attacker.
+inputs: style_a: str, style_b: str
+outputs: float in [-0.05, 0.05]
+calls: none
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: analyze_table_tennis
+type: function
+file: app.py
+purpose: POST /analyze-table-tennis — runs full table tennis pipeline from natural language query.
+inputs: body: TableTennisRequest
+outputs: dict (full analysis result)
+calls: run_table_tennis_analysis
+called_by: HTTP POST /analyze-table-tennis
+mutates: matches, signals, predictions tables
+---

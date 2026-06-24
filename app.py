@@ -258,6 +258,22 @@ def analyze_tennis(body: TennisRequest):
     return result
 
 
+class TableTennisRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-table-tennis")
+def analyze_table_tennis(body: TableTennisRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_table_tennis import run_table_tennis_analysis
+    result = run_table_tennis_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("player_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
 class TradeRequest(BaseModel):
     query: str
     bankroll: float = 10000.0
