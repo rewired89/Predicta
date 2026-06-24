@@ -529,15 +529,43 @@ def run_table_tennis_analysis(
                   "blended_prob_a": round(prob_a, 3)})
 
 
-    # ── Confidence shrinkage ──────────────────────────────────────────────────
-    # When data is weak, shrink probabilities toward 50% so we don't manufacture
-    # false edges against the book from noise. The book has more information than
-    # we do on unknown regional players.
+    # ── Bayesian prior + confidence shrinkage (Gemini fix) ───────────────────
+    # When structural data is missing, use the de-vigged book line as the
+    # Bayesian prior instead of 0.50. The book has already priced unknown
+    # club players; we use that consensus and only adjust for signals we
+    # have independent evidence for.
+    book_prior_a = 0.5  # default: no book line available
+
+    def _to_implied(american: float) -> float:
+        if american >= 0:
+            return 100.0 / (american + 100.0)
+        return abs(american) / (abs(american) + 100.0)
+
+    if open_odds_a is not None and open_odds_b is not None:
+        imp_a = _to_implied(open_odds_a)
+        imp_b = _to_implied(open_odds_b)
+        total = imp_a + imp_b
+        book_prior_a = imp_a / total  # de-vigged opening line
+        steps.append({"step": "book_prior", "status": "ok",
+                      "book_prior_a": round(book_prior_a, 3),
+                      "note": "De-vigged opening line used as Bayesian prior"})
+    elif curr_odds_a is not None and curr_odds_b is not None:
+        imp_a = _to_implied(curr_odds_a)
+        imp_b = _to_implied(curr_odds_b)
+        total = imp_a + imp_b
+        book_prior_a = imp_a / total
+        steps.append({"step": "book_prior", "status": "ok",
+                      "book_prior_a": round(book_prior_a, 3),
+                      "note": "De-vigged current line used as Bayesian prior (no opening line)"})
+
     shrink = {"high": 1.0, "medium": 0.6, "low": 0.3}.get(data_confidence, 0.3)
-    prob_a = 0.5 + (prob_a - 0.5) * shrink
+    # Shrinkage now draws toward the book prior, not a flat 0.50
+    prob_a = book_prior_a + (prob_a - book_prior_a) * shrink
     prob_b = 1.0 - prob_a
     steps.append({"step": "confidence_shrink", "status": "ok",
-                  "data_confidence": data_confidence, "shrink_factor": shrink})
+                  "data_confidence": data_confidence,
+                  "shrink_factor": shrink,
+                  "book_prior_a": round(book_prior_a, 3)})
 
     h2h = context.get("h2h", {})
     line_note = (
@@ -627,10 +655,46 @@ def run_table_tennis_analysis(
         steps.append({"step": "narrative", "status": "error", "error": str(exc)})
 
     # ── 10. Recommendation ───────────────────────────────────────────────────
-    # No-bet rule: when we have no independent data, defer to the book.
+    # For club circuit players (low confidence + no structural data):
+    # Switch from Statistical Model to Market Efficiency Model.
+    # Tail significant line movement (≥8pp implied prob shift) as sharp signal.
+    # The book set early lines algorithmically; sharp money knows things we don't.
     if data_confidence == "low":
-        recommendation = "PASS"
-        recommendation_reason = "Insufficient data on these players — model cannot find an independent edge."
+        # Compute line movement if we have both open and current
+        market_movement = 0.0
+        if (open_odds_a is not None and open_odds_b is not None and
+                curr_odds_a is not None and curr_odds_b is not None):
+            open_imp_a  = _to_implied(open_odds_a)
+            open_imp_b  = _to_implied(open_odds_b)
+            open_fair_a = open_imp_a / (open_imp_a + open_imp_b)
+            curr_imp_a  = _to_implied(curr_odds_a)
+            curr_imp_b  = _to_implied(curr_odds_b)
+            curr_fair_a = curr_imp_a / (curr_imp_a + curr_imp_b)
+            market_movement = curr_fair_a - open_fair_a  # + = money on A
+
+        SHARP_THRESHOLD = 0.08  # ≥8pp shift signals syndicated sharp money
+
+        if market_movement >= SHARP_THRESHOLD:
+            recommendation = player_a
+            recommendation_reason = (
+                f"Sharp money signal: line moved {market_movement*100:+.1f}pp toward "
+                f"{player_a} (market efficiency model — no structural data available)"
+            )
+        elif market_movement <= -SHARP_THRESHOLD:
+            recommendation = player_b
+            recommendation_reason = (
+                f"Sharp money signal: line moved {abs(market_movement)*100:.1f}pp toward "
+                f"{player_b} (market efficiency model — no structural data available)"
+            )
+        else:
+            recommendation = "PASS"
+            recommendation_reason = (
+                "No structural data and no significant line movement — "
+                "book line unchanged, no detectable sharp signal."
+            )
+        steps.append({"step": "market_efficiency", "status": "ok",
+                      "market_movement": round(market_movement, 4),
+                      "sharp_threshold": SHARP_THRESHOLD})
     elif prob_a > prob_b:
         recommendation = player_a
         recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}% vs book)"

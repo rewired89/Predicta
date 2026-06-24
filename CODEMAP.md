@@ -3111,7 +3111,7 @@ mutates: none
 name: run_table_tennis_analysis
 type: function
 file: analyze_table_tennis.py
-purpose: Full TT pipeline: parse → ITTF/WTT/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → shrink → persist → Kelly → narrative.
+purpose: Full TT pipeline: parse → ITTF/WTT/Setka/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → Bayesian prior shrinkage → market efficiency model → persist → Kelly → narrative.
 inputs: user_query: str, bankroll: float, open_odds_a/b: float?, curr_odds_a/b: float?, matches_today_a/b: int
 outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, steps
 calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
@@ -3189,6 +3189,70 @@ outputs: dict (full analysis result)
 calls: run_table_tennis_analysis
 called_by: HTTP POST /analyze-table-tennis
 mutates: matches, signals, predictions tables
+---
+
+---
+
+## fetchers/setka.py
+
+---
+name: setka_search_player
+type: function
+file: fetchers/setka.py
+purpose: Search tabletennis.setkacup.com/en/participants for a club-circuit player by name. Returns {name, player_id, profile_url, source} or None.
+inputs: name: str
+outputs: Optional[dict]
+calls: _get, BeautifulSoup
+called_by: lookup_club_tt_player
+mutates: none
+---
+
+---
+name: setka_player_profile
+type: function
+file: fetchers/setka.py
+purpose: Scrape Setka Cup player profile for recent form (win rate), recent_n, ranking.
+inputs: player_id: str
+outputs: dict {recent_form?, recent_n?, ranking?, recent_matches?}
+calls: _get, BeautifulSoup
+called_by: lookup_club_tt_player
+mutates: none
+---
+
+---
+name: ttcup_search_player
+type: function
+file: fetchers/setka.py
+purpose: Search tt-cup.com for a player. Returns {name, player_id, profile_url, source} or None.
+inputs: name: str
+outputs: Optional[dict]
+calls: _get, BeautifulSoup
+called_by: lookup_club_tt_player
+mutates: none
+---
+
+---
+name: ttcup_player_profile
+type: function
+file: fetchers/setka.py
+purpose: Scrape TT Cup player profile for win rate and recent results.
+inputs: player_id: str
+outputs: dict {recent_form?, recent_n?}
+calls: _get
+called_by: lookup_club_tt_player
+mutates: none
+---
+
+---
+name: lookup_club_tt_player
+type: function
+file: fetchers/setka.py
+purpose: Unified lookup for Eastern European club TT players — tries Setka Cup then TT Cup. Used as Step 2 in the TT fetcher pipeline before TSDB fallback.
+inputs: name: str
+outputs: dict {name, recent_form?, recent_n?, ranking?, source, profile_url}
+calls: setka_search_player, setka_player_profile, ttcup_search_player, ttcup_player_profile
+called_by: fetch_table_tennis_context (fetchers/table_tennis.py)
+mutates: none
 ---
 
 ---

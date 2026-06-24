@@ -191,7 +191,25 @@ def fetch_table_tennis_context(
         else:
             sources.append({"label": f"{name} ITTF/WTT", "url": "", "snippet": "Not found"})
 
-        # ── 2. TSDB fallback for last10 if ITTF had no match history ──────
+        # ── 2. Setka Cup / TT Cup (club circuit) ─────────────────────────
+        if not last10 and not ittf_data.get("recent_form"):
+            try:
+                from fetchers.setka import lookup_club_tt_player
+                club_data = lookup_club_tt_player(name)
+                if club_data.get("recent_form") is not None:
+                    player_data["recent_form"] = club_data["recent_form"]
+                    sources.append({
+                        "label":   f"{name} ({club_data.get('source', 'Setka/TT Cup')})",
+                        "url":     club_data.get("profile_url", ""),
+                        "snippet": (
+                            f"Club form: {round(club_data['recent_form']*100)}% win rate "
+                            f"({club_data.get('recent_n', '?')} matches)"
+                        ),
+                    })
+            except Exception as exc:
+                sources.append({"label": f"{name} Setka/TT Cup", "url": "", "snippet": f"ERROR: {exc}"})
+
+        # ── 3. TSDB fallback for last10 if ITTF had no match history ──────
         if not last10:
             try:
                 tsdb_player = _tsdb_search_player(name)
