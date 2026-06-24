@@ -74,12 +74,24 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         context = fetch_tennis_context(player_a_raw, player_b_raw, surface, tour)
         if "error" in context:
             raise ValueError(context["error"])
+        # Quality check: if both players have no real data (all defaults), use AI fallback
+        pa_data = context.get("player_a", {})
+        pb_data = context.get("player_b", {})
+        has_real_data = (
+            (pa_data.get("ranking") not in (None, 999)) or
+            (pa_data.get("serve_quality_index") not in (None, 100)) or
+            (pa_data.get("surface_win_rate") not in (None, 0.5)) or
+            (pb_data.get("ranking") not in (None, 999)) or
+            (pb_data.get("serve_quality_index") not in (None, 100))
+        )
+        if not has_real_data:
+            raise ValueError("No real player data returned from ESPN/TSDB — activating AI fallback")
         steps.append({"step": "tennis_fetch", "status": "ok",
                       "sources": context.get("sources", [])})
     except Exception as exc:
         steps.append({"step": "tennis_fetch", "status": "fallback",
                       "error": str(exc),
-                      "note": "ESPN/TSDB unreachable — using AI signal estimates."})
+                      "note": "ESPN/TSDB returned no data — using AI signal estimates from training knowledge."})
         ai_fallback = True
 
     if ai_fallback:

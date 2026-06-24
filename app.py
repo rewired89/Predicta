@@ -7,12 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# Load .env file automatically if present (pip install python-dotenv)
-try:
-    from dotenv import load_dotenv
-    load_dotenv(override=True)
-except ImportError:
-    pass
+import env_loader  # noqa: F401 — loads .env on import, handles CRLF/BOM/quotes
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse

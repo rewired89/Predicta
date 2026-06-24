@@ -452,5 +452,13 @@ def fetch_tennis_context(
     except Exception as exc:
         sources.append({"label": "Head-to-Head", "url": "", "snippet": f"ERROR: {exc}"})
 
-    result["h2h"] = h2h
+    # Convert h2h list → summary dict expected by analyze_tennis
+    wins_a = sum(1 for m in h2h if player_a.lower() in m.get("winner", "").lower())
+    wins_b = sum(1 for m in h2h if player_b.lower() in m.get("winner", "").lower())
+    result["h2h"] = {
+        "wins_a":    wins_a,
+        "wins_b":    wins_b,
+        "advantage": "player_a" if wins_a > wins_b else ("player_b" if wins_b > wins_a else "even"),
+        "matches":   h2h,
+    }
     return result
