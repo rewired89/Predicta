@@ -22,31 +22,61 @@ def _elo_from_ranking(ranking: int) -> float:
     return max(1300.0, 2400.0 - 400.0 * math.log10(max(1, ranking)))
 
 
-def _attack_return_win_prob(aqi_a: float, rqi_b: float, aqi_b: float, rqi_a: float) -> float:
-    """
-    Estimate win probability from attack/return quality indices.
-    100 = tour average. Higher AQI = better attacker; higher RQI = harder to attack against.
-    Returns P(player_a wins) in (0, 1).
-    """
-    adv_a = (aqi_a - 100) - (rqi_b - 100)
-    adv_b = (aqi_b - 100) - (rqi_a - 100)
-    net   = adv_a - adv_b
-    # ±40 ≈ 65%/35% — same sensitivity as tennis model
-    return 1.0 / (1.0 + math.exp(-net / 40.0))
+def _logistic(x: float, scale: float = 40.0) -> float:
+    return 1.0 / (1.0 + math.exp(-x / scale))
 
 
-def _style_edge(style_a: str, style_b: str) -> float:
+def _style_aqi_modifier(style_attacker: str, style_defender: str) -> float:
     """
-    Prob nudge for style matchup — attacker vs defender/chopper is the key axis.
-    Returns float in [-0.05, +0.05].
+    Style interacts with AQI at the input level, not as a flat nudge.
+    A chopper/defender suppresses the opponent's effective AQI because they
+    force high-error underspin rallies — the attacker's loop is less effective.
+    Returns a multiplier applied to the opponent's AQI before it enters the model.
+    1.0 = no effect. >1.0 = style boosts AQI. <1.0 = style suppresses AQI.
     """
-    a = (style_a or "").lower()
-    b = (style_b or "").lower()
-    if "attack" in a and ("defend" in b or "chop" in b):
-        return 0.04
-    if ("defend" in a or "chop" in a) and "attack" in b:
-        return -0.04
-    return 0.0
+    a = (style_attacker or "").lower()
+    b = (style_defender or "").lower()
+    # Defender/chopper facing an attacker: attacker's AQI is suppressed ~10%
+    if ("defend" in b or "chop" in b) and "attack" in a:
+        return 0.90   # attacker's AQI is 10% less effective vs defender
+    # Attacker facing a blocker: small suppression
+    if "block" in b and "attack" in a:
+        return 0.95
+    return 1.0
+
+
+def _attack_return_win_prob(
+    aqi_a: float, rqi_a: float,
+    aqi_b: float, rqi_b: float,
+    style_a: str = "all-round", style_b: str = "all-round",
+) -> tuple[float, float, float]:
+    """
+    TRUE matchup model — separates serve points from return points.
+
+    In table tennis serve alternates every 2 points, so each player
+    initiates attack ~50% of the time. We model both halves separately:
+
+      P(A wins serve point)   = logistic(AQI_a_eff - RQI_b)
+        — how A's attack pierces B's defense when A serves
+      P(A wins return point)  = logistic(RQI_a - AQI_b_eff)
+        — how A's defense handles B's attack when B serves
+
+    Style interacts at the AQI input: a chopper suppresses opponent's AQI
+    because they force underspin errors, reducing the attacker's effectiveness.
+
+    Returns (prob_a, p_serve_a, p_return_a) for full transparency.
+    """
+    # Apply style modifier to the ATTACKING player's AQI
+    aqi_a_eff = aqi_a * _style_aqi_modifier(style_a, style_b)
+    aqi_b_eff = aqi_b * _style_aqi_modifier(style_b, style_a)
+
+    # Normalise to 0-centred (100 = average)
+    p_a_serves  = _logistic(aqi_a_eff - rqi_b, scale=40.0)   # A attacks vs B defends
+    p_a_returns = _logistic(rqi_a - aqi_b_eff, scale=40.0)   # A defends vs B attacks
+
+    # Equal serve distribution (50/50 in TT — serve alternates)
+    prob_a = 0.5 * p_a_serves + 0.5 * p_a_returns
+    return prob_a, p_a_serves, p_a_returns
 
 
 def _handedness_edge(hand_a: str, hand_b: str) -> float:
@@ -235,73 +265,90 @@ def run_table_tennis_analysis(
     rank_b = int(pb.get("ranking") or 999)
     form_a = float(pa.get("recent_form") or 0.5)
     form_b = float(pb.get("recent_form") or 0.5)
-    style_a   = str(pa.get("style") or "all-round")
-    style_b   = str(pb.get("style") or "all-round")
-    hand_a    = str(pa.get("handedness") or "right")
-    hand_b    = str(pb.get("handedness") or "right")
+    style_a = str(pa.get("style") or "all-round")
+    style_b = str(pb.get("style") or "all-round")
+    hand_a  = str(pa.get("handedness") or "right")
+    hand_b  = str(pb.get("handedness") or "right")
 
-    # ── 3. AQI/RQI model ─────────────────────────────────────────────────────
-    prob_a_attack = _attack_return_win_prob(aqi_a, rqi_b, aqi_b, rqi_a)
+    # ── 3. True serve/return matchup model (Gemini fix) ──────────────────────
+    # Style now modifies AQI inputs, not a post-hoc nudge.
+    prob_a_matchup, p_serves, p_returns = _attack_return_win_prob(
+        aqi_a, rqi_a, aqi_b, rqi_b, style_a, style_b,
+    )
     steps.append({"step": "attack_model", "status": "ok",
-                  "prob_a": round(prob_a_attack, 3), "prob_b": round(1 - prob_a_attack, 3)})
+                  "prob_a": round(prob_a_matchup, 3),
+                  "p_a_serves": round(p_serves, 3),
+                  "p_a_returns": round(p_returns, 3)})
 
-    # ── 4. Style matchup adjustment ───────────────────────────────────────────
-    style_nudge  = _style_edge(style_a, style_b)
-    prob_a_style = min(0.95, max(0.05, prob_a_attack + style_nudge))
-
-    # ── 5. Handedness matchup adjustment ─────────────────────────────────────
-    hand_nudge   = _handedness_edge(hand_a, hand_b)
-    prob_a_hand  = min(0.95, max(0.05, prob_a_style + hand_nudge))
+    # ── 4. Handedness nudge (additive to matchup prob) ────────────────────────
+    hand_nudge     = _handedness_edge(hand_a, hand_b)
+    prob_a_hand    = min(0.95, max(0.05, prob_a_matchup + hand_nudge))
     steps.append({"step": "handedness", "status": "ok",
                   "hand_a": hand_a, "hand_b": hand_b, "nudge": round(hand_nudge, 3)})
 
-    # ── 6. Recent form adjustment (25% weight) ────────────────────────────────
-    form_prob_a = form_a / (form_a + form_b) if (form_a + form_b) > 0 else 0.5
-    prob_a_form = 0.75 * prob_a_hand + 0.25 * form_prob_a
-    prob_b_form = 1.0 - prob_a_form
+    # ── 5–8. Single weighted blend (Gemini fix — no more sequential dampening)
+    # All signals fed into one blend rather than chained 75/25 then 70/30.
+    # Weights: matchup+handedness 40%, form 20%, Glicko 30%, fatigue+line 10%
 
-    # ── 7. Fatigue adjustment ─────────────────────────────────────────────────
+    # Compute each signal as a probability in [0,1]
+    form_prob_a   = form_a / (form_a + form_b) if (form_a + form_b) > 0 else 0.5
     fatigue_nudge = _fatigue_adjustment(matches_today_a, matches_today_b)
-    prob_a_fatigue = min(0.95, max(0.05, prob_a_form + fatigue_nudge))
-    prob_b_fatigue = 1.0 - prob_a_fatigue
+    line_nudge    = _line_movement_edge(open_odds_a, open_odds_b, curr_odds_a, curr_odds_b)
+
     if fatigue_nudge != 0.0:
         steps.append({"step": "fatigue", "status": "ok",
                       "matches_today_a": matches_today_a,
                       "matches_today_b": matches_today_b,
                       "nudge": round(fatigue_nudge, 3)})
-
-    # ── 8. Line movement signal ───────────────────────────────────────────────
-    line_nudge = _line_movement_edge(open_odds_a, open_odds_b, curr_odds_a, curr_odds_b)
-    prob_a_line = min(0.95, max(0.05, prob_a_fatigue + line_nudge))
-    prob_b_line = 1.0 - prob_a_line
     if line_nudge != 0.0:
         steps.append({"step": "line_movement", "status": "ok",
                       "open_a": open_odds_a, "open_b": open_odds_b,
                       "curr_a": curr_odds_a, "curr_b": curr_odds_b,
                       "nudge": round(line_nudge, 3)})
 
-    prob_a = prob_a_line
-    prob_b = prob_b_line
-
-    # ── 9. Glicko-2 blend (30% weight) ───────────────────────────────────────
+    # Glicko signal computed here so it can enter the unified blend
+    glicko_a_prob = 0.5
     glicko_explanation = ""
     try:
         glicko = Glicko2Model()
         glicko.set_rating(player_a, "table_tennis", "all", _elo_from_ranking(rank_a), 200.0, 0.06)
         glicko.set_rating(player_b, "table_tennis", "all", _elo_from_ranking(rank_b), 200.0, 0.06)
-        glicko_a, glicko_b = glicko.win_probability(player_a, player_b, "table_tennis", "all")
-        prob_a = 0.7 * prob_a + 0.3 * glicko_a
-        prob_b = 0.7 * prob_b + 0.3 * glicko_b
-        total  = prob_a + prob_b
-        prob_a /= total
-        prob_b /= total
+        glicko_a_prob, glicko_b_prob = glicko.win_probability(player_a, player_b, "table_tennis", "all")
         glicko_explanation = (
-            f"Glicko-2 (from ranking): {player_a} {glicko_a*100:.1f}% / {player_b} {glicko_b*100:.1f}%"
+            f"Glicko-2 (from ranking): {player_a} {glicko_a_prob*100:.1f}% / "
+            f"{player_b} {glicko_b_prob*100:.1f}%"
         )
         steps.append({"step": "glicko_blend", "status": "ok",
-                      "glicko_a": round(glicko_a, 3), "glicko_b": round(glicko_b, 3)})
+                      "glicko_a": round(glicko_a_prob, 3), "glicko_b": round(glicko_b_prob, 3)})
     except Exception as exc:
         steps.append({"step": "glicko_blend", "status": "skipped", "error": str(exc)})
+
+    # Fatigue and line movement as probability signals (centred on 0.5)
+    fatigue_prob = min(0.95, max(0.05, 0.5 + fatigue_nudge))
+    line_prob    = min(0.95, max(0.05, 0.5 + line_nudge))
+
+    # Unified weighted blend — prevents the extreme-damping Gemini identified
+    W_MATCHUP = 0.40   # AQI/RQI serve+return model + handedness
+    W_FORM    = 0.20   # recent win rate
+    W_GLICKO  = 0.30   # ranking-based Glicko-2
+    W_CONTEXT = 0.10   # fatigue + line movement (split equally)
+
+    prob_a = (
+        W_MATCHUP * prob_a_hand +
+        W_FORM    * form_prob_a +
+        W_GLICKO  * glicko_a_prob +
+        W_CONTEXT * 0.5 * (fatigue_prob + line_prob)
+    )
+    prob_b = 1.0 - prob_a
+
+    steps.append({"step": "unified_blend", "status": "ok",
+                  "matchup": round(prob_a_hand, 3),
+                  "form": round(form_prob_a, 3),
+                  "glicko": round(glicko_a_prob, 3),
+                  "fatigue_prob": round(fatigue_prob, 3),
+                  "line_prob": round(line_prob, 3),
+                  "blended_prob_a": round(prob_a, 3)})
+
 
     # ── Confidence shrinkage ──────────────────────────────────────────────────
     # When data is weak, shrink probabilities toward 50% so we don't manufacture
