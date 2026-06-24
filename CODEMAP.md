@@ -3111,8 +3111,8 @@ mutates: none
 name: run_table_tennis_analysis
 type: function
 file: analyze_table_tennis.py
-purpose: Full table tennis pipeline: parse → TSDB fetch → AQI/RQI model → style adjustment → form → Glicko-2 → persist → Kelly → narrative.
-inputs: user_query: str, bankroll: float = 1000.0
+purpose: Full TT pipeline: parse → ITTF/WTT/TSDB fetch → AQI/RQI → style → handedness → form → fatigue → line_movement → Glicko-2 → shrink → persist → Kelly → narrative.
+inputs: user_query: str, bankroll: float, open_odds_a/b: float?, curr_odds_a/b: float?, matches_today_a/b: int
 outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, narrative, steps
 calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
 called_by: analyze_table_tennis endpoint (app.py)

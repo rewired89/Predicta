@@ -261,6 +261,15 @@ def analyze_tennis(body: TennisRequest):
 class TableTennisRequest(BaseModel):
     query: str
     bankroll: float = 1000.0
+    # Opening line (American odds) — if provided, enables line movement signal
+    open_odds_a: Optional[float] = None
+    open_odds_b: Optional[float] = None
+    # Current line — defaults to open_odds if not separately supplied
+    curr_odds_a: Optional[float] = None
+    curr_odds_b: Optional[float] = None
+    # Matches already played today before this one (fatigue signal)
+    matches_today_a: int = 0
+    matches_today_b: int = 0
 
 
 @app.post("/analyze-table-tennis")
@@ -268,7 +277,16 @@ def analyze_table_tennis(body: TableTennisRequest):
     if not body.query.strip():
         raise HTTPException(400, "Query cannot be empty")
     from analyze_table_tennis import run_table_tennis_analysis
-    result = run_table_tennis_analysis(body.query, body.bankroll)
+    result = run_table_tennis_analysis(
+        body.query,
+        bankroll=body.bankroll,
+        open_odds_a=body.open_odds_a,
+        open_odds_b=body.open_odds_b,
+        curr_odds_a=body.curr_odds_a,
+        curr_odds_b=body.curr_odds_b,
+        matches_today_a=body.matches_today_a,
+        matches_today_b=body.matches_today_b,
+    )
     if "error" in result and not result.get("player_a"):
         raise HTTPException(500, detail=result["error"])
     return result
