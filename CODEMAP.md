@@ -2995,7 +2995,7 @@ type: function
 file: analyze_tennis.py
 purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → serve/return model → surface win rate → form blend → Glicko-2 blend → persist to DB → Kelly sizing → AI narrative → return result dict.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict {match_id, player_a, player_b, sport, tour, surface, date, prob_a, prob_b, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
+outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, prob_a, prob_b, data_confidence, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
 calls: parse_tennis_query, fetch_tennis_context, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative
 called_by: analyze_tennis (app.py)
 mutates: matches, signals, predictions tables
@@ -3113,7 +3113,7 @@ type: function
 file: analyze_table_tennis.py
 purpose: Full table tennis pipeline: parse → TSDB fetch → AQI/RQI model → style adjustment → form → Glicko-2 → persist → Kelly → narrative.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict with match_id, player_a/b, prob_a/b, player_stats, h2h, narrative, steps
+outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, narrative, steps
 calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
 called_by: analyze_table_tennis endpoint (app.py)
 mutates: matches, signals, predictions tables

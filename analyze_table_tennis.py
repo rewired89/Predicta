@@ -282,11 +282,25 @@ def run_table_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict
         )
         steps.append({"step": "narrative", "status": "error", "error": str(exc)})
 
+    # ── 10. Recommendation ───────────────────────────────────────────────────
+    # No-bet rule: when we have no independent data, defer to the book.
+    if data_confidence == "low":
+        recommendation = "PASS"
+        recommendation_reason = "Insufficient data on these players — model cannot find an independent edge."
+    elif prob_a > prob_b:
+        recommendation = player_a
+        recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}% vs book)"
+    else:
+        recommendation = player_b
+        recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}% vs book)"
+
     return {
-        "match_id":   match_id,
-        "player_a":   player_a,
-        "player_b":   player_b,
-        "sport":      "table_tennis",
+        "match_id":        match_id,
+        "player_a":        player_a,
+        "player_b":        player_b,
+        "recommendation":  recommendation,
+        "recommendation_reason": recommendation_reason,
+        "sport":           "table_tennis",
         "tour":       tour.upper(),
         "date":       game_date,
         "narrative":  narrative,
