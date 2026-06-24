@@ -3154,3 +3154,80 @@ calls: run_table_tennis_analysis
 called_by: HTTP POST /analyze-table-tennis
 mutates: matches, signals, predictions tables
 ---
+
+---
+
+## fetchers/ittf.py
+
+---
+name: wtt_search_player
+type: function
+file: fetchers/ittf.py
+purpose: Search worldtabletennis.com/playerslist for a player by name; returns {name, ittf_id, ranking, nationality} or None.
+inputs: name: str
+outputs: Optional[dict]
+calls: _get, BeautifulSoup
+called_by: lookup_tt_player
+mutates: none
+---
+
+---
+name: wtt_player_profile
+type: function
+file: fetchers/ittf.py
+purpose: Scrape worldtabletennis.com/playerProfile/{id} for ranking, nationality, and season win rate.
+inputs: ittf_id: str
+outputs: dict {ranking?, nationality?, season_win_rate?, season_matches?}
+calls: _get, BeautifulSoup
+called_by: lookup_tt_player
+mutates: none
+---
+
+---
+name: ittf_search_player
+type: function
+file: fetchers/ittf.py
+purpose: Search results.ittf.link for a player via POST form; returns {name, ittf_seq, ittf_id, profile_url} or None.
+inputs: name: str
+outputs: Optional[dict]
+calls: httpx.Client.post, _get, BeautifulSoup
+called_by: lookup_tt_player
+mutates: none
+---
+
+---
+name: ittf_player_profile
+type: function
+file: fetchers/ittf.py
+purpose: Scrape ITTF player profile page for ranking and recent match history (up to 20 matches).
+inputs: ittf_seq: str, ittf_id: str
+outputs: dict {ranking?, recent_matches, recent_form, recent_n}
+calls: _get, BeautifulSoup
+called_by: lookup_tt_player
+mutates: none
+---
+
+---
+name: ittf_h2h
+type: function
+file: fetchers/ittf.py
+purpose: Fetch H2H record from results.ittf.link/head-to-head between two player IDs.
+inputs: ittf_id_a: str, ittf_id_b: str
+outputs: dict {wins_a, wins_b, matches: list}
+calls: _get, BeautifulSoup
+called_by: fetch_table_tennis_context
+mutates: none
+---
+
+---
+name: lookup_tt_player
+type: function
+file: fetchers/ittf.py
+purpose: Unified player lookup — tries WTT first for ranking, then ITTF results for match history; merges best available data.
+inputs: name: str
+outputs: dict {name, ittf_id, wtt_id, ranking, recent_form, nationality, source, ...}
+calls: wtt_search_player, wtt_player_profile, ittf_search_player, ittf_player_profile
+called_by: fetch_table_tennis_context
+mutates: none
+---
+

@@ -1,11 +1,14 @@
 """
-TheSportsDB + RapidAPI ITTF table tennis fetcher.
-No paid API key required — uses TSDB free tier (key=1).
+Table tennis data fetcher.
+Source priority:
+  1. results.ittf.link  — player profile, ranking, match history, H2H
+  2. worldtabletennis.com — ITTF ranking, season win rate
+  3. TheSportsDB (free tier) — fallback last10, player metadata
 
 Key signals:
   Attack Quality Index (AQI)  — composite attack win rate + 3rd ball attack rate
   Return Quality Index (RQI)  — return point win rate
-  Recent form                 — last-10 win rate
+  Recent form                 — last-10/20 win rate from ITTF match history
   ITTF ranking                → Glicko-2 seed
   H2H                         — style matchups are highly predictive in TT
 """
@@ -137,13 +140,16 @@ def fetch_table_tennis_context(
     tour: str = "ittf",
 ) -> dict:
     """
-    Fetch context for a table tennis match from TheSportsDB.
+    Fetch context for a table tennis match.
+    Source priority: ITTF results.ittf.link → WTT worldtabletennis.com → TSDB fallback.
 
     Returns dict with:
       player_a / player_b: {name, ranking, last10, aqi, rqi, recent_form}
       h2h: {wins_a, wins_b, advantage, matches}
       sources: list[dict]
     """
+    from fetchers.ittf import lookup_tt_player, ittf_h2h
+
     sources: list[dict] = []
     result: dict = {
         "player_a": {"name": player_a},
@@ -152,68 +158,113 @@ def fetch_table_tennis_context(
         "sources":  sources,
     }
 
+    ittf_ids: dict[str, str] = {}  # key → ittf_results_id for H2H
+
     for key, name in [("player_a", player_a), ("player_b", player_b)]:
         player_data = result[key]
         last10: list[dict] = []
 
+        # ── 1. Try ITTF + WTT ─────────────────────────────────────────────
+        ittf_data: dict = {}
         try:
-            tsdb_player = _tsdb_search_player(name)
-            if tsdb_player:
-                pid = tsdb_player.get("idPlayer")
-                player_data["tsdb_id"]     = pid
-                player_data["nationality"] = tsdb_player.get("strNationality", "")
-                player_data["style"]       = tsdb_player.get("strPosition", "")
-                player_data["birth_year"]  = (tsdb_player.get("dateBorn") or "")[:4]
-                sources.append({
-                    "label":   f"{name} (TheSportsDB)",
-                    "url":     f"{TSDB_BASE}/lookupplayer.php?id={pid}",
-                    "snippet": f"Found: {tsdb_player.get('strPlayer', name)}",
-                })
-                if pid:
-                    raw10 = _tsdb_player_last10(pid)
-                    if raw10:
-                        last10 = _normalize_tt_results(raw10, name)
-                        sources.append({
-                            "label":   f"{name} recent results (TSDB)",
-                            "url":     f"{TSDB_BASE}/eventsplayer.php?id={pid}",
-                            "snippet": f"{len(last10)} matches found",
-                        })
-            else:
-                sources.append({"label": f"{name} TSDB", "url": "", "snippet": "Not found"})
+            ittf_data = lookup_tt_player(name)
         except Exception as exc:
-            sources.append({"label": f"{name} TSDB", "url": "", "snippet": f"ERROR: {exc}"})
+            sources.append({"label": f"{name} ITTF", "url": "", "snippet": f"ERROR: {exc}"})
+
+        if ittf_data.get("ranking") or ittf_data.get("recent_form") is not None:
+            player_data["ranking"]     = ittf_data.get("ranking", 999)
+            player_data["nationality"] = ittf_data.get("nationality", "")
+            player_data["style"]       = ittf_data.get("style", "all-round")
+            if ittf_data.get("ittf_results_id"):
+                ittf_ids[key] = ittf_data["ittf_results_id"]
+            if ittf_data.get("recent_form") is not None:
+                player_data["recent_form"] = ittf_data["recent_form"]
+                last10 = ittf_data.get("recent_matches", [])
+            sources.append({
+                "label":   f"{name} ({ittf_data.get('source', 'ITTF/WTT')})",
+                "url":     ittf_data.get("profile_url", ""),
+                "snippet": (
+                    f"ITTF rank #{ittf_data.get('ranking', '?')} | "
+                    f"recent form {round((ittf_data.get('recent_form') or 0)*100)}%"
+                ),
+            })
+        else:
+            sources.append({"label": f"{name} ITTF/WTT", "url": "", "snippet": "Not found"})
+
+        # ── 2. TSDB fallback for last10 if ITTF had no match history ──────
+        if not last10:
+            try:
+                tsdb_player = _tsdb_search_player(name)
+                if tsdb_player:
+                    pid = tsdb_player.get("idPlayer")
+                    player_data.setdefault("nationality", tsdb_player.get("strNationality", ""))
+                    player_data.setdefault("style", tsdb_player.get("strPosition", ""))
+                    if pid:
+                        raw10 = _tsdb_player_last10(pid)
+                        if raw10:
+                            last10 = _normalize_tt_results(raw10, name)
+                            sources.append({
+                                "label":   f"{name} recent results (TSDB fallback)",
+                                "url":     f"{TSDB_BASE}/eventsplayer.php?id={pid}",
+                                "snippet": f"{len(last10)} matches found",
+                            })
+            except Exception as exc:
+                sources.append({"label": f"{name} TSDB", "url": "", "snippet": f"ERROR: {exc}"})
 
         player_data["last10"] = last10
 
-        # Recent form from last 10
-        wins = sum(1 for m in last10 if name.lower() in m.get("winner", "").lower())
-        player_data["recent_form"] = wins / len(last10) if last10 else None
+        # Compute recent_form from last10 if ITTF didn't provide it
+        if player_data.get("recent_form") is None and last10:
+            wins = sum(1 for m in last10 if name.lower() in m.get("winner", "").lower())
+            player_data["recent_form"] = wins / len(last10)
 
-        # AQI/RQI default (TSDB doesn't have granular TT stats → AI fallback fills these)
-        player_data["attack_quality_index"]  = attack_quality_index(None, None)
-        player_data["return_quality_index"]  = return_quality_index(None)
-        player_data["ranking"]               = player_data.get("ranking", 999)
+        # AQI/RQI — ITTF/TSDB don't expose granular serve stats for TT
+        # so these remain at 100 (tour average) unless AI fallback enriches them
+        player_data["attack_quality_index"] = attack_quality_index(None, None)
+        player_data["return_quality_index"] = return_quality_index(None)
+        player_data.setdefault("ranking", 999)
 
-    # ── Head-to-head ─────────────────────────────────────────────────────────
+    # ── Head-to-head — try ITTF first, then TSDB ─────────────────────────────
     h2h: list[dict] = []
-    try:
-        tid_a = result["player_a"].get("tsdb_id")
-        tid_b = result["player_b"].get("tsdb_id")
-        if tid_a and tid_b:
-            data   = _tsdb_get("eventsh2h.php", {"idTeam1": tid_a, "idTeam2": tid_b})
-            events = data.get("results") or data.get("events") or []
-            h2h    = _normalize_tt_results(events[:10], player_a)
+    wins_a = wins_b = 0
+
+    ittf_id_a = ittf_ids.get("player_a")
+    ittf_id_b = ittf_ids.get("player_b")
+
+    if ittf_id_a and ittf_id_b:
+        try:
+            h2h_data = ittf_h2h(ittf_id_a, ittf_id_b)
+            wins_a   = h2h_data.get("wins_a", 0)
+            wins_b   = h2h_data.get("wins_b", 0)
+            h2h      = h2h_data.get("matches", [])
             if h2h:
                 sources.append({
-                    "label":   f"H2H: {player_a} vs {player_b}",
-                    "url":     f"{TSDB_BASE}/eventsh2h.php?idTeam1={tid_a}&idTeam2={tid_b}",
-                    "snippet": f"{len(h2h)} previous meetings",
+                    "label":   f"H2H: {player_a} vs {player_b} (ITTF)",
+                    "url":     f"https://results.ittf.link/index.php/head-to-head?player1={ittf_id_a}&player2={ittf_id_b}",
+                    "snippet": f"{len(h2h)} meetings: {wins_a}-{wins_b}",
                 })
-    except Exception as exc:
-        sources.append({"label": "H2H", "url": "", "snippet": f"ERROR: {exc}"})
+        except Exception as exc:
+            sources.append({"label": "H2H ITTF", "url": "", "snippet": f"ERROR: {exc}"})
 
-    wins_a = sum(1 for m in h2h if player_a.lower() in m.get("winner", "").lower())
-    wins_b = sum(1 for m in h2h if player_b.lower() in m.get("winner", "").lower())
+    if not h2h:
+        try:
+            tid_a = result["player_a"].get("tsdb_id")
+            tid_b = result["player_b"].get("tsdb_id")
+            if tid_a and tid_b:
+                data   = _tsdb_get("eventsh2h.php", {"idTeam1": tid_a, "idTeam2": tid_b})
+                events = data.get("results") or data.get("events") or []
+                h2h    = _normalize_tt_results(events[:10], player_a)
+                if h2h:
+                    wins_a = sum(1 for m in h2h if player_a.lower() in m.get("winner", "").lower())
+                    wins_b = sum(1 for m in h2h if player_b.lower() in m.get("winner", "").lower())
+                    sources.append({
+                        "label":   f"H2H: {player_a} vs {player_b} (TSDB)",
+                        "url":     f"{TSDB_BASE}/eventsh2h.php?idTeam1={tid_a}&idTeam2={tid_b}",
+                        "snippet": f"{len(h2h)} previous meetings",
+                    })
+        except Exception as exc:
+            sources.append({"label": "H2H TSDB", "url": "", "snippet": f"ERROR: {exc}"})
+
     result["h2h"] = {
         "wins_a":    wins_a,
         "wins_b":    wins_b,
