@@ -81,7 +81,9 @@ def run_table_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict
 
     # ── 2. Fetch data (with AI fallback) ─────────────────────────────────────
     context: dict = {}
-    ai_fallback   = False
+    ai_fallback    = False
+    # "high" = real data fetched; "medium" = AI knows these players; "low" = AI guessing
+    data_confidence = "high"
 
     try:
         context = fetch_table_tennis_context(player_a_raw, player_b_raw, tour)
@@ -110,9 +112,13 @@ def run_table_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict
             from ai_agent_table_tennis import interpret_table_tennis_signals
             sigs = interpret_table_tennis_signals(player_a_raw, player_b_raw, tour, notes)
             steps.append({"step": "ai_signals", "status": "ok", "data": sigs})
+            # Use AI's own confidence assessment
+            ai_conf = sigs.get("confidence", "low")
+            data_confidence = "medium" if ai_conf == "medium" else "low"
         except Exception as exc2:
             steps.append({"step": "ai_signals", "status": "error", "error": str(exc2)})
             sigs = {}
+            data_confidence = "low"
 
         sig_a = sigs.get("player_a", {})
         sig_b = sigs.get("player_b", {})
@@ -193,6 +199,16 @@ def run_table_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict
                       "glicko_a": round(glicko_a, 3), "glicko_b": round(glicko_b, 3)})
     except Exception as exc:
         steps.append({"step": "glicko_blend", "status": "skipped", "error": str(exc)})
+
+    # ── Confidence shrinkage ──────────────────────────────────────────────────
+    # When data is weak, shrink probabilities toward 50% so we don't manufacture
+    # false edges against the book from noise. The book has more information than
+    # we do on unknown regional players.
+    shrink = {"high": 1.0, "medium": 0.6, "low": 0.3}.get(data_confidence, 0.3)
+    prob_a = 0.5 + (prob_a - 0.5) * shrink
+    prob_b = 1.0 - prob_a
+    steps.append({"step": "confidence_shrink", "status": "ok",
+                  "data_confidence": data_confidence, "shrink_factor": shrink})
 
     h2h = context.get("h2h", {})
     explanation = (
@@ -300,6 +316,7 @@ def run_table_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict
         "last10_b":          context.get("player_b", {}).get("last10", []),
         "model_explanation": explanation,
         "kelly_note":        kelly.get("note", ""),
+        "data_confidence":   data_confidence,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,
     }

@@ -69,6 +69,7 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     # ── 2. Fetch tennis data (with AI fallback) ───────────────────────────────
     context: dict = {}
     ai_fallback = False
+    data_confidence = "high"
 
     try:
         context = fetch_tennis_context(player_a_raw, player_b_raw, surface, tour)
@@ -99,9 +100,12 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             from ai_agent_tennis import interpret_tennis_signals
             sigs = interpret_tennis_signals(player_a_raw, player_b_raw, surface, tour, notes)
             steps.append({"step": "ai_signals", "status": "ok", "data": sigs})
+            ai_conf = sigs.get("confidence", "low")
+            data_confidence = "medium" if ai_conf == "medium" else "low"
         except Exception as exc2:
             steps.append({"step": "ai_signals", "status": "error", "error": str(exc2)})
             sigs = {}
+            data_confidence = "low"
 
         sig_a = sigs.get("player_a", {})
         sig_b = sigs.get("player_b", {})
@@ -184,6 +188,16 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                       "glicko_a": round(glicko_a, 3), "glicko_b": round(glicko_b, 3)})
     except Exception as exc:
         steps.append({"step": "glicko_blend", "status": "skipped", "error": str(exc)})
+
+    # ── Confidence shrinkage ──────────────────────────────────────────────────
+    # When data is weak, shrink toward 50% so we don't manufacture edges from noise.
+    # high=real data (no shrink), medium=AI knows the player (40% shrink),
+    # low=AI guessing regional/qualifier players (70% shrink toward 50%).
+    shrink = {"high": 1.0, "medium": 0.6, "low": 0.3}.get(data_confidence, 0.3)
+    prob_a = 0.5 + (prob_a - 0.5) * shrink
+    prob_b = 1.0 - prob_a
+    steps.append({"step": "confidence_shrink", "status": "ok",
+                  "data_confidence": data_confidence, "shrink_factor": shrink})
 
     h2h = context.get("h2h", {})
     explanation = (
@@ -304,6 +318,7 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "last5_b":           context.get("last5_b", []),
         "model_explanation": explanation,
         "kelly_note":        kelly.get("note", ""),
+        "data_confidence":   data_confidence,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,
     }
