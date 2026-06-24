@@ -526,11 +526,23 @@ mutates: none
 name: compute_metrics_from_db
 type: function
 file: models/calibration.py
-purpose: Pulls matched prediction/outcome pairs from DB and computes Brier score, log-loss, and reliability curve.
-inputs: method: Optional[str] = None
-outputs: dict {n, brier_score, log_loss, reliability_curve} or {error}
-calls: get_db, brier_score, log_loss_score, reliability_curve
-called_by: calibration (app.py), generate_html_report
+purpose: Full accuracy + calibration report: prediction accuracy %, bet accuracy %, ROI, Brier score, log-loss, reliability curve, benchmark comparison. Broken down by sport, confidence level, and prediction method.
+inputs: method: Optional[str], sport: Optional[str]
+outputs: dict {overall, by_sport, by_confidence, by_method, brier_score, log_loss, reliability_curve, benchmarks}
+calls: get_db, _accuracy_block, brier_score, log_loss_score, reliability_curve
+called_by: accuracy (app.py), calibration (app.py), generate_html_report
+mutates: none
+---
+
+---
+name: _accuracy_block
+type: function
+file: models/calibration.py
+purpose: Compute accuracy, bet accuracy, and ROI for a slice of prediction/outcome rows.
+inputs: rows: list[dict]
+outputs: dict {n, correct, accuracy, bets_placed, bets_correct, bet_accuracy, roi}
+calls: none
+called_by: compute_metrics_from_db
 mutates: none
 ---
 
@@ -1878,7 +1890,7 @@ mutates: none
 name: generate_html_report
 type: function
 file: report.py
-purpose: Queries all matches, predictions, and outcomes from DB and renders a self-contained dark-themed HTML report with calibration metrics and a nav bar linking back to Sports, Trading, and API pages.
+purpose: Renders the full accuracy dashboard: KPI tiles (prediction %, bet %, ROI, Brier), accuracy by sport, by confidence level, benchmark comparison table, and full prediction history with correct/wrong verdict badges. Also shows pending-results call-to-action.
 inputs: none
 outputs: str (HTML)
 calls: get_db, compute_metrics_from_db
@@ -1996,6 +2008,42 @@ outputs: dict (record_outcome result)
 calls: record_outcome
 called_by: HTTP POST /matches/{match_id}/outcome
 mutates: outcomes table, matches table, ratings tables
+---
+
+---
+name: add_outcomes_batch
+type: function
+file: app.py
+purpose: POST /outcomes/batch — record multiple match results at once. Body: [{match_id, result, score_a?, score_b?}].
+inputs: list[BatchOutcome]
+outputs: list[dict] with per-match status
+calls: record_outcome
+called_by: HTTP POST /outcomes/batch
+mutates: outcomes table
+---
+
+---
+name: pending_outcomes
+type: function
+file: app.py
+purpose: GET /pending-outcomes — list matches that have a prediction but no recorded outcome. Shows recommendation and confidence for quick result entry.
+inputs: none
+outputs: list[dict]
+calls: get_db
+called_by: HTTP GET /pending-outcomes
+mutates: none
+---
+
+---
+name: accuracy
+type: function
+file: app.py
+purpose: GET /accuracy — full accuracy report: prediction %, bet %, ROI, Brier, log-loss, calibration curve, benchmark comparison. Filter by sport= and method= query params.
+inputs: sport: Optional[str], method: Optional[str]
+outputs: dict (compute_metrics_from_db result)
+calls: compute_metrics_from_db
+called_by: HTTP GET /accuracy
+mutates: none
 ---
 
 ---

@@ -352,20 +352,24 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             match_id = cur.lastrowid
 
         signals_to_log = [
-            ("serve_quality_index",  player_a, sqi_a),
-            ("serve_quality_index",  player_b, sqi_b),
-            ("return_quality_index", player_a, rqi_a),
-            ("return_quality_index", player_b, rqi_b),
-            ("surface_win_rate",     player_a, swr_a),
-            ("surface_win_rate",     player_b, swr_b),
-            ("recent_form",          player_a, form_a),
-            ("recent_form",          player_b, form_b),
-            ("ranking",              player_a, float(rank_a)),
-            ("ranking",              player_b, float(rank_b)),
+            ("serve_quality_index",  player_a, sqi_a,        None),
+            ("serve_quality_index",  player_b, sqi_b,        None),
+            ("return_quality_index", player_a, rqi_a,        None),
+            ("return_quality_index", player_b, rqi_b,        None),
+            ("surface_win_rate",     player_a, swr_a,        None),
+            ("surface_win_rate",     player_b, swr_b,        None),
+            ("recent_form",          player_a, form_a,       None),
+            ("recent_form",          player_b, form_b,       None),
+            ("ranking",              player_a, float(rank_a), None),
+            ("ranking",              player_b, float(rank_b), None),
+            ("data_confidence",      None,     None,          data_confidence),
+            ("recommendation",       None,     None,          recommendation),
         ]
-        for sig_name, participant, val in signals_to_log:
+        for sig_name, participant, val, text in signals_to_log:
             log_signal(match_id, sig_name, participant,
-                       signal_value=float(val), source="espn_tsdb")
+                       signal_value=float(val) if val is not None else None,
+                       signal_text=text,
+                       source="espn_tsdb")
 
         with get_db() as conn:
             conn.execute(

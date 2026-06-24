@@ -7,12 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# Load .env file automatically if present (pip install python-dotenv)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+import env_loader  # noqa: F401 — loads .env on import, handles CRLF/BOM/quotes
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -50,8 +45,8 @@ class MatchCreate(BaseModel):
 
 @app.post("/matches", status_code=201)
 def create_match(body: MatchCreate):
-    if body.sport not in ("soccer", "table_tennis", "tennis"):
-        raise HTTPException(400, "sport must be soccer, table_tennis, or tennis")
+    if body.sport not in ("soccer", "table_tennis", "tennis", "baseball"):
+        raise HTTPException(400, "sport must be soccer, table_tennis, tennis, or baseball")
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO matches (sport, league, participant_a, participant_b,
@@ -176,6 +171,13 @@ class OutcomeCreate(BaseModel):
     surface: str = "all"
 
 
+class BatchOutcome(BaseModel):
+    match_id: int
+    result: str
+    score_a: Optional[int] = None
+    score_b: Optional[int] = None
+
+
 @app.post("/matches/{match_id}/outcome", status_code=201)
 def add_outcome(match_id: int, body: OutcomeCreate):
     result = record_outcome(
@@ -187,11 +189,59 @@ def add_outcome(match_id: int, body: OutcomeCreate):
     return result
 
 
-# ── Calibration ───────────────────────────────────────────────────────────────
+@app.post("/outcomes/batch", status_code=201)
+def add_outcomes_batch(outcomes: list[BatchOutcome]):
+    """
+    Record multiple match outcomes at once.
+    Body: [{match_id, result, score_a?, score_b?}, ...]
+    result must be 'a', 'b', or 'draw'.
+    """
+    results = []
+    for item in outcomes:
+        r = record_outcome(item.match_id, item.result, item.score_a, item.score_b)
+        results.append({"match_id": item.match_id, "status": "ok" if "error" not in r else "error",
+                        **r})
+    return results
+
+
+@app.get("/pending-outcomes")
+def pending_outcomes():
+    """
+    List matches that have a prediction but no recorded outcome yet.
+    Useful for quickly knowing which results to enter.
+    """
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT m.id, m.sport, m.participant_a, m.participant_b,
+                   m.scheduled_at, p.prob_a, p.prob_b, p.method,
+                   s_rec.signal_text  AS recommendation,
+                   s_conf.signal_text AS data_confidence
+            FROM matches m
+            JOIN predictions p    ON p.match_id = m.id
+            LEFT JOIN outcomes o  ON o.match_id = m.id
+            LEFT JOIN signals s_rec  ON (s_rec.match_id = m.id AND s_rec.signal_name  = 'recommendation')
+            LEFT JOIN signals s_conf ON (s_conf.match_id = m.id AND s_conf.signal_name = 'data_confidence')
+            WHERE o.match_id IS NULL
+            ORDER BY m.scheduled_at DESC
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Accuracy & Calibration ────────────────────────────────────────────────────
+
+@app.get("/accuracy")
+def accuracy(sport: Optional[str] = None, method: Optional[str] = None):
+    """
+    Full accuracy report: win % prediction accuracy, bet accuracy, ROI,
+    Brier score, log-loss, calibration curve, benchmarks.
+    Break down by sport, confidence level, and method.
+    """
+    return compute_metrics_from_db(method=method, sport=sport)
+
 
 @app.get("/calibration")
 def calibration(method: Optional[str] = None):
-    return compute_metrics_from_db(method)
+    return compute_metrics_from_db(method=method)
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
@@ -231,6 +281,72 @@ def analyze(body: AnalyzeRequest):
     return result
 
 
+class BaseballRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-baseball")
+def analyze_baseball(body: BaseballRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_baseball import run_baseball_analysis
+    result = run_baseball_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("team_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class TennisRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-tennis")
+def analyze_tennis(body: TennisRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_tennis import run_tennis_analysis
+    result = run_tennis_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("player_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class TableTennisRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+    # Opening line (American odds) — if provided, enables line movement signal
+    open_odds_a: Optional[float] = None
+    open_odds_b: Optional[float] = None
+    # Current line — defaults to open_odds if not separately supplied
+    curr_odds_a: Optional[float] = None
+    curr_odds_b: Optional[float] = None
+    # Matches already played today before this one (fatigue signal)
+    matches_today_a: int = 0
+    matches_today_b: int = 0
+
+
+@app.post("/analyze-table-tennis")
+def analyze_table_tennis(body: TableTennisRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_table_tennis import run_table_tennis_analysis
+    result = run_table_tennis_analysis(
+        body.query,
+        bankroll=body.bankroll,
+        open_odds_a=body.open_odds_a,
+        open_odds_b=body.open_odds_b,
+        curr_odds_a=body.curr_odds_a,
+        curr_odds_b=body.curr_odds_b,
+        matches_today_a=body.matches_today_a,
+        matches_today_b=body.matches_today_b,
+    )
+    if "error" in result and not result.get("player_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
 class TradeRequest(BaseModel):
     query: str
     bankroll: float = 10000.0
@@ -245,3 +361,108 @@ def analyze_trade(body: TradeRequest):
     if "error" in result:
         raise HTTPException(500, detail=result["error"])
     return result
+
+
+# ── Intraday / Alpaca endpoints ───────────────────────────────────────────────
+
+class ScanRequest(BaseModel):
+    symbols: Optional[list[str]] = None
+    use_movers: bool = False
+
+
+@app.post("/scan")
+def scan_market(body: ScanRequest):
+    from models.trading.screener import run_screener
+    result = run_screener(body.symbols, body.use_movers)
+    return result
+
+
+class IntradayRequest(BaseModel):
+    symbol: str
+    bankroll: float = 10000.0
+
+
+@app.post("/intraday")
+def intraday_analysis(body: IntradayRequest):
+    from fetchers.alpaca import get_bars, get_daily_bars, get_snapshot
+    from models.trading.intraday import compute_intraday_signals, _avg_daily_volume
+
+    snap = get_snapshot(body.symbol)
+    if "error" in snap:
+        raise HTTPException(400, snap["error"])
+    intraday = get_bars(body.symbol, "5Min", 78)
+    daily = get_daily_bars(body.symbol, 60)
+    avg_vol = sum(b.get("v", 0) for b in daily[-20:]) / 20 if daily else 1_000_000
+    result = compute_intraday_signals(intraday, daily, snap, avg_vol)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+
+    # Kelly position sizing
+    from models.trading.kelly import kelly_from_signals
+    score = result["score"]["value"]
+    atr_pct = result["levels"].get("atr", 0) / snap["price"] * 100 if snap.get("price") else 1.5
+    kelly = kelly_from_signals(score, atr_pct, body.bankroll)
+
+    return {
+        "symbol": body.symbol,
+        "snapshot": snap,
+        "intraday_bars": intraday[-30:],
+        "score": result["score"],
+        "signals": result["signals"],
+        "levels": result["levels"],
+        "kelly": kelly,
+    }
+
+
+class OrderRequest(BaseModel):
+    symbol: str
+    qty: float
+    side: str               # "buy" or "sell"
+    order_type: str = "limit"
+    limit_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    use_bracket: bool = False
+    take_profit: Optional[float] = None
+    stop_loss: Optional[float] = None
+
+
+@app.post("/trade/order", status_code=201)
+def place_trade(body: OrderRequest):
+    from fetchers.alpaca import place_order, place_bracket_order
+    if body.use_bracket and body.take_profit and body.stop_loss:
+        result = place_bracket_order(
+            body.symbol, body.qty, body.side,
+            body.limit_price, body.take_profit, body.stop_loss,
+        )
+    else:
+        result = place_order(
+            body.symbol, body.qty, body.side, body.order_type,
+            body.limit_price, body.stop_price,
+        )
+    if "error" in result:
+        raise HTTPException(400, result.get("detail") or result["error"])
+    return result
+
+
+@app.get("/trade/orders")
+def list_orders(status: str = "open"):
+    from fetchers.alpaca import get_orders
+    return get_orders(status)
+
+
+@app.delete("/trade/orders/{order_id}")
+def cancel_trade(order_id: str):
+    from fetchers.alpaca import cancel_order
+    return cancel_order(order_id)
+
+
+@app.get("/trade/positions")
+def get_positions():
+    from fetchers.alpaca import get_positions
+    return get_positions()
+
+
+@app.get("/trade/account")
+def get_account():
+    from fetchers.alpaca import get_account
+    return get_account()

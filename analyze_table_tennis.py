@@ -647,18 +647,23 @@ def run_table_tennis_analysis(
             match_id = cur.lastrowid
 
         signals_to_log = [
-            ("attack_quality_index",  player_a, aqi_a),
-            ("attack_quality_index",  player_b, aqi_b),
-            ("return_quality_index",  player_a, rqi_a),
-            ("return_quality_index",  player_b, rqi_b),
-            ("recent_form",           player_a, form_a),
-            ("recent_form",           player_b, form_b),
-            ("ranking",               player_a, float(rank_a)),
-            ("ranking",               player_b, float(rank_b)),
+            ("attack_quality_index",  player_a, aqi_a,      None),
+            ("attack_quality_index",  player_b, aqi_b,      None),
+            ("return_quality_index",  player_a, rqi_a,      None),
+            ("return_quality_index",  player_b, rqi_b,      None),
+            ("recent_form",           player_a, form_a,     None),
+            ("recent_form",           player_b, form_b,     None),
+            ("ranking",               player_a, float(rank_a), None),
+            ("ranking",               player_b, float(rank_b), None),
+            # Metadata signals — used by /accuracy endpoint for breakdown
+            ("data_confidence",       None, None, data_confidence),
+            ("recommendation",        None, None, recommendation),
         ]
-        for sig_name, participant, val in signals_to_log:
+        for sig_name, participant, val, text in signals_to_log:
             log_signal(match_id, sig_name, participant,
-                       signal_value=float(val), source="tsdb")
+                       signal_value=float(val) if val is not None else None,
+                       signal_text=text,
+                       source="tsdb")
 
         with get_db() as conn:
             conn.execute(
