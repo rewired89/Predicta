@@ -1,7 +1,7 @@
 """
 End-to-end table tennis analysis pipeline.
 query → ITTF/WTT/TSDB → AQI/RQI + style + handedness + fatigue + line movement
-      → Glicko-2 per tour → narrative → result dict
+      → Markov Chain match simulation → Glicko-2 blend → narrative → result dict
 """
 from __future__ import annotations
 import math
@@ -142,6 +142,158 @@ def _line_movement_edge(
     return max(-0.08, min(0.08, move * 0.5))
 
 
+def _markov_game_prob(p_serve: float, p_return: float) -> float:
+    """
+    Markov Chain probability that player A wins one game to 11.
+
+    State: (points_a, points_b). From each state:
+      - If A is serving: A wins the point with probability p_serve
+      - If B is serving: A wins the point with probability p_return
+    Serve alternates every 2 points (standard TT rules).
+    Deuce (≥10-10) handled with recursive formula.
+
+    We use dynamic programming over the (0..10) x (0..10) grid,
+    tracking whose serve it is based on total points played mod 4.
+    At deuce we compute the closed-form probability for the infinite game.
+    """
+    # Memoisation table: dp[a][b][serve_turn] = P(A wins from state (a,b))
+    # serve_turn: 0 = A serves, 1 = B serves
+    # In standard TT: player serves 2 consecutive points, then switch.
+    # Who serves first is random (or decided by toss) — we average both starts.
+
+    from functools import lru_cache
+
+    @lru_cache(maxsize=None)
+    def dp(a: int, b: int, served_this_stint: int, server: int) -> float:
+        """
+        a, b        — current score
+        server      — 0 = A serving, 1 = B serving
+        served_this_stint — how many points have been served in this 2-point stint
+        Returns P(A wins the game from here).
+        """
+        # Game over conditions
+        if a >= 11 and a - b >= 2:
+            return 1.0
+        if b >= 11 and b - a >= 2:
+            return 0.0
+
+        # At deuce (both >= 10), serve alternates every point (1-point stints)
+        at_deuce = (a >= 10 and b >= 10)
+        if at_deuce:
+            # Closed form: from deuce with player X serving one point then switching
+            # p_a_deuce = prob A wins a 2-point segment starting from deuce
+            # Alternating serve: first point A serves, second point B serves
+            # P(A wins segment) = p_serve * p_return  (A wins both)
+            #                   + (1-p_serve)*(1-p_return) is P(B wins segment)
+            # Remaining: (p_serve*(1-p_return) + (1-p_serve)*p_return) → back to deuce
+            p_a_wins_seg = p_serve * p_return
+            p_b_wins_seg = (1.0 - p_serve) * (1.0 - p_return)
+            p_deuce_again = 1.0 - p_a_wins_seg - p_b_wins_seg
+            if p_deuce_again >= 1.0:
+                return 0.5  # degenerate
+            return p_a_wins_seg / (p_a_wins_seg + p_b_wins_seg)
+
+        # Probability A wins this point
+        p_win_point = p_serve if server == 0 else p_return
+
+        # After this point, update stint counter and possibly switch server
+        next_stint = served_this_stint + 1
+        if next_stint >= 2:
+            next_server = 1 - server
+            next_stint = 0
+        else:
+            next_server = server
+
+        p_a_wins  = p_win_point  * dp(a + 1, b, next_stint, next_server)
+        p_a_loses = (1.0 - p_win_point) * dp(a, b + 1, next_stint, next_server)
+        return p_a_wins + p_a_loses
+
+    # Average over both possible starting servers (toss is 50/50)
+    p_a_serves_first  = dp(0, 0, 0, 0)
+    p_a_returns_first = dp(0, 0, 0, 1)
+    dp.cache_clear()
+    return 0.5 * p_a_serves_first + 0.5 * p_a_returns_first
+
+
+def markov_match_prob(
+    p_serve: float,
+    p_return: float,
+    best_of: int = 7,
+) -> dict:
+    """
+    Simulate a best-of-N match using Markov Chain game probabilities.
+
+    Returns:
+      prob_a       — P(A wins match)
+      prob_b       — P(B wins match)
+      game_prob    — P(A wins any individual game)
+      dist         — score distribution {(a_games, b_games): probability}
+      expected_games — expected total games in match
+    """
+    games_needed = (best_of // 2) + 1   # e.g. 4 for best-of-7
+
+    # Per-game probability
+    p_game = _markov_game_prob(p_serve, p_return)
+
+    # Build score distribution via DP over (games_a, games_b)
+    # dp_match[(ga, gb)] = probability of reaching that score
+    dp_match: dict[tuple[int, int], float] = {(0, 0): 1.0}
+    finished: dict[tuple[int, int], float] = {}
+
+    while dp_match:
+        new_dp: dict[tuple[int, int], float] = {}
+        for (ga, gb), prob in dp_match.items():
+            # A wins next game
+            nga, ngb = ga + 1, gb
+            if nga >= games_needed or ngb >= games_needed:
+                finished[(nga, ngb)] = finished.get((nga, ngb), 0.0) + prob * p_game
+            else:
+                new_dp[(nga, ngb)] = new_dp.get((nga, ngb), 0.0) + prob * p_game
+
+            # B wins next game
+            nga, ngb = ga, gb + 1
+            if nga >= games_needed or ngb >= games_needed:
+                finished[(nga, ngb)] = finished.get((nga, ngb), 0.0) + prob * (1.0 - p_game)
+            else:
+                new_dp[(nga, ngb)] = new_dp.get((nga, ngb), 0.0) + prob * (1.0 - p_game)
+        dp_match = new_dp
+
+    prob_a = sum(p for (ga, gb), p in finished.items() if ga > gb)
+    prob_b = 1.0 - prob_a
+    expected_games = sum((ga + gb) * p for (ga, gb), p in finished.items())
+
+    return {
+        "prob_a":          round(prob_a, 4),
+        "prob_b":          round(prob_b, 4),
+        "game_prob_a":     round(p_game, 4),
+        "dist":            {f"{ga}-{gb}": round(p, 4) for (ga, gb), p in sorted(finished.items())},
+        "expected_games":  round(expected_games, 2),
+    }
+
+
+def _first_time_premium(h2h_wins_a: int, h2h_wins_b: int,
+                         style_a: str, style_b: str) -> float:
+    """
+    First-time premium: when two players have never met (H2H=0),
+    unconventional styles (penhold, chopper, long pips) gain an extra edge
+    because the opponent has no film to adapt their game plan.
+    Returns prob nudge to add to prob_a (positive = A benefits).
+    """
+    total_h2h = h2h_wins_a + h2h_wins_b
+    if total_h2h > 0:
+        return 0.0  # only applies when no prior meetings
+
+    UNCONVENTIONAL = {"penhold", "chopper", "defender", "long pips", "anti"}
+    a_unc = any(s in (style_a or "").lower() for s in UNCONVENTIONAL)
+    b_unc = any(s in (style_b or "").lower() for s in UNCONVENTIONAL)
+
+    if a_unc and not b_unc:
+        return 0.03   # A's style is unfamiliar to B
+    if b_unc and not a_unc:
+        return -0.03  # B's style is unfamiliar to A
+    return 0.0
+
+
 def run_table_tennis_analysis(
     user_query: str,
     bankroll: float = 1000.0,
@@ -280,15 +432,41 @@ def run_table_tennis_analysis(
                   "p_a_serves": round(p_serves, 3),
                   "p_a_returns": round(p_returns, 3)})
 
-    # ── 4. Handedness nudge (additive to matchup prob) ────────────────────────
-    hand_nudge     = _handedness_edge(hand_a, hand_b)
-    prob_a_hand    = min(0.95, max(0.05, prob_a_matchup + hand_nudge))
+    # ── 4. Markov Chain match simulation ─────────────────────────────────────
+    # Uses p_serves and p_returns directly (already style-adjusted above).
+    # Simulates exact point-by-point game transitions → match win probability.
+    markov_result: dict = {}
+    markov_prob_a = prob_a_matchup  # fallback in case simulation errors
+    try:
+        markov_result = markov_match_prob(p_serves, p_returns, best_of=7)
+        markov_prob_a = markov_result["prob_a"]
+        steps.append({"step": "markov_sim", "status": "ok",
+                      "prob_a": markov_result["prob_a"],
+                      "prob_b": markov_result["prob_b"],
+                      "game_prob_a": markov_result["game_prob_a"],
+                      "expected_games": markov_result["expected_games"]})
+    except Exception as exc:
+        steps.append({"step": "markov_sim", "status": "error", "error": str(exc)})
+
+    # ── 5. Handedness nudge (additive to Markov prob) ─────────────────────────
+    hand_nudge  = _handedness_edge(hand_a, hand_b)
+    prob_a_hand = min(0.95, max(0.05, markov_prob_a + hand_nudge))
     steps.append({"step": "handedness", "status": "ok",
                   "hand_a": hand_a, "hand_b": hand_b, "nudge": round(hand_nudge, 3)})
 
-    # ── 5–8. Single weighted blend (Gemini fix — no more sequential dampening)
+    # ── 6. First-time premium ─────────────────────────────────────────────────
+    h2h_wins_a = context.get("h2h", {}).get("wins_a", 0)
+    h2h_wins_b = context.get("h2h", {}).get("wins_b", 0)
+    first_time_nudge = _first_time_premium(h2h_wins_a, h2h_wins_b, style_a, style_b)
+    prob_a_hand = min(0.95, max(0.05, prob_a_hand + first_time_nudge))
+    if first_time_nudge != 0.0:
+        steps.append({"step": "first_time_premium", "status": "ok",
+                      "nudge": round(first_time_nudge, 3),
+                      "note": "No prior H2H — unconventional style premium applied"})
+
+    # ── 7–9. Single weighted blend (Gemini fix — no more sequential dampening)
     # All signals fed into one blend rather than chained 75/25 then 70/30.
-    # Weights: matchup+handedness 40%, form 20%, Glicko 30%, fatigue+line 10%
+    # Weights: Markov+handedness 40%, form 20%, Glicko 30%, fatigue+line 10%
 
     # Compute each signal as a probability in [0,1]
     form_prob_a   = form_a / (form_a + form_b) if (form_a + form_b) > 0 else 0.5
@@ -328,7 +506,8 @@ def run_table_tennis_analysis(
     line_prob    = min(0.95, max(0.05, 0.5 + line_nudge))
 
     # Unified weighted blend — prevents the extreme-damping Gemini identified
-    W_MATCHUP = 0.40   # AQI/RQI serve+return model + handedness
+    # Markov sim replaces the plain AQI matchup in the 40% slot
+    W_MATCHUP = 0.40   # Markov chain simulation + handedness + first-time
     W_FORM    = 0.20   # recent win rate
     W_GLICKO  = 0.30   # ranking-based Glicko-2
     W_CONTEXT = 0.10   # fatigue + line movement (split equally)
@@ -370,6 +549,12 @@ def run_table_tennis_analysis(
         f"{player_b} played {matches_today_b}."
         if (matches_today_a + matches_today_b) > 0 else ""
     )
+    markov_note = (
+        f" Markov sim (best-of-7): {player_a} {markov_result.get('prob_a',0)*100:.1f}%"
+        f" | game win prob {markov_result.get('game_prob_a',0)*100:.1f}%"
+        f" | expected {markov_result.get('expected_games','?')} games."
+        if markov_result else ""
+    )
     explanation = (
         f"AQI: {player_a} {aqi_a:.0f} / {player_b} {aqi_b:.0f}. "
         f"RQI: {player_a} {rqi_a:.0f} / {player_b} {rqi_b:.0f}. "
@@ -377,7 +562,7 @@ def run_table_tennis_analysis(
         f"Recent form: {player_a} {form_a*100:.0f}% / {player_b} {form_b*100:.0f}%. "
         f"Rankings: #{rank_a} vs #{rank_b}. "
         f"H2H: {player_a} {h2h.get('wins_a',0)}-{h2h.get('wins_b',0)} {player_b}. "
-        + glicko_explanation + line_note + fatigue_note
+        + glicko_explanation + markov_note + line_note + fatigue_note
     )
 
     # ── 7. Persist ────────────────────────────────────────────────────────────
@@ -484,6 +669,7 @@ def run_table_tennis_analysis(
                 "style":                style_b,
             },
         },
+        "markov_sim":        markov_result,
         "h2h":               h2h,
         "last10_a":          context.get("player_a", {}).get("last10", []),
         "last10_b":          context.get("player_b", {}).get("last10", []),

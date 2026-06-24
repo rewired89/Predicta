@@ -3111,10 +3111,10 @@ mutates: none
 name: run_table_tennis_analysis
 type: function
 file: analyze_table_tennis.py
-purpose: Full TT pipeline: parse → ITTF/WTT/TSDB fetch → AQI/RQI → style → handedness → form → fatigue → line_movement → Glicko-2 → shrink → persist → Kelly → narrative.
+purpose: Full TT pipeline: parse → ITTF/WTT/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → shrink → persist → Kelly → narrative.
 inputs: user_query: str, bankroll: float, open_odds_a/b: float?, curr_odds_a/b: float?, matches_today_a/b: int
-outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, narrative, steps
-calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
+outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, steps
+calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
 called_by: analyze_table_tennis endpoint (app.py)
 mutates: matches, signals, predictions tables
 ---
@@ -3123,23 +3123,59 @@ mutates: matches, signals, predictions tables
 name: _attack_return_win_prob
 type: function
 file: analyze_table_tennis.py
-purpose: Logistic win probability from AQI/RQI differentials. Same sensitivity as tennis serve model (±40 ≈ 65%/35%).
-inputs: aqi_a, rqi_b, aqi_b, rqi_a: float
-outputs: float (P(player_a wins))
-calls: math.exp
+purpose: Returns (prob_a, p_serve, p_return) — separate logistic win probs for serve points and return points, with style-adjusted AQI inputs.
+inputs: aqi_a, rqi_a, aqi_b, rqi_b: float, style_a/b: str
+outputs: tuple[float, float, float]
+calls: _logistic, _style_aqi_modifier
 called_by: run_table_tennis_analysis
 mutates: none
 ---
 
 ---
-name: _style_edge
+name: _markov_game_prob
 type: function
 file: analyze_table_tennis.py
-purpose: Small prob nudge (±4pp) for style matchup — attacker vs chopper/defender historically favours attacker.
-inputs: style_a: str, style_b: str
-outputs: float in [-0.05, 0.05]
+purpose: Markov Chain DP over all (points_a, points_b, serve_turn) game states to compute P(A wins one game to 11). Handles deuce via closed-form formula.
+inputs: p_serve: float, p_return: float
+outputs: float — P(A wins the game)
+calls: functools.lru_cache
+called_by: markov_match_prob
+mutates: none
+---
+
+---
+name: markov_match_prob
+type: function
+file: analyze_table_tennis.py
+purpose: Simulate a best-of-N TT match using per-game Markov probability. Returns prob_a/b, per-game win %, score distribution, expected total games.
+inputs: p_serve: float, p_return: float, best_of: int = 7
+outputs: dict {prob_a, prob_b, game_prob_a, dist, expected_games}
+calls: _markov_game_prob
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: _first_time_premium
+type: function
+file: analyze_table_tennis.py
+purpose: +3pp nudge toward the player with unconventional style (penhold/chopper/long pips) when H2H=0 — no film means opponent can't adapt.
+inputs: h2h_wins_a: int, h2h_wins_b: int, style_a: str, style_b: str
+outputs: float nudge in [-0.03, 0.03]
 calls: none
 called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: _style_aqi_modifier
+type: function
+file: analyze_table_tennis.py
+purpose: Returns a multiplier (0.90–1.0) that suppresses attacker's effective AQI when facing a defender/chopper — style interacts at model input, not as post-hoc nudge.
+inputs: style_attacker: str, style_defender: str
+outputs: float multiplier
+calls: none
+called_by: _attack_return_win_prob
 mutates: none
 ---
 
