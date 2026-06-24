@@ -2641,3 +2641,390 @@ calls: parse_baseball_query, fetch_baseball_context, expected_runs, compute_base
 called_by: analyze_baseball (app.py)
 mutates: matches, signals, predictions tables
 ---
+
+---
+
+## fetchers/tennis.py
+
+---
+name: ESPN_ATP_BASE
+type: variable
+file: fetchers/tennis.py
+purpose: Base URL for the public ESPN ATP tennis API (no key required).
+inputs: none
+outputs: str
+calls: none
+called_by: _espn_recent_matches, _search_espn_athlete
+mutates: none
+---
+
+---
+name: ESPN_WTA_BASE
+type: variable
+file: fetchers/tennis.py
+purpose: Base URL for the public ESPN WTA tennis API (no key required).
+inputs: none
+outputs: str
+calls: none
+called_by: _espn_recent_matches, _search_espn_athlete
+mutates: none
+---
+
+---
+name: TSDB_BASE
+type: variable
+file: fetchers/tennis.py
+purpose: Base URL for TheSportsDB API (free key=1).
+inputs: none
+outputs: str
+calls: none
+called_by: _tsdb_get
+mutates: none
+---
+
+---
+name: ATP_AVG_* / WTA_AVG_*
+type: variable
+file: fetchers/tennis.py
+purpose: Tour-average serve and return stats (first serve %, first serve won %, second serve won %, break points converted, aces per match) used to normalize quality indices to 100.
+inputs: none
+outputs: float
+calls: none
+called_by: serve_quality_index, return_quality_index
+mutates: none
+---
+
+---
+name: SURFACE_KEYWORDS
+type: variable
+file: fetchers/tennis.py
+purpose: Dict mapping surface names (clay/grass/hard) to lists of tournament name keywords for surface inference.
+inputs: none
+outputs: dict[str, list[str]]
+calls: none
+called_by: infer_surface
+mutates: none
+---
+
+---
+name: infer_surface
+type: function
+file: fetchers/tennis.py
+purpose: Infers court surface (clay/grass/hard) from a tournament name string by checking SURFACE_KEYWORDS. Returns 'hard' as default.
+inputs: text: str
+outputs: str
+calls: none
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _elo_from_ranking
+type: function
+file: fetchers/tennis.py
+purpose: Converts ATP/WTA ranking to an approximate Elo seed: Rank 1 ≈ 2400, Rank 50 ≈ 2000, Rank 500+ → 1300 floor.
+inputs: ranking: int
+outputs: float
+calls: math.log10
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: serve_quality_index
+type: function
+file: fetchers/tennis.py
+purpose: Computes a composite serve quality score normalized to 100 = tour average, from first serve %, first serve won %, and second serve won %. Analogous to wRC+ in baseball.
+inputs: first_serve_pct: float, first_won_pct: float, second_won_pct: float, tour: str
+outputs: float (100 = tour average)
+calls: none
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: return_quality_index
+type: function
+file: fetchers/tennis.py
+purpose: Computes return quality normalized to 100 = tour average from break points converted percentage.
+inputs: bp_converted_pct: float, tour: str
+outputs: float (100 = tour average)
+calls: none
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _espn_get
+type: function
+file: fetchers/tennis.py
+purpose: GET request to any ESPN URL with browser User-Agent; returns parsed JSON or {} on failure.
+inputs: url: str, params: dict
+outputs: dict
+calls: httpx.Client.get
+called_by: _espn_recent_matches, _search_espn_athlete, _espn_athlete_stats
+mutates: none
+---
+
+---
+name: _tsdb_get
+type: function
+file: fetchers/tennis.py
+purpose: GET request to TheSportsDB API; returns parsed JSON or {} on failure.
+inputs: path: str, params: dict
+outputs: dict
+calls: httpx.Client.get
+called_by: _tsdb_search_player, _tsdb_player_last5, fetch_tennis_context
+mutates: none
+---
+
+---
+name: _f
+type: function
+file: fetchers/tennis.py
+purpose: Safe float conversion for ESPN/TSDB fields; returns default on None or parse error.
+inputs: val: any, default: float = 0.0
+outputs: float
+calls: float
+called_by: _extract_serve_stats, _tsdb_player_last5
+mutates: none
+---
+
+---
+name: _parse_espn_tennis_events
+type: function
+file: fetchers/tennis.py
+purpose: Filters and normalizes ESPN scoreboard response into completed match dicts for a specific player name.
+inputs: data: dict, name_lower: str
+outputs: list[dict]
+calls: none
+called_by: _espn_recent_matches
+mutates: none
+---
+
+---
+name: _espn_recent_matches
+type: function
+file: fetchers/tennis.py
+purpose: Fetches the last 5 completed matches for a player from ESPN ATP/WTA scoreboard over the past N days.
+inputs: name: str, tour: str, days: int = 60
+outputs: list[dict]
+calls: _espn_get, _parse_espn_tennis_events
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _search_espn_athlete
+type: function
+file: fetchers/tennis.py
+purpose: Fuzzy-searches ESPN athletes list for a player by name and returns the matching athlete dict or None.
+inputs: name: str, tour: str
+outputs: Optional[dict]
+calls: _espn_get
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _espn_athlete_stats
+type: function
+file: fetchers/tennis.py
+purpose: Fetches serve and return statistics for an ESPN athlete ID from the /statistics endpoint.
+inputs: athlete_id: str, tour: str
+outputs: dict {first_serve_pct, first_won_pct, second_won_pct, bp_converted_pct, aces}
+calls: _espn_get, _extract_serve_stats
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _extract_serve_stats
+type: function
+file: fetchers/tennis.py
+purpose: Normalizes raw ESPN statistics name/value array into a consistent serve/return stats dict.
+inputs: raw: list
+outputs: dict {first_serve_pct, first_won_pct, second_won_pct, bp_converted_pct, aces}
+calls: _f
+called_by: _espn_athlete_stats
+mutates: none
+---
+
+---
+name: _tsdb_search_player
+type: function
+file: fetchers/tennis.py
+purpose: Searches TheSportsDB for a tennis player by name and returns the first matching player dict.
+inputs: name: str
+outputs: Optional[dict]
+calls: _tsdb_get
+called_by: fetch_tennis_context
+mutates: none
+---
+
+---
+name: _tsdb_player_last5
+type: function
+file: fetchers/tennis.py
+purpose: Retrieves the last 5 completed match results for a TSDB player ID via eventsplayer.php.
+inputs: player_id: str
+outputs: list[dict]
+calls: _tsdb_get, _normalize_tennis_results
+mutates: none
+---
+
+---
+name: _normalize_tennis_results
+type: function
+file: fetchers/tennis.py
+purpose: Converts raw TSDB or ESPN event dicts into a consistent format with date, player_a, player_b, winner, and surface fields.
+inputs: raw: list[dict]
+outputs: list[dict]
+calls: infer_surface
+called_by: _tsdb_player_last5
+mutates: none
+---
+
+---
+name: fetch_tennis_context
+type: function
+file: fetchers/tennis.py
+purpose: Main tennis data entry point — fetches serve/return stats, surface win rate, recent form, H2H, and last-5 results for two players from ESPN and TheSportsDB. Returns full context dict.
+inputs: player_a: str, player_b: str, surface: str, tour: str
+outputs: dict {player_a, player_b, surface, tour, h2h, last5_a, last5_b, sources}
+calls: _tsdb_search_player, _search_espn_athlete, _espn_athlete_stats, _espn_recent_matches, _tsdb_player_last5, serve_quality_index, return_quality_index
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+
+## ai_agent_tennis.py
+
+---
+name: MODEL
+type: variable
+file: ai_agent_tennis.py
+purpose: Claude model identifier used for tennis AI calls (claude-haiku-4-5-20251001).
+inputs: none
+outputs: str
+calls: none
+called_by: parse_tennis_query, interpret_tennis_signals, generate_tennis_narrative
+mutates: none
+---
+
+---
+name: _client
+type: function
+file: ai_agent_tennis.py
+purpose: Creates and returns an authenticated Anthropic client from ANTHROPIC_API_KEY; raises RuntimeError if key missing.
+inputs: none
+outputs: anthropic.Anthropic
+calls: os.environ.get, anthropic.Anthropic
+called_by: parse_tennis_query, interpret_tennis_signals, generate_tennis_narrative
+mutates: none
+---
+
+---
+name: parse_tennis_query
+type: function
+file: ai_agent_tennis.py
+purpose: Sends user's tennis query to Claude and returns structured JSON with player names, surface, tour, date, and notes.
+inputs: user_text: str
+outputs: dict {player_a, player_b, surface, tour, date, notes}
+calls: _client, client.messages.create, json.loads, re.sub
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+name: interpret_tennis_signals
+type: function
+file: ai_agent_tennis.py
+purpose: Fallback when ESPN/TSDB is unreachable — Claude estimates ranking, surface win rate, recent form, serve quality, and return quality from training knowledge.
+inputs: player_a: str, player_b: str, surface: str, tour: str, notes: str
+outputs: dict {player_a signals, player_b signals, h2h_advantage, confidence, notes}
+calls: _client, client.messages.create, json.loads, re.sub
+called_by: run_tennis_analysis (fallback path)
+mutates: none
+---
+
+---
+name: generate_tennis_narrative
+type: function
+file: ai_agent_tennis.py
+purpose: Sends serve/return quality, surface win rates, H2H, and probabilities to Claude; returns a ≤90-word analytical narrative.
+inputs: player_a: str, player_b: str, prob_a: float, prob_b: float, explanation: str, context: dict
+outputs: str
+calls: _client, client.messages.create
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+
+## analyze_tennis.py
+
+---
+name: _elo_from_ranking
+type: function
+file: analyze_tennis.py
+purpose: Converts ATP/WTA ranking to a Glicko-2 seed rating: Rank 1 ≈ 2400, Rank 50 ≈ 2000, Rank 500+ → 1300 floor.
+inputs: ranking: int
+outputs: float
+calls: math.log10
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+name: _serve_return_win_prob
+type: function
+file: analyze_tennis.py
+purpose: Estimates P(player_a wins) from serve and return quality indices using a logistic function on net serve/return advantage.
+inputs: sqi_a: float, rqi_b: float, sqi_b: float, rqi_a: float
+outputs: float (0–1)
+calls: math.exp
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+name: run_tennis_analysis
+type: function
+file: analyze_tennis.py
+purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → serve/return model → surface win rate → form blend → Glicko-2 blend → persist to DB → Kelly sizing → AI narrative → return result dict.
+inputs: user_query: str, bankroll: float = 1000.0
+outputs: dict {match_id, player_a, player_b, sport, tour, surface, date, prob_a, prob_b, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
+calls: parse_tennis_query, fetch_tennis_context, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative
+called_by: analyze_tennis (app.py)
+mutates: matches, signals, predictions tables
+---
+
+---
+
+## app.py additions (tennis)
+
+---
+name: TennisRequest
+type: class
+file: app.py
+purpose: Pydantic request model for POST /analyze-tennis with query string and bankroll.
+inputs: query: str, bankroll: float = 1000.0
+outputs: none
+calls: none
+called_by: analyze_tennis
+mutates: none
+---
+
+---
+name: analyze_tennis
+type: function
+file: app.py
+purpose: POST /analyze-tennis — runs the full tennis analysis pipeline from a natural language query.
+inputs: body: TennisRequest
+outputs: dict (full tennis analysis result)
+calls: run_tennis_analysis
+called_by: HTTP POST /analyze-tennis
+mutates: matches, signals, predictions tables
+---
