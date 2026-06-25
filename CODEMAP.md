@@ -2338,6 +2338,70 @@ mutates: matches table (rename → recreate → copy → drop old)
 
 ---
 
+## fetchers/data_cache.py
+
+---
+name: load_cached
+type: function
+file: fetchers/data_cache.py
+purpose: Read a pre-fetched JSON file from data/live/. Returns the 'data' payload if the file exists and is younger than max_age_hours, else None. Used by baseball/tennis fetchers as fallback when ESPN is blocked by egress policy.
+inputs: name: str (filename in data/live/), max_age_hours: int = 30
+outputs: dict | list | None
+calls: json.loads, datetime.fromisoformat
+called_by: _cache_fallback (fetchers/baseball.py), _espn_get (fetchers/tennis.py)
+mutates: none
+---
+
+---
+name: cache_age_hours
+type: function
+file: fetchers/data_cache.py
+purpose: Return the age in hours of a cached data/live/ file, or None if it doesn't exist.
+inputs: name: str
+outputs: float | None
+calls: json.loads, datetime.fromisoformat
+called_by: diagnostics / debug
+mutates: none
+---
+
+## fetchers/live_data.py
+
+---
+name: fetch_mlb
+type: function
+file: fetchers/live_data.py
+purpose: Fetch today's MLB scoreboard, standings, team list, team stats, and probable pitcher stats+profiles from ESPN. Saves 5 JSON files to data/live/.
+inputs: date_str: str (YYYY-MM-DD)
+outputs: none (writes files)
+calls: _get, _save, ESPN_MLB endpoints
+called_by: main (fetchers/live_data.py), GitHub Actions workflow
+mutates: data/live/mlb_*.json
+---
+
+---
+name: fetch_tennis
+type: function
+file: fetchers/live_data.py
+purpose: Fetch today's ATP and WTA scoreboards from ESPN. Falls back to undated scoreboard if today's is empty.
+inputs: date_str: str
+outputs: none
+calls: _get, _save
+called_by: main (fetchers/live_data.py)
+mutates: data/live/tennis_atp.json, data/live/tennis_wta.json
+---
+
+---
+name: fetch_odds
+type: function
+file: fetchers/live_data.py
+purpose: Fetch MLB and tennis odds from The Odds API. Skips silently if ODDS_API_KEY is not set.
+inputs: none (reads ODDS_API_KEY from env)
+outputs: none
+calls: _get, _save
+called_by: main (fetchers/live_data.py)
+mutates: data/live/odds_mlb.json, data/live/odds_tennis_atp.json, data/live/odds_tennis_wta.json
+---
+
 ## fetchers/baseball.py
 
 ---
@@ -2404,11 +2468,23 @@ mutates: none
 name: _espn_get
 type: function
 file: fetchers/baseball.py
-purpose: GET request to ESPN MLB API with browser User-Agent; returns parsed JSON or {} on any failure.
+purpose: GET request to ESPN MLB API with browser User-Agent; on any failure falls back to _cache_fallback() to read pre-fetched data from data/live/.
 inputs: path: str, params: dict | None
 outputs: dict
-calls: httpx.Client.get
+calls: httpx.Client.get, _cache_fallback
 called_by: _all_teams, _get_all_records, _get_scoreboard, _get_pitcher_stats, _get_team_hitting
+mutates: none
+---
+
+---
+name: _cache_fallback
+type: function
+file: fetchers/baseball.py
+purpose: Maps an ESPN API path to the corresponding pre-fetched JSON file in data/live/ and returns its parsed content. Called by _espn_get when the live request fails.
+inputs: path: str
+outputs: dict
+calls: load_cached (fetchers/data_cache.py)
+called_by: _espn_get
 mutates: none
 ---
 
@@ -3044,10 +3120,10 @@ mutates: none
 name: _espn_get
 type: function
 file: fetchers/tennis.py
-purpose: GET request to any ESPN URL with browser User-Agent; returns parsed JSON or {} on failure.
+purpose: GET request to any ESPN URL with browser User-Agent; on failure falls back to load_cached("tennis_atp.json") or ("tennis_wta.json") depending on which base URL was called.
 inputs: url: str, params: dict
 outputs: dict
-calls: httpx.Client.get
+calls: httpx.Client.get, load_cached
 called_by: _espn_recent_matches, _search_espn_athlete, _espn_athlete_stats
 mutates: none
 ---

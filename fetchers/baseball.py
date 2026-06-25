@@ -3,7 +3,8 @@ ESPN MLB data fetcher.
 Uses the same unofficial ESPN API already used by fetchers/thesportsdb.py for soccer.
 No API key or registration required.
 
-Egress requirement: add site.api.espn.com to your network egress settings.
+When ESPN is unreachable (remote container egress policy), falls back to
+pre-fetched data in data/live/ committed by the GitHub Actions workflow.
 """
 from __future__ import annotations
 import difflib
@@ -12,6 +13,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
+
+from fetchers.data_cache import load_cached
 
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb"
 TIMEOUT   = 15.0
@@ -65,7 +68,7 @@ _HEADERS = {
 
 
 def _espn_get(path: str, params: dict | None = None) -> dict:
-    """GET from ESPN API; returns parsed JSON or {} on any failure."""
+    """GET from ESPN API; falls back to data/live/ cache on any failure."""
     url = f"{ESPN_BASE}{path}"
     try:
         with httpx.Client(timeout=TIMEOUT) as client:
@@ -73,7 +76,34 @@ def _espn_get(path: str, params: dict | None = None) -> dict:
             resp.raise_for_status()
             return resp.json()
     except Exception:
-        return {}
+        return _cache_fallback(path)
+
+
+def _cache_fallback(path: str) -> dict:
+    """Return pre-fetched ESPN data from data/live/ when the live API is blocked."""
+    if "/scoreboard" in path:
+        return load_cached("mlb_scoreboard.json") or {}
+    if "/standings" in path:
+        return load_cached("mlb_standings.json") or {}
+    if path.rstrip("/").endswith("/teams"):
+        return load_cached("mlb_teams.json") or {}
+
+    # /athletes/{id}/statistics  or  /athletes/{id}
+    if "/athletes/" in path:
+        aid = path.split("/athletes/")[1].split("/")[0]
+        all_pitchers: dict = load_cached("mlb_pitcher_stats.json") or {}
+        pitcher = all_pitchers.get(aid, {})
+        if "/statistics" in path:
+            return pitcher.get("statistics", {})
+        return pitcher.get("profile", {})
+
+    # /teams/{id}/statistics
+    if "/teams/" in path and "/statistics" in path:
+        tid = path.split("/teams/")[1].split("/")[0]
+        all_team_stats: dict = load_cached("mlb_team_stats.json") or {}
+        return all_team_stats.get(tid, {})
+
+    return {}
 
 
 def _f(val, default: float = 0.0) -> float:
@@ -471,9 +501,8 @@ def fetch_baseball_context(
     if not all_teams:
         return {
             "error": (
-                "ESPN MLB API unreachable. "
-                "Please add site.api.espn.com to your network egress settings — "
-                "no registration needed, it's the same host used for soccer data."
+                "ESPN MLB API unreachable and no cached data found. "
+                "Run the GitHub Actions 'Fetch Live Sports Data' workflow to populate data/live/."
             ),
             "sources": sources,
         }

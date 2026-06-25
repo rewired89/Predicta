@@ -13,6 +13,8 @@ from typing import Optional
 
 import httpx
 
+from fetchers.data_cache import load_cached
+
 ESPN_ATP_BASE = "https://site.api.espn.com/apis/site/v2/sports/tennis/atp"
 ESPN_WTA_BASE = "https://site.api.espn.com/apis/site/v2/sports/tennis/wta"
 TSDB_BASE     = "https://www.thesportsdb.com/api/v1/json/1"
@@ -69,6 +71,10 @@ def _espn_get(url: str, params: dict | None = None) -> dict:
             r.raise_for_status()
             return r.json()
     except Exception:
+        if ESPN_ATP_BASE in url:
+            return load_cached("tennis_atp.json") or {}
+        if ESPN_WTA_BASE in url:
+            return load_cached("tennis_wta.json") or {}
         return {}
 
 
