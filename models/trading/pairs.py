@@ -137,6 +137,116 @@ def test_cointegration(sym1: str, sym2: str, series: dict[str, list[float]]) -> 
     }
 
 
+def get_suspended_pairs() -> list[dict]:
+    """All currently suspended pairs (reinstate_after in future or NULL)."""
+    from datetime import datetime as _dt
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT sym1, sym2, reason, suspended_at, reinstate_after FROM suspended_pairs"
+            ).fetchall()
+        now = _dt.utcnow().isoformat()
+        return [
+            dict(r) for r in rows
+            if r["reinstate_after"] is None or r["reinstate_after"] > now
+        ]
+    except Exception:
+        return []
+
+
+def suspend_pair(
+    sym1: str,
+    sym2: str,
+    reason: str = "",
+    reinstate_after: Optional[str] = None,
+) -> bool:
+    """
+    Suspend a pair from find_all_pairs scans.
+    reinstate_after: ISO datetime string (UTC); None = indefinite.
+    Returns True on success.
+    """
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            conn.execute(
+                """
+                INSERT INTO suspended_pairs (sym1, sym2, reason, reinstate_after)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(sym1, sym2) DO UPDATE
+                    SET reason = excluded.reason,
+                        suspended_at = datetime('now'),
+                        reinstate_after = excluded.reinstate_after
+                """,
+                (sym1, sym2, reason, reinstate_after),
+            )
+        return True
+    except Exception:
+        return False
+
+
+def reinstate_pair(sym1: str, sym2: str) -> bool:
+    """Remove a pair from the suspended list. Returns True if a row was deleted."""
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows_deleted = conn.execute(
+                "DELETE FROM suspended_pairs WHERE sym1 = ? AND sym2 = ?",
+                (sym1, sym2),
+            ).rowcount
+        return rows_deleted > 0
+    except Exception:
+        return False
+
+
+def auto_cull_pairs(min_trades: int = 10, win_rate_floor: float = 0.40) -> list[dict]:
+    """
+    Suspend pairs that show consistent underperformance with sufficient data.
+
+    Criteria (both must be true):
+      - n_closed >= min_trades
+      - win_rate < win_rate_floor
+    OR:
+      - avg_pnl_pct < 0 with n_closed >= min_trades
+
+    Pairs are suspended for 90 days (reinstate_after = now + 90d).
+    Returns list of dicts describing each action taken.
+    """
+    from datetime import datetime as _dt, timedelta
+    from models.trading.signal_calibration import pairs_calibration_summary
+
+    report  = pairs_calibration_summary(min_trades=min_trades)
+    culled  = []
+
+    for pair in report.get("pairs", []):
+        n        = pair.get("n", 0)
+        wr       = pair.get("win_rate")
+        avg_pnl  = pair.get("avg_pnl_pct")
+        pair_key = pair["pair"]  # "SYM1/SYM2"
+
+        if n < min_trades:
+            continue
+        if (wr is not None and wr < win_rate_floor) or (avg_pnl is not None and avg_pnl < 0):
+            sym1, sym2 = pair_key.split("/")
+            reinstate = (_dt.utcnow() + timedelta(days=90)).isoformat()
+            ok = suspend_pair(
+                sym1, sym2,
+                reason=f"auto_cull: wr={wr}, avg_pnl={avg_pnl} over {n} trades",
+                reinstate_after=reinstate,
+            )
+            if ok:
+                culled.append({
+                    "pair":            pair_key,
+                    "reason":          "underperforming",
+                    "win_rate":        wr,
+                    "avg_pnl_pct":     avg_pnl,
+                    "n_trades":        n,
+                    "reinstate_after": reinstate,
+                })
+
+    return culled
+
+
 def find_all_pairs(
     days: int = 90,
     min_half_life: float = 1.0,
@@ -144,6 +254,9 @@ def find_all_pairs(
 ) -> list[dict]:
     """
     Scan all CANDIDATE_PAIRS for cointegration, filtered by half-life.
+
+    Skips pairs that are in the suspended_pairs table. Suspension is
+    time-limited (reinstate_after) or indefinite.
 
     min_half_life / max_half_life: discard pairs that mean-revert too fast
     (noise) or too slowly (capital tied up for months).
@@ -155,8 +268,13 @@ def find_all_pairs(
     """
     from fetchers.pairs_data import fetch_pair_history, prices_to_series
 
+    suspended = {(s["sym1"], s["sym2"]) for s in get_suspended_pairs()}
+
     results = []
     for sym1, sym2 in CANDIDATE_PAIRS:
+        if (sym1, sym2) in suspended or (sym2, sym1) in suspended:
+            continue
+
         history = fetch_pair_history([sym1, sym2], days=days)
         if not history or len(history) < int(days * 0.7):
             continue

@@ -656,6 +656,7 @@ def smart_trade(body: SmartOrderRequest):
         target_price    = take_profit,
         risk_dollars    = risk_dollars,
         alpaca_order_id = alpaca_order_id,
+        signal_scores   = signals,
     )
 
     return {
@@ -1162,3 +1163,85 @@ def pairs_exit(signal_id: int, body: PairsExitRequest):
     if not ok:
         raise HTTPException(404, f"Signal {signal_id} not found or already closed")
     return {"signal_id": signal_id, "closed": True, "exit_reason": body.exit_reason}
+
+
+@app.get("/trade/calibration/status")
+def calibration_readiness():
+    """
+    Per-feature calibration readiness: which ML/sizing features are unlocked.
+
+    Features tracked:
+      kelly_sizing         — 50 closed trades
+      dynamic_weights      — 30 closed trades
+      per_signal_accuracy  — 10 active trades per individual signal
+      ngram_blend_weight   — 20 agree + 20 disagree cohort trades
+      time_session_accuracy — 20 trades per time-of-day session
+
+    Also returns compute_dynamic_weights() and compute_ngram_blend_weight()
+    when their thresholds are met.
+    """
+    from models.trading.signal_calibration import (
+        calibration_readiness_status,
+        compute_dynamic_weights,
+        compute_ngram_blend_weight,
+        per_signal_accuracy_report,
+    )
+    status = calibration_readiness_status()
+    status["dynamic_weights"]   = compute_dynamic_weights()
+    status["ngram_blend"]       = compute_ngram_blend_weight()
+    status["per_signal_report"] = per_signal_accuracy_report()
+    return status
+
+
+class PairsSuspendRequest(BaseModel):
+    reason: str = ""
+    reinstate_after: Optional[str] = None   # ISO datetime UTC, or omit for indefinite
+
+
+@app.post("/trade/pairs-suspend/{sym1}/{sym2}")
+def pairs_suspend(sym1: str, body: PairsSuspendRequest, sym2: str):
+    """
+    Suspend a pair from the weekly find_all_pairs scan.
+
+    reinstate_after: ISO datetime UTC string (e.g. "2026-09-25T00:00:00")
+    or omit for indefinite suspension. Use auto_cull_pairs() to suspend
+    automatically based on performance.
+    """
+    from models.trading.pairs import suspend_pair
+    ok = suspend_pair(sym1.upper(), sym2.upper(), body.reason, body.reinstate_after)
+    if not ok:
+        raise HTTPException(500, "Failed to suspend pair")
+    return {"pair": f"{sym1.upper()}/{sym2.upper()}", "suspended": True,
+            "reinstate_after": body.reinstate_after}
+
+
+@app.delete("/trade/pairs-suspend/{sym1}/{sym2}")
+def pairs_reinstate(sym1: str, sym2: str):
+    """Reinstate a suspended pair — removes it from the suspended_pairs table."""
+    from models.trading.pairs import reinstate_pair
+    ok = reinstate_pair(sym1.upper(), sym2.upper())
+    if not ok:
+        raise HTTPException(404, f"Pair {sym1}/{sym2} not found in suspended list")
+    return {"pair": f"{sym1.upper()}/{sym2.upper()}", "reinstated": True}
+
+
+@app.get("/trade/pairs-suspend")
+def list_suspended_pairs():
+    """List all currently suspended pairs."""
+    from models.trading.pairs import get_suspended_pairs
+    return {"suspended": get_suspended_pairs()}
+
+
+@app.post("/trade/pairs-auto-cull")
+def pairs_auto_cull(min_trades: int = 10, win_rate_floor: float = 0.40):
+    """
+    Auto-suspend underperforming pairs based on realized P&L data.
+
+    Suspends any pair where (with >= min_trades closed):
+      win_rate < win_rate_floor  OR  avg_pnl_pct < 0
+
+    Pairs are suspended for 90 days, then automatically re-eligible.
+    """
+    from models.trading.pairs import auto_cull_pairs
+    culled = auto_cull_pairs(min_trades=min_trades, win_rate_floor=win_rate_floor)
+    return {"culled": culled, "n_culled": len(culled)}

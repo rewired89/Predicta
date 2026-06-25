@@ -117,12 +117,34 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_new_tables(conn: sqlite3.Connection) -> None:
+    """Create any tables added after initial deployment (idempotent)."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS suspended_pairs (
+            id INTEGER PRIMARY KEY,
+            sym1 TEXT NOT NULL,
+            sym2 TEXT NOT NULL,
+            reason TEXT,
+            suspended_at TEXT DEFAULT (datetime('now')),
+            reinstate_after TEXT,
+            UNIQUE(sym1, sym2)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_suspended_pairs ON suspended_pairs(sym1, sym2)"
+    )
+    conn.commit()
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     schema = SCHEMA_PATH.read_text()
     conn = sqlite3.connect(db_path)
     conn.executescript(schema)
     _migrate_sport_check(conn)
     _migrate_intraday_trades(conn)
+    _migrate_new_tables(conn)
     conn.close()
 
 

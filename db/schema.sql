@@ -152,3 +152,14 @@ CREATE TABLE IF NOT EXISTS ngram_models (
     UNIQUE(symbol, pattern_len)
 );
 CREATE INDEX IF NOT EXISTS idx_ngram_symbol ON ngram_models(symbol);
+
+CREATE TABLE IF NOT EXISTS suspended_pairs (
+    id INTEGER PRIMARY KEY,
+    sym1 TEXT NOT NULL,
+    sym2 TEXT NOT NULL,
+    reason TEXT,
+    suspended_at TEXT DEFAULT (datetime('now')),
+    reinstate_after TEXT,
+    UNIQUE(sym1, sym2)
+);
+CREATE INDEX IF NOT EXISTS idx_suspended_pairs ON suspended_pairs(sym1, sym2);

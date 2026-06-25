@@ -78,11 +78,23 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
-called_by: log_trade_entry, log_hypothetical_trade, log_trade_exit, get_trade_stats (trading_logger.py)
+called_by: log_trade_entry, log_hypothetical_trade, log_trade_exit, get_trade_stats (trading_logger.py), _load_closed_trades_full (signal_calibration.py)
+mutates: none (DDL)
+---
+
+---
+name: suspended_pairs
+type: table
+file: db/schema.sql
+purpose: Pairs suspended from the weekly find_all_pairs scan. Each row carries sym1, sym2, reason, suspended_at (auto now), and optional reinstate_after (ISO datetime UTC). get_suspended_pairs() filters to rows where reinstate_after IS NULL or in the future. auto_cull_pairs() writes here with reinstate_after = now+90d.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: get_suspended_pairs, suspend_pair, reinstate_pair, auto_cull_pairs (pairs.py)
 mutates: none (DDL)
 ---
 
@@ -91,10 +103,22 @@ mutates: none (DDL)
 ## db/database.py (migrations)
 
 ---
+name: _migrate_new_tables
+type: function
+file: db/database.py
+purpose: Idempotent migration for tables added after initial deployment. Currently ensures suspended_pairs table exists (CREATE TABLE IF NOT EXISTS) with its index. Called by init_db after _migrate_intraday_trades.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS
+called_by: init_db
+mutates: predicta.db schema
+---
+
+---
 name: _migrate_intraday_trades
 type: function
 file: db/database.py
-purpose: Idempotent migration for intraday_trades — runs on every startup, adds any missing columns from master list covering v2 (lifecycle + sizing) and v3 (hypothetical mode + signal context). For empty tables, drops and recreates clean. Never destroys rows. idx_trades_hypo created here (not in schema.sql) since is_hypothetical may not exist in old tables.
+purpose: Idempotent migration for intraday_trades — runs on every startup, adds any missing columns from master list covering v2 (lifecycle + sizing), v3 (hypothetical mode + signal context), and v4 (per-signal scores: composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge scores, ngram_signal, ngram_confidence). For empty tables, drops and recreates clean. Never destroys rows. idx_trades_hypo created here (not in schema.sql) since is_hypothetical may not exist in old tables.
 inputs: conn: sqlite3.Connection
 outputs: none
 calls: PRAGMA table_info, ALTER TABLE, DROP TABLE, CREATE INDEX
@@ -5222,6 +5246,66 @@ mutates: pair_signals table (UPDATE via log_pair_exit)
 ---
 
 ---
+name: calibration_readiness
+type: function
+file: app.py
+purpose: GET /trade/calibration/status — per-feature readiness: which ML/sizing features are unlocked. Returns calibration_readiness_status() plus compute_dynamic_weights(), compute_ngram_blend_weight(), and per_signal_accuracy_report() when thresholds are met (or None when not).
+inputs: none
+outputs: dict {total_closed_trades, features, n_ready, pct_ready, overall_status, dynamic_weights, ngram_blend, per_signal_report}
+calls: calibration_readiness_status, compute_dynamic_weights, compute_ngram_blend_weight, per_signal_accuracy_report (signal_calibration.py)
+called_by: GET /trade/calibration/status
+mutates: none
+---
+
+---
+name: pairs_suspend
+type: function
+file: app.py
+purpose: POST /trade/pairs-suspend/{sym1}/{sym2} — suspend a pair from the weekly find_all_pairs scan. Optional reinstate_after ISO datetime UTC and reason in request body.
+inputs: sym1, sym2 (path), PairsSuspendRequest {reason="", reinstate_after=None}
+outputs: dict {pair, suspended, reinstate_after}
+calls: suspend_pair (pairs.py)
+called_by: POST /trade/pairs-suspend/{sym1}/{sym2}
+mutates: suspended_pairs table (INSERT OR UPDATE)
+---
+
+---
+name: pairs_reinstate
+type: function
+file: app.py
+purpose: DELETE /trade/pairs-suspend/{sym1}/{sym2} — remove a pair from the suspended list so it's eligible for find_all_pairs again.
+inputs: sym1, sym2 (path)
+outputs: dict {pair, reinstated}
+calls: reinstate_pair (pairs.py)
+called_by: DELETE /trade/pairs-suspend/{sym1}/{sym2}
+mutates: suspended_pairs table (DELETE)
+---
+
+---
+name: list_suspended_pairs
+type: function
+file: app.py
+purpose: GET /trade/pairs-suspend — list all currently suspended pairs (reinstate_after in future or NULL).
+inputs: none
+outputs: dict {suspended: list[dict]}
+calls: get_suspended_pairs (pairs.py)
+called_by: GET /trade/pairs-suspend
+mutates: none
+---
+
+---
+name: pairs_auto_cull
+type: function
+file: app.py
+purpose: POST /trade/pairs-auto-cull — auto-suspend underperforming pairs based on realized P&L. Suspends for 90 days any pair with win_rate < win_rate_floor OR avg_pnl_pct < 0 (with >= min_trades closed). Optional ?min_trades=10 and ?win_rate_floor=0.40 query params.
+inputs: min_trades: int = 10 (query), win_rate_floor: float = 0.40 (query)
+outputs: dict {culled: list[dict], n_culled}
+calls: auto_cull_pairs (pairs.py)
+called_by: POST /trade/pairs-auto-cull
+mutates: suspended_pairs table (via auto_cull_pairs → suspend_pair)
+---
+
+---
 
 ## db/schema.sql (new tables — Round 7)
 
@@ -5290,10 +5374,58 @@ mutates: none
 ---
 
 ---
+name: get_suspended_pairs
+type: function
+file: models/trading/pairs.py
+purpose: Returns all currently-active suspended pairs from suspended_pairs table. Filters out rows where reinstate_after is in the past.
+inputs: none
+outputs: list[dict {sym1, sym2, reason, suspended_at, reinstate_after}]
+calls: db.database.get_db
+called_by: find_all_pairs, list_suspended_pairs endpoint (app.py)
+mutates: none
+---
+
+---
+name: suspend_pair
+type: function
+file: models/trading/pairs.py
+purpose: Insert or update a suspended_pairs row. ON CONFLICT updates reason/suspended_at/reinstate_after. reinstate_after=None means indefinite suspension.
+inputs: sym1, sym2, reason, reinstate_after=None
+outputs: bool (True on success)
+calls: db.database.get_db
+called_by: auto_cull_pairs, pairs_suspend endpoint (app.py)
+mutates: suspended_pairs table (INSERT OR UPDATE)
+---
+
+---
+name: reinstate_pair
+type: function
+file: models/trading/pairs.py
+purpose: Delete a pair from suspended_pairs. Returns True if a row was actually deleted.
+inputs: sym1: str, sym2: str
+outputs: bool
+calls: db.database.get_db
+called_by: pairs_reinstate endpoint (app.py)
+mutates: suspended_pairs table (DELETE)
+---
+
+---
+name: auto_cull_pairs
+type: function
+file: models/trading/pairs.py
+purpose: Scan pairs_calibration_summary and suspend any pair with n>=min_trades where win_rate < win_rate_floor OR avg_pnl_pct < 0. Suspension is for 90 days (reinstate_after = now+90d). Returns list of dicts describing each pair culled.
+inputs: min_trades=10, win_rate_floor=0.40
+outputs: list[dict {pair, reason, win_rate, avg_pnl_pct, n_trades, reinstate_after}]
+calls: pairs_calibration_summary (signal_calibration.py), suspend_pair
+called_by: pairs_auto_cull endpoint (app.py)
+mutates: suspended_pairs table (via suspend_pair)
+---
+
+---
 name: find_all_pairs
 type: function
 file: models/trading/pairs.py
-purpose: End-to-end weekly scan of CANDIDATE_PAIRS. Fetches daily bars for each pair via fetch_pair_history, runs test_cointegration (full EG test), filters by cointegration p<0.05 AND OU half-life in [min_half_life, max_half_life] days. Returns results sorted by p-value. Typical output: 2-4 cointegrated pairs from 8 candidates.
+purpose: End-to-end weekly scan of CANDIDATE_PAIRS. Skips pairs in suspended_pairs table (checks get_suspended_pairs before testing). Fetches daily bars for each pair via fetch_pair_history, runs test_cointegration (full EG test), filters by cointegration p<0.05 AND OU half-life in [min_half_life, max_half_life] days. Returns results sorted by p-value. Typical output: 2-4 cointegrated pairs from 8 candidates.
 inputs: days=90, min_half_life=1.0, max_half_life=30.0
 outputs: list[dict] (test_cointegration output for qualifying pairs, sorted by pvalue)
 calls: fetch_pair_history, prices_to_series, test_cointegration
@@ -5409,7 +5541,79 @@ purpose: Per-pair realized edge from closed pair_signals rows. Returns win_rate,
 inputs: min_trades: int = 3
 outputs: dict {total_closed, pairs: [{pair, n, win_rate, avg_pnl_pct, avg_hold_h, flag, note}]}
 calls: db.database.get_db
-called_by: calibration_pairs endpoint (app.py)
+called_by: calibration_pairs endpoint (app.py), auto_cull_pairs (pairs.py)
+mutates: none
+---
+
+---
+name: _load_closed_trades_full
+type: function
+file: models/trading/signal_calibration.py
+purpose: All closed trades with v4 per-signal score columns (composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge scores, ngram_signal, ngram_confidence). Returns empty list on DB error or if no closed trades exist. Used by per_signal_accuracy_report, compute_dynamic_weights, compute_ngram_blend_weight, calibration_readiness_status.
+inputs: none
+outputs: list[dict]
+calls: db.database.get_db
+called_by: per_signal_accuracy_report, compute_dynamic_weights, compute_ngram_blend_weight, calibration_readiness_status
+mutates: none
+---
+
+---
+name: _per_signal_stats
+type: function
+file: models/trading/signal_calibration.py
+purpose: Win rate and avg P&L (in R) for one signal column. Only counts trades where |signal_score| >= active_threshold (signal was active/contributing). Returns {n, win_rate, avg_r} with None values when n=0.
+inputs: trades: list[dict], col: str, active_threshold: float = 10.0
+outputs: dict {n, win_rate, avg_r}
+calls: _is_winner
+called_by: per_signal_accuracy_report, compute_dynamic_weights, calibration_readiness_status
+mutates: none
+---
+
+---
+name: per_signal_accuracy_report
+type: function
+file: models/trading/signal_calibration.py
+purpose: Win rate and avg P&L per individual signal component. Only counts trades where |signal_score| >= active_threshold. Trades logged pre-v4 schema have NULL signal scores and are excluded silently. Results sorted by win_rate descending.
+inputs: min_trades: int = 10, active_threshold: float = 10.0
+outputs: dict {total_closed, by_signal: [{signal, column, n, win_rate, avg_r, note}], active_threshold, note}
+calls: _load_closed_trades_full, _per_signal_stats
+called_by: calibration_readiness endpoint (app.py)
+mutates: none
+---
+
+---
+name: compute_dynamic_weights
+type: function
+file: models/trading/signal_calibration.py
+purpose: Empirically-driven signal weights from closed trades. Formula: raw = max(0, (win_rate-0.5)*avg_r) per signal; normalize by total raw. Falls back to _STATIC_WEIGHTS when sum of raws=0 (status="fallback_static"). Returns None when total closed trades < min_trades. Used to replace WEIGHTS in intraday.py once enough data exists.
+inputs: min_trades: int = 30
+outputs: Optional[dict {weights, raw_weights, negative_utility, n_trades, status}]
+calls: _load_closed_trades_full, _per_signal_stats
+called_by: calibration_readiness endpoint (app.py)
+mutates: none
+---
+
+---
+name: compute_ngram_blend_weight
+type: function
+file: models/trading/signal_calibration.py
+purpose: Calibrate n-gram overlay multiplier. Agree cohort = n-gram direction matches composite_raw direction; disagree cohort = opposes. agree_multiplier = agree_avg_r / baseline_avg_r, clamped to [0.5, 2.0]. Returns None when either cohort < min_samples. When agree_multiplier > 1.0, n-gram adds value; < 1.0 means the agree-direction trades underperform baseline.
+inputs: min_samples: int = 20
+outputs: Optional[dict {agree_multiplier, disagree_multiplier, n_agree, n_disagree, agree_avg_r, disagree_avg_r, baseline_avg_r, status}]
+calls: _load_closed_trades_full, _avg_r (internal)
+called_by: calibration_readiness endpoint (app.py)
+mutates: none
+---
+
+---
+name: calibration_readiness_status
+type: function
+file: models/trading/signal_calibration.py
+purpose: Per-feature readiness check with threshold targets. Features: kelly_sizing (50 trades), dynamic_weights (30 trades), per_signal_accuracy (10 active per signal), ngram_blend_weight (20 agree + 20 disagree), time_session_accuracy (20 per session). Returns features list, n_ready/n_total, pct_ready, overall_status (fully_calibrated / partially_calibrated / insufficient).
+inputs: none
+outputs: dict {total_closed_trades, features, n_ready, n_total_features, pct_ready, overall_status}
+calls: _load_closed_trades_full, _per_signal_stats
+called_by: calibration_readiness endpoint (app.py)
 mutates: none
 ---
 

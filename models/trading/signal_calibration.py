@@ -16,6 +16,25 @@ from __future__ import annotations
 import math
 from typing import Optional
 
+# Per-signal DB column names (v4 schema)
+_SIGNAL_COLS: dict[str, str] = {
+    "vwap":     "vwap_score",
+    "or":       "or_score",
+    "rsi":      "rsi_score",
+    "relvol":   "relvol_score",
+    "gap":      "gap_score",
+    "trend":    "trend_score",
+    "bollinger":"bollinger_score",
+    "volsurge": "volsurge_score",
+}
+
+# Static fallback weights (from intraday.py WEIGHTS) — used when dynamic
+# weights can't be computed (insufficient data).
+_STATIC_WEIGHTS: dict[str, float] = {
+    "vwap": 0.20, "or": 0.15, "rsi": 0.15, "relvol": 0.10,
+    "gap": 0.10,  "trend": 0.15, "bollinger": 0.10, "volsurge": 0.05,
+}
+
 # Score bucket boundaries for composite score grouping
 _BUCKETS: list[tuple[int, int, str]] = [
     (-100, -60, "Strong Sell"),
@@ -270,4 +289,313 @@ def pairs_calibration_summary(min_trades: int = 3) -> dict:
     return {
         "total_closed": len(rows),
         "pairs":        pair_stats,
+    }
+
+
+def _load_closed_trades_full() -> list[dict]:
+    """All closed trades with v4 per-signal score columns."""
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT entry_score, pnl_r, pnl_dollars, pnl_pct,
+                       time_of_day_label, side, symbol, exit_reason,
+                       liquidity_label, relative_volume, is_hypothetical,
+                       composite_raw,
+                       vwap_score, or_score, rsi_score, relvol_score,
+                       gap_score, trend_score, bollinger_score, volsurge_score,
+                       ngram_signal, ngram_confidence
+                FROM intraday_trades
+                WHERE exit_price IS NOT NULL
+                ORDER BY logged_at DESC
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def _per_signal_stats(
+    trades: list[dict],
+    col: str,
+    active_threshold: float = 10.0,
+) -> dict:
+    """
+    Win rate and avg P&L for one signal column.
+    Only counts trades where the signal was 'active' (|score| >= active_threshold).
+    """
+    active = [
+        t for t in trades
+        if t.get(col) is not None and abs(t[col]) >= active_threshold
+    ]
+    n = len(active)
+    if n == 0:
+        return {"n": 0, "win_rate": None, "avg_r": None}
+    wins   = sum(1 for t in active if _is_winner(t))
+    pnl_rs = [t["pnl_r"] for t in active if t.get("pnl_r") is not None]
+    return {
+        "n":        n,
+        "win_rate": round(wins / n, 3),
+        "avg_r":    round(sum(pnl_rs) / len(pnl_rs), 3) if pnl_rs else None,
+    }
+
+
+def per_signal_accuracy_report(
+    min_trades: int = 10,
+    active_threshold: float = 10.0,
+) -> dict:
+    """
+    Win rate and average P&L (in R) per individual signal component.
+
+    Only counts a trade for a signal when |signal_score| >= active_threshold,
+    meaning the signal was contributing meaningfully to the composite.
+
+    Requires v4 schema columns; trades logged before schema migration will
+    have NULL values and are silently excluded from signal-level stats.
+    """
+    trades = _load_closed_trades_full()
+    n_total = len(trades)
+
+    by_signal = []
+    for signal_key, col in _SIGNAL_COLS.items():
+        stats = _per_signal_stats(trades, col, active_threshold)
+        note = None
+        if stats["n"] < min_trades:
+            note = f"Only {stats['n']} active trade(s) — need {min_trades}"
+        elif stats["win_rate"] is not None and stats["win_rate"] < 0.50:
+            note = "Below 50% win rate — may be dragging composite score"
+        by_signal.append({
+            "signal":   signal_key,
+            "column":   col,
+            **stats,
+            "note":     note,
+        })
+
+    by_signal.sort(key=lambda x: (x.get("win_rate") or -1), reverse=True)
+    return {
+        "total_closed": n_total,
+        "by_signal":    by_signal,
+        "active_threshold": active_threshold,
+        "note": (
+            "Per-signal data requires v4 schema; pre-migration trades excluded"
+            if n_total > 0 else "No closed trades yet"
+        ),
+    }
+
+
+def compute_dynamic_weights(min_trades: int = 30) -> Optional[dict]:
+    """
+    Compute empirically-driven signal weights from closed-trade data.
+
+    Formula per signal:
+        raw = max(0, (win_rate - 0.5) * avg_r)
+    Normalized:
+        weight = raw / sum(all raws)
+    Falls back to _STATIC_WEIGHTS when sum of raws is zero (no signal shows edge).
+
+    Returns None when total closed trades < min_trades (insufficient data).
+    Returns dict with: weights, raw_weights, negative_utility, n_trades, status.
+    """
+    trades = _load_closed_trades_full()
+    if len(trades) < min_trades:
+        return None
+
+    raw_weights: dict[str, float] = {}
+    negative_utility: list[str]   = []
+
+    for signal_key, col in _SIGNAL_COLS.items():
+        stats = _per_signal_stats(trades, col, active_threshold=10.0)
+        wr  = stats["win_rate"]
+        avg = stats["avg_r"]
+        if wr is None or avg is None or stats["n"] < 5:
+            raw_weights[signal_key] = 0.0
+            continue
+        raw = max(0.0, (wr - 0.5) * avg)
+        raw_weights[signal_key] = raw
+        if wr < 0.50 or avg < 0:
+            negative_utility.append(signal_key)
+
+    total_raw = sum(raw_weights.values())
+    if total_raw > 0:
+        weights = {k: round(v / total_raw, 4) for k, v in raw_weights.items()}
+        status  = "dynamic"
+    else:
+        weights = dict(_STATIC_WEIGHTS)
+        status  = "fallback_static"
+
+    return {
+        "weights":          weights,
+        "raw_weights":      {k: round(v, 6) for k, v in raw_weights.items()},
+        "negative_utility": negative_utility,
+        "n_trades":         len(trades),
+        "status":           status,
+    }
+
+
+def compute_ngram_blend_weight(min_samples: int = 20) -> Optional[dict]:
+    """
+    Calibrate the n-gram overlay multiplier from closed-trade outcomes.
+
+    Agree cohort:    n-gram direction matches composite_raw direction.
+    Disagree cohort: n-gram direction opposes composite_raw direction.
+
+    If the agree cohort meaningfully outperforms baseline avg_r, the n-gram
+    signal is adding value and the agree_multiplier should be > 1.0.
+    If the disagree cohort underperforms, disagree_multiplier should be < 1.0.
+
+    Returns None when either cohort has fewer than min_samples trades.
+    """
+    trades = _load_closed_trades_full()
+
+    agree    = []
+    disagree = []
+    for t in trades:
+        ng  = t.get("ngram_signal")
+        raw = t.get("composite_raw")
+        if ng is None or raw is None or ng == "NONE":
+            continue
+        if (ng == "UP" and raw > 0) or (ng == "DOWN" and raw < 0):
+            agree.append(t)
+        elif (ng == "UP" and raw < 0) or (ng == "DOWN" and raw > 0):
+            disagree.append(t)
+
+    if len(agree) < min_samples or len(disagree) < min_samples:
+        return None
+
+    def _avg_r(cohort: list[dict]) -> Optional[float]:
+        rs = [t["pnl_r"] for t in cohort if t.get("pnl_r") is not None]
+        return round(sum(rs) / len(rs), 3) if rs else None
+
+    all_rs = [t["pnl_r"] for t in trades if t.get("pnl_r") is not None]
+    baseline_avg_r = round(sum(all_rs) / len(all_rs), 3) if all_rs else None
+
+    agree_avg_r    = _avg_r(agree)
+    disagree_avg_r = _avg_r(disagree)
+
+    # Multiplier = ratio to baseline; clamp to [0.5, 2.0]
+    def _mult(avg: Optional[float], base: Optional[float]) -> Optional[float]:
+        if avg is None or base is None or base == 0:
+            return None
+        return round(max(0.5, min(2.0, avg / base)), 3)
+
+    return {
+        "agree_multiplier":   _mult(agree_avg_r, baseline_avg_r),
+        "disagree_multiplier": _mult(disagree_avg_r, baseline_avg_r),
+        "n_agree":            len(agree),
+        "n_disagree":         len(disagree),
+        "agree_avg_r":        agree_avg_r,
+        "disagree_avg_r":     disagree_avg_r,
+        "baseline_avg_r":     baseline_avg_r,
+        "status":             "calibrated",
+    }
+
+
+def calibration_readiness_status() -> dict:
+    """
+    Per-feature readiness check with threshold targets.
+
+    Thresholds:
+      kelly            — 50 closed trades
+      dynamic_weights  — 30 closed trades
+      per_signal       — 10 active trades per signal (v4 data)
+      ngram_blend      — 20 each in agree + disagree cohorts
+      time_session     — 20 trades per time-of-day session
+
+    Returns a dict with 'features' list (one row per feature) and
+    an overall 'pct_ready' fraction.
+    """
+    trades   = _load_closed_trades_full()
+    n_total  = len(trades)
+
+    # ── Kelly readiness ───────────────────────────────────────────────────────
+    features = [
+        {
+            "feature":   "kelly_sizing",
+            "threshold": 50,
+            "current":   n_total,
+            "ready":     n_total >= 50,
+            "note":      None if n_total >= 50 else f"Need {50 - n_total} more closed trades",
+        },
+        {
+            "feature":   "dynamic_weights",
+            "threshold": 30,
+            "current":   n_total,
+            "ready":     n_total >= 30,
+            "note":      None if n_total >= 30 else f"Need {30 - n_total} more closed trades",
+        },
+    ]
+
+    # ── Per-signal readiness (10 active trades each) ──────────────────────────
+    n_signals_ready = 0
+    signal_details  = []
+    for sig, col in _SIGNAL_COLS.items():
+        stats = _per_signal_stats(trades, col, active_threshold=10.0)
+        ready = stats["n"] >= 10
+        if ready:
+            n_signals_ready += 1
+        signal_details.append(f"{sig}:{stats['n']}")
+
+    features.append({
+        "feature":   "per_signal_accuracy",
+        "threshold": f"10 per signal ({len(_SIGNAL_COLS)} signals)",
+        "current":   f"{n_signals_ready}/{len(_SIGNAL_COLS)} signals ready",
+        "ready":     n_signals_ready == len(_SIGNAL_COLS),
+        "detail":    ", ".join(signal_details),
+        "note":      None if n_signals_ready == len(_SIGNAL_COLS)
+                     else f"{len(_SIGNAL_COLS) - n_signals_ready} signal(s) below 10 active trades",
+    })
+
+    # ── N-gram blend readiness (20 agree + 20 disagree) ──────────────────────
+    agree_n = disagree_n = 0
+    for t in trades:
+        ng  = t.get("ngram_signal")
+        raw = t.get("composite_raw")
+        if ng is None or raw is None or ng == "NONE":
+            continue
+        if (ng == "UP" and raw > 0) or (ng == "DOWN" and raw < 0):
+            agree_n += 1
+        elif (ng == "UP" and raw < 0) or (ng == "DOWN" and raw > 0):
+            disagree_n += 1
+
+    features.append({
+        "feature":   "ngram_blend_weight",
+        "threshold": "20 agree + 20 disagree",
+        "current":   f"agree={agree_n}, disagree={disagree_n}",
+        "ready":     agree_n >= 20 and disagree_n >= 20,
+        "note":      None if (agree_n >= 20 and disagree_n >= 20)
+                     else f"Need agree≥20 (have {agree_n}), disagree≥20 (have {disagree_n})",
+    })
+
+    # ── Time-session readiness (20 trades per session) ────────────────────────
+    session_counts: dict[str, int] = {}
+    for t in trades:
+        key = t.get("time_of_day_label") or "UNKNOWN"
+        session_counts[key] = session_counts.get(key, 0) + 1
+
+    sessions_ready = sum(1 for v in session_counts.values() if v >= 20)
+    sessions_total = len(session_counts)
+    features.append({
+        "feature":   "time_session_accuracy",
+        "threshold": "20 per session",
+        "current":   {k: v for k, v in sorted(session_counts.items())},
+        "ready":     sessions_ready > 0 and sessions_ready == sessions_total,
+        "note":      None if (sessions_ready > 0 and sessions_ready == sessions_total)
+                     else f"{sessions_ready}/{sessions_total} session(s) have ≥20 trades",
+    })
+
+    n_ready  = sum(1 for f in features if f["ready"])
+    pct_ready = round(n_ready / len(features), 2) if features else 0.0
+
+    return {
+        "total_closed_trades": n_total,
+        "features":            features,
+        "n_ready":             n_ready,
+        "n_total_features":    len(features),
+        "pct_ready":           pct_ready,
+        "overall_status": (
+            "fully_calibrated" if pct_ready == 1.0
+            else "partially_calibrated" if pct_ready >= 0.5
+            else "insufficient"
+        ),
     }
