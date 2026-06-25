@@ -235,6 +235,35 @@ def generate_pair_signal(pair_result: dict) -> dict:
         }
 
 
+def log_pair_exit(
+    signal_id: int,
+    exit_zscore: float,
+    exit_reason: str,
+    pnl_pct: Optional[float] = None,
+) -> bool:
+    """
+    Close an open pair_signals row with exit data.
+    Mirrors log_trade_exit() for intraday_trades.
+    Returns True on success, False if row not found or DB error.
+    """
+    from datetime import datetime as _dt
+    from db.database import get_db
+
+    try:
+        with get_db() as conn:
+            rows_updated = conn.execute(
+                """
+                UPDATE pair_signals
+                SET exit_z = ?, exit_time = ?, pnl_pct = ?, exit_reason = ?
+                WHERE id = ? AND exit_time IS NULL
+                """,
+                (exit_zscore, _dt.now().isoformat(), pnl_pct, exit_reason, signal_id),
+            ).rowcount
+        return rows_updated > 0
+    except Exception:
+        return False
+
+
 def log_pair_signal(signal: dict, sym1: str, sym2: str) -> int:
     """
     Persist a pair signal to the pair_signals table for tracking.

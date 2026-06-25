@@ -1079,3 +1079,73 @@ def ngram_build(body: NgramBuildRequest):
         "symbols_requested": len(body.symbols),
         "results":           results,
     }
+
+
+# ── Signal calibration / feedback loop ─────────────────────────────────────────
+
+@app.get("/trade/calibration")
+def calibration_status():
+    """
+    Readiness summary: how many closed trades exist, whether Kelly sizing is
+    safe to enable, and the empirically observed score threshold for >50% win rate.
+
+    Re-runs on every call — no caching — so it reflects the latest closed trades.
+    """
+    from models.trading.signal_calibration import calibration_summary
+    return calibration_summary()
+
+
+@app.get("/trade/calibration/scores")
+def calibration_scores(min_trades: int = 5):
+    """
+    Win rate and avg P&L (in R) per composite score bucket.
+    Buckets: Strong Sell / Sell / Neutral / Buy / Strong Buy.
+    Returns None for any bucket with fewer than min_trades closed trades.
+    """
+    from models.trading.signal_calibration import score_accuracy_report
+    return score_accuracy_report(min_trades=min_trades)
+
+
+@app.get("/trade/calibration/time")
+def calibration_time(min_trades: int = 5):
+    """
+    Win rate per time-of-day session (MORNING_TREND, LUNCH_CHOP, etc.).
+    Useful for tuning the time-of-day modifier in intraday.py.
+    """
+    from models.trading.signal_calibration import time_accuracy_report
+    return time_accuracy_report(min_trades=min_trades)
+
+
+@app.get("/trade/ngram-validate/{symbol}")
+def ngram_validate(symbol: str, significance: float = 0.05):
+    """
+    Run binomial significance test on all patterns in the symbol's n-gram table.
+    Only patterns with p < significance have a demonstrated edge.
+
+    Call after /trade/ngram-build to audit which patterns are statistically sound
+    before trusting their directional signal in the composite score.
+    """
+    from models.trading.ngram import validate_ngram_patterns
+    return validate_ngram_patterns(symbol.upper(), significance=significance)
+
+
+class PairsExitRequest(BaseModel):
+    exit_zscore: float
+    exit_reason: str
+    pnl_pct: Optional[float] = None
+
+
+@app.post("/trade/pairs-exit/{signal_id}")
+def pairs_exit(signal_id: int, body: PairsExitRequest):
+    """
+    Close an open pair_signals row with exit z-score, reason, and optional P&L %.
+    Mirrors /trade/resolve-hypothetical for intraday trades.
+
+    exit_reason: "TARGET_HIT" | "STOP_HIT" | "TIME_EXIT" | "MANUAL"
+    pnl_pct: percentage P&L on the spread leg (positive = profit).
+    """
+    from models.trading.pairs import log_pair_exit
+    ok = log_pair_exit(signal_id, body.exit_zscore, body.exit_reason, body.pnl_pct)
+    if not ok:
+        raise HTTPException(404, f"Signal {signal_id} not found or already closed")
+    return {"signal_id": signal_id, "closed": True, "exit_reason": body.exit_reason}

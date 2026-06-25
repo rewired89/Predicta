@@ -219,6 +219,69 @@ def ngram_signal(
         }
 
 
+def validate_ngram_patterns(symbol: str, significance: float = 0.05) -> dict:
+    """
+    Binomial significance test per pattern in the stored frequency table.
+
+    For each pattern, test whether the best directional win rate is
+    statistically distinguishable from 50% using the normal approximation:
+        z = (p̂ - 0.5) / sqrt(0.25 / n)
+    One-tailed p-value via erfc. Patterns below the significance level
+    have a demonstrated edge; others are noise at current sample sizes.
+
+    Returns: {validated: [...], weak: [...], n_validated, n_weak}
+    """
+    import math as _math
+
+    table = load_pattern_table(symbol)
+    if table is None:
+        return {
+            "symbol": symbol,
+            "error":  "No pattern table — run build_ngram_from_alpaca first",
+            "validated": [], "weak": [], "n_validated": 0, "n_weak": 0,
+        }
+
+    validated: list[dict] = []
+    weak:      list[dict] = []
+
+    for pattern, counts in table.items():
+        total = sum(counts.values())
+        if total < 30:
+            weak.append({"pattern": pattern, "n": total, "reason": "too_few_samples"})
+            continue
+
+        p_up   = counts.get("U", 0) / total
+        p_down = counts.get("D", 0) / total
+        best_dir = "U" if p_up >= p_down else "D"
+        best_p   = max(p_up, p_down)
+
+        z     = (best_p - 0.5) / _math.sqrt(0.25 / total)
+        p_val = 0.5 * _math.erfc(z / _math.sqrt(2))
+
+        entry = {
+            "pattern":   pattern,
+            "direction": best_dir,
+            "win_rate":  round(best_p, 3),
+            "n":         total,
+            "z_score":   round(z, 2),
+            "p_value":   round(p_val, 4),
+        }
+        if p_val < significance:
+            validated.append(entry)
+        else:
+            weak.append({**entry, "reason": "not_significant"})
+
+    return {
+        "symbol":         symbol,
+        "total_patterns": len(table),
+        "significance":   significance,
+        "n_validated":    len(validated),
+        "n_weak":         len(weak),
+        "validated":      sorted(validated, key=lambda x: x["win_rate"], reverse=True),
+        "weak":           weak,
+    }
+
+
 def ngram_to_composite_score(signal: dict) -> float:
     """Convert ngram signal to -100…+100 scale for ensemble blending."""
     s = signal.get("signal", "NONE")

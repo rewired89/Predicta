@@ -5150,6 +5150,66 @@ mutates: ngram_models table (INSERT OR REPLACE)
 ---
 
 ---
+name: calibration_status
+type: function
+file: app.py
+purpose: GET /trade/calibration — one-call readiness summary: trade count, kelly_ready flag, calibration_quality, empirical_score_threshold, overall_win_rate, avg_pnl_r.
+inputs: none
+outputs: calibration_summary() dict
+calls: calibration_summary (signal_calibration.py)
+called_by: GET /trade/calibration
+mutates: none
+---
+
+---
+name: calibration_scores
+type: function
+file: app.py
+purpose: GET /trade/calibration/scores — win rate and avg P&L per composite score bucket. Optional ?min_trades=N query param.
+inputs: min_trades: int = 5 (query param)
+outputs: score_accuracy_report() dict
+calls: score_accuracy_report (signal_calibration.py)
+called_by: GET /trade/calibration/scores
+mutates: none
+---
+
+---
+name: calibration_time
+type: function
+file: app.py
+purpose: GET /trade/calibration/time — win rate per time-of-day session. Optional ?min_trades=N query param.
+inputs: min_trades: int = 5 (query param)
+outputs: time_accuracy_report() dict
+calls: time_accuracy_report (signal_calibration.py)
+called_by: GET /trade/calibration/time
+mutates: none
+---
+
+---
+name: ngram_validate
+type: function
+file: app.py
+purpose: GET /trade/ngram-validate/{symbol} — binomial significance test on all patterns in the symbol's n-gram table. Optional ?significance=0.05 query param.
+inputs: symbol: str (path), significance: float = 0.05 (query)
+outputs: validate_ngram_patterns() dict {n_validated, n_weak, validated, weak}
+calls: validate_ngram_patterns (ngram.py)
+called_by: GET /trade/ngram-validate/{symbol}
+mutates: none
+---
+
+---
+name: pairs_exit
+type: function
+file: app.py
+purpose: POST /trade/pairs-exit/{signal_id} — close an open pair_signals row with exit z-score, reason, and optional P&L %. Mirrors /trade/resolve-hypothetical for pairs. exit_reason: TARGET_HIT | STOP_HIT | TIME_EXIT | MANUAL.
+inputs: signal_id: int (path), PairsExitRequest {exit_zscore, exit_reason, pnl_pct?}
+outputs: dict {signal_id, closed, exit_reason}
+calls: log_pair_exit (pairs.py)
+called_by: POST /trade/pairs-exit/{signal_id}
+mutates: pair_signals table (UPDATE via log_pair_exit)
+---
+
+---
 
 ## db/schema.sql (new tables — Round 7)
 
@@ -5254,6 +5314,82 @@ mutates: pair_signals table (INSERT)
 ---
 
 ---
+name: log_pair_exit
+type: function
+file: models/trading/pairs.py
+purpose: Close an open pair_signals row with exit z-score, reason, and P&L %. Mirrors log_trade_exit for intraday_trades. Only updates rows where exit_time IS NULL (idempotent). Returns True on success.
+inputs: signal_id: int, exit_zscore: float, exit_reason: str, pnl_pct: Optional[float]
+outputs: bool
+calls: db.database.get_db
+called_by: pairs_exit endpoint (app.py)
+mutates: pair_signals table (UPDATE exit_z, exit_time, pnl_pct, exit_reason)
+---
+
+---
+
+## models/trading/signal_calibration.py
+
+---
+name: signal_calibration
+type: module
+file: models/trading/signal_calibration.py
+purpose: Signal accuracy feedback loop. Queries closed intraday_trades to compute per-bucket win rates and avg P&L-in-R per composite score bucket and time-of-day session. calibrated_win_rate() returns empirical win rate with no heuristic fallback (returns None when data insufficient). calibration_summary() checks Kelly readiness and empirical score threshold.
+inputs: none (queries DB internally)
+outputs: see individual functions below
+calls: db.database.get_db
+called_by: calibration endpoints in app.py
+mutates: none (read-only)
+---
+
+---
+name: score_accuracy_report
+type: function
+file: models/trading/signal_calibration.py
+purpose: Win rate and avg P&L-in-R per composite score bucket (Strong Sell / Sell / Neutral / Buy / Strong Buy). Returns None for buckets with fewer than min_trades closed trades.
+inputs: min_trades: int = 5
+outputs: dict {total_closed, overall_win_rate, avg_pnl_r, buckets: [{label, min_score, max_score, n, win_rate, avg_pnl_r}], note}
+calls: _load_closed_trades
+called_by: calibration_scores endpoint, calibration_summary
+mutates: none
+---
+
+---
+name: time_accuracy_report
+type: function
+file: models/trading/signal_calibration.py
+purpose: Win rate and avg P&L per time-of-day session. Used to empirically tune time_of_day_modifier thresholds.
+inputs: min_trades: int = 5
+outputs: dict {total_closed, by_session: [{session, n, win_rate, avg_pnl_r}]}
+calls: _load_closed_trades
+called_by: calibration_time endpoint
+mutates: none
+---
+
+---
+name: calibrated_win_rate
+type: function
+file: models/trading/signal_calibration.py
+purpose: Returns empirical win rate for a composite score. Returns None when data is insufficient — NEVER falls back to the (score+100)/200 heuristic.
+inputs: score: float
+outputs: Optional[float]
+calls: score_accuracy_report
+called_by: kelly_from_signals (once 50+ trades exist)
+mutates: none
+---
+
+---
+name: calibration_summary
+type: function
+file: models/trading/signal_calibration.py
+purpose: One-call readiness check. Returns kelly_ready (n≥50), calibration_quality, empirical_score_threshold (lowest bucket with >50% WR), overall_win_rate, avg_pnl_r.
+inputs: none
+outputs: dict {total_closed_trades, kelly_ready, calibration_quality, empirical_score_threshold, recommended_min_score, overall_win_rate, avg_pnl_r, note}
+calls: _load_closed_trades, score_accuracy_report
+called_by: calibration_status endpoint
+mutates: none
+---
+
+---
 
 ## models/trading/ngram.py
 
@@ -5338,6 +5474,18 @@ inputs: symbol: str, recent_closes: list[float], min_samples: int = 50
 outputs: dict {signal, confidence, historical_win_rate?, pattern?, n_historical?, expected_edge?, reason?}
 calls: encode_sequence, load_pattern_table
 called_by: compute_intraday_signals (intraday.py)
+mutates: none
+---
+
+---
+name: validate_ngram_patterns
+type: function
+file: models/trading/ngram.py
+purpose: Binomial significance test per pattern. z = (p̂ - 0.5) / sqrt(0.25/n), one-tailed p-value via erfc. Patterns with p < significance (default 0.05) have demonstrated directional edge; others are noise. Call after building tables to audit which patterns the signal engine should trust.
+inputs: symbol: str, significance: float = 0.05
+outputs: dict {symbol, total_patterns, n_validated, n_weak, validated: [{pattern, direction, win_rate, n, z_score, p_value}], weak: [...]}
+calls: load_pattern_table
+called_by: ngram_validate endpoint (app.py)
 mutates: none
 ---
 
