@@ -554,9 +554,9 @@ mutates: none
 name: compute_metrics_from_db
 type: function
 file: models/calibration.py
-purpose: Full accuracy + calibration report: prediction accuracy %, bet accuracy %, ROI, Brier score, log-loss, reliability curve, benchmark comparison. Broken down by sport, confidence level, and prediction method.
+purpose: Full accuracy + calibration report: prediction accuracy %, bet accuracy %, ROI, Brier score, log-loss, ECE, reliability curve, ECE-based Kelly multiplier, benchmark comparison. Broken down by sport, confidence level, and prediction method.
 inputs: method: Optional[str], sport: Optional[str]
-outputs: dict {overall, by_sport, by_confidence, by_method, brier_score, log_loss, reliability_curve, benchmarks}
+outputs: dict {overall, by_sport, by_confidence, by_method, brier_score, log_loss, ece, ece_benchmark, reliability_curve, recommended_kelly_adjustment {multiplier, note}, benchmarks}
 calls: get_db, _accuracy_block, brier_score, log_loss_score, reliability_curve
 called_by: accuracy (app.py), calibration (app.py), generate_html_report
 mutates: none
@@ -2984,8 +2984,8 @@ mutates: none
 name: _derive_bullpen_fip
 type: function
 file: analyze_baseball.py
-purpose: Derives a team's bullpen FIP from team ERA and starter FIP using the innings formula (team_ERA×9 - starter_FIP×5) / 4; clamped to [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP as fallback.
-inputs: team_era: float, starter_fip: float
+purpose: Derives team bullpen FIP from team ERA and starter FIP. When starter_avg_ip is known: bullpen_FIP = (team_ERA×9 - starter_FIP×avg_ip) / (9 - avg_ip). Fallback (avg_ip unknown): (team_ERA×9 - starter_FIP×5) / 4. Clamped [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP when team_era missing.
+inputs: team_era: float, starter_fip: float, starter_avg_ip: Optional[float] = None
 outputs: float
 calls: none
 called_by: run_baseball_analysis
@@ -3008,12 +3008,24 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse query → fetch ESPN MLB API → derive bullpen FIP → apply platoon wRC+ adjustment → split Poisson F5/L4 model → Elo blend → compute markets (incl. first_five, last_four) → persist to DB → Kelly sizing → AI narrative → return result dict.
+purpose: Full baseball_v2 pipeline: parse query → fetch ESPN MLB API → compute avg_ip → derive bullpen FIP (dynamic) → apply platoon wRC+ adjustment → split Poisson F5/L4 model → Elo blend → compute markets (incl. first_five, last_four) → persist to DB (incl. starter_avg_ip signal) → Kelly sizing → AI narrative → return result dict.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
+calls: parse_baseball_query, fetch_baseball_context, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
 called_by: analyze_baseball (app.py)
 mutates: matches, signals, predictions tables
+---
+
+---
+name: _avg_ip
+type: function (inner, defined inside run_baseball_analysis)
+file: analyze_baseball.py
+purpose: Returns a starter's average innings per start: innings_pitched / games_started. Returns None when games_started < 3 (insufficient sample). Used for dynamic starter_frac in both _derive_bullpen_fip and expected_runs_split.
+inputs: starter: dict (keys: innings_pitched, games_started)
+outputs: Optional[float]
+calls: none
+called_by: run_baseball_analysis (step 3)
+mutates: none
 ---
 
 ---
@@ -3376,12 +3388,19 @@ mutates: none
 ---
 
 ---
+name: SQI_PENALTY_SAME_DAY / SQI_PENALTY_NEXT_DAY
+type: constant
+file: analyze_tennis.py
+purpose: Tunable rest-day SQI penalty multipliers. SAME_DAY=0.96 (−4% for 0 days rest), NEXT_DAY=0.99 (−1% for 1 day rest). Conservative starting values — Kimi/Gemini recommended these over the initial 0.92/0.97 until backtesting data confirms larger penalties.
+---
+
+---
 name: _sqi_rest_factor
 type: function
 file: analyze_tennis.py
-purpose: Returns SQI multiplier for rest-day fatigue. 0 days = 0.92 (-8%), 1 day = 0.97 (-3%), 2+ days = 1.0 (no penalty). Captures measurable serve quality drop when players compete on consecutive or same days. Penalty logged as rest_days signal for future calibration.
+purpose: Returns SQI multiplier for rest-day fatigue using named constants: 0 days = SQI_PENALTY_SAME_DAY (−4%), 1 day = SQI_PENALTY_NEXT_DAY (−1%), 2+ days = 1.0 (no penalty). Captures measurable serve quality drop when players compete on consecutive or same days. Penalty logged as rest_days signal for future calibration.
 inputs: rest_days: int
-outputs: float (0.92 | 0.97 | 1.0)
+outputs: float (SQI_PENALTY_SAME_DAY | SQI_PENALTY_NEXT_DAY | 1.0)
 calls: none
 called_by: run_tennis_analysis
 mutates: none

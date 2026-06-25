@@ -26,16 +26,25 @@ def _elo_from_winpct(win_pct: float) -> float:
     return 1500.0 - 400.0 * math.log10((1 - wp) / wp)
 
 
-def _derive_bullpen_fip(team_era: float, starter_fip: float) -> float:
+def _derive_bullpen_fip(team_era: float, starter_fip: float, starter_avg_ip: Optional[float] = None) -> float:
     """
     Estimate bullpen FIP from team ERA and starter FIP.
-    Formula: team_ERA ≈ (starter_FIP×5 + bullpen_FIP×4) / 9
-    => bullpen_FIP = (team_ERA×9 - starter_FIP×5) / 4
-    Clamped to realistic range [3.0, 7.5].
+
+    When starter_avg_ip is known:
+      bullpen_FIP = (team_ERA × 9 - starter_FIP × avg_ip) / (9 - avg_ip)
+    Fallback (avg_ip unknown or near-complete-game):
+      bullpen_FIP = (team_ERA × 9 - starter_FIP × 5) / 4  (classic 5/4 split)
+
+    Clamped to [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP when team_era is missing.
     """
     if not team_era or team_era <= 0:
         return LEAGUE_BULLPEN_FIP
-    derived = (team_era * 9.0 - starter_fip * 5.0) / 4.0
+    # Use actual avg IP when available and starter doesn't go near complete games
+    if starter_avg_ip and 0 < starter_avg_ip < 8.5:
+        bullpen_innings = 9.0 - starter_avg_ip
+        derived = (team_era * 9.0 - starter_fip * starter_avg_ip) / bullpen_innings
+    else:
+        derived = (team_era * 9.0 - starter_fip * 5.0) / 4.0
     return max(3.0, min(derived, 7.5))
 
 
@@ -260,10 +269,19 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         fip_b = starter_b.get("fip") or LEAGUE_AVG_FIP
 
     # ── 3. Bullpen FIP derivation + platoon adjustment ────────────────────────
-    team_pit_a   = context["team_a"].get("team_pitching", {})
-    team_pit_b   = context["team_b"].get("team_pitching", {})
-    bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a)
-    bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b)
+    # avg IP needed here (bullpen derivation) AND below (expected_runs_split).
+    def _avg_ip(starter: dict) -> Optional[float]:
+        ip = starter.get("innings_pitched") or 0
+        gs = starter.get("games_started") or 0
+        return round(ip / gs, 2) if gs >= 3 else None
+
+    avg_ip_a = _avg_ip(starter_a)
+    avg_ip_b = _avg_ip(starter_b)
+
+    team_pit_a    = context["team_a"].get("team_pitching", {})
+    team_pit_b    = context["team_b"].get("team_pitching", {})
+    bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a, avg_ip_a)
+    bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b, avg_ip_b)
 
     throws_a = starter_a.get("throws", "R")
     throws_b = starter_b.get("throws", "R")
@@ -278,16 +296,6 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                   "wrc_a_adj": round(wrc_a_adj, 1), "wrc_b_adj": round(wrc_b_adj, 1)})
 
     # ── 4. Expected runs (split F5 / L4) ─────────────────────────────────────
-    # Dynamic starter_frac from avg innings/start (season IP ÷ GS).
-    # Falls back to 5/9 default when GS=0 (TBD starters or AI-fallback path).
-    def _avg_ip(starter: dict) -> Optional[float]:
-        ip = starter.get("innings_pitched") or 0
-        gs = starter.get("games_started") or 0
-        return round(ip / gs, 2) if gs >= 3 else None
-
-    avg_ip_a = _avg_ip(starter_a)
-    avg_ip_b = _avg_ip(starter_b)
-
     # Home bats against away starter (F5) + away bullpen (L4); vice versa for away.
     if is_home_a:
         mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b)
@@ -378,18 +386,22 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             match_id = cur.lastrowid
 
         signals_to_log = [
-            ("wrc_plus",      team_a,    wrc_a),
-            ("wrc_plus",      team_b,    wrc_b),
-            ("starter_fip",   team_a,    fip_a),
-            ("starter_fip",   team_b,    fip_b),
-            ("bullpen_fip",   team_a,    bullpen_fip_a),
-            ("bullpen_fip",   team_b,    bullpen_fip_b),
-            ("park_factor",   None,      park_factor),
-            ("mu_runs",       team_home, mu_home),
-            ("mu_runs",       team_away, mu_away),
-            ("mu_runs_f5",    team_home, mu_home_f5),
-            ("mu_runs_f5",    team_away, mu_away_f5),
+            ("wrc_plus",        team_a,    wrc_a),
+            ("wrc_plus",        team_b,    wrc_b),
+            ("starter_fip",     team_a,    fip_a),
+            ("starter_fip",     team_b,    fip_b),
+            ("bullpen_fip",     team_a,    bullpen_fip_a),
+            ("bullpen_fip",     team_b,    bullpen_fip_b),
+            ("park_factor",     None,      park_factor),
+            ("mu_runs",         team_home, mu_home),
+            ("mu_runs",         team_away, mu_away),
+            ("mu_runs_f5",      team_home, mu_home_f5),
+            ("mu_runs_f5",      team_away, mu_away_f5),
         ]
+        if avg_ip_a is not None:
+            signals_to_log.append(("starter_avg_ip", team_a, avg_ip_a))
+        if avg_ip_b is not None:
+            signals_to_log.append(("starter_avg_ip", team_b, avg_ip_b))
         for sig_name, participant, val in signals_to_log:
             log_signal(match_id, sig_name, participant,
                        signal_value=float(val), source="mlb_api")

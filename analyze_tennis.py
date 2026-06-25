@@ -43,17 +43,22 @@ def _rest_days(last5: list[dict], game_date: str) -> int:
         return 99
 
 
+# Tunable rest-day SQI penalties — conservative starting values pending backtesting
+SQI_PENALTY_SAME_DAY = 0.96   # 0 days rest (same-day double): -4%
+SQI_PENALTY_NEXT_DAY = 0.99   # 1 day rest: -1%
+
+
 def _sqi_rest_factor(rest_days: int) -> float:
     """
     SQI multiplier based on rest between matches.
-    0 days (same-day double): -8%   — severe fatigue, serve quality drops significantly
-    1 day:                    -3%   — mild fatigue, minor serve degradation
-    2+ days:                   0%   — fully rested, no adjustment
+    0 days (same-day double): SQI_PENALTY_SAME_DAY (-4%)
+    1 day:                    SQI_PENALTY_NEXT_DAY (-1%)
+    2+ days:                   1.0 (no adjustment)
     """
     if rest_days == 0:
-        return 0.92
+        return SQI_PENALTY_SAME_DAY
     if rest_days == 1:
-        return 0.97
+        return SQI_PENALTY_NEXT_DAY
     return 1.0
 
 

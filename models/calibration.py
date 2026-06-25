@@ -208,6 +208,16 @@ def compute_metrics_from_db(method: Optional[str] = None, sport: Optional[str] =
     crv  = reliability_curve(preds, actuals)
     ece  = expected_calibration_error(preds, actuals)
 
+    # ECE-based Kelly multiplier: well-calibrated models deserve more aggressive sizing
+    if math.isnan(ece):
+        kelly_mult = 0.25
+    elif ece < 0.02:
+        kelly_mult = 1.0
+    elif ece < 0.05:
+        kelly_mult = 0.5
+    else:
+        kelly_mult = 0.25
+
     # Benchmark comparison
     n = overall["n"]
     acc = overall["accuracy"]
@@ -234,7 +244,14 @@ def compute_metrics_from_db(method: Optional[str] = None, sport: Optional[str] =
         "log_loss_benchmark":{"random": 0.693, "perfect": 0.0,
                                "good_model": "< 0.55"},
         "reliability_curve": crv,
-        "ece":               round(ece, 4) if not math.isnan(ece) else None,
-        "ece_benchmark":     {"well_calibrated": "< 0.05", "acceptable": "< 0.10"},
-        "benchmarks":        benchmarks,
+        "ece":                        round(ece, 4) if not math.isnan(ece) else None,
+        "ece_benchmark":              {"well_calibrated": "< 0.05", "acceptable": "< 0.10"},
+        "recommended_kelly_adjustment": {
+            "multiplier": kelly_mult,
+            "note": (
+                "ECE < 0.02 → full Kelly; ECE 0.02–0.05 → half Kelly; ECE > 0.05 → quarter Kelly. "
+                "Always combine with base quarter-Kelly stake from kelly.py."
+            ),
+        },
+        "benchmarks":                 benchmarks,
     }
