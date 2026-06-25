@@ -2536,9 +2536,9 @@ mutates: none
 name: analyze_baseball
 type: function
 file: app.py
-purpose: POST /analyze-baseball — runs the full baseball analysis pipeline from a natural language query.
-inputs: body: BaseballRequest
-outputs: dict (full baseball analysis result)
+purpose: POST /analyze-baseball — runs the full baseball analysis pipeline from a natural language query. Accepts optional odds_a/odds_b (decimal) so Kelly sizing uses real market prices instead of the hardcoded -110 default.
+inputs: body: BaseballRequest {query, bankroll=1000, odds_a=1.909, odds_b=1.909}
+outputs: dict (full baseball analysis result, now includes kelly_a and kelly_b)
 calls: run_baseball_analysis
 called_by: HTTP POST /analyze-baseball
 mutates: matches, signals, predictions tables
@@ -3310,9 +3310,9 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse → fetch ESPN → compute avg_ip → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. starter_avg_ip + weather) → Kelly sizing → AI narrative → result dict.
-inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, markets, narrative, raw_sources, steps, …}
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → compute avg_ip → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. starter_avg_ip + weather) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → result dict.
+inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
+outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
 calls: parse_baseball_query, fetch_baseball_context, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
 called_by: analyze_baseball (app.py)
 mutates: matches, signals (incl. weather signals), predictions tables

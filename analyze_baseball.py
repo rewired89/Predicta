@@ -166,7 +166,8 @@ def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> d
     return result
 
 
-def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
+def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
+                          odds_a: float = 1.909, odds_b: float = 1.909) -> dict:
     """
     Full baseball pipeline:
     1. Parse query (Claude)
@@ -457,7 +458,9 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                       "trace": traceback.format_exc()})
 
     # ── 8. Kelly stake ───────────────────────────────────────────────────────
-    kelly = kelly_stake(prob_a, 1.909, bankroll)
+    # Use caller-supplied decimal odds when available; default 1.909 ≈ -110.
+    kelly   = kelly_stake(prob_a, odds_a, bankroll)
+    kelly_b = kelly_stake(prob_b, odds_b, bankroll)
 
     # ── 9. Narrative ─────────────────────────────────────────────────────────
     narrative = ""
@@ -561,6 +564,8 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             },
         },
         "model_explanation": explanation,
+        "kelly_a":           kelly,
+        "kelly_b":           kelly_b,
         "kelly_note":        kelly.get("note", ""),
         "markets":           formatted_markets,
         "raw_sources":       context.get("sources", []),

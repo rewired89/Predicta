@@ -337,6 +337,8 @@ def analyze(body: AnalyzeRequest):
 class BaseballRequest(BaseModel):
     query: str
     bankroll: float = 1000.0
+    odds_a: float = 1.909   # decimal odds for team_a (default ≈ -110)
+    odds_b: float = 1.909   # decimal odds for team_b (default ≈ -110)
 
 
 @app.post("/analyze-baseball")
@@ -344,7 +346,7 @@ def analyze_baseball(body: BaseballRequest):
     if not body.query.strip():
         raise HTTPException(400, "Query cannot be empty")
     from analyze_baseball import run_baseball_analysis
-    result = run_baseball_analysis(body.query, body.bankroll)
+    result = run_baseball_analysis(body.query, body.bankroll, body.odds_a, body.odds_b)
     if "error" in result and not result.get("team_a"):
         raise HTTPException(500, detail=result["error"])
     return result
