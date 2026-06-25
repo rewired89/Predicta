@@ -1025,13 +1025,25 @@ mutates: none
 ---
 
 ---
+name: _intraday_vol_curve
+type: function
+file: models/trading/intraday.py
+purpose: Returns the expected fraction of daily volume that has traded by the bar's timestamp, modelling the U-shaped intraday volume seasonality (heavy at open/close, thin at lunch). Used by _sig_relative_volume to avoid comparing raw cumulative volume to a daily average without time adjustment.
+inputs: bar_timestamp: str (ISO 8601)
+outputs: float (0–1; defaults to 1.0 on parse error)
+calls: datetime.fromisoformat, ZoneInfo
+called_by: _sig_relative_volume
+mutates: none
+---
+
+---
 name: _sig_relative_volume
 type: function
 file: models/trading/intraday.py
-purpose: Compares today's session volume to historical daily average to score volume confirmation of signals.
+purpose: Compares today's session cumulative volume to the time-adjusted expected volume (via _intraday_vol_curve) rather than raw daily average, correcting for intraday volume seasonality. Outputs rel_vol = today_volume / expected_volume_by_now and expected_pct_of_day for transparency.
 inputs: bars: list[dict], daily_avg_volume: float
-outputs: dict {today_volume, avg_volume, rel_vol, label, score}
-calls: none
+outputs: dict {today_volume, avg_volume, rel_vol, expected_pct_of_day, label, score}
+calls: _intraday_vol_curve
 called_by: compute_intraday_signals
 mutates: none
 ---
@@ -1085,12 +1097,60 @@ mutates: none
 ---
 
 ---
+name: _liquidity_score
+type: function
+file: models/trading/intraday.py
+purpose: Spread-based liquidity filter. Hard reject at >0.3% spread (UNTRADEABLE) because day trading edge is 10–30 bps and wide spreads consume the entire profit margin. Also detects WIDE_SPREAD (>0.3%) and ELEVATED_SPREAD (>0.1%) with score penalties applied in compute_intraday_signals. Includes estimated_slippage_pct = spread/2 for market order cost modelling.
+inputs: snapshot: dict (requires bid, ask, price keys)
+outputs: dict {score, label, bid, ask, spread_pct, estimated_slippage_pct}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _time_of_day_modifier
+type: function
+file: models/trading/intraday.py
+purpose: Returns a score multiplier (0.5–1.0) based on Eastern Time session quality. Prime time (10:00–11:30, 14:00–15:30) = 1.0; opening noise (9:30–10:00) = 0.7; lunch chop (11:30–14:00) = 0.5; close positioning (15:30–16:00) = 0.6. Applied as post-composite multiplier in compute_intraday_signals. Returns 1.0 on timestamp parse failure.
+inputs: bar_timestamp: str (ISO 8601)
+outputs: float (0.5–1.0)
+calls: datetime.fromisoformat, ZoneInfo
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _intraday_expected_move
+type: function
+file: models/trading/intraday.py
+purpose: Computes expected price move for a specific hold period using per-bar volatility. More accurate than daily HV / sqrt(252) for intraday stop placement because daily HV includes overnight gaps. At 5-min bars: hold_bars=6 = 30-min scalp, hold_bars=12 = 1-hour hold.
+inputs: closes: list[float], hold_bars: int = 6
+outputs: dict {hold_bars, hold_minutes, pct_1sigma, dollars_1sigma, bar_vol_pct, suggested_stop_pct}
+calls: math.log, math.sqrt
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: compute_exit_action
+type: function
+file: models/trading/intraday.py
+purpose: Active position management for day trading — call after each new bar while a position is open. Implements three exit triggers: TIME_STOP (no progress after 10 bars / 50 min), BREAKEVEN_LOCK (move stop to entry+1 tick after 1R profit), SIGNAL_REVERSAL (composite score flips sign vs entry direction). Returns action dict for app.py to execute.
+inputs: entry: float, stop: float, target1: float, current_price: float, bars_held: int, current_signals: dict, entry_score: float
+outputs: dict {action: "EXIT"|"MODIFY_STOP"|"HOLD", reason: str, ...}
+calls: none
+called_by: none (utility; called by position management layer in app.py)
+mutates: none
+---
+
+---
 name: _trade_levels
 type: function
 file: models/trading/intraday.py
-purpose: Calculates entry, stop-loss, and two take-profit levels using ATR multiples adjusted for market structure. Strong-trend label widens stop (2×) and target (3.5×) so normal noise doesn't stop out trend trades; neutral/range uses symmetric 1.5× stop and 2.5× target.
+purpose: Calculates entry, stop-loss, and two take-profit levels using ATR multiples adjusted for market structure. Strong-trend label widens stop (2×) and target (3.5×) so normal noise doesn't stop out trend trades; neutral/range uses symmetric 1.5× stop and 2.5× target. Also adds estimated_slippage_pct from liquidity filter.
 inputs: bars: list[dict], snapshot: dict, side: str ("long" or "short"), trend_label: str = "neutral"
-outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio, stop_mult, target_mult}
+outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio, stop_mult, target_mult, estimated_slippage_pct}
 calls: _atr
 called_by: compute_intraday_signals
 mutates: none
@@ -1112,10 +1172,10 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — runs all 8 intraday signals plus ensemble scoring and ATR-based trade levels. Passes trend_label from _sig_trend_bias to _trade_levels so stop/target multiples adapt to market structure.
+purpose: Main entry point — runs all 8 signals + ensemble scoring + liquidity filter (hard reject if spread >0.3%) + time-of-day modifier (0.5× during lunch, 0.7× at open) + ATR trade levels with trend context + intraday expected move for accurate stop sizing reference.
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0
-outputs: dict {signals, score, levels}
-calls: _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _trade_levels
+outputs: dict {signals, score, levels, liquidity, intraday_expected_move}
+calls: _liquidity_score, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
 called_by: intraday_analysis (app.py), _analyze_one (screener.py)
 mutates: none
 ---
