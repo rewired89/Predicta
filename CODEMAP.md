@@ -4982,3 +4982,145 @@ calls: various pipeline modules
 called_by: pytest
 mutates: none
 ---
+
+---
+name: test_pairs.py
+type: pytest test suite
+file: tests/test_pairs.py
+purpose: 9 unit tests for models/trading/pairs.py. Uses synthetic price series (seeded random) to validate: _ols_beta exact recovery, _half_life sinusoidal vs RW, find_cointegrated_pairs detects cointegrated pair (p<0.05) and rejects independent RWs, pairs_signal generates correct LONG/SHORT/NONE actions, compute_pairs_levels returns sensible position sizes with correct risk_dollars.
+calls: models.trading.pairs
+called_by: pytest / python tests/test_pairs.py
+mutates: none
+---
+
+---
+
+## fetchers/pairs_data.py
+
+---
+name: fetch_pair_history
+type: function
+file: fetchers/pairs_data.py
+purpose: Fetches daily closing prices for a list of symbols over `days` trading days and returns a date-aligned dict. Intersection of available dates across all symbols ensures all series are same length (required for cointegration tests). Date strings are ISO format "YYYY-MM-DD".
+inputs: symbols: list[str], days: int = 120
+outputs: dict[date_str, {symbol: close_price}]
+calls: Alpaca /v2/stocks/{symbol}/bars (IEX feed, 1Day timeframe)
+called_by: pairs_scan, pairs_signal_endpoint (app.py)
+mutates: none
+---
+
+---
+name: prices_to_series
+type: function
+file: fetchers/pairs_data.py
+purpose: Converts fetch_pair_history output to {symbol: [close, ...]} parallel aligned lists sorted by date ascending. Both lists guaranteed same length.
+inputs: history: dict[str, dict[str, float]]
+outputs: dict[str, list[float]]
+calls: none
+called_by: pairs_scan, pairs_signal_endpoint (app.py)
+mutates: none
+---
+
+---
+
+## models/trading/pairs.py
+
+---
+name: _ols_beta
+type: function
+file: models/trading/pairs.py
+purpose: Computes OLS slope β = Σ(xi-x̄)(yi-ȳ) / Σ(xi-x̄)² for hedge ratio estimation in cointegration.
+inputs: x: list[float], y: list[float]
+outputs: float
+calls: none
+called_by: find_cointegrated_pairs
+mutates: none
+---
+
+---
+name: _adf_pvalue
+type: function
+file: models/trading/pairs.py
+purpose: ADF (Augmented Dickey-Fuller) p-value for spread residuals. Uses statsmodels.tsa.stattools.adfuller when available; falls back to first-order autocorrelation proxy (heuristic for ranking only). Small p-value (<0.05) = stationary spread = pair is cointegrated.
+inputs: residuals: list[float]
+outputs: float (p-value 0–1)
+calls: statsmodels.tsa.stattools.adfuller (optional)
+called_by: find_cointegrated_pairs
+mutates: none
+---
+
+---
+name: _half_life
+type: function
+file: models/trading/pairs.py
+purpose: OU (Ornstein-Uhlenbeck) half-life estimate: how many days for the spread to mean-revert halfway. Estimated via OLS regression of Δspread on lagged spread. Returns None if no mean reversion (β >= 0) or half-life > 365 days. Lower half-life = faster reversion = better for trading.
+inputs: spread: list[float]
+outputs: Optional[int]
+calls: _ols_beta, math.log
+called_by: find_cointegrated_pairs
+mutates: none
+---
+
+---
+name: find_cointegrated_pairs
+type: function
+file: models/trading/pairs.py
+purpose: Tests all symbol pairs for cointegration (Gatev et al. 2006). For each pair: estimates OLS hedge ratio β (s1 = β×s2 + ε), computes spread residuals, runs ADF test. Returns pairs with p-value < threshold sorted ascending by p-value. Also computes half_life_days via OU estimation.
+inputs: series: dict[str, list[float]], pvalue_threshold: float = 0.05
+outputs: list[dict {sym1, sym2, beta, pvalue, half_life_days}]
+calls: _ols_beta, _adf_pvalue, _half_life
+called_by: pairs_scan (app.py), tests/test_pairs.py
+mutates: none
+---
+
+---
+name: pairs_signal
+type: function
+file: models/trading/pairs.py
+purpose: Generates a spread trade signal using z-score of spread = s1 - β×s2 over rolling lookback window. LONG_SPREAD (zscore < -entry_z): buy sym1, short sym2. SHORT_SPREAD (zscore > +entry_z): short sym1, buy sym2. EXIT_ZONE (|z| < exit_z): close position. NONE: no action. Confidence = min(|z|/(entry_z+1), 1.0).
+inputs: sym1, sym2, beta, series, lookback=60, entry_z=2.0, exit_z=0.5
+outputs: dict {action, zscore, sym1, sym2, long_sym, short_sym, confidence, spread_mean, spread_std, current_spread, note}
+calls: none
+called_by: pairs_scan, pairs_signal_endpoint (app.py), tests/test_pairs.py
+mutates: none
+---
+
+---
+name: compute_pairs_levels
+type: function
+file: models/trading/pairs.py
+purpose: Position sizing for a pairs trade. Dollar-neutral: long_qty × long_price ≈ short_qty × short_price. Risk defined as spread widening 1σ beyond current z. Stop z = current_z + 1σ; target z = exit_z. Units = risk_dollars / spread_std. Returns long/short quantities, values, and expected_r = (current_z - target_z) / (stop_z - current_z).
+inputs: long_sym, short_sym, series, beta, zscore, spread_std, account_value=10000, risk_pct=0.01, exit_z=0.5
+outputs: dict {long_sym, short_sym, long_price, short_price, long_qty, short_qty, long_value, short_value, beta, stop_z, target_z, risk_dollars, expected_r}
+calls: none
+called_by: pairs_signal_endpoint (app.py), tests/test_pairs.py
+mutates: none
+---
+
+---
+
+## app.py (pairs endpoints)
+
+---
+name: pairs_scan
+type: function
+file: app.py
+purpose: POST /trade/pairs-scan — scans a watchlist for cointegrated pairs. Fetches 120 days of daily bars via fetch_pair_history, runs find_cointegrated_pairs (ADF p<threshold), and for each detected pair computes current spread z-score via pairs_signal. Returns pairs sorted by p-value with signal action and note. Default watchlist: XOM/CVX, PEP/KO, JPM/BAC, AAPL/MSFT.
+inputs: PairsScanRequest {symbols=DEFAULT_WATCHLIST, days=120, pvalue_threshold=0.05, account_value=10000, risk_pct=0.01}
+outputs: dict {symbols_scanned, days_history, pairs_found, pairs: [{sym1, sym2, beta, pvalue, half_life_days, current_zscore, signal_action, long_sym, short_sym, signal_note}]}
+calls: fetch_pair_history, prices_to_series, find_cointegrated_pairs, pairs_signal
+called_by: POST /trade/pairs-scan
+mutates: none
+---
+
+---
+name: pairs_signal_endpoint
+type: function
+file: app.py
+purpose: POST /trade/pairs-signal — get current spread signal and position sizing for a specific pair. Fetches history, computes z-score, and if LONG_SPREAD or SHORT_SPREAD also calls compute_pairs_levels for position sizes. Use after pairs-scan to get actionable entry details.
+inputs: PairsSignalRequest {sym1, sym2, beta, days=120, lookback=60, entry_z=2.0, exit_z=0.5, account_value=10000, risk_pct=0.01}
+outputs: dict {pair, beta, signal: {action, zscore, ...}, levels: {long_qty, short_qty, risk_dollars, expected_r, ...} or None}
+calls: fetch_pair_history, prices_to_series, pairs_signal, compute_pairs_levels
+called_by: POST /trade/pairs-signal
+mutates: none
+---

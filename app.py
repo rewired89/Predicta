@@ -874,3 +874,133 @@ def resolve_hypothetical(trade_id: int, body: HypotheticalOutcome):
     if "error" in result:
         raise HTTPException(404, result["error"])
     return {"status": "RESOLVED", **result}
+
+
+# ── Pairs trading ─────────────────────────────────────────────────────────────
+
+_KNOWN_PAIRS = [
+    ("XOM", "CVX"),   # oil majors
+    ("PEP", "KO"),    # beverages
+    ("JPM", "BAC"),   # money center banks
+    ("AAPL", "MSFT"), # big tech (weaker, included for monitoring)
+]
+
+DEFAULT_WATCHLIST = [sym for pair in _KNOWN_PAIRS for sym in pair]
+
+
+class PairsScanRequest(BaseModel):
+    symbols: list[str] = DEFAULT_WATCHLIST
+    days: int = 120
+    pvalue_threshold: float = 0.05
+    account_value: float = 10_000.0
+    risk_pct: float = 0.01
+
+
+@app.post("/trade/pairs-scan")
+def pairs_scan(body: PairsScanRequest):
+    """
+    Scan a watchlist for cointegrated pairs.
+    Returns all pairs with ADF p-value < pvalue_threshold, sorted by strength.
+    For each cointegrated pair also computes the current spread z-score.
+
+    Typical use: run weekly to refresh the active pairs universe.
+    """
+    from fetchers.pairs_data import fetch_pair_history, prices_to_series
+    from models.trading.pairs import find_cointegrated_pairs, pairs_signal
+
+    symbols = [s.upper().strip() for s in body.symbols if s.strip()]
+    if len(symbols) < 2:
+        raise HTTPException(400, "At least 2 symbols required")
+
+    history = fetch_pair_history(symbols, days=body.days)
+    if not history:
+        raise HTTPException(503, "Could not fetch price history (check Alpaca credentials)")
+
+    series = prices_to_series(history)
+    available = list(series.keys())
+    if len(available) < 2:
+        raise HTTPException(503, f"Price data only available for: {available}")
+
+    pairs = find_cointegrated_pairs(series, pvalue_threshold=body.pvalue_threshold)
+
+    results = []
+    for p in pairs:
+        sig = pairs_signal(
+            sym1=p["sym1"], sym2=p["sym2"],
+            beta=p["beta"], series=series,
+        )
+        results.append({
+            **p,
+            "current_zscore":  sig.get("zscore"),
+            "signal_action":   sig.get("action"),
+            "long_sym":        sig.get("long_sym"),
+            "short_sym":       sig.get("short_sym"),
+            "signal_note":     sig.get("note"),
+        })
+
+    return {
+        "symbols_scanned": available,
+        "days_history":    body.days,
+        "pairs_found":     len(results),
+        "pairs":           results,
+    }
+
+
+class PairsSignalRequest(BaseModel):
+    sym1: str
+    sym2: str
+    beta: float
+    days: int = 120
+    lookback: int = 60
+    entry_z: float = 2.0
+    exit_z: float = 0.5
+    account_value: float = 10_000.0
+    risk_pct: float = 0.01
+
+
+@app.post("/trade/pairs-signal")
+def pairs_signal_endpoint(body: PairsSignalRequest):
+    """
+    Get the current spread signal and position sizing for a specific pair.
+    Use after pairs-scan to get actionable entry details for a detected pair.
+
+    Returns: signal action, z-score, long/short symbols, and position levels.
+    """
+    from fetchers.pairs_data import fetch_pair_history, prices_to_series
+    from models.trading.pairs import pairs_signal, compute_pairs_levels
+
+    sym1 = body.sym1.upper().strip()
+    sym2 = body.sym2.upper().strip()
+
+    history = fetch_pair_history([sym1, sym2], days=body.days)
+    if not history:
+        raise HTTPException(503, "Could not fetch price history")
+
+    series = prices_to_series(history)
+    if sym1 not in series or sym2 not in series:
+        missing = [s for s in [sym1, sym2] if s not in series]
+        raise HTTPException(404, f"No price data for: {missing}")
+
+    sig = pairs_signal(
+        sym1=sym1, sym2=sym2, beta=body.beta,
+        series=series, lookback=body.lookback,
+        entry_z=body.entry_z, exit_z=body.exit_z,
+    )
+
+    levels = None
+    if sig["action"] in ("LONG_SPREAD", "SHORT_SPREAD"):
+        long_sym  = sig["long_sym"]
+        short_sym = sig["short_sym"]
+        levels = compute_pairs_levels(
+            long_sym=long_sym, short_sym=short_sym,
+            series=series, beta=body.beta,
+            zscore=sig["zscore"], spread_std=sig["spread_std"],
+            account_value=body.account_value, risk_pct=body.risk_pct,
+        )
+
+    return {
+        "pair":   f"{sym1}/{sym2}",
+        "beta":   body.beta,
+        "signal": sig,
+        "levels": levels,
+    }
