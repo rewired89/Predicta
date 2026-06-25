@@ -212,6 +212,9 @@ def _expected_move(closes: np.ndarray, days_ahead: int = 1) -> dict:
     daily_vol   = float(log_returns.std())
     move_vol    = daily_vol * math.sqrt(days_ahead)
     price       = closes[-1]
+    # z-score of recent drift vs vol — 1 std dev shift ≈ 16pp probability swing
+    z_score = float(log_returns.mean()) / daily_vol if daily_vol > 0 else 0.0
+    prob_up = round(max(20.0, min(80.0, 50.0 + z_score * 16)), 1)
     return {
         "days":        days_ahead,
         "pct_1sigma":  round(move_vol * 100, 2),
@@ -220,7 +223,7 @@ def _expected_move(closes: np.ndarray, days_ahead: int = 1) -> dict:
         "pct_2sigma":  round(move_vol * 2 * 100, 2),
         "upper_2sigma": round(price * (1 + move_vol * 2), 4),
         "lower_2sigma": round(price * (1 - move_vol * 2), 4),
-        "prob_up":     round(50 + (log_returns.mean() / move_vol * 15 if move_vol > 0 else 0), 1),
+        "prob_up":     prob_up,
     }
 
 
@@ -257,64 +260,85 @@ def _support_resistance(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray)
 def _composite_score(signals: dict) -> dict:
     """
     Composite bull/bear score from -100 (max bearish) to +100 (max bullish).
-    Weighted average of trend, momentum, volatility position.
+
+    Regime-adaptive weights: high-vol (HV>30%) favours mean-reversion signals
+    (RSI, Bollinger); low-vol (HV<15%) favours trend-following.
+
+    RSI uses non-linear mapping with a 30–70 dead zone — no signal in the
+    noisy middle; acceleration only at genuine extremes (overbought/oversold).
+
+    Bollinger %B uses mean-reversion direction: lower band = oversold = bullish,
+    upper band = overbought = bearish.
     """
-    score = 0.0
     reasons = []
 
-    # Trend (40% weight)
-    trend = signals.get("trend", {})
-    if trend.get("direction") == "bullish":
-        pts = trend.get("strength", 50) * 0.4
-        score += pts
-        reasons.append(f"Trend bullish ({trend.get('strength', 0):.0f}% strength)")
-    elif trend.get("direction") == "bearish":
-        pts = trend.get("strength", 50) * 0.4
-        score -= pts
-        reasons.append(f"Trend bearish ({trend.get('strength', 0):.0f}% strength)")
+    # ── Volatility regime → adaptive weights ──────────────────────────────────
+    hv = signals.get("volatility", {}).get("hv_annual")
+    if hv is not None:
+        if hv > 30:
+            w = {"trend": 0.20, "rsi": 0.35, "roc": 0.25, "bb": 0.20}
+            reasons.append(f"High-vol regime (HV={hv:.0f}%): mean-reversion weights")
+        elif hv < 15:
+            w = {"trend": 0.50, "rsi": 0.20, "roc": 0.20, "bb": 0.10}
+            reasons.append(f"Low-vol regime (HV={hv:.0f}%): trend-following weights")
+        else:
+            w = {"trend": 0.40, "rsi": 0.30, "roc": 0.20, "bb": 0.10}
+    else:
+        w = {"trend": 0.40, "rsi": 0.30, "roc": 0.20, "bb": 0.10}
 
-    # Momentum RSI (30% weight)
+    score = 0.0
+
+    # ── Trend: direction × strength → raw -100..+100, scaled by weight ────────
+    trend = signals.get("trend", {})
+    direction = trend.get("direction", "neutral")
+    strength  = trend.get("strength", 50)
+    if direction == "bullish":
+        score += strength * w["trend"]
+        reasons.append(f"Trend bullish ({strength:.0f}% strength)")
+    elif direction == "bearish":
+        score -= strength * w["trend"]
+        reasons.append(f"Trend bearish ({strength:.0f}% strength)")
+
+    # ── RSI: non-linear, dead zone 30–70 ──────────────────────────────────────
+    # Overbought (>70) → mean-reversion → bearish; oversold (<30) → bullish.
+    # 40–60 band is noise — contributes nothing.
     mom = signals.get("momentum", {})
     rsi = mom.get("rsi", 50)
-    rsi_contrib = (rsi - 50) / 50 * 30
-    score += rsi_contrib
-    reasons.append(f"RSI {rsi} ({mom.get('rsi_signal','neutral')})")
+    if rsi >= 70:
+        rsi_raw = -min(100.0, (rsi - 70) * 5)   # 70→0, 80→-50, 90→-100
+    elif rsi <= 30:
+        rsi_raw = min(100.0, (30 - rsi) * 5)    # 30→0, 20→50, 10→100
+    else:
+        rsi_raw = 0.0
+    score += rsi_raw * w["rsi"]
+    reasons.append(f"RSI {rsi} ({mom.get('rsi_signal', 'neutral')})")
 
-    # Rate of change 20d (20% weight)
+    # ── Rate of change 20d ─────────────────────────────────────────────────────
     roc20 = mom.get("roc_20d")
     if roc20 is not None:
-        roc_contrib = max(min(roc20 * 2, 20), -20)
-        score += roc_contrib
+        roc_raw = max(-100.0, min(100.0, roc20 * 5))  # ±20% return → ±100
+        score += roc_raw * w["roc"]
         reasons.append(f"20d return {roc20:+.1f}%")
 
-    # Bollinger %B (10% weight)
+    # ── Bollinger %B: mean-reversion (lower band = oversold = bullish) ─────────
+    # pct_b is 0-100: 0 = price at lower band, 100 = price at upper band.
     bb = signals.get("volatility", {}).get("bollinger", {})
     pct_b = bb.get("pct_b")
     if pct_b is not None:
-        bb_contrib = (pct_b - 50) / 50 * 10
-        score += bb_contrib
+        bb_raw = -(pct_b - 50) / 50 * 100  # invert: lower band → +100, upper → -100
+        score += bb_raw * w["bb"]
 
-    score = round(max(-100, min(100, score)), 1)
+    score = round(max(-100.0, min(100.0, score)), 1)
 
     if score >= 60:
-        label = "Strong Buy"
-        color = "green"
+        label, color = "Strong Buy", "green"
     elif score >= 20:
-        label = "Buy"
-        color = "green"
+        label, color = "Buy", "green"
     elif score <= -60:
-        label = "Strong Sell"
-        color = "red"
+        label, color = "Strong Sell", "red"
     elif score <= -20:
-        label = "Sell"
-        color = "red"
+        label, color = "Sell", "red"
     else:
-        label = "Neutral"
-        color = "amber"
+        label, color = "Neutral", "amber"
 
-    return {
-        "value":   score,
-        "label":   label,
-        "color":   color,
-        "reasons": reasons,
-    }
+    return {"value": score, "label": label, "color": color, "reasons": reasons}

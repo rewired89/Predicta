@@ -200,6 +200,15 @@ def get_most_active(limit: int = 20) -> list[dict]:
 
 # ── Paper trading orders ──────────────────────────────────────────────────────
 
+def _assert_paper_mode() -> None:
+    """Raise if PAPER_BASE_URL does not point to Alpaca paper trading endpoint."""
+    if "paper" not in PAPER_BASE_URL:
+        raise RuntimeError(
+            f"Live trading not supported. PAPER_BASE_URL must contain 'paper' "
+            f"(current: {PAPER_BASE_URL!r}). Check your configuration."
+        )
+
+
 def place_order(
     symbol: str,
     qty: float,
@@ -211,6 +220,7 @@ def place_order(
     client_order_id: Optional[str] = None,
 ) -> dict:
     """Place a paper trading order."""
+    _assert_paper_mode()
     body: dict = {
         "symbol": symbol,
         "qty": str(qty),
@@ -241,6 +251,7 @@ def place_bracket_order(
     Bracket order: entry + take_profit limit + stop_loss stop.
     Best way to set entry/target/stop in one shot.
     """
+    _assert_paper_mode()
     body: dict = {
         "symbol": symbol,
         "qty": str(qty),

@@ -3,6 +3,8 @@ Stock screener — scans a watchlist and ranks by intraday signal score.
 Uses Alpaca batch snapshots + intraday bars for each symbol.
 """
 from __future__ import annotations
+import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
@@ -15,6 +17,22 @@ DEFAULT_WATCHLIST = [
     "SPY", "QQQ", "SOFI", "PLTR", "RIVN", "COIN", "MSTR", "HOOD",
 ]
 
+# Alpaca free tier: 200 req/min = 3.33/s. Two calls per symbol (bars + daily)
+# plus one batch snapshot upfront. Throttle per-request to ~150 req/min to
+# stay safely under the limit when multiple workers hit the API simultaneously.
+_API_LOCK = threading.Lock()
+_LAST_API_CALL: list[float] = [0.0]
+_MIN_INTERVAL = 0.40  # seconds between per-symbol API calls (~150 req/min)
+
+
+def _throttle() -> None:
+    """Block until the minimum inter-request interval has elapsed."""
+    with _API_LOCK:
+        elapsed = time.monotonic() - _LAST_API_CALL[0]
+        if elapsed < _MIN_INTERVAL:
+            time.sleep(_MIN_INTERVAL - elapsed)
+        _LAST_API_CALL[0] = time.monotonic()
+
 
 def _avg_daily_volume(daily_bars: list[dict]) -> float:
     if not daily_bars:
@@ -26,7 +44,9 @@ def _avg_daily_volume(daily_bars: list[dict]) -> float:
 def _analyze_one(symbol: str, snapshot: dict) -> Optional[dict]:
     """Fetch bars and compute signals for a single symbol."""
     try:
+        _throttle()
         intraday = get_bars(symbol, timeframe="5Min", limit=78)
+        _throttle()
         daily = get_daily_bars(symbol, days=60)
         if not intraday:
             return None

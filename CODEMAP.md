@@ -828,7 +828,7 @@ mutates: none
 name: _expected_move
 type: function
 file: models/trading/signals.py
-purpose: Calculates ±1σ and ±2σ expected price range for the next trading session based on 20-day historical volatility.
+purpose: Calculates ±1σ and ±2σ expected price range for the next trading session based on 20-day historical volatility. prob_up uses z-score of recent mean log return divided by daily vol, clamped to [20%, 80%] to avoid overconfidence.
 inputs: closes: np.ndarray, days_ahead: int = 1
 outputs: dict {days, pct_1sigma, upper/lower_1sigma, pct_2sigma, upper/lower_2sigma, prob_up}
 calls: np.log, np.diff, math.sqrt
@@ -852,7 +852,7 @@ mutates: none
 name: _composite_score
 type: function
 file: models/trading/signals.py
-purpose: Combines trend (40%), RSI momentum (30%), 20-day ROC (20%), and Bollinger %B (10%) into a composite score from -100 to +100.
+purpose: Regime-adaptive composite score -100 to +100. Weights shift by HV: high-vol (>30%) favours mean-reversion (trend 20%, RSI 35%, ROC 25%, BB 20%); low-vol (<15%) favours trend (50/20/20/10); normal = 40/30/20/10. RSI uses non-linear dead-zone mapping (neutral 30–70, signal only at extremes). Bollinger %B is mean-reversion direction (lower band = oversold = bullish).
 inputs: signals: dict (output of compute_signals)
 outputs: dict {value, label, color, reasons}
 calls: none
@@ -868,11 +868,23 @@ mutates: none
 name: trading_kelly
 type: function
 file: models/trading/kelly.py
-purpose: Computes quarter-Kelly position size for a trade using win rate and average win/loss percentages.
+purpose: Computes quarter-Kelly position size for a trade using win rate and average win/loss percentages. Use only when historical win/loss stats are available (50+ closed trades).
 inputs: win_rate: float, avg_win_pct: float, avg_loss_pct: float, bankroll: float = 10000.0, fraction: float = 0.25
 outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
 calls: none
-called_by: kelly_from_signals
+called_by: none (manual / future use once 50+ trades exist)
+mutates: none
+---
+
+---
+name: atr_position_size
+type: function
+file: models/trading/kelly.py
+purpose: Volatility-targeting position size: risks a fixed % of capital per trade, sized so stop (stop_mult × ATR) = risk_amount. Regime-agnostic alternative to Kelly when win rate is unknown.
+inputs: price: float, atr: float, risk_per_trade: float = 0.01, account_value: float = 10000.0, stop_mult: float = 1.5
+outputs: dict {shares, position_size, stop_distance, risk_amount, risk_pct_of_account, paper_mode}
+calls: none
+called_by: none (utility; logic embedded in kelly_from_signals)
 mutates: none
 ---
 
@@ -880,10 +892,10 @@ mutates: none
 name: kelly_from_signals
 type: function
 file: models/trading/kelly.py
-purpose: Estimates Kelly position size directly from composite signal score (–100 to +100) and ATR volatility, without needing historical trade stats.
+purpose: ATR-based position sizing entry point. Risks 1% of bankroll per trade with stop at 1.5× ATR. Score gate: no position when |score| < 20. Replaced previous score→win_rate heuristic which had no statistical basis before 50+ closed trades.
 inputs: score: float, atr_pct: float, bankroll: float = 10000.0
-outputs: dict (output of trading_kelly)
-calls: trading_kelly
+outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
+calls: none
 called_by: run_trade_analysis, intraday_analysis (app.py)
 mutates: none
 ---
@@ -1076,9 +1088,9 @@ mutates: none
 name: _trade_levels
 type: function
 file: models/trading/intraday.py
-purpose: Calculates specific entry, stop-loss, and two take-profit levels based on 1.5× and 2.5× ATR from current price.
-inputs: bars: list[dict], snapshot: dict, side: str ("long" or "short")
-outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio}
+purpose: Calculates entry, stop-loss, and two take-profit levels using ATR multiples adjusted for market structure. Strong-trend label widens stop (2×) and target (3.5×) so normal noise doesn't stop out trend trades; neutral/range uses symmetric 1.5× stop and 2.5× target.
+inputs: bars: list[dict], snapshot: dict, side: str ("long" or "short"), trend_label: str = "neutral"
+outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio, stop_mult, target_mult}
 calls: _atr
 called_by: compute_intraday_signals
 mutates: none
@@ -1100,7 +1112,7 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — runs all 8 intraday signals plus ensemble scoring and ATR-based trade levels from intraday bars, daily bars, and a live snapshot.
+purpose: Main entry point — runs all 8 intraday signals plus ensemble scoring and ATR-based trade levels. Passes trend_label from _sig_trend_bias to _trade_levels so stop/target multiples adapt to market structure.
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0
 outputs: dict {signals, score, levels}
 calls: _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _trade_levels
@@ -1137,13 +1149,25 @@ mutates: none
 ---
 
 ---
+name: _API_LOCK / _LAST_API_CALL / _MIN_INTERVAL / _throttle
+type: variable / function
+file: models/trading/screener.py
+purpose: Module-level rate-limit guard for Alpaca API (200 req/min free tier). _throttle() blocks until ≥0.40 s has elapsed since the last call, keeping throughput ~150 req/min across all threads so parallel screener scans don't trigger 429 errors.
+inputs: none
+outputs: none
+calls: time.monotonic, time.sleep
+called_by: _analyze_one
+mutates: _LAST_API_CALL
+---
+
+---
 name: _analyze_one
 type: function
 file: models/trading/screener.py
-purpose: Fetches intraday and daily bars for one symbol and computes all signals; returns a ranked result dict or None on failure.
+purpose: Fetches intraday and daily bars for one symbol and computes all signals; returns a ranked result dict or None on failure. Each API call is throttled via _throttle() to respect Alpaca rate limits.
 inputs: symbol: str, snapshot: dict
 outputs: Optional[dict] {symbol, price, change_pct, volume, score, label, reasons, side, entry, stop, target1, target2, rr_ratio, atr, signals}
-calls: get_bars, get_daily_bars, _avg_daily_volume, compute_intraday_signals
+calls: _throttle, get_bars, get_daily_bars, _avg_daily_volume, compute_intraday_signals
 called_by: run_screener (via ThreadPoolExecutor)
 mutates: none
 ---
@@ -1613,13 +1637,25 @@ mutates: none
 ---
 
 ---
+name: _assert_paper_mode
+type: function
+file: fetchers/alpaca.py
+purpose: Safety guard — raises RuntimeError if PAPER_BASE_URL does not contain "paper". Called at the top of every order-placement function to prevent accidental live trading if the constant is changed.
+inputs: none
+outputs: none (raises RuntimeError if guard fails)
+calls: none
+called_by: place_order, place_bracket_order
+mutates: none
+---
+
+---
 name: place_order
 type: function
 file: fetchers/alpaca.py
-purpose: Places a paper trading order (market, limit, stop, or stop-limit) on Alpaca.
+purpose: Places a paper trading order (market, limit, stop, or stop-limit) on Alpaca. Calls _assert_paper_mode() first to guarantee paper-only execution.
 inputs: symbol: str, qty: float, side: str, order_type: str, limit_price: Optional[float], stop_price: Optional[float], time_in_force: str = "day", client_order_id: Optional[str]
 outputs: dict (Alpaca order response or error)
-calls: _post
+calls: _assert_paper_mode, _post
 called_by: place_trade (app.py)
 mutates: Alpaca paper account (creates order)
 ---
@@ -1628,10 +1664,10 @@ mutates: Alpaca paper account (creates order)
 name: place_bracket_order
 type: function
 file: fetchers/alpaca.py
-purpose: Places a bracket order (entry + take-profit limit + stop-loss stop) as a single atomic Alpaca order.
+purpose: Places a bracket order (entry + take-profit limit + stop-loss stop) as a single atomic Alpaca order. Calls _assert_paper_mode() first to guarantee paper-only execution.
 inputs: symbol: str, qty: float, side: str, entry_price: Optional[float], take_profit: float, stop_loss: float
 outputs: dict (Alpaca order response or error)
-calls: _post
+calls: _assert_paper_mode, _post
 called_by: place_trade (app.py)
 mutates: Alpaca paper account (creates bracket order)
 ---

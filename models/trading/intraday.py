@@ -288,37 +288,52 @@ def _sig_volume_surge(bars: list[dict]) -> dict:
 
 # ── ATR-based trade levels ─────────────────────────────────────────────────────
 
-def _trade_levels(bars: list[dict], snapshot: dict, side: str) -> dict:
+def _trade_levels(bars: list[dict], snapshot: dict, side: str, trend_label: str = "neutral") -> dict:
     """
     Calculate entry / stop / target levels based on ATR.
     side: "long" or "short"
+    trend_label: from _sig_trend_bias — widens stop/target in strong trends
+    so normal noise doesn't stop out trend trades prematurely.
     """
     atr = _atr(bars, 14)
     price = snapshot.get("price", bars[-1]["c"] if bars else 0)
     if not atr or not price:
         return {}
-    if side == "long":
-        entry = round(price, 2)
-        stop = round(price - 1.5 * atr, 2)
-        target1 = round(price + 1.5 * atr, 2)
-        target2 = round(price + 2.5 * atr, 2)
+
+    # Market structure adjusts ATR multiples
+    label_lower = trend_label.lower()
+    if "strong" in label_lower:
+        stop_mult, t1_mult, t2_mult = 2.0, 2.0, 3.5   # trend trade: wider stop, bigger target
+    elif "below" in label_lower or "downtrend" in label_lower:
+        stop_mult, t1_mult, t2_mult = 1.5, 1.5, 2.5   # mean reversion: symmetric
     else:
-        entry = round(price, 2)
-        stop = round(price + 1.5 * atr, 2)
-        target1 = round(price - 1.5 * atr, 2)
-        target2 = round(price - 2.5 * atr, 2)
-    risk = abs(entry - stop)
+        stop_mult, t1_mult, t2_mult = 1.5, 1.5, 2.5   # default
+
+    if side == "long":
+        entry   = round(price, 2)
+        stop    = round(price - stop_mult * atr, 2)
+        target1 = round(price + t1_mult * atr, 2)
+        target2 = round(price + t2_mult * atr, 2)
+    else:
+        entry   = round(price, 2)
+        stop    = round(price + stop_mult * atr, 2)
+        target1 = round(price - t1_mult * atr, 2)
+        target2 = round(price - t2_mult * atr, 2)
+
+    risk    = abs(entry - stop)
     reward1 = abs(target1 - entry)
-    rr1 = round(reward1 / risk, 2) if risk else 0
+    rr1     = round(reward1 / risk, 2) if risk else 0
     return {
-        "side": side,
-        "entry": entry,
-        "stop": stop,
-        "target1": target1,
-        "target2": target2,
-        "atr": round(atr, 4),
+        "side":          side,
+        "entry":         entry,
+        "stop":          stop,
+        "target1":       target1,
+        "target2":       target2,
+        "atr":           round(atr, 4),
         "risk_per_share": round(risk, 4),
-        "rr_ratio": rr1,
+        "rr_ratio":      rr1,
+        "stop_mult":     stop_mult,
+        "target_mult":   t2_mult,
     }
 
 
@@ -402,7 +417,8 @@ def compute_intraday_signals(
 
     score = _composite(sigs)
     side = "long" if score["value"] >= 0 else "short"
-    levels = _trade_levels(intraday_bars, snapshot, side)
+    trend_label = sigs["trend"].get("label", "neutral")
+    levels = _trade_levels(intraday_bars, snapshot, side, trend_label)
 
     return {
         "signals": sigs,
