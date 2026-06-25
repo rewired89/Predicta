@@ -3901,3 +3901,615 @@ called_by: fetch_table_tennis_context
 mutates: none
 ---
 
+
+
+---
+
+## Math & Models Reference
+
+> Complete mathematical formulas for every model and signal in Predicta.
+> This section exists so an external AI (e.g. Gemini) can ingest the full
+> quantitative framework and contribute predictions or model improvements.
+
+---
+
+### 1. Elo Rating System  (`models/elo.py`)
+
+**Expected score (win probability):**
+```
+E(A) = 1 / (1 + 10^((R_B - R_A) / 400))
+E(B) = 1 - E(A)
+```
+Where `R_A`, `R_B` are current Elo ratings.  Default = 1500 for unknown teams.
+
+**Rating update after a match:**
+```
+R'_A = R_A + K × M × (S_A - E(A))
+R'_B = R_B + K × M × (S_B - E(B))
+```
+- `S_A` = 1 if A wins, 0 if B wins, 0.5 draw  
+- `K` = importance K-factor:  
+  - Grand Slam / playoff: 60  
+  - International / major: 50  
+  - Default: 30  
+- `M` = goal-difference multiplier `_goal_diff_multiplier(|score_A - score_B|)`:  
+  - |diff|=0 → 1.0  
+  - |diff|=1 → 1.0  
+  - |diff|=2 → 1.5  
+  - |diff|=3 → 1.75  
+  - |diff|≥4 → 1.75 + (|diff| - 3) × 0.5 (capped at ~2.25+)
+
+**Seeding Elo from current-season win%** (baseball pipeline):
+```
+R_seeded = 1500 - 400 × log10((1 - win_pct) / win_pct)
+```
+A team with .600 win% gets ≈ 1572 Elo; .400 gets ≈ 1428.
+
+---
+
+### 2. Glicko-2 Rating System  (`models/glicko.py`)
+
+**Win probability (logistic approximation):**
+```
+E(A,B) = 1 / (1 + exp(-g(RD_comb) × (r_A - r_B) / 400))
+```
+Where:
+```
+g(RD) = 1 / sqrt(1 + 3 × RD² / π²)
+RD_comb = sqrt(RD_A² + RD_B²)
+```
+- `r_A`, `r_B` = Glicko-2 ratings on the Elo scale (centred ~1500)  
+- `RD` = Rating Deviation — uncertainty (starts ~200, shrinks toward ~50 with games played)  
+- Volatility σ governs how much RD grows between rating periods (default 0.06)
+
+**Rating update:**  Full Glicko-2 step-6 algorithm via the `glicko2` package:  
+1. Convert to internal scale `µ = (r - 1500)/173.7178`  
+2. Compute estimated variance `v` and improvement `∆` from match outcomes  
+3. Update volatility `σ'` via iterative Illinois algorithm  
+4. Update RD: `φ' = sqrt((φ*² + σ'²) × (1/v))`  
+5. Update rating: `µ' = µ + φ'² × ∆`  
+6. Convert back to Elo scale  
+
+Used for: tennis (per surface: clay / grass / hard) and table tennis.
+
+---
+
+### 3. Poisson Run Model  (`models/baseball_market.py`, `fetchers/baseball.py`)
+
+#### 3a. Constants
+```
+LEAGUE_AVG_RUNS     = 4.50   (2024 MLB runs/team/game)
+LEAGUE_AVG_FIP      = 4.00   (2024 MLB starter FIP)
+LEAGUE_BULLPEN_FIP  = 4.40   (MLB bullpens slightly worse)
+LEAGUE_AVG_WRC_PLUS = 100.0  (by definition — 100 = average)
+FIP_CONSTANT        = 3.20   (calibration constant, aligns FIP to ERA scale)
+STARTER_FRAC        = 5/9    ≈ 0.5556  (starter covers ~5 of 9 innings)
+BULLPEN_FRAC        = 4/9    ≈ 0.4444  (bullpen covers remaining ~4 innings)
+HOME_BOOST          = 1.03   (home team runs +3% for home field advantage)
+```
+
+#### 3b. Fielding Independent Pitching (FIP)
+```
+FIP = ((13 × HR + 3 × BB - 2 × K) / IP) + 3.20
+```
+- Controls for defense: only counts outcomes the pitcher directly controls  
+- HR heavily penalised (13×) because each HR guarantees ≥1 run  
+- Walks add baserunners (3×); Strikeouts remove them (-2×)  
+- HBP excluded (minor — ESPN doesn't track separately)  
+- `IP` = innings pitched converted from ESPN notation:  
+  `IP_decimal = floor(IP) + (tenths_digit / 3)` when tenths ∈ {1,2}
+
+**ERA calculation** (from ESPN component stats when pre-computed value is absent):
+```
+ERA = (earnedRuns × 9) / fullInningsPlayed
+```
+
+**WHIP calculation:**
+```
+WHIP = (H + BB) / IP
+```
+Lower WHIP = fewer baserunners per inning; good starter ≈ 1.10–1.25.
+
+#### 3c. Bullpen FIP Derivation
+```
+team_ERA ≈ (starter_FIP × 5 + bullpen_FIP × 4) / 9
+=> bullpen_FIP = (team_ERA × 9 - starter_FIP × 5) / 4
+```
+Clamped to `[3.0, 7.5]`.  If `team_ERA ≤ 0`, fallback to `LEAGUE_BULLPEN_FIP = 4.40`.
+
+#### 3d. wRC+ from OPS (approximation)
+```
+wRC+ ≈ round((OPS / 0.730) × 100)
+```
+- 0.730 = 2025-26 MLB average OPS  
+- wRC+ = 100 → league average offense  
+- wRC+ = 120 → 20% better than average  
+- wRC+ = 80 → 20% worse than average  
+- Used because ESPN's `/teams/{id}/statistics` provides OPS but not wRC+ directly
+
+#### 3e. Platoon Adjustment
+```
+wRC+_adj = wRC+ × 1.05    (if opposing starter throws Left-handed)
+wRC+_adj = wRC+ × 1.00    (if opposing starter throws Right-handed)
+```
+Rationale: ~65% of MLB lineups are Right-handed batters, who have a statistical
+advantage against LHP starters (≈+5% wRC+).
+
+#### 3f. Expected Runs (Split F5/L4)
+```
+off  = wRC+_adj / 100.0
+home = 1.03 if home else 1.0
+base = LEAGUE_AVG_RUNS × off × park_factor × home
+
+mu_f5 = base × STARTER_FRAC × (starter_FIP / LEAGUE_AVG_FIP)
+mu_l4 = base × BULLPEN_FRAC × (bullpen_FIP / LEAGUE_AVG_FIP)
+
+mu_total = mu_f5 + mu_l4
+```
+Clamped: `mu_f5 ∈ [0.5, 6.0]`, `mu_l4 ∈ [0.4, 5.0]`, `mu_total ∈ [1.5, 10.0]`
+
+**Interpretation:** A team with wRC+=110 facing a FIP=3.50 starter at a neutral park:
+```
+off = 1.10
+base = 4.50 × 1.10 × 1.00 × 1.00 = 4.95
+mu_f5 = 4.95 × 0.5556 × (3.50/4.00) = 2.41
+mu_l4 = 4.95 × 0.4444 × (4.40/4.00) = 2.42
+mu_total = 4.83 runs
+```
+
+#### 3g. Park Factors (`PARK_FACTORS` dict)
+3-year run-factor multipliers relative to neutral (1.00):
+- Coors Field (COL): 1.19 — highest run environment in MLB  
+- Oracle Park (SF): 0.92 — lowest run environment  
+- Applied to `base` run calculation before FIP adjustment
+
+#### 3h. Score Matrix (Poisson joint distribution)
+```
+P(home=i, away=j) = Poisson(i; mu_home) × Poisson(j; mu_away)
+```
+Matrix is `(MAX_RUNS+1) × (MAX_RUNS+1)` where `MAX_RUNS=20`.  
+Independent Poisson — no Dixon-Coles correction for baseball.
+
+#### 3i. Moneyline Market
+```
+p_home_reg = sum of matrix cells where home_runs > away_runs
+p_away_reg = sum of matrix cells where away_runs > home_runs
+p_extras   = sum of diagonal (tie at end of 9)
+
+p_home = p_home_reg + p_extras × 0.52   (home wins extras 52% — slight home edge)
+p_away = p_away_reg + p_extras × 0.48
+
+Normalise: p_home + p_away = 1.0
+```
+
+#### 3j. Run Line Market (±1.5)
+For each cell `(i,j)` in the score matrix:
+```
+if (i - j) >  1.5  → home covers
+if (i - j) < -1.5  → away covers
+if |i - j| == 1.5  → push (impossible with integers; handled for ±2.5 lines)
+```
+
+#### 3k. Totals (O/U)
+```
+P(over L)  = sum of cells where (home_runs + away_runs) > L
+P(under L) = sum of cells where (home_runs + away_runs) < L
+P(push L)  = sum of cells where (home_runs + away_runs) = L
+```
+Multiple lines computed: 7.5, 8.0, 8.5, 9.0, 9.5.
+
+#### 3l. NRFI / YRFI (No/Yes Run First Inning)
+```
+mu_first_inning = (mu_home + mu_away) / 9  (rough per-inning split)
+P(NRFI) = P(home 1st-inn = 0) × P(away 1st-inn = 0)
+         = Poisson(0; mu_home/9) × Poisson(0; mu_away/9)
+         = e^(-mu_home/9) × e^(-mu_away/9)
+P(YRFI) = 1 - P(NRFI)
+```
+
+#### 3m. Elo Blend (final probability)
+```
+prob_a_final = 0.70 × prob_a_poisson + 0.30 × prob_a_elo
+prob_b_final = 0.70 × prob_b_poisson + 0.30 × prob_b_elo
+Normalise so prob_a_final + prob_b_final = 1.0
+```
+Elo is seeded from current-season win% (see §1 above), providing a momentum/form signal.
+
+---
+
+### 4. Dixon-Coles Soccer Model  (`models/dixon_coles.py`, `models/markets.py`)
+
+**Expected goals:**
+```
+mu_home = attack_home × defense_away × league_avg × HOME_ADVANTAGE (1.15)
+mu_away = attack_away × defense_home × league_avg
+```
+Where `attack` and `defense` are strength multipliers relative to league (1.0 = average).
+
+**Dixon-Coles correction** (adjusts low-score probabilities):
+```
+ρ(i,j) adjustment factor for score (i,j):
+  (0,0): 1 + mu_home × mu_away × TAU
+  (1,0): 1 - mu_away × TAU
+  (0,1): 1 - mu_home × TAU
+  (1,1): 1 + TAU
+  else:  1.0
+TAU = 0.10
+```
+
+**Score probability:**
+```
+P(home=i, away=j) = Poisson(i; mu_home) × Poisson(j; mu_away) × ρ(i,j)
+```
+
+**Match result probabilities:**
+```
+P(home win) = Σ P(i,j) for i > j
+P(draw)     = Σ P(i,j) for i = j  (trace)
+P(away win) = Σ P(i,j) for j > i
+```
+
+**Corners market (Poisson):**
+```
+lambda_home = corners_for_home × corners_against_away / league_avg
+lambda_away = corners_for_away × corners_against_home / league_avg
+lambda_total = lambda_home + lambda_away
+P(total > L) = 1 - Poisson.CDF(L; lambda_total)
+```
+
+---
+
+### 5. Kelly Criterion  (`models/kelly.py`, `models/trading/kelly.py`)
+
+**Full Kelly fraction:**
+```
+f* = (p × b - (1 - p)) / b
+   = (p × b - q) / b
+```
+Where:
+- `p` = model's estimated win probability  
+- `q = 1 - p` = loss probability  
+- `b = decimal_odds - 1` = net profit per unit staked  
+
+**Edge:**
+```
+edge = p × b - (1 - p) = p - (1 / decimal_odds)
+```
+If `edge ≤ 0`: no bet recommended.
+
+**Quarter-Kelly (applied fraction):**
+```
+f_applied = f* × KELLY_FRACTION   (KELLY_FRACTION = 0.25)
+recommended_stake = f_applied × bankroll
+```
+Quarter-Kelly reduces variance significantly at the cost of ~6% long-run growth
+versus full Kelly, making it appropriate for a prediction system still in calibration.
+
+**Trading Kelly** (`models/trading/kelly.py`):
+```
+f* = (win_rate × avg_win_pct - (1 - win_rate) × avg_loss_pct) / avg_win_pct
+```
+Derived from signal score: `win_rate = (score + 100) / 200`, `avg_win_pct = score/200 × 0.05`.
+
+---
+
+### 6. Tennis Markov Chain  (`analyze_tennis.py`)
+
+#### 6a. Point Probabilities
+
+**Inputs:**
+- `SQI_A` = Serve Quality Index, centred at 100 = tour average  
+  `SQI = (first_serve_pct / AVG_FIRST_SERVE_PCT + first_won_pct / AVG_FIRST_WON_PCT + second_won_pct / AVG_SECOND_WON_PCT) / 3 × 100`  
+- `RQI_A` = Return Quality Index, centred at 100  
+  `RQI = (bp_converted / AVG_BP_CONVERTED × 0.6 + return_points_won_pct × 0.4) × 100`  
+- `SWR_A` = surface win rate (e.g. 0.68 on grass)  
+- `form_A` = recent form score (weighted rolling window, normalised 0–1)
+
+**Surface serve amplifier:**
+```
+surf_serve_amp = 1.15 (grass) | 1.00 (hard) | 0.88 (clay)
+```
+Grass amplifies serve dominance; clay neutralises it.
+
+**Effective SQI with adjustments:**
+```
+swr_ratio  = SWR_A / (SWR_A + SWR_B)
+form_ratio = form_A / (form_A + form_B)
+swr_adj    = (swr_ratio  - 0.5) × 20   (±10 max)
+form_adj   = (form_ratio - 0.5) × 10   (±5 max)
+
+SQI_A_eff = SQI_A × surf_serve_amp + swr_adj + form_adj
+SQI_B_eff = SQI_B × surf_serve_amp - swr_adj - form_adj  (symmetric)
+```
+
+**Point probability via logistic:**
+```
+P_serve  = 1 / (1 + exp(-(SQI_A_eff - RQI_B) / 40))   (A serving, B returning)
+P_return = 1 / (1 + exp(-(RQI_A - SQI_B_eff) / 40))   (B serving, A returning)
+```
+Scale=40 is calibrated so a 40-point SQI advantage ≈ +25pp win probability.
+
+#### 6b. Game Markov Chain
+```
+State: (points_A, points_B) — standard tennis scoring 0/15/30/40/deuce
+P(A wins game | A serving) = DP(0,0) with recursion:
+  DP(pA, pB):
+    if pA≥4 and pA-pB≥2: return 1.0
+    if pB≥4 and pB-pA≥2: return 0.0
+    if pA≥3 and pB≥3 (deuce):
+      return p² / (p² + (1-p)²)   [closed form]
+    return p × DP(pA+1,pB) + (1-p) × DP(pA,pB+1)
+```
+Where `p = P_serve` when A is serving, `p = P_return` when B is serving.
+
+**Deuce closed form:**
+```
+P(A wins from deuce) = p² / (p² + (1-p)²)
+```
+This is the geometric series solution: A must win 2 consecutive points, with deuce re-entered on splits.
+
+#### 6c. Set Markov Chain
+```
+State: (games_A, games_B, who_serves)
+  if gA==6 and gB==6: tiebreak ≈ (P_serve + P_return)/2
+  if gA≥6 and gA-gB≥2: A wins set
+  if gB≥6 and gB-gA≥2: B wins set
+  p_game = P(A wins game given current server)
+  DP(gA,gB,server) = p_game × DP(gA+1,gB,flip) + (1-p_game) × DP(gA,gB+1,flip)
+```
+Serve alternates every game (`flip` = not current_server).
+
+#### 6d. Match Markov Chain
+```
+State: (sets_A, sets_B, who_serves_set_first)
+  sets_needed = ceil(best_of / 2) = 2 (best-of-3) or 3 (best-of-5)
+  DP_match(sA,sB,server):
+    if sA == sets_needed: return 1.0
+    if sB == sets_needed: return 0.0
+    p_set = P(A wins set with server serving first)
+    return p_set × DP_match(sA+1,sB,flip) + (1-p_set) × DP_match(sA,sB+1,flip)
+```
+
+**Final match probability:**
+```
+prob_A = 0.5 × DP_match(0,0,A_serves) + 0.5 × DP_match(0,0,B_serves)
+```
+Averaged over both serve-first scenarios to remove first-serve artifact.
+
+#### 6e. Tour Average Baselines
+
+**ATP:**
+```
+ATP_AVG_FIRST_SERVE_PCT = 0.62
+ATP_AVG_FIRST_WON_PCT   = 0.73
+ATP_AVG_SECOND_WON_PCT  = 0.54
+ATP_AVG_BP_CONVERTED    = 0.40
+ATP_AVG_ACES_PER_MATCH  = 7.0
+```
+
+**WTA:**
+```
+WTA_AVG_FIRST_SERVE_PCT = 0.60
+WTA_AVG_FIRST_WON_PCT   = 0.68
+WTA_AVG_SECOND_WON_PCT  = 0.51
+WTA_AVG_BP_CONVERTED    = 0.42
+```
+
+---
+
+### 7. Calibration Metrics  (`models/calibration.py`)
+
+**Brier Score** (lower = better, 0 = perfect):
+```
+BS = (1/N) × Σ (p_i - o_i)²
+```
+Where `p_i` = predicted probability of win, `o_i` ∈ {0,1}.  
+Random model = 0.25; perfect = 0.00; typical good sports model = 0.18–0.22.
+
+**Log-Loss** (lower = better):
+```
+LL = -(1/N) × Σ [o_i × log(p_i) + (1-o_i) × log(1-p_i)]
+```
+Heavily penalises confident wrong predictions. Clipped at epsilon=1e-7 to avoid log(0).
+
+**ROI:**
+```
+ROI = (total_profit / total_staked) × 100%
+```
+Positive ROI means the model generates profit above the break-even point (vig-adjusted).
+
+**Reliability curve:**  Predictions bucketed into 10 decile bins.  
+For each bin `[b_lower, b_upper]`:
+```
+mean_predicted = avg(p_i) for all predictions in bin
+mean_actual    = avg(o_i) for same predictions
+```
+Perfect calibration: mean_predicted ≈ mean_actual across all bins.
+
+---
+
+### 8. Devig  (`models/devig.py`)
+
+**Implied probability from decimal odds:**
+```
+implied_prob = 1 / decimal_odds
+```
+
+**Remove vig (additive method):**
+```
+overround = Σ implied_prob_i   (sum > 1.0 = bookmaker's juice)
+fair_prob_i = implied_prob_i / overround
+```
+Additive devig is the simplest method; multiplicative and power devig exist but overround
+rarely exceeds 5% for 2-way markets, making the difference minimal.
+
+**Closing Line Value:**
+```
+CLV = fair_prob_at_close - model_implied_prob
+```
+Positive CLV = model priced A higher probability than the market closed at → value bet.
+
+**American to decimal:**
+```
+if american > 0:  decimal = american/100 + 1
+if american < 0:  decimal = 100/|american| + 1
+```
+
+---
+
+### 9. Trading Signals  (`models/trading/signals.py`, `models/trading/intraday.py`)
+
+**SMA:**
+```
+SMA(n) = (1/n) × Σ close[i] for last n bars
+```
+
+**RSI:**
+```
+avg_gain = mean(positive_daily_changes, period=14)
+avg_loss = mean(|negative_daily_changes|, period=14)
+RS  = avg_gain / avg_loss
+RSI = 100 - 100 / (1 + RS)
+```
+RSI > 70 = overbought; RSI < 30 = oversold.
+
+**ATR (Average True Range):**
+```
+TR   = max(high - low, |high - prev_close|, |low - prev_close|)
+ATR  = mean(TR, period=14)
+ATR% = ATR / close × 100
+```
+
+**Historical Volatility (annualised):**
+```
+log_returns = log(close[i] / close[i-1]) for last 20 days
+HV = stdev(log_returns) × sqrt(252)
+```
+
+**Bollinger Bands:**
+```
+mid    = SMA(20)
+std    = stdev(close, 20)
+upper  = mid + 2 × std
+lower  = mid - 2 × std
+%B     = (close - lower) / (upper - lower)
+```
+%B > 1 = price above upper band; %B < 0 = below lower band.
+
+**Expected Move (±1σ next session):**
+```
+pct_1sigma = HV / sqrt(252)
+upper_1σ   = close × (1 + pct_1sigma)
+lower_1σ   = close × (1 - pct_1sigma)
+prob_up    = 0.5 + (SMA(5) - SMA(20)) / (SMA(20) × 0.02)  [clamped 0.2–0.8]
+```
+
+**Composite Signal Score (–100 to +100):**
+```
+score = 0.40 × trend_score
+      + 0.30 × rsi_score
+      + 0.20 × roc_20d_score
+      + 0.10 × bollinger_score
+```
+Where each sub-score is normalised to [–100, +100]:
+- `trend_score`: +100 if strong bull, –100 if strong bear  
+- `rsi_score`: linear from –100 (RSI=0) to +100 (RSI=100) centred at 50  
+- `roc_20d_score`: clamped ±100 based on 20-day rate of change  
+- `bollinger_score`: 200×(%B – 0.5) so %B=1.0 → +100, %B=0.0 → –100  
+
+---
+
+### 10. Table Tennis Model  (`analyze_table_tennis.py`)
+
+**Service advantage index (AQI):**
+```
+AQI = (wins_on_serve / serve_attempts) × 100    (centred at ~60 = average)
+```
+
+**Return quality index (RQI):**
+```
+RQI = (points_won_returning / return_attempts) × 100
+```
+
+**Elo blend for table tennis:**
+Same formula as §1 (Elo), but using Glicko-2 ratings per surface (§2).
+Form factor applied as a logistic modifier:
+```
+form_modifier = logistic(form_score_delta, scale=20)   (±10pp max)
+```
+
+**Fatigue penalty** (intraday club matches):
+```
+fatigue_factor = 1 - 0.06 × matches_today   (–6% win rate per prior match)
+```
+Max of 3 applied: 4+ matches → –18% to –24%.
+
+**Style matchup:**
+```
+aggressive_vs_chopper:     +8pp to aggressive player's raw win prob
+looper_vs_allround:        +4pp to looper
+penholder_vs_shakehand:    no adjustment (style-neutral)
+```
+
+---
+
+### 11. Data Flow Summary
+
+```
+User query
+    │
+    ├─► parse_query (Claude AI)  →  team names, date
+    │
+    ├─► fetch_*_context (ESPN / data/live/ cache)
+    │       → team stats, starters, records, park factor
+    │
+    ├─► expected_runs_split / Markov point probs
+    │       → μ_home, μ_away (baseball) OR P_serve, P_return (tennis)
+    │
+    ├─► build_run_matrix / markov_tennis_match
+    │       → joint probability distribution
+    │
+    ├─► market calculations
+    │       → moneyline, run line, totals, F5/L4, NRFI, team totals
+    │
+    ├─► Elo blend (30% weight)
+    │       → final prob_a, prob_b
+    │
+    ├─► kelly_stake
+    │       → recommended_stake (quarter-Kelly × bankroll)
+    │
+    ├─► log_signal / DB persistence
+    │
+    └─► generate_narrative (Claude AI)  →  human-readable analysis
+```
+
+---
+
+### 12. Key Calibration Parameters for Gemini Review
+
+| Parameter | Value | File | Purpose |
+|-----------|-------|------|---------|
+| LEAGUE_AVG_RUNS | 4.50 | baseball_market.py | Baseline runs/game |
+| LEAGUE_AVG_FIP | 4.00 | baseball_market.py | Baseline starter quality |
+| LEAGUE_BULLPEN_FIP | 4.40 | baseball_market.py | Baseline bullpen quality |
+| STARTER_FRAC | 5/9 ≈ 0.556 | baseball_market.py | Innings weight for starter |
+| BULLPEN_FRAC | 4/9 ≈ 0.444 | baseball_market.py | Innings weight for bullpen |
+| HOME_BOOST | 1.03 | baseball_market.py | Home field advantage |
+| PLATOON_VS_LHP | 1.05 | baseball_market.py | RHB lineup bonus vs LHP |
+| FIP_CONSTANT | 3.20 | fetchers/baseball.py | Calibration offset |
+| wRC+_OPS_baseline | 0.730 | fetchers/baseball.py | 2025-26 MLB avg OPS |
+| ELO_BLEND | 0.70 Poisson / 0.30 Elo | analyze_baseball.py | Model blend weight |
+| KELLY_FRACTION | 0.25 | models/kelly.py | Quarter-Kelly sizing |
+| DEFAULT_RATING | 1500 | models/elo.py | Initial Elo |
+| DEFAULT_K | 30 | models/elo.py | Default K-factor |
+| surf_serve_amp (grass) | 1.15 | analyze_tennis.py | Grass serve multiplier |
+| surf_serve_amp (clay) | 0.88 | analyze_tennis.py | Clay serve suppressor |
+| logistic_scale | 40.0 | analyze_tennis.py | SQI→probability scale |
+| extras_home_pct | 0.52 | baseball_market.py | MLB extras home win rate |
+| DIXON_COLES_TAU | 0.10 | models/dixon_coles.py | Low-score correction |
+| HOME_ADVANTAGE | 1.15 | models/dixon_coles.py | Soccer home boost (xG) |
+| MIN_SAMPLES | 50 | models/ml_layer.py | ML training threshold |
+
+---
+
+*End of Math & Models Reference. Feed this section to Gemini with a specific matchup to get a parallel probability estimate or parameter critique.*
