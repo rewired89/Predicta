@@ -770,3 +770,107 @@ def trade_performance(days: int = 7):
     """
     from fetchers.trading_logger import get_trade_stats
     return get_trade_stats(days)
+
+
+# ── Signal-only / dry-run mode ────────────────────────────────────────────────
+
+@app.post("/trade/signal-only", status_code=201)
+def signal_only(body: SmartOrderRequest):
+    """
+    Log signal + hypothetical trade WITHOUT placing any Alpaca order.
+    Use for Week 1-2 to validate signal quality before risking capital.
+
+    Also logs WOULD_REJECT signals so you can study what the model filtered
+    out — important for catching over-rejection bias in the lunch/liquidity gates.
+
+    Resolve outcomes at end of session via POST /trade/resolve-hypothetical/{id}.
+    """
+    from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars
+    from models.trading.intraday import compute_intraday_signals
+    from fetchers.trading_logger import log_hypothetical_trade
+
+    snap = get_snapshot(body.symbol)
+    if "error" in snap:
+        raise HTTPException(400, snap["error"])
+
+    intraday = get_bars(body.symbol, "5Min", 78)
+    daily    = get_daily_bars(body.symbol, days=60)
+    avg_vol  = sum(b.get("v", 0) for b in daily[-20:]) / 20 if len(daily) >= 20 else 1_000_000
+
+    signals   = compute_intraday_signals(intraday, daily, snap, avg_vol, hold_bars=body.hold_bars)
+    if "error" in signals:
+        raise HTTPException(400, signals["error"])
+
+    liq       = signals["liquidity"]
+    score     = signals["score"]
+    score_val = score["value"]
+    tod_label = score.get("time_label", "UNKNOWN")
+    levels    = signals.get("levels", {})
+    side      = "long" if score_val >= 0 else "short"
+
+    # Determine what the smart-order gate WOULD have done
+    would_reject = None
+    if not liq.get("pass", True):
+        would_reject = f"Liquidity gate: {liq['label']} ({liq.get('spread_pct', 0):.3f}% spread)"
+    elif tod_label == "MARKET_CLOSED":
+        would_reject = "Market closed"
+    elif tod_label == "LUNCH_CHOP" and abs(score_val) < 60:
+        would_reject = "Lunch chop — score below 60 conviction threshold"
+    elif abs(score_val) < body.min_score:
+        would_reject = f"|score| {abs(score_val):.1f} < min_score {body.min_score}"
+    elif not levels or not levels.get("stop"):
+        would_reject = "No trade levels (insufficient bar history)"
+
+    trade_id = log_hypothetical_trade(
+        symbol        = body.symbol,
+        side          = side,
+        score_value   = score_val,
+        signals       = signals,
+        levels        = levels or {},
+        hold_bars     = body.hold_bars,
+    )
+
+    return {
+        "status":            "SIGNAL_ONLY_WOULD_REJECT" if would_reject else "SIGNAL_ONLY",
+        "predicta_trade_id": trade_id,
+        "symbol":            body.symbol,
+        "side":              side,
+        "entry":             levels.get("entry"),
+        "stop":              levels.get("stop"),
+        "target1":           levels.get("target1"),
+        "target2":           levels.get("target2"),
+        "score":             score,
+        "liquidity":         liq,
+        "would_reject":      would_reject,
+        "note": (
+            "Order WOULD have been rejected — logged for over-rejection analysis."
+            if would_reject else
+            "No order placed. Resolve outcome via POST /trade/resolve-hypothetical/{trade_id}."
+        ),
+    }
+
+
+class HypotheticalOutcome(BaseModel):
+    exit_price: float
+    exit_reason: str          # "TARGET_HIT", "STOP_HIT", "TIME_EXPIRED", "MANUAL"
+    actual_hold_bars: Optional[int] = None
+
+
+@app.post("/trade/resolve-hypothetical/{trade_id}")
+def resolve_hypothetical(trade_id: int, body: HypotheticalOutcome):
+    """
+    Record the outcome of a signal-only (hypothetical) trade.
+    Call at end of session or when stop/target would have been hit.
+    Computes the same P&L metrics as a real closed trade so results are
+    directly comparable across hypothetical and paper modes.
+    """
+    from fetchers.trading_logger import log_trade_exit
+    result = log_trade_exit(
+        trade_id         = trade_id,
+        exit_price       = body.exit_price,
+        exit_reason      = body.exit_reason,
+        actual_hold_bars = body.actual_hold_bars,
+    )
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    return {"status": "RESOLVED", **result}

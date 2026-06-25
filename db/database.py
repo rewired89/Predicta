@@ -41,56 +41,66 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
 
 def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
     """
-    Upgrade intraday_trades to v2 schema:
-    - Make exit_time / exit_price nullable (lifecycle logging: entry before exit)
-    - Add columns: qty, position_value, time_of_day_label, stop_price, target_price,
-      risk_dollars, spread_pct_at_entry, pnl_r, adjusted_pnl, alpaca_order_id
-    Strategy: if the table has no rows (dev/paper, early stage), drop and recreate.
-    Otherwise add missing nullable columns via ALTER TABLE.
+    Idempotent migration for intraday_trades. Checks every expected column
+    and adds any that are missing — safe to call on every startup regardless
+    of schema version. For empty tables, drops and recreates for clean NOT NULL
+    constraint semantics. Never destroys rows.
     """
     row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='intraday_trades'"
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='intraday_trades'"
     ).fetchone()
     if not row:
-        return  # Table doesn't exist yet; schema.sql CREATE handles it
+        return  # Table doesn't exist yet; schema.sql CREATE IF NOT EXISTS handles it
 
-    existing_sql = row[0]
-    if "alpaca_order_id" in existing_sql:
-        return  # Already migrated
+    # All expected columns beyond the original v1 schema
+    expected_cols = [
+        # v2: lifecycle logging + position sizing
+        ("qty",                 "REAL"),
+        ("position_value",      "REAL"),
+        ("time_of_day_label",   "TEXT"),
+        ("stop_price",          "REAL"),
+        ("target_price",        "REAL"),
+        ("risk_dollars",        "REAL"),
+        ("spread_pct_at_entry", "REAL DEFAULT 0.0"),
+        ("pnl_r",               "REAL"),
+        ("adjusted_pnl",        "REAL"),
+        ("alpaca_order_id",     "TEXT"),
+        # v3: signal-only / hypothetical mode
+        ("target1_price",       "REAL"),
+        ("theoretical_entry",   "REAL"),
+        ("liquidity_label",     "TEXT"),
+        ("intraday_vol",        "REAL"),
+        ("relative_volume",     "REAL"),
+        ("model_version",       "TEXT"),
+        ("is_hypothetical",     "INTEGER DEFAULT 0"),
+        ("notes",               "TEXT"),
+    ]
 
-    # Check for existing rows
+    existing_cols = {
+        r[1] for r in conn.execute("PRAGMA table_info(intraday_trades)").fetchall()
+    }
+
+    # If still at original v1 schema (exit_time was NOT NULL) and no rows, recreate cleanly
     count = conn.execute("SELECT COUNT(*) FROM intraday_trades").fetchone()[0]
-    if count == 0:
-        # Safe to drop and recreate with new schema
+    if count == 0 and "alpaca_order_id" not in existing_cols:
         conn.execute("DROP TABLE IF EXISTS intraday_trades")
         conn.executescript(SCHEMA_PATH.read_text())
         conn.commit()
         return
 
-    # Has data: add missing nullable columns without destroying rows
-    existing_cols = {
-        r[1] for r in conn.execute("PRAGMA table_info(intraday_trades)").fetchall()
-    }
-    new_cols = [
-        ("qty",                  "REAL"),
-        ("position_value",       "REAL"),
-        ("time_of_day_label",    "TEXT"),
-        ("stop_price",           "REAL"),
-        ("target_price",         "REAL"),
-        ("risk_dollars",         "REAL"),
-        ("spread_pct_at_entry",  "REAL DEFAULT 0.0"),
-        ("pnl_r",                "REAL"),
-        ("adjusted_pnl",         "REAL"),
-        ("alpaca_order_id",      "TEXT"),
-    ]
-    for col, coltype in new_cols:
+    # Add any missing columns (idempotent)
+    for col, coltype in expected_cols:
         if col not in existing_cols:
             conn.execute(f"ALTER TABLE intraday_trades ADD COLUMN {col} {coltype}")
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id)"
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_trades_symbol ON intraday_trades(symbol, entry_time)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_trades_hypo ON intraday_trades(is_hypothetical, entry_time)"
     )
     conn.commit()
 

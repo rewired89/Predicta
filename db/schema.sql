@@ -75,10 +75,10 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     id INTEGER PRIMARY KEY,
     symbol TEXT NOT NULL,
     entry_time TEXT NOT NULL,
-    exit_time TEXT,                         -- NULL until position closed
+    exit_time TEXT,                          -- NULL until position closed
     side TEXT NOT NULL CHECK(side IN ('long', 'short')),
     entry_price REAL NOT NULL,
-    exit_price REAL,                        -- NULL until position closed
+    exit_price REAL,                         -- NULL until position closed
     qty REAL,
     position_value REAL,
     planned_hold_bars INTEGER,
@@ -86,17 +86,25 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     entry_score REAL,
     time_of_day_label TEXT,
     stop_price REAL,
-    target_price REAL,
+    target1_price REAL,
+    target_price REAL,                       -- target2 (wider R/R)
+    theoretical_entry REAL,                  -- snapshot price at signal time
     risk_dollars REAL,
     exit_reason TEXT,
     slippage_entry REAL DEFAULT 0.0,
     slippage_exit REAL DEFAULT 0.0,
     spread_pct_at_entry REAL DEFAULT 0.0,
+    liquidity_label TEXT,
+    intraday_vol REAL,                       -- bar_vol_pct from intraday EM
+    relative_volume REAL,                    -- rel_vol at signal time
     pnl_dollars REAL,
     pnl_pct REAL,
     pnl_r REAL,
     adjusted_pnl REAL,
     alpaca_order_id TEXT,
+    model_version TEXT,
+    is_hypothetical INTEGER DEFAULT 0,       -- 1 = signal-only, no real order
+    notes TEXT,
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);

@@ -78,11 +78,11 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record: entry inserted by log_trade_entry, exit columns updated by log_trade_exit. exit_time/exit_price are nullable until position closes. New columns vs v1: qty, position_value, time_of_day_label, stop_price, target_price, risk_dollars, spread_pct_at_entry, pnl_r, adjusted_pnl, alpaca_order_id. adjusted_pnl subtracts half-spread cost on both legs for conservative live P&L estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
-called_by: log_trade_entry, log_trade_exit, get_trade_stats (trading_logger.py)
+called_by: log_trade_entry, log_hypothetical_trade, log_trade_exit, get_trade_stats (trading_logger.py)
 mutates: none (DDL)
 ---
 
@@ -94,10 +94,10 @@ mutates: none (DDL)
 name: _migrate_intraday_trades
 type: function
 file: db/database.py
-purpose: One-time migration to upgrade intraday_trades from v1 (exit_time NOT NULL, no lifecycle columns) to v2. If no rows exist, drops and recreates. If rows exist, adds missing nullable columns via ALTER TABLE. Checked by presence of alpaca_order_id column.
+purpose: Idempotent migration for intraday_trades — runs on every startup, adds any missing columns from master list covering v2 (lifecycle + sizing) and v3 (hypothetical mode + signal context). For empty tables, drops and recreates clean. Never destroys rows. idx_trades_hypo created here (not in schema.sql) since is_hypothetical may not exist in old tables.
 inputs: conn: sqlite3.Connection
 outputs: none
-calls: PRAGMA table_info, ALTER TABLE, DROP TABLE
+calls: PRAGMA table_info, ALTER TABLE, DROP TABLE, CREATE INDEX
 called_by: init_db
 mutates: predicta.db schema
 ---
@@ -134,12 +134,24 @@ mutates: intraday_trades table (UPDATE)
 name: get_trade_stats
 type: function
 file: fetchers/trading_logger.py
-purpose: Aggregated paper trading performance for last N days (closed trades only). Returns: win rate, total P&L, adjusted P&L, avg P&L/trade, avg R, breakdown by time-of-day label and exit reason, recent 10 trades.
+purpose: Aggregated paper trading performance for last N days (closed trades only). Returns: win rate, total P&L, adjusted P&L, avg P&L/trade, avg R, breakdown by time-of-day label and exit reason, recent 10 trades. is_hypothetical flag included in recent_trades for comparison.
 inputs: days: int = 7
 outputs: dict {period_days, total_trades, win_rate, total_pnl, adjusted_pnl, avg_pnl_per_trade, avg_r, by_time_of_day, by_exit_reason, recent_trades}
 calls: db.database.get_db
 called_by: trade_performance (app.py)
 mutates: none
+---
+
+---
+name: log_hypothetical_trade
+type: function
+file: fetchers/trading_logger.py
+purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry, captures liquidity_label, time_of_day_label, intraday_vol (bar_vol_pct), relative_volume (rel_vol), model_version. Outcomes resolved later via log_trade_exit (same P&L computation as real trades for apples-to-apples comparison).
+inputs: symbol, side, score_value, signals: dict, levels: dict, hold_bars=6, model_version="v3"
+outputs: int (trade_id)
+calls: db.database.get_db
+called_by: signal_only (app.py)
+mutates: intraday_trades table (INSERT with is_hypothetical=1)
 ---
 
 ---
@@ -180,6 +192,30 @@ outputs: dict from get_trade_stats
 calls: get_trade_stats
 called_by: GET /trade/performance
 mutates: none
+---
+
+---
+name: signal_only
+type: function
+file: app.py
+purpose: POST /trade/signal-only — logs signal + hypothetical trade WITHOUT placing Alpaca order. Uses same SmartOrderRequest as smart_trade. Evaluates all vetoes and logs WOULD_REJECT signals too (status=SIGNAL_ONLY_WOULD_REJECT) — critical for detecting over-rejection bias. Returns would_reject reason so caller knows what gate would have fired.
+inputs: SmartOrderRequest {symbol, account_value=10000, hold_bars=6, min_score=30}
+outputs: dict {status, predicta_trade_id, would_reject, entry, stop, target1, target2, score, liquidity, note}
+calls: get_snapshot, get_bars, get_daily_bars, compute_intraday_signals, log_hypothetical_trade
+called_by: POST /trade/signal-only
+mutates: intraday_trades (INSERT with is_hypothetical=1 via log_hypothetical_trade)
+---
+
+---
+name: resolve_hypothetical
+type: function
+file: app.py
+purpose: POST /trade/resolve-hypothetical/{trade_id} — manually record outcome of a signal-only trade. Accepts exit_price, exit_reason (TARGET_HIT/STOP_HIT/TIME_EXPIRED/MANUAL), actual_hold_bars. Calls log_trade_exit which computes the same pnl_r and adjusted_pnl as real trades, enabling apples-to-apples comparison of hypothetical vs paper performance.
+inputs: trade_id (path), HypotheticalOutcome {exit_price, exit_reason, actual_hold_bars=None}
+outputs: dict {status: RESOLVED, trade_id, pnl_dollars, pnl_r, adjusted_pnl, ...}
+calls: log_trade_exit
+called_by: POST /trade/resolve-hypothetical/{trade_id}
+mutates: intraday_trades (UPDATE via log_trade_exit)
 ---
 
 ---

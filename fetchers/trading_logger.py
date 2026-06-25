@@ -212,7 +212,75 @@ def get_trade_stats(days: int = 7) -> dict:
                 "adjusted_pnl":   t.get("adjusted_pnl"),
                 "exit_reason":    t["exit_reason"],
                 "tod_label":      t.get("time_of_day_label"),
+                "is_hypothetical": t.get("is_hypothetical", 0),
             }
             for t in trades[:10]
         ],
     }
+
+
+def log_hypothetical_trade(
+    symbol: str,
+    side: str,
+    score_value: float,
+    signals: dict,
+    levels: dict,
+    hold_bars: int = 6,
+    model_version: str = "v3",
+) -> int:
+    """
+    Log what WOULD have happened without placing an Alpaca order.
+    Used for Week 1-2 dry-run validation: signal quality without execution noise.
+
+    Captures the full signal context so outcomes can be compared to what the
+    model predicted — critical for validating direction, stop distance, and ToD bias
+    before any capital is at risk.
+
+    Resolve outcomes via log_trade_exit() when stop/target/time exit would have hit.
+    """
+    entry_time = datetime.now(timezone.utc).isoformat()
+
+    liq    = signals.get("liquidity", {})
+    em     = signals.get("intraday_expected_move", {})
+    relvol = (signals.get("signals") or {}).get("relvol", {})
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO intraday_trades (
+                symbol, side, entry_time, planned_hold_bars,
+                entry_price, theoretical_entry,
+                stop_price, target1_price, target_price,
+                qty, position_value,
+                risk_dollars, entry_score,
+                spread_pct_at_entry, liquidity_label, time_of_day_label,
+                intraday_vol, relative_volume,
+                model_version, is_hypothetical, notes,
+                logged_at
+            ) VALUES (
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                datetime('now')
+            )
+            """,
+            (
+                symbol, side, entry_time, hold_bars,
+                levels.get("entry"), levels.get("entry"),       # entry_price = theoretical_entry for signal-only
+                levels.get("stop"), levels.get("target1"), levels.get("target2"),
+                levels.get("shares"), levels.get("position_value"),
+                levels.get("risk_dollars"), score_value,
+                liq.get("spread_pct", 0.0), liq.get("label", "UNKNOWN"),
+                (signals.get("score") or {}).get("time_label", "UNKNOWN"),
+                em.get("bar_vol_pct"),
+                relvol.get("rel_vol"),
+                model_version, 1,
+                "HYPOTHETICAL: no order placed",
+            ),
+        )
+        return cur.lastrowid
