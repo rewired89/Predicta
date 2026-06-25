@@ -3,6 +3,7 @@ End-to-end baseball analysis pipeline.
 query → MLB Stats API → Poisson run model → Elo blend → markets → narrative → result dict
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import math
 import traceback
 from datetime import datetime, timezone

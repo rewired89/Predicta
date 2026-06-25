@@ -3,6 +3,7 @@ End-to-end analyze pipeline.
 Takes a raw user query → fetches data → runs model → returns full result dict.
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import traceback
 from datetime import datetime, timezone
 from typing import Optional

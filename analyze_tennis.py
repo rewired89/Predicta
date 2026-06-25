@@ -3,6 +3,7 @@ End-to-end tennis analysis pipeline.
 query → ESPN/TSDB → Glicko-2 per-surface + serve model → narrative → result dict
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import math
 import traceback
 from datetime import datetime, timezone

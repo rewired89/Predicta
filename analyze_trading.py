@@ -4,6 +4,7 @@ Takes a ticker symbol or natural language query → fetches data →
 computes signals → AI narrative → returns full result dict.
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import re
 import os
 import json
