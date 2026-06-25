@@ -28,6 +28,7 @@ except ImportError:
 BASEBALL_FEATURES = [
     "wrc_plus", "starter_fip", "bullpen_fip", "park_factor",
     "platoon_adj", "starter_avg_ip", "home_boost", "elo_rating",
+    "wind_factor", "temp_factor", "is_dome",
 ]
 TENNIS_FEATURES = [
     "sqi", "rqi", "surface_win_rate", "form_score",

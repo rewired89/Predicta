@@ -12,6 +12,7 @@ from typing import Optional
 from db.database import get_db, init_db
 from fetchers.baseball import fetch_baseball_context, LEAGUE_AVG_FIP
 from fetchers.signals import log_signal
+from fetchers.weather import fetch_game_weather, weather_to_signals, team_to_stadium_code
 from models.baseball_market import (
     expected_runs_split, compute_baseball_markets,
     platoon_wrc_adjust, LEAGUE_BULLPEN_FIP,
@@ -366,6 +367,18 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         + elo_explanation
     )
 
+    # ── 6.5. Weather signals (stored only; NOT applied to run model yet) ────
+    # Enable the wind/temp adjustment in expected_runs_split after 50+
+    # baseball predictions confirm the effect on scoring.
+    weather_data = None
+    try:
+        stadium_code = team_to_stadium_code(team_home)
+        if stadium_code:
+            weather_data = fetch_game_weather(stadium_code, game_date)
+    except Exception:
+        pass
+    weather_sigs = weather_to_signals(weather_data)
+
     # ── 7. Persist ───────────────────────────────────────────────────────────
     match_id: Optional[int] = None
     try:
@@ -405,6 +418,15 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         for sig_name, participant, val in signals_to_log:
             log_signal(match_id, sig_name, participant,
                        signal_value=float(val), source="mlb_api")
+
+        # Weather signals (participant=None → game-level, not team-specific)
+        forecast_ts = weather_data.get("forecast_time", "") if weather_data else None
+        weather_source = "openweather" if weather_data else "fallback"
+        for sig_name, sig_val in weather_sigs.items():
+            log_signal(match_id, sig_name, None,
+                       signal_value=sig_val,
+                       signal_text=forecast_ts,
+                       source=weather_source)
 
         with get_db() as conn:
             conn.execute(

@@ -3042,12 +3042,12 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse query → fetch ESPN MLB API → compute avg_ip → derive bullpen FIP (dynamic) → apply platoon wRC+ adjustment → split Poisson F5/L4 model → Elo blend → compute markets (incl. first_five, last_four) → persist to DB (incl. starter_avg_ip signal) → Kelly sizing → AI narrative → return result dict.
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → compute avg_ip → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. starter_avg_ip + weather) → Kelly sizing → AI narrative → result dict.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
+calls: parse_baseball_query, fetch_baseball_context, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
 called_by: analyze_baseball (app.py)
-mutates: matches, signals, predictions tables
+mutates: matches, signals (incl. weather signals), predictions tables
 ---
 
 ---
@@ -3059,6 +3059,80 @@ inputs: starter: dict (keys: innings_pitched, games_started)
 outputs: Optional[float]
 calls: none
 called_by: run_baseball_analysis (step 3)
+mutates: none
+---
+
+---
+
+## fetchers/weather.py
+
+---
+name: STADIUM_COORDS
+type: variable
+file: fetchers/weather.py
+purpose: dict mapping 3-letter MLB team code → (lat, lon) for all 30 MLB stadiums. Used to query OpenWeatherMap forecast API.
+---
+
+---
+name: DOME_PARKS
+type: variable
+file: fetchers/weather.py
+purpose: frozenset of stadium codes with dome or retractable roof (HOU, MIA, MIL, SEA, TB, TEX, TOR). wind_factor = 0.0 and is_dome = 1.0 for these parks.
+---
+
+---
+name: TEAM_TO_STADIUM
+type: variable
+file: fetchers/weather.py
+purpose: dict mapping ESPN team name variants (short code / nickname / full name) → 3-letter stadium code. Used by team_to_stadium_code() to resolve whatever ESPN returns.
+---
+
+---
+name: team_to_stadium_code
+type: function
+file: fetchers/weather.py
+purpose: Resolves a team name string (any ESPN format) to a stadium code. Tries exact match, then case-insensitive substring match. Returns None if unknown.
+inputs: team_name: str
+outputs: Optional[str]
+calls: TEAM_TO_STADIUM
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
+name: _wind_direction_factor
+type: function
+file: fetchers/weather.py
+purpose: Returns alignment of wind with outfield direction. +1.0 = blowing straight out to CF (HR boost), -1.0 = blowing straight in (HR suppressor), 0.0 = dome/crosswind. Simplified: assumes CF at ~45° NE for most parks.
+inputs: wind_deg: float, stadium_code: str
+outputs: float (-1.0 to +1.0)
+calls: math.cos, math.sin
+called_by: fetch_game_weather
+mutates: none
+---
+
+---
+name: fetch_game_weather
+type: function
+file: fetchers/weather.py
+purpose: Fetches 5-day 3-hour forecast from OpenWeatherMap for a stadium. Finds closest forecast entry to game time (within 3h). Returns None when API key missing, httpx not installed, stadium unknown, or fetch fails.
+inputs: stadium_code: str, game_date: str, game_time: str = "19:05"
+outputs: Optional[dict {temp_f, wind_mph, wind_deg, wind_factor, temp_factor, is_dome, forecast_time, source}]
+calls: httpx.Client, _wind_direction_factor
+called_by: run_baseball_analysis (step 6.5)
+mutates: none
+env_vars: OPENWEATHER_API_KEY
+---
+
+---
+name: weather_to_signals
+type: function
+file: fetchers/weather.py
+purpose: Converts weather dict to flat {signal_name: float} for DB logging. Falls back to neutral values (temp_f=72, wind_mph=0, weather_confidence=0.0) when input is None.
+inputs: weather: Optional[dict]
+outputs: dict[str, float] — keys: temp_f, wind_mph, wind_factor, temp_factor, is_dome, weather_confidence
+calls: none
+called_by: run_baseball_analysis (step 6.5)
 mutates: none
 ---
 
