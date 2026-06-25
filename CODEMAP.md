@@ -526,11 +526,23 @@ mutates: none
 name: compute_metrics_from_db
 type: function
 file: models/calibration.py
-purpose: Pulls matched prediction/outcome pairs from DB and computes Brier score, log-loss, and reliability curve.
-inputs: method: Optional[str] = None
-outputs: dict {n, brier_score, log_loss, reliability_curve} or {error}
-calls: get_db, brier_score, log_loss_score, reliability_curve
-called_by: calibration (app.py), generate_html_report
+purpose: Full accuracy + calibration report: prediction accuracy %, bet accuracy %, ROI, Brier score, log-loss, reliability curve, benchmark comparison. Broken down by sport, confidence level, and prediction method.
+inputs: method: Optional[str], sport: Optional[str]
+outputs: dict {overall, by_sport, by_confidence, by_method, brier_score, log_loss, reliability_curve, benchmarks}
+calls: get_db, _accuracy_block, brier_score, log_loss_score, reliability_curve
+called_by: accuracy (app.py), calibration (app.py), generate_html_report
+mutates: none
+---
+
+---
+name: _accuracy_block
+type: function
+file: models/calibration.py
+purpose: Compute accuracy, bet accuracy, and ROI for a slice of prediction/outcome rows.
+inputs: rows: list[dict]
+outputs: dict {n, correct, accuracy, bets_placed, bets_correct, bet_accuracy, roi}
+calls: none
+called_by: compute_metrics_from_db
 mutates: none
 ---
 
@@ -1878,7 +1890,7 @@ mutates: none
 name: generate_html_report
 type: function
 file: report.py
-purpose: Queries all matches, predictions, and outcomes from DB and renders a self-contained dark-themed HTML report with calibration metrics and a nav bar linking back to Sports, Trading, and API pages.
+purpose: Renders the full accuracy dashboard: KPI tiles (prediction %, bet %, ROI, Brier), accuracy by sport, by confidence level, benchmark comparison table, and full prediction history with correct/wrong verdict badges. Also shows pending-results call-to-action.
 inputs: none
 outputs: str (HTML)
 calls: get_db, compute_metrics_from_db
@@ -1996,6 +2008,66 @@ outputs: dict (record_outcome result)
 calls: record_outcome
 called_by: HTTP POST /matches/{match_id}/outcome
 mutates: outcomes table, matches table, ratings tables
+---
+
+---
+name: add_outcomes_batch
+type: function
+file: app.py
+purpose: POST /outcomes/batch — record multiple match results at once. Body: [{match_id, result, score_a?, score_b?}].
+inputs: list[BatchOutcome]
+outputs: list[dict] with per-match status
+calls: record_outcome
+called_by: HTTP POST /outcomes/batch
+mutates: outcomes table
+---
+
+---
+name: pending_outcomes
+type: function
+file: app.py
+purpose: GET /pending-outcomes — list matches that have a prediction but no recorded outcome. Shows recommendation and confidence for quick result entry.
+inputs: none
+outputs: list[dict]
+calls: get_db
+called_by: HTTP GET /pending-outcomes
+mutates: none
+---
+
+---
+name: accuracy
+type: function
+file: app.py
+purpose: GET /accuracy — full accuracy report: prediction %, bet %, ROI, Brier, log-loss, calibration curve, benchmark comparison. Filter by sport= and method= query params.
+inputs: sport: Optional[str], method: Optional[str]
+outputs: dict (compute_metrics_from_db result)
+calls: compute_metrics_from_db
+called_by: HTTP GET /accuracy
+mutates: none
+---
+
+---
+name: resolve_pending
+type: function
+file: app.py
+purpose: POST /resolve-pending — trigger auto-resolve of all unresolved match predictions. Fetches actual results from Setka Cup / TT Cup and records outcomes automatically. dry_run=true previews without writing.
+inputs: dry_run: bool = False
+outputs: dict {attempted, resolved, failed, skipped, details}
+calls: run_auto_resolve
+called_by: HTTP POST /resolve-pending
+mutates: outcomes table (unless dry_run)
+---
+
+---
+name: signal_accuracy
+type: function
+file: app.py
+purpose: GET /signal-accuracy — show per-signal accuracy lift (high vs low) to identify which model inputs are most predictive. Used to guide blend weight tuning.
+inputs: none
+outputs: dict {signal_name: {n, accuracy_high, accuracy_low, lift}}
+calls: _signal_accuracy_summary
+called_by: HTTP GET /signal-accuracy
+mutates: none
 ---
 
 ---
@@ -2978,13 +3050,61 @@ mutates: none
 ---
 
 ---
-name: _serve_return_win_prob
+name: _logistic
 type: function
 file: analyze_tennis.py
-purpose: Estimates P(player_a wins) from serve and return quality indices using a logistic function on net serve/return advantage.
-inputs: sqi_a: float, rqi_b: float, sqi_b: float, rqi_a: float
-outputs: float (0–1)
+purpose: Logistic sigmoid on x/scale — maps any real number to (0,1).
+inputs: x: float, scale: float = 40.0
+outputs: float
 calls: math.exp
+called_by: _compute_point_probs
+mutates: none
+---
+
+---
+name: _compute_point_probs
+type: function
+file: analyze_tennis.py
+purpose: Compute P_serve (A wins point on A's serve) and P_return (A wins point on B's serve). SQI, RQI, surface win rate, and form all feed in as modifiers to the logistic — not blended as external percentages (Gemini fix).
+inputs: sqi_a, rqi_a, sqi_b, rqi_b: float (SQI/RQI centred on 100); swr_a, swr_b, form_a, form_b: float; surface: str
+outputs: tuple[float, float] — (p_serve, p_return)
+calls: _logistic
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+name: _markov_game_prob
+type: function
+file: analyze_tennis.py
+purpose: P(A wins one tennis game) given who is serving. DP over (score_a, score_b); deuce closed form p²/(p²+q²).
+inputs: p_serve: float, p_return: float, a_serving: bool
+outputs: float
+calls: lru_cache DP, _logistic implicitly
+called_by: _markov_set_prob
+mutates: none
+---
+
+---
+name: _markov_set_prob
+type: function
+file: analyze_tennis.py
+purpose: P(A wins one set). First to 6, win by 2; tiebreak at 6-6 approximated as average of p_serve/p_return.
+inputs: p_serve: float, p_return: float, a_serves_first: bool
+outputs: float
+calls: _markov_game_prob, lru_cache DP
+called_by: markov_tennis_match
+mutates: none
+---
+
+---
+name: markov_tennis_match
+type: function
+file: analyze_tennis.py
+purpose: Nested Markov simulation points→games→sets→match. Averages over both first-server possibilities. Returns prob_a, prob_b, p_serve, p_return, best_of.
+inputs: p_serve: float, p_return: float, best_of: int = 3
+outputs: dict {prob_a, prob_b, p_serve, p_return, best_of}
+calls: _markov_set_prob, lru_cache DP
 called_by: run_tennis_analysis
 mutates: none
 ---
@@ -2993,10 +3113,10 @@ mutates: none
 name: run_tennis_analysis
 type: function
 file: analyze_tennis.py
-purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → serve/return model → surface win rate → form blend → Glicko-2 blend → persist to DB → Kelly sizing → AI narrative → return result dict.
+purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → persist to DB → Kelly sizing → AI narrative → Market Efficiency Model recommendation.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, prob_a, prob_b, data_confidence, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
-calls: parse_tennis_query, fetch_tennis_context, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative
+outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, prob_a, prob_b, data_confidence, markov_sim, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
+calls: parse_tennis_query, fetch_tennis_context, _compute_point_probs, markov_tennis_match, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative
 called_by: analyze_tennis (app.py)
 mutates: matches, signals, predictions tables
 ---
@@ -3180,6 +3300,42 @@ mutates: none
 ---
 
 ---
+name: _fatigue_decay
+type: function
+file: analyze_table_tennis.py
+purpose: Exponential performance decay from intraday match load. f(n)=exp(-0.12*max(0,n-2)). n=3→0.887, n=4→0.787, n=5→0.698.
+inputs: matches_played: int
+outputs: float (0,1]
+calls: math.exp
+called_by: _fatigue_adjustment
+mutates: none
+---
+
+---
+name: _fatigue_adjustment
+type: function
+file: analyze_table_tennis.py
+purpose: Converts per-player exponential decay to a centred probability nudge. Returns prob nudge for prob_a (positive = A is fresher). Replaces old linear 3pp/match rule.
+inputs: matches_today_a: int, matches_today_b: int
+outputs: float in [-0.5, 0.5]
+calls: _fatigue_decay
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: _line_movement_edge
+type: function
+file: analyze_table_tennis.py
+purpose: Sharp money signal from line movement. Threshold 5pp for club circuits (Setka/TT Cup/ukr_dl/czk_dl), 10pp for ITTF/WTT. Returns nudge to prob_a capped at ±8pp.
+inputs: open_a/b: float?, curr_a/b: float?, circuit: str = "ittf"
+outputs: float nudge
+calls: none
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
 name: analyze_table_tennis
 type: function
 file: app.py
@@ -3255,6 +3411,130 @@ called_by: fetch_table_tennis_context (fetchers/table_tennis.py)
 mutates: none
 ---
 
+---
+name: setka_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Count how many matches a player has completed today on Setka Cup. Used for intraday fatigue calculation.
+inputs: player_id: str, match_date: str? (ISO "YYYY-MM-DD")
+outputs: int (0–8)
+calls: _get
+called_by: get_matches_today
+mutates: none
+---
+
+---
+name: ttcup_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Count how many matches a TT Cup player has completed today.
+inputs: player_id: str, match_date: str?
+outputs: int (0–8)
+calls: _get
+called_by: get_matches_today
+mutates: none
+---
+
+---
+name: get_matches_today
+type: function
+file: fetchers/setka.py
+purpose: Look up a club TT player's intraday match count. Tries Setka Cup then TT Cup. Called automatically by run_table_tennis_analysis when matches_today=0 and circuit is club.
+inputs: name: str, match_date: str?
+outputs: int
+calls: setka_search_player, setka_matches_today, ttcup_search_player, ttcup_matches_today
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
+name: lookup_player_profile
+type: function
+file: fetchers/setka.py
+purpose: Return style/grip/hand for a circuit player from data/tt_player_profiles.json. Exact match first, then token-overlap fuzzy (≥2 tokens). Called when context returns default "all-round" style.
+inputs: name: str
+outputs: dict {style, grip, hand} or {}
+calls: _load_profiles (lazy-loaded JSON cache)
+called_by: run_table_tennis_analysis (step 2b)
+mutates: none
+---
+
+---
+name: tt_player_profiles.json
+type: variable
+file: data/tt_player_profiles.json
+purpose: Static style/grip/hand profile dictionary for ~100 Setka Cup and TT Cup circuit regulars. Keyed by full player name. Activates style and handedness signals for players invisible to ITTF/WTT/TSDB.
+inputs: none
+outputs: JSON dict
+calls: none
+called_by: lookup_player_profile
+mutates: none (static file — update when new regulars join the circuit)
+---
+
+---
+
+## fetchers/results_collector.py
+
+---
+name: fetch_match_result
+type: function
+file: fetchers/results_collector.py
+purpose: Unified entry point — try Setka Cup then TT Cup to fetch the actual result of a completed match. Returns {result, score_a, score_b, source} or None.
+inputs: player_a, player_b: str, match_date: str (ISO), sport: str, tour: str
+outputs: Optional[dict]
+calls: setka_fetch_result, ttcup_fetch_result
+called_by: run_auto_resolve
+mutates: none
+---
+
+---
+name: setka_fetch_result
+type: function
+file: fetchers/results_collector.py
+purpose: Fetch a Setka Cup match result via H2H page then player profile fallback. Parses score, determines winner, handles name-position ambiguity.
+inputs: player_a, player_b: str, match_date: str, tolerance_days: int = 1
+outputs: Optional[dict {result, score_a, score_b, source, raw}]
+calls: setka_search_player, setka_h2h, setka_player_profile
+called_by: fetch_match_result
+mutates: none
+---
+
+---
+name: ttcup_fetch_result
+type: function
+file: fetchers/results_collector.py
+purpose: Fetch a TT Cup match result via H2H page then player profile fallback.
+inputs: player_a, player_b: str, match_date: str, tolerance_days: int = 1
+outputs: Optional[dict]
+calls: ttcup_search_player, _get
+called_by: fetch_match_result
+mutates: none
+---
+
+## tasks/auto_resolve.py
+
+---
+name: run_auto_resolve
+type: function
+file: tasks/auto_resolve.py
+purpose: Scan DB for unresolved predictions past scheduled_at. Fetch actual results from Setka/TT Cup and record outcomes automatically. Returns summary with per-match status. dry_run=True fetches but doesn't write.
+inputs: dry_run: bool = False
+outputs: dict {attempted, resolved, failed, skipped, details}
+calls: _pending_matches, fetch_match_result, record_outcome
+called_by: resolve_pending (app.py), startup thread, CLI
+mutates: outcomes table
+---
+
+---
+name: _signal_accuracy_summary
+type: function
+file: tasks/auto_resolve.py
+purpose: After outcomes accumulate, compute per-signal accuracy lift. Shows which signals (AQI, RQI, form, fatigue...) actually correlate with correct predictions. Guides blend weight tuning.
+inputs: none
+outputs: dict {signal_name: {n, accuracy_high, accuracy_low, lift}} sorted by |lift|
+calls: get_db
+called_by: signal_accuracy (app.py)
+mutates: none
 ---
 
 ## fetchers/ittf.py

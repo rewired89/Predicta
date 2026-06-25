@@ -29,6 +29,16 @@ app = FastAPI(title="Predicta", description="Multi-sport prediction & calibratio
 @app.on_event("startup")
 def startup():
     init_db()
+    # Kick off a background auto-resolve pass on startup so any results
+    # that came in while the server was down get picked up immediately.
+    import threading
+    def _bg_resolve():
+        try:
+            from tasks.auto_resolve import run_auto_resolve
+            run_auto_resolve()
+        except Exception:
+            pass
+    threading.Thread(target=_bg_resolve, daemon=True).start()
 
 
 # ── Match endpoints ─────────────────────────────────────────────────────────
@@ -171,6 +181,13 @@ class OutcomeCreate(BaseModel):
     surface: str = "all"
 
 
+class BatchOutcome(BaseModel):
+    match_id: int
+    result: str
+    score_a: Optional[int] = None
+    score_b: Optional[int] = None
+
+
 @app.post("/matches/{match_id}/outcome", status_code=201)
 def add_outcome(match_id: int, body: OutcomeCreate):
     result = record_outcome(
@@ -182,11 +199,87 @@ def add_outcome(match_id: int, body: OutcomeCreate):
     return result
 
 
-# ── Calibration ───────────────────────────────────────────────────────────────
+@app.post("/outcomes/batch", status_code=201)
+def add_outcomes_batch(outcomes: list[BatchOutcome]):
+    """
+    Record multiple match outcomes at once.
+    Body: [{match_id, result, score_a?, score_b?}, ...]
+    result must be 'a', 'b', or 'draw'.
+    """
+    results = []
+    for item in outcomes:
+        r = record_outcome(item.match_id, item.result, item.score_a, item.score_b)
+        results.append({"match_id": item.match_id, "status": "ok" if "error" not in r else "error",
+                        **r})
+    return results
+
+
+@app.get("/pending-outcomes")
+def pending_outcomes():
+    """
+    List matches that have a prediction but no recorded outcome yet.
+    Useful for quickly knowing which results to enter.
+    """
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT m.id, m.sport, m.participant_a, m.participant_b,
+                   m.scheduled_at, p.prob_a, p.prob_b, p.method,
+                   s_rec.signal_text  AS recommendation,
+                   s_conf.signal_text AS data_confidence
+            FROM matches m
+            JOIN predictions p    ON p.match_id = m.id
+            LEFT JOIN outcomes o  ON o.match_id = m.id
+            LEFT JOIN signals s_rec  ON (s_rec.match_id = m.id AND s_rec.signal_name  = 'recommendation')
+            LEFT JOIN signals s_conf ON (s_conf.match_id = m.id AND s_conf.signal_name = 'data_confidence')
+            WHERE o.match_id IS NULL
+            ORDER BY m.scheduled_at DESC
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/resolve-pending")
+def resolve_pending(dry_run: bool = False):
+    """
+    Trigger auto-resolve: scan all predictions past their scheduled time,
+    fetch actual results from Setka Cup / TT Cup, and record outcomes.
+
+    dry_run=true: fetch results but don't write to DB (preview mode).
+    Returns a summary with per-match status and source.
+    """
+    from tasks.auto_resolve import run_auto_resolve
+    return run_auto_resolve(dry_run=dry_run)
+
+
+@app.get("/signal-accuracy")
+def signal_accuracy():
+    """
+    Show which signals have the highest lift (accuracy when signal is high vs low).
+    Useful for identifying which model inputs are actually predictive and
+    should have higher blend weights.
+    Requires at least 5 resolved predictions per signal.
+    """
+    from tasks.auto_resolve import _signal_accuracy_summary
+    result = _signal_accuracy_summary()
+    if not result:
+        return {"message": "Not enough resolved predictions yet. Needs at least 5 per signal."}
+    return result
+
+
+# ── Accuracy & Calibration ────────────────────────────────────────────────────
+
+@app.get("/accuracy")
+def accuracy(sport: Optional[str] = None, method: Optional[str] = None):
+    """
+    Full accuracy report: win % prediction accuracy, bet accuracy, ROI,
+    Brier score, log-loss, calibration curve, benchmarks.
+    Break down by sport, confidence level, and method.
+    """
+    return compute_metrics_from_db(method=method, sport=sport)
+
 
 @app.get("/calibration")
 def calibration(method: Optional[str] = None):
-    return compute_metrics_from_db(method)
+    return compute_metrics_from_db(method=method)
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
