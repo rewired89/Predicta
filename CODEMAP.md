@@ -2541,13 +2541,37 @@ mutates: none
 ---
 
 ---
+name: _get_team_pitching
+type: function
+file: fetchers/baseball.py
+purpose: Fetches team-level pitching stats (ERA, WHIP, K/9) from ESPN /teams/{id}/statistics pitching section; used to derive bullpen FIP.
+inputs: team_id: str
+outputs: dict {era, whip, k9}
+calls: _espn_get, _stat, _f
+called_by: fetch_baseball_context
+mutates: none
+---
+
+---
+name: _get_pitcher_handedness
+type: function
+file: fetchers/baseball.py
+purpose: Fetches pitcher throwing hand ("R" or "L") from ESPN /athletes/{id} profile; returns "R" on any failure.
+inputs: athlete_id: str
+outputs: str ("R" or "L")
+calls: _espn_get
+called_by: _build_starter
+mutates: none
+---
+
+---
 name: _build_starter
 type: function
 file: fetchers/baseball.py
-purpose: Builds a complete starter profile dict from a probable-pitcher stub; fetches detailed stats via _get_pitcher_stats; returns league-average defaults if pitcher is TBD or unknown.
+purpose: Builds a complete starter profile dict from a probable-pitcher stub; fetches detailed stats via _get_pitcher_stats and throwing hand via _get_pitcher_handedness; returns league-average defaults if pitcher is TBD or unknown.
 inputs: probable: Optional[dict]
-outputs: dict {name, fip, era, whip, k9, bb9, innings_pitched, games_started, recent_games}
-calls: _get_pitcher_stats
+outputs: dict {name, fip, era, whip, k9, bb9, innings_pitched, games_started, recent_games, throws}
+calls: _get_pitcher_stats, _get_pitcher_handedness
 called_by: fetch_baseball_context
 mutates: none
 ---
@@ -2556,10 +2580,10 @@ mutates: none
 name: fetch_baseball_context
 type: function
 file: fetchers/baseball.py
-purpose: Main entry point — resolves team names, fetches records, scoreboard game, probable starters (with FIP), team hitting stats, and park factor from ESPN. Falls back gracefully if game not found.
+purpose: Main entry point — resolves team names, fetches records, scoreboard game, probable starters (with FIP and handedness), team hitting stats, team pitching stats, and park factor from ESPN. Falls back gracefully if game not found.
 inputs: team_a: str, team_b: str, game_date: Optional[str]
-outputs: dict {team_a, team_b, game, sources} or {error, sources}
-calls: _all_teams, _match_team, _get_all_records, _get_scoreboard, _find_game, _extract_probable, _build_starter, _get_team_hitting
+outputs: dict {team_a, team_b, game, sources} or {error, sources}; team_a/b include hitting and team_pitching sub-dicts
+calls: _all_teams, _match_team, _get_all_records, _get_scoreboard, _find_game, _extract_probable, _build_starter, _get_team_hitting, _get_team_pitching
 called_by: run_baseball_analysis
 mutates: none
 ---
@@ -2572,11 +2596,11 @@ mutates: none
 name: LEAGUE_AVG_RUNS
 type: variable
 file: models/baseball_market.py
-purpose: 2024 MLB baseline runs per team per game (4.5) used in expected_runs formula.
+purpose: 2024 MLB baseline runs per team per game (4.5) used in split expected_runs formula.
 inputs: none
 outputs: float
 calls: none
-called_by: expected_runs
+called_by: expected_runs_split
 mutates: none
 ---
 
@@ -2584,11 +2608,71 @@ mutates: none
 name: LEAGUE_AVG_FIP
 type: variable
 file: models/baseball_market.py
-purpose: 2024 MLB baseline FIP (4.00) — denominator in pitcher quality factor.
+purpose: 2024 MLB baseline starter FIP (4.00) — denominator in pitcher quality factor.
 inputs: none
 outputs: float
 calls: none
-called_by: expected_runs
+called_by: expected_runs_split
+mutates: none
+---
+
+---
+name: LEAGUE_BULLPEN_FIP
+type: variable
+file: models/baseball_market.py
+purpose: 2024 MLB baseline bullpen FIP (4.40) — default when bullpen ERA cannot be derived from team stats.
+inputs: none
+outputs: float
+calls: none
+called_by: expected_runs, expected_runs_split
+mutates: none
+---
+
+---
+name: STARTER_FRAC / BULLPEN_FRAC
+type: variable
+file: models/baseball_market.py
+purpose: Fractions of a 9-inning game pitched by starters (5/9 ≈ 0.556) and bullpen (4/9 ≈ 0.444). Used to split mu into F5 and L4 windows.
+inputs: none
+outputs: float
+calls: none
+called_by: expected_runs_split
+mutates: none
+---
+
+---
+name: PLATOON_VS_LHP / PLATOON_VS_RHP
+type: variable
+file: models/baseball_market.py
+purpose: wRC+ multipliers for handedness matchup — RHB-heavy lineup gets +5% vs LHP starter (1.05); neutral vs RHP (1.00).
+inputs: none
+outputs: float
+calls: none
+called_by: platoon_wrc_adjust
+mutates: none
+---
+
+---
+name: platoon_wrc_adjust
+type: function
+file: models/baseball_market.py
+purpose: Scales a team's wRC+ based on the opposing starter's throwing hand. +5% for typical RHB-heavy lineup vs LHP.
+inputs: wrc_plus: float, pitcher_throws: str ("R" or "L")
+outputs: float (adjusted wRC+)
+calls: none
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
+name: expected_runs_split
+type: function
+file: models/baseball_market.py
+purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP) separately. Replaces single-FIP expected_runs as primary model function.
+inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False
+outputs: tuple[float, float] — (mu_f5 clamped 0.5-6.0, mu_l4 clamped 0.4-5.0)
+calls: none
+called_by: run_baseball_analysis
 mutates: none
 ---
 
@@ -2596,11 +2680,11 @@ mutates: none
 name: expected_runs
 type: function
 file: models/baseball_market.py
-purpose: Computes expected runs for one team: LEAGUE_AVG × (wRC+/100) × (opp_FIP/LEAGUE_FIP) × park_factor × home_boost.
-inputs: wrc_plus: float, opp_starter_fip: float, park_factor: float = 1.0, is_home: bool = False
+purpose: Total expected runs: delegates to expected_runs_split and sums F5+L4. Accepts optional opp_bullpen_fip; defaults to LEAGUE_BULLPEN_FIP.
+inputs: wrc_plus: float, opp_starter_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_bullpen_fip: Optional[float] = None
 outputs: float (clamped 1.5–10.0)
-calls: none
-called_by: run_baseball_analysis
+calls: expected_runs_split
+called_by: none (kept for backward compatibility)
 mutates: none
 ---
 
@@ -2656,9 +2740,21 @@ mutates: none
 name: first_five_market
 type: function
 file: models/baseball_market.py
-purpose: First 5 innings market — scales mu by 55% (starter share of runs), builds sub-matrix, returns home/away win probabilities.
-inputs: mu_home: float, mu_away: float, fraction: float = 0.55
-outputs: dict {mu_home_5, mu_away_5, p_home_win, p_away_win, note}
+purpose: First 5 innings market — takes pre-computed F5 expected run values (mu_home_f5, mu_away_f5) and returns home/away win probabilities for innings 1-5 only.
+inputs: mu_home_f5: float, mu_away_f5: float
+outputs: dict {mu_home_f5, mu_away_f5, p_home_win, p_away_win, note}
+calls: poisson.pmf, np.outer, np.arange, moneyline_market
+called_by: compute_baseball_markets
+mutates: none
+---
+
+---
+name: last_four_market
+type: function
+file: models/baseball_market.py
+purpose: Innings 6-9 market — takes pre-computed L4 expected run values (mu_home_l4, mu_away_l4) and returns home/away win probabilities for the bullpen window.
+inputs: mu_home_l4: float, mu_away_l4: float
+outputs: dict {mu_home_l4, mu_away_l4, p_home_win, p_away_win, note}
 calls: poisson.pmf, np.outer, np.arange, moneyline_market
 called_by: compute_baseball_markets
 mutates: none
@@ -2692,10 +2788,10 @@ mutates: none
 name: compute_baseball_markets
 type: function
 file: models/baseball_market.py
-purpose: Orchestrates all baseball market calculators from expected run values and returns unified market dict.
-inputs: mu_home: float, mu_away: float, run_line: float = 1.5, total_lines: list[float] | None
-outputs: dict {mu_home, mu_away, moneyline, run_line, totals, first_five, nrfi, team_total_home, team_total_away}
-calls: build_run_matrix, moneyline_market, run_line_market, total_market, first_five_market, nrfi_market, team_total_market
+purpose: Orchestrates all baseball market calculators from split F5/L4 expected run values and returns unified market dict.
+inputs: mu_home: float, mu_away: float, mu_home_f5: float, mu_away_f5: float, mu_home_l4: float, mu_away_l4: float, run_line: float = 1.5, total_lines: list[float] | None
+outputs: dict {mu_home, mu_away, moneyline, run_line, totals, first_five, last_four, nrfi, team_total_home, team_total_away}
+calls: build_run_matrix, moneyline_market, run_line_market, total_market, first_five_market, last_four_market, nrfi_market, team_total_market
 called_by: run_baseball_analysis
 mutates: none
 ---
@@ -2781,12 +2877,24 @@ mutates: none
 ---
 
 ---
+name: _derive_bullpen_fip
+type: function
+file: analyze_baseball.py
+purpose: Derives a team's bullpen FIP from team ERA and starter FIP using the innings formula (team_ERA×9 - starter_FIP×5) / 4; clamped to [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP as fallback.
+inputs: team_era: float, starter_fip: float
+outputs: float
+calls: none
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
 name: _format_baseball_markets
 type: function
 file: analyze_baseball.py
-purpose: Transforms raw baseball market probability dicts into frontend-ready format with percentages, labels, and best-option flags.
+purpose: Transforms raw baseball market probability dicts into frontend-ready format with percentages, labels, and best-option flags. Includes first_five, last_four, nrfi, and team_totals sections.
 inputs: markets: dict, team_home: str, team_away: str
-outputs: dict {moneyline, run_line, totals, first_five, nrfi, team_totals}
+outputs: dict {moneyline, run_line, totals, first_five, last_four, nrfi, team_totals}
 calls: none
 called_by: run_baseball_analysis
 mutates: none
@@ -2796,10 +2904,10 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball pipeline: parse query → fetch ESPN MLB API → Poisson run model → Elo blend → compute markets → persist to DB → Kelly sizing → AI narrative → return result dict.
+purpose: Full baseball_v2 pipeline: parse query → fetch ESPN MLB API → derive bullpen FIP → apply platoon wRC+ adjustment → split Poisson F5/L4 model → Elo blend → compute markets (incl. first_five, last_four) → persist to DB → Kelly sizing → AI narrative → return result dict.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, starters, team_stats, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, expected_runs, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
+outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, markets, narrative, raw_sources, steps, …}
+calls: parse_baseball_query, fetch_baseball_context, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
 called_by: analyze_baseball (app.py)
 mutates: matches, signals, predictions tables
 ---

@@ -4,6 +4,7 @@ query → ITTF/WTT/TSDB → AQI/RQI + style + handedness + fatigue + line moveme
       → Markov Chain match simulation → Glicko-2 blend → narrative → result dict
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import math
 import traceback
 from datetime import datetime, timezone

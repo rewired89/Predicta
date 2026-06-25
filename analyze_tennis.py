@@ -7,6 +7,7 @@ with a proper nested Markov simulation. SQI, RQI, surface win rate, and form all
 directly into P_serve and P_return as model inputs rather than as external blending fractions.
 """
 from __future__ import annotations
+import env_loader  # noqa: F401 — loads .env on import
 import math
 import traceback
 from functools import lru_cache

@@ -1,10 +1,12 @@
 """
-Baseball market calculations using a Poisson run model.
+Baseball market calculations using a split Poisson run model.
 
-Expected runs formula:
-  mu = LEAGUE_AVG_RUNS × (wRC+/100) × (opp_FIP / LEAGUE_AVG_FIP) × park_factor × home_boost
+Full-game expected runs = F5 (innings 1-5, starter) + L4 (innings 6-9, bullpen):
+  mu_f5 = LEAGUE_AVG × STARTER_FRAC × (wRC+/100) × (starter_FIP/LEAGUE_FIP) × park × home
+  mu_l4 = LEAGUE_AVG × BULLPEN_FRAC × (wRC+/100) × (bullpen_FIP/LEAGUE_FIP) × park × home
+  mu_total = mu_f5 + mu_l4
 
-Lower opp FIP → smaller mu (better pitcher suppresses runs).
+Platoon adjustment: RHB-heavy lineups gain ~5% wRC+ vs LHP starters.
 """
 from __future__ import annotations
 import math
@@ -13,10 +15,49 @@ from typing import Optional
 import numpy as np
 from scipy.stats import poisson
 
-LEAGUE_AVG_RUNS    = 4.5    # 2024 MLB average runs per team per game
-LEAGUE_AVG_FIP     = 4.00   # 2024 MLB average FIP
+LEAGUE_AVG_RUNS     = 4.5    # 2024 MLB average runs per team per game
+LEAGUE_AVG_FIP      = 4.00   # 2024 MLB average FIP (starters)
+LEAGUE_BULLPEN_FIP  = 4.40   # MLB bullpens average slightly worse than starters
 LEAGUE_AVG_WRC_PLUS = 100.0
-MAX_RUNS           = 20     # matrix dimension cap
+MAX_RUNS            = 20     # matrix dimension cap
+
+STARTER_FRAC = 5 / 9   # starters pitch ~5 of 9 innings
+BULLPEN_FRAC = 4 / 9   # bullpen covers remaining ~4 innings
+
+# Platoon: league lineup is ~65% RHB → slight boost when facing a LHP starter
+PLATOON_VS_LHP = 1.05
+PLATOON_VS_RHP = 1.00
+
+
+def platoon_wrc_adjust(wrc_plus: float, pitcher_throws: str) -> float:
+    """Scale a team's wRC+ for L/R handedness matchup against the opposing starter."""
+    if pitcher_throws == "L":
+        return wrc_plus * PLATOON_VS_LHP
+    return wrc_plus * PLATOON_VS_RHP
+
+
+def expected_runs_split(
+    wrc_plus: float,
+    opp_starter_fip: float,
+    opp_bullpen_fip: float,
+    park_factor: float = 1.0,
+    is_home: bool = False,
+) -> tuple[float, float]:
+    """
+    Returns (mu_f5, mu_l4): expected runs for innings 1-5 and 6-9.
+    F5 uses the opposing starter's FIP; L4 uses the bullpen FIP.
+    """
+    off   = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
+    home  = 1.03 if is_home else 1.0
+    base  = LEAGUE_AVG_RUNS * off * park_factor * home
+
+    starter_fip = min(max(opp_starter_fip  or LEAGUE_AVG_FIP,    1.5), 7.5)
+    bullpen_fip = min(max(opp_bullpen_fip  or LEAGUE_BULLPEN_FIP, 1.5), 7.5)
+
+    mu_f5 = base * STARTER_FRAC * (starter_fip / LEAGUE_AVG_FIP)
+    mu_l4 = base * BULLPEN_FRAC * (bullpen_fip / LEAGUE_AVG_FIP)
+
+    return max(0.5, min(mu_f5, 6.0)), max(0.4, min(mu_l4, 5.0))
 
 
 def expected_runs(
@@ -24,18 +65,12 @@ def expected_runs(
     opp_starter_fip: float,
     park_factor: float = 1.0,
     is_home: bool = False,
+    opp_bullpen_fip: Optional[float] = None,
 ) -> float:
-    """
-    Returns expected runs scored for one team in a given game.
-    wrc_plus   — batting team's season wRC+ (100 = league avg)
-    opp_starter_fip — opposing starter's FIP (lower = better pitcher = fewer runs)
-    """
-    off_factor  = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
-    fip_clamped = min(max(opp_starter_fip or LEAGUE_AVG_FIP, 1.5), 7.5)
-    pitch_factor = fip_clamped / LEAGUE_AVG_FIP   # <1.0 for elite pitchers
-    home_boost  = 1.03 if is_home else 1.0
-    mu = LEAGUE_AVG_RUNS * off_factor * pitch_factor * park_factor * home_boost
-    return max(1.5, min(mu, 10.0))
+    """Total expected runs combining F5 (starter) and L4 (bullpen) windows."""
+    bp = opp_bullpen_fip if opp_bullpen_fip is not None else LEAGUE_BULLPEN_FIP
+    mu_f5, mu_l4 = expected_runs_split(wrc_plus, opp_starter_fip, bp, park_factor, is_home)
+    return max(1.5, min(mu_f5 + mu_l4, 10.0))
 
 
 def build_run_matrix(mu_home: float, mu_away: float) -> np.ndarray:
@@ -112,24 +147,38 @@ def total_market(matrix: np.ndarray, lines: list[float] | None = None) -> list[d
     return results
 
 
-def first_five_market(mu_home: float, mu_away: float, fraction: float = 0.55) -> dict:
+def first_five_market(mu_home_f5: float, mu_away_f5: float) -> dict:
     """
-    First 5 innings market — starters pitch ~5 IP, roughly 55% of total runs occur by then.
-    Uses a reduced Poisson model (no bullpen blowups possible in this window).
+    First 5 innings market using the starter-only expected run window.
+    mu values are already scaled to ~5 innings via expected_runs_split.
     """
-    mu_h5 = mu_home * fraction
-    mu_a5 = mu_away * fraction
     n = 13  # cap matrix at 12 runs per team for first 5
-    h = poisson.pmf(np.arange(n), mu_h5)
-    a = poisson.pmf(np.arange(n), mu_a5)
+    h = poisson.pmf(np.arange(n), mu_home_f5)
+    a = poisson.pmf(np.arange(n), mu_away_f5)
     mat5 = np.outer(h, a)
     ml = moneyline_market(mat5)
     return {
-        "mu_home_5":  round(mu_h5, 2),
-        "mu_away_5":  round(mu_a5, 2),
+        "mu_home_f5": round(mu_home_f5, 2),
+        "mu_away_f5": round(mu_away_f5, 2),
         "p_home_win": ml["p_home_win"],
         "p_away_win": ml["p_away_win"],
-        "note":       "Starter-driven — bullpen excluded",
+        "note":       "Starter-driven — no bullpen variance",
+    }
+
+
+def last_four_market(mu_home_l4: float, mu_away_l4: float) -> dict:
+    """Innings 6-9 market using the bullpen expected run window."""
+    n = 11
+    h = poisson.pmf(np.arange(n), mu_home_l4)
+    a = poisson.pmf(np.arange(n), mu_away_l4)
+    mat_l4 = np.outer(h, a)
+    ml = moneyline_market(mat_l4)
+    return {
+        "mu_home_l4": round(mu_home_l4, 2),
+        "mu_away_l4": round(mu_away_l4, 2),
+        "p_home_win": ml["p_home_win"],
+        "p_away_win": ml["p_away_win"],
+        "note":       "Bullpen-driven — innings 6–9",
     }
 
 
@@ -173,10 +222,14 @@ def team_total_market(mu: float, lines: list[float] | None = None) -> list[dict]
 def compute_baseball_markets(
     mu_home: float,
     mu_away: float,
+    mu_home_f5: float,
+    mu_away_f5: float,
+    mu_home_l4: float,
+    mu_away_l4: float,
     run_line: float = 1.5,
     total_lines: list[float] | None = None,
 ) -> dict:
-    """Orchestrate all baseball markets from expected run values."""
+    """Orchestrate all baseball markets from split starter/bullpen expected run values."""
     matrix = build_run_matrix(mu_home, mu_away)
     return {
         "mu_home":         round(mu_home, 2),
@@ -184,7 +237,8 @@ def compute_baseball_markets(
         "moneyline":       moneyline_market(matrix),
         "run_line":        run_line_market(matrix, run_line),
         "totals":          total_market(matrix, total_lines),
-        "first_five":      first_five_market(mu_home, mu_away),
+        "first_five":      first_five_market(mu_home_f5, mu_away_f5),
+        "last_four":       last_four_market(mu_home_l4, mu_away_l4),
         "nrfi":            nrfi_market(mu_home, mu_away),
         "team_total_home": team_total_market(mu_home),
         "team_total_away": team_total_market(mu_away),

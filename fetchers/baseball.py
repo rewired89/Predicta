@@ -310,6 +310,55 @@ def _get_pitcher_stats(athlete_id: str) -> dict:
     }
 
 
+# ── Team pitching stats (for bullpen FIP derivation) ─────────────────────────
+
+def _get_team_pitching(team_id: str) -> dict:
+    """
+    Fetch team-level pitching stats from ESPN /teams/{id}/statistics.
+    Returns ERA, WHIP, K/9 as proxies for overall pitching quality.
+    Used to derive bullpen ERA = (team_ERA × 9 - starter_FIP × 5) / 4.
+    """
+    data = _espn_get(f"/teams/{team_id}/statistics")
+    stats: list = []
+    for section in data.get("statistics", []):
+        if isinstance(section, dict):
+            name = section.get("name", "").lower()
+            if "pitch" in name:
+                stats = section.get("stats", [])
+                break
+    if not stats:
+        splits = data.get("splits", {}).get("categories", [])
+        for cat in splits:
+            if "pitch" in cat.get("name", "").lower():
+                stats = cat.get("stats", [])
+                break
+    if not stats:
+        return {"era": LEAGUE_AVG_FIP, "whip": 1.30, "k9": 8.5}
+
+    era  = _stat(stats, "ERA",  "era",  default=LEAGUE_AVG_FIP)
+    whip = _stat(stats, "WHIP", "whip", default=1.30)
+    k9   = _stat(stats, "strikeoutsPerNineInnings", "K9", "so9", default=8.5)
+    return {
+        "era":  era  if era  > 0 else LEAGUE_AVG_FIP,
+        "whip": whip if whip > 0 else 1.30,
+        "k9":   k9,
+    }
+
+
+def _get_pitcher_handedness(athlete_id: str) -> str:
+    """
+    Fetch pitcher throwing hand from ESPN athlete profile.
+    Returns 'R' or 'L'; defaults to 'R' on any failure or missing data.
+    """
+    if not athlete_id:
+        return "R"
+    data = _espn_get(f"/athletes/{athlete_id}")
+    athlete = data.get("athlete", data)
+    hand_obj = athlete.get("throws") or athlete.get("hand") or {}
+    abbr = (hand_obj.get("abbreviation") or "").strip().upper()
+    return abbr if abbr in ("L", "R") else "R"
+
+
 # ── Team batting stats ────────────────────────────────────────────────────────
 
 def _get_team_hitting(team_id: str) -> dict:
@@ -366,13 +415,14 @@ def _get_team_hitting(team_id: str) -> dict:
 # ── Starter builder ───────────────────────────────────────────────────────────
 
 def _build_starter(probable: Optional[dict]) -> dict:
-    """Build complete starter dict, fetching detailed stats if we have an athlete ID."""
+    """Build complete starter dict, fetching detailed stats and handedness if we have an athlete ID."""
     _default = {
         "name": "TBD",
         "fip":  LEAGUE_AVG_FIP,
         "era":  LEAGUE_AVG_FIP,
         "whip": 0.0, "k9": 0.0, "bb9": 0.0,
         "innings_pitched": 0, "games_started": 0, "recent_games": [],
+        "throws": "R",
     }
     if not probable:
         return _default
@@ -380,7 +430,7 @@ def _build_starter(probable: Optional[dict]) -> dict:
     result = {**_default,
               "name": probable["name"],
               "era":  probable["era"],
-              "fip":  probable["era"]}   # will improve if we get detailed stats
+              "fip":  probable["era"]}
 
     athlete_id = probable.get("id", "")
     if athlete_id:
@@ -395,6 +445,7 @@ def _build_starter(probable: Optional[dict]) -> dict:
                 "innings_pitched": detailed.get("innings_pitched", 0),
                 "games_started":   detailed.get("games_started", 0),
             })
+        result["throws"] = _get_pitcher_handedness(athlete_id)
 
     return result
 
@@ -508,16 +559,20 @@ def fetch_baseball_context(
         ),
     })
 
-    # ── Team hitting ───────────────────────────────────────────────────────
-    hitting_a = _get_team_hitting(id_a)
-    hitting_b = _get_team_hitting(id_b)
+    # ── Team hitting + pitching ────────────────────────────────────────────
+    hitting_a  = _get_team_hitting(id_a)
+    hitting_b  = _get_team_hitting(id_b)
+    pitching_a = _get_team_pitching(id_a)
+    pitching_b = _get_team_pitching(id_b)
 
     sources.append({
         "label":   "ESPN MLB API – Team Stats",
         "url":     f"{ESPN_BASE}/teams/statistics",
         "snippet": (
-            f"{name_a}: wRC+ {hitting_a.get('wrc_plus','?')}, OPS {hitting_a.get('ops','?')} | "
-            f"{name_b}: wRC+ {hitting_b.get('wrc_plus','?')}, OPS {hitting_b.get('ops','?')}"
+            f"{name_a}: wRC+ {hitting_a.get('wrc_plus','?')}, OPS {hitting_a.get('ops','?')}, "
+            f"team ERA {pitching_a.get('era','?')} | "
+            f"{name_b}: wRC+ {hitting_b.get('wrc_plus','?')}, OPS {hitting_b.get('ops','?')}, "
+            f"team ERA {pitching_b.get('era','?')}"
         ),
     })
 
@@ -529,7 +584,7 @@ def fetch_baseball_context(
             "is_home":       is_home_a,
             "record":        record_a,
             "hitting":       hitting_a,
-            "team_pitching": {},        # team-level pitching not needed for model
+            "team_pitching": pitching_a,
             "starter":       starter_a,
         },
         "team_b": {
@@ -539,7 +594,7 @@ def fetch_baseball_context(
             "is_home":       not is_home_a,
             "record":        record_b,
             "hitting":       hitting_b,
-            "team_pitching": {},
+            "team_pitching": pitching_b,
             "starter":       starter_b,
         },
         "game": {
