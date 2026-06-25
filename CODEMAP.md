@@ -3286,8 +3286,8 @@ mutates: none
 name: _derive_bullpen_fip
 type: function
 file: analyze_baseball.py
-purpose: Derives team bullpen FIP from team ERA and starter FIP. When starter_avg_ip is known: bullpen_FIP = (team_ERA×9 - starter_FIP×avg_ip) / (9 - avg_ip). Fallback (avg_ip unknown): (team_ERA×9 - starter_FIP×5) / 4. Clamped [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP when team_era missing.
-inputs: team_era: float, starter_fip: float, starter_avg_ip: Optional[float] = None
+purpose: Derives team bullpen ERA proxy from team ERA and starter stats. Uses starter_ERA (not FIP) for ERA decomposition to keep both sides in consistent units: bullpen_ERA = (team_ERA×9 - starter_ERA×avg_ip) / (9 - avg_ip). Falls back to starter_FIP when starter_ERA unavailable. Fallback when avg_ip unknown: (team_ERA×9 - starter_rate×5) / 4. Clamped [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP when team_era missing.
+inputs: team_era: float, starter_fip: float, starter_avg_ip: Optional[float] = None, starter_era: Optional[float] = None
 outputs: float
 calls: none
 called_by: run_baseball_analysis

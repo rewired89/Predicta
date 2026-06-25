@@ -27,25 +27,34 @@ def _elo_from_winpct(win_pct: float) -> float:
     return 1500.0 - 400.0 * math.log10((1 - wp) / wp)
 
 
-def _derive_bullpen_fip(team_era: float, starter_fip: float, starter_avg_ip: Optional[float] = None) -> float:
+def _derive_bullpen_fip(team_era: float, starter_fip: float,
+                         starter_avg_ip: Optional[float] = None,
+                         starter_era: Optional[float] = None) -> float:
     """
-    Estimate bullpen FIP from team ERA and starter FIP.
+    Estimate bullpen quality from team ERA and starter stats.
 
-    When starter_avg_ip is known:
-      bullpen_FIP = (team_ERA × 9 - starter_FIP × avg_ip) / (9 - avg_ip)
-    Fallback (avg_ip unknown or near-complete-game):
-      bullpen_FIP = (team_ERA × 9 - starter_FIP × 5) / 4  (classic 5/4 split)
+    ERA decomposition (consistent units throughout):
+      bullpen_ERA = (team_ERA × 9 - starter_ERA × avg_ip) / (9 - avg_ip)
+
+    starter_ERA is used instead of starter_FIP because team_ERA measures actual
+    runs allowed (including defense), and decomposition requires both sides to
+    be in ERA units. starter_FIP is defense-independent and mixes unit systems.
+    Falls back to starter_FIP when starter_ERA is unavailable.
+
+    Fallback when avg_ip unknown:
+      (team_ERA × 9 - starter_rate × 5) / 4  (classic 5/4 split)
 
     Clamped to [3.0, 7.5]; returns LEAGUE_BULLPEN_FIP when team_era is missing.
     """
     if not team_era or team_era <= 0:
         return LEAGUE_BULLPEN_FIP
-    # Use actual avg IP when available and starter doesn't go near complete games
+    # Use ERA for decomposition (consistent units); fall back to FIP if ERA unavailable
+    decomp_rate = starter_era if (starter_era and starter_era > 0) else starter_fip
     if starter_avg_ip and 0 < starter_avg_ip < 8.5:
         bullpen_innings = 9.0 - starter_avg_ip
-        derived = (team_era * 9.0 - starter_fip * starter_avg_ip) / bullpen_innings
+        derived = (team_era * 9.0 - decomp_rate * starter_avg_ip) / bullpen_innings
     else:
-        derived = (team_era * 9.0 - starter_fip * 5.0) / 4.0
+        derived = (team_era * 9.0 - decomp_rate * 5.0) / 4.0
     return max(3.0, min(derived, 7.5))
 
 
@@ -281,8 +290,10 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
 
     team_pit_a    = context["team_a"].get("team_pitching", {})
     team_pit_b    = context["team_b"].get("team_pitching", {})
-    bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a, avg_ip_a)
-    bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b, avg_ip_b)
+    era_a = starter_a.get("era") or None   # None → falls back to FIP in decomposition
+    era_b = starter_b.get("era") or None
+    bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a, avg_ip_a, era_a)
+    bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b, avg_ip_b, era_b)
 
     throws_a = starter_a.get("throws", "R")
     throws_b = starter_b.get("throws", "R")
