@@ -191,3 +191,83 @@ def calibration_summary() -> dict:
         "avg_pnl_r":                  report.get("avg_pnl_r"),
         "note":                       report.get("note"),
     }
+
+
+def pairs_calibration_summary(min_trades: int = 3) -> dict:
+    """
+    Per-pair realized edge from closed pair_signals rows.
+
+    Queries pair_signals WHERE exit_time IS NOT NULL and computes:
+      win_rate    — trades with pnl_pct > 0
+      avg_pnl_pct — mean P&L percentage across closed trades
+      avg_hold_h  — mean hold time in hours (created_at → exit_time)
+      flag        — "UNDERPERFORMING" if win_rate < 0.50 or avg_pnl_pct < 0
+
+    Returns a per-pair breakdown sorted by avg_pnl_pct descending.
+    """
+    from datetime import datetime as _dt
+
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT sym1, sym2, action, zscore, pnl_pct, created_at, exit_time
+                FROM pair_signals
+                WHERE exit_time IS NOT NULL
+                ORDER BY created_at DESC
+                """
+            ).fetchall()
+    except Exception:
+        return {"total_closed": 0, "pairs": [], "note": "No closed pair trades yet"}
+
+    rows = [dict(r) for r in rows]
+    if not rows:
+        return {"total_closed": 0, "pairs": [], "note": "No closed pair trades yet"}
+
+    # Group by (sym1, sym2)
+    groups: dict[tuple, list] = {}
+    for r in rows:
+        key = (r["sym1"], r["sym2"])
+        groups.setdefault(key, []).append(r)
+
+    pair_stats = []
+    for (sym1, sym2), trades in groups.items():
+        n = len(trades)
+        pnl_vals = [t["pnl_pct"] for t in trades if t.get("pnl_pct") is not None]
+        wins = sum(1 for p in pnl_vals if p > 0)
+        win_rate = round(wins / len(pnl_vals), 3) if pnl_vals else None
+        avg_pnl  = round(sum(pnl_vals) / len(pnl_vals), 3) if pnl_vals else None
+
+        # Average hold time
+        hold_hours = []
+        for t in trades:
+            try:
+                t0 = _dt.fromisoformat(t["created_at"].replace("Z", "+00:00"))
+                t1 = _dt.fromisoformat(t["exit_time"].replace("Z", "+00:00"))
+                hold_hours.append((t1 - t0).total_seconds() / 3600)
+            except Exception:
+                pass
+        avg_hold_h = round(sum(hold_hours) / len(hold_hours), 1) if hold_hours else None
+
+        flag = None
+        if win_rate is not None and n >= min_trades:
+            if win_rate < 0.50 or (avg_pnl is not None and avg_pnl < 0):
+                flag = "UNDERPERFORMING"
+
+        pair_stats.append({
+            "pair":       f"{sym1}/{sym2}",
+            "n":          n,
+            "win_rate":   win_rate,
+            "avg_pnl_pct": avg_pnl,
+            "avg_hold_h": avg_hold_h,
+            "flag":       flag,
+            "note":       f"Need {min_trades} trades" if n < min_trades else None,
+        })
+
+    pair_stats.sort(key=lambda x: (x.get("avg_pnl_pct") or -999), reverse=True)
+
+    return {
+        "total_closed": len(rows),
+        "pairs":        pair_stats,
+    }

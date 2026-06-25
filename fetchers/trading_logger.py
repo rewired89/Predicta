@@ -15,6 +15,29 @@ from typing import Optional
 from db.database import get_db
 
 
+def _extract_signal_scores(signals: dict) -> dict:
+    """
+    Pull per-signal scores + ngram out of a compute_intraday_signals() result.
+    Returns a flat dict of column values, all defaulting to None if missing.
+    """
+    s = (signals.get("signals") or {})
+    score = (signals.get("score") or {})
+    ngram = (s.get("ngram") or {})
+    return {
+        "composite_raw":    score.get("composite_raw"),
+        "vwap_score":       (s.get("vwap") or {}).get("score"),
+        "or_score":         (s.get("or") or {}).get("score"),
+        "rsi_score":        (s.get("rsi") or {}).get("score"),
+        "relvol_score":     (s.get("relvol") or {}).get("score"),
+        "gap_score":        (s.get("gap") or {}).get("score"),
+        "trend_score":      (s.get("trend") or {}).get("score"),
+        "bollinger_score":  (s.get("bollinger") or {}).get("score"),
+        "volsurge_score":   (s.get("volsurge") or {}).get("score"),
+        "ngram_signal":     ngram.get("signal", "NONE"),
+        "ngram_confidence": ngram.get("confidence"),
+    }
+
+
 def log_trade_entry(
     symbol: str,
     side: str,
@@ -30,14 +53,20 @@ def log_trade_entry(
     risk_dollars: float,
     alpaca_order_id: Optional[str] = None,
     entry_time: Optional[str] = None,
+    signal_scores: Optional[dict] = None,
 ) -> int:
     """
     Insert a new open trade record. exit_time and exit_price remain NULL
     until log_trade_exit is called.
+    signal_scores: optional dict from _extract_signal_scores() or a raw
+                   compute_intraday_signals() result — per-signal scores stored
+                   for calibration feedback loop.
     Returns the trade_id (row id).
     """
     if entry_time is None:
         entry_time = datetime.now(timezone.utc).isoformat()
+
+    ss = _extract_signal_scores(signal_scores) if signal_scores else {}
 
     with get_db() as conn:
         cur = conn.execute(
@@ -48,8 +77,16 @@ def log_trade_entry(
                 entry_score, time_of_day_label,
                 spread_pct_at_entry, planned_hold_bars,
                 stop_price, target_price, risk_dollars,
-                alpaca_order_id, logged_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                alpaca_order_id,
+                composite_raw, vwap_score, or_score, rsi_score,
+                relvol_score, gap_score, trend_score, bollinger_score,
+                volsurge_score, ngram_signal, ngram_confidence,
+                logged_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                datetime('now')
+            )
             """,
             (
                 symbol, entry_time, side,
@@ -58,6 +95,10 @@ def log_trade_entry(
                 spread_pct, planned_hold_bars,
                 stop_price, target_price, risk_dollars,
                 alpaca_order_id,
+                ss.get("composite_raw"), ss.get("vwap_score"), ss.get("or_score"),
+                ss.get("rsi_score"), ss.get("relvol_score"), ss.get("gap_score"),
+                ss.get("trend_score"), ss.get("bollinger_score"), ss.get("volsurge_score"),
+                ss.get("ngram_signal"), ss.get("ngram_confidence"),
             ),
         )
         return cur.lastrowid
@@ -243,6 +284,7 @@ def log_hypothetical_trade(
     liq    = signals.get("liquidity", {})
     em     = signals.get("intraday_expected_move", {})
     relvol = (signals.get("signals") or {}).get("relvol", {})
+    ss     = _extract_signal_scores(signals)
 
     with get_db() as conn:
         cur = conn.execute(
@@ -256,6 +298,9 @@ def log_hypothetical_trade(
                 spread_pct_at_entry, liquidity_label, time_of_day_label,
                 intraday_vol, relative_volume,
                 model_version, is_hypothetical, notes,
+                composite_raw, vwap_score, or_score, rsi_score,
+                relvol_score, gap_score, trend_score, bollinger_score,
+                volsurge_score, ngram_signal, ngram_confidence,
                 logged_at
             ) VALUES (
                 ?, ?, ?, ?,
@@ -266,12 +311,15 @@ def log_hypothetical_trade(
                 ?, ?, ?,
                 ?, ?,
                 ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?,
                 datetime('now')
             )
             """,
             (
                 symbol, side, entry_time, hold_bars,
-                levels.get("entry"), levels.get("entry"),       # entry_price = theoretical_entry for signal-only
+                levels.get("entry"), levels.get("entry"),
                 levels.get("stop"), levels.get("target1"), levels.get("target2"),
                 levels.get("shares"), levels.get("position_value"),
                 levels.get("risk_dollars"), score_value,
@@ -281,6 +329,10 @@ def log_hypothetical_trade(
                 relvol.get("rel_vol"),
                 model_version, 1,
                 "HYPOTHETICAL: no order placed",
+                ss.get("composite_raw"), ss.get("vwap_score"), ss.get("or_score"),
+                ss.get("rsi_score"), ss.get("relvol_score"), ss.get("gap_score"),
+                ss.get("trend_score"), ss.get("bollinger_score"), ss.get("volsurge_score"),
+                ss.get("ngram_signal"), ss.get("ngram_confidence"),
             ),
         )
         return cur.lastrowid

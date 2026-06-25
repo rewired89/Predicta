@@ -105,6 +105,18 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     model_version TEXT,
     is_hypothetical INTEGER DEFAULT 0,       -- 1 = signal-only, no real order
     notes TEXT,
+    -- v4: per-signal scores for calibration feedback loop
+    composite_raw REAL,                      -- pre-modifier composite score
+    vwap_score REAL,
+    or_score REAL,
+    rsi_score REAL,
+    relvol_score REAL,
+    gap_score REAL,
+    trend_score REAL,
+    bollinger_score REAL,
+    volsurge_score REAL,
+    ngram_signal TEXT,                       -- UP / DOWN / NONE
+    ngram_confidence REAL,
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);

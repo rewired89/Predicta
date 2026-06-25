@@ -93,13 +93,15 @@ def atr_position_size(
 
 def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) -> dict:
     """
-    ATR-based position sizing — replaces the previous score→win_rate heuristic.
-    Risks 1% of bankroll per trade with stop at 1.5× ATR.
-    Score gate: positions only when |score| ≥ 20 (Buy/Sell threshold).
+    ATR-based position sizing with empirical win rate overlay.
 
-    The old approach (win_rate = 0.5 + score/100 * 0.25) had no statistical
-    basis before 50+ closed trades exist. ATR sizing is regime-agnostic and
-    doesn't pretend to know win rate from a composite score.
+    Position size: always ATR-based (1% risk, 1.5× ATR stop) — does not scale
+    with win rate until calibration reaches "stable" quality (50+ trades).
+    Score gate: no position when |score| < 20.
+
+    When calibrated_win_rate() returns a value, it's reported in win_rate and
+    win_rate_source for transparency. If edge is negative (win_rate < 0.45),
+    the function vetoes the trade regardless of score.
     """
     if atr_pct <= 0:
         return {
@@ -114,17 +116,42 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
         return {
             "full_kelly": 0, "kelly_fraction": 0, "position_size": 0,
             "bankroll": bankroll, "edge_pct": 0,
-            "win_rate": None, "avg_win_pct": round(atr_pct * 1.5, 2),
-            "avg_loss_pct": round(atr_pct * 1.5, 2), "win_loss_ratio": 1.0,
+            "win_rate": None, "win_rate_source": "none",
             "note": "Score below ±20 threshold — no edge detected, no trade.",
             "paper_mode": True,
         }
 
-    risk_pct       = 0.01                      # risk 1% per trade
-    stop_dist_pct  = 1.5 * atr_pct / 100      # stop = 1.5× ATR as fraction of price
+    # Look up empirical win rate for this score (returns None if data insufficient)
+    empirical_wr     = None
+    win_rate_source  = "unavailable"
+    try:
+        from models.trading.signal_calibration import calibrated_win_rate
+        empirical_wr = calibrated_win_rate(score)
+        if empirical_wr is not None:
+            win_rate_source = "empirical"
+    except Exception:
+        pass
+
+    # Veto trade if empirical data shows negative edge (< 45% win rate)
+    if empirical_wr is not None and empirical_wr < 0.45:
+        return {
+            "full_kelly": 0, "kelly_fraction": 0, "position_size": 0,
+            "bankroll": bankroll, "edge_pct": 0,
+            "win_rate": empirical_wr, "win_rate_source": win_rate_source,
+            "note": f"Empirical win rate {empirical_wr:.1%} < 45% threshold — no trade.",
+            "paper_mode": True,
+        }
+
+    risk_pct       = 0.01
+    stop_dist_pct  = 1.5 * atr_pct / 100
     risk_amount    = bankroll * risk_pct
     pos_dollars    = round(min(risk_amount / stop_dist_pct, bankroll * 0.25), 2)
     kelly_fraction = round(pos_dollars / bankroll * 100, 2)
+
+    wr_note = (
+        f" Empirical win rate: {empirical_wr:.1%}." if empirical_wr is not None
+        else " Win rate: unconfirmed (need 50+ trades)."
+    )
 
     return {
         "full_kelly":     kelly_fraction,
@@ -132,13 +159,14 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
         "position_size":  pos_dollars,
         "bankroll":       bankroll,
         "edge_pct":       round(abs_score / 2, 1),
-        "win_rate":       None,
+        "win_rate":       empirical_wr,
+        "win_rate_source":win_rate_source,
         "avg_win_pct":    round(atr_pct * 1.5, 2),
         "avg_loss_pct":   round(atr_pct * 1.5, 2),
         "win_loss_ratio": 1.0,
         "note": (
             f"ATR sizing: 1% risk (${risk_amount:.0f}) ÷ 1.5× ATR stop "
-            f"= ${pos_dollars:,.0f} position. Signal score: {score:+.0f}."
+            f"= ${pos_dollars:,.0f} position. Signal: {score:+.0f}.{wr_note}"
         ),
         "paper_mode": True,
     }

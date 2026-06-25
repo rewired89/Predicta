@@ -146,12 +146,12 @@ mutates: none
 name: log_hypothetical_trade
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry, captures liquidity_label, time_of_day_label, intraday_vol (bar_vol_pct), relative_volume (rel_vol), model_version. Outcomes resolved later via log_trade_exit (same P&L computation as real trades for apples-to-apples comparison).
-inputs: symbol, side, score_value, signals: dict, levels: dict, hold_bars=6, model_version="v3"
+purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). Outcomes resolved later via log_trade_exit.
+inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3"
 outputs: int (trade_id)
-calls: db.database.get_db
+calls: db.database.get_db, _extract_signal_scores
 called_by: signal_only (app.py)
-mutates: intraday_trades table (INSERT with is_hypothetical=1)
+mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols)
 ---
 
 ---
@@ -1052,10 +1052,10 @@ mutates: none
 name: kelly_from_signals
 type: function
 file: models/trading/kelly.py
-purpose: ATR-based position sizing entry point. Risks 1% of bankroll per trade with stop at 1.5× ATR. Score gate: no position when |score| < 20. Replaced previous score→win_rate heuristic which had no statistical basis before 50+ closed trades.
+purpose: ATR-based position sizing with empirical win rate overlay. Risks 1% per trade (1.5× ATR stop). Score gate: no position when |score| < 20. Calls calibrated_win_rate() — if empirical win rate < 0.45, vetoes trade. Reports win_rate and win_rate_source ("empirical" or "unavailable") for transparency. Position sizing stays ATR-based until calibration reaches "stable" (50+ trades).
 inputs: score: float, atr_pct: float, bankroll: float = 10000.0
-outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
-calls: none
+outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, win_rate_source, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
+calls: calibrated_win_rate (signal_calibration.py)
 called_by: run_trade_analysis, intraday_analysis (app.py)
 mutates: none
 ---
@@ -5386,6 +5386,18 @@ inputs: none
 outputs: dict {total_closed_trades, kelly_ready, calibration_quality, empirical_score_threshold, recommended_min_score, overall_win_rate, avg_pnl_r, note}
 calls: _load_closed_trades, score_accuracy_report
 called_by: calibration_status endpoint
+mutates: none
+---
+
+---
+name: pairs_calibration_summary
+type: function
+file: models/trading/signal_calibration.py
+purpose: Per-pair realized edge from closed pair_signals rows. Returns win_rate, avg_pnl_pct, avg_hold_h, and UNDERPERFORMING flag (win_rate < 0.50 or avg_pnl < 0) for pairs with min_trades or more closed trades. Sorted by avg_pnl_pct descending.
+inputs: min_trades: int = 3
+outputs: dict {total_closed, pairs: [{pair, n, win_rate, avg_pnl_pct, avg_hold_h, flag, note}]}
+calls: db.database.get_db
+called_by: calibration_pairs endpoint (app.py)
 mutates: none
 ---
 

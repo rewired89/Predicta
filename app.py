@@ -1116,6 +1116,17 @@ def calibration_time(min_trades: int = 5):
     return time_accuracy_report(min_trades=min_trades)
 
 
+@app.get("/trade/calibration/pairs")
+def calibration_pairs(min_trades: int = 3):
+    """
+    Per-pair realized edge from all closed pair_signals rows.
+    Returns win rate, avg P&L %, avg hold time, and UNDERPERFORMING flag
+    for pairs with < 50% win rate or negative avg P&L.
+    """
+    from models.trading.signal_calibration import pairs_calibration_summary
+    return pairs_calibration_summary(min_trades=min_trades)
+
+
 @app.get("/trade/ngram-validate/{symbol}")
 def ngram_validate(symbol: str, significance: float = 0.05):
     """

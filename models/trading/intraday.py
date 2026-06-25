@@ -673,6 +673,7 @@ def compute_intraday_signals(
 
     score     = _composite(sigs)
     score_val = score["value"]
+    score["composite_raw"] = score_val   # captured before any modifiers
 
     # ── Liquidity penalty: hard reject or score haircut ────────────────────────
     liq_label = liquidity["label"]

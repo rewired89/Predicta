@@ -74,6 +74,18 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         ("model_version",       "TEXT"),
         ("is_hypothetical",     "INTEGER DEFAULT 0"),
         ("notes",               "TEXT"),
+        # v4: per-signal scores for calibration feedback loop
+        ("composite_raw",       "REAL"),
+        ("vwap_score",          "REAL"),
+        ("or_score",            "REAL"),
+        ("rsi_score",           "REAL"),
+        ("relvol_score",        "REAL"),
+        ("gap_score",           "REAL"),
+        ("trend_score",         "REAL"),
+        ("bollinger_score",     "REAL"),
+        ("volsurge_score",      "REAL"),
+        ("ngram_signal",        "TEXT"),
+        ("ngram_confidence",    "REAL"),
     ]
 
     existing_cols = {
