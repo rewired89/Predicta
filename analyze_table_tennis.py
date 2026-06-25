@@ -98,28 +98,42 @@ def _handedness_edge(hand_a: str, hand_b: str) -> float:
     return 0.0        # both same handedness — no edge
 
 
+def _fatigue_decay(matches_played: int) -> float:
+    """
+    Exponential performance decay from intraday match load.
+    f(n) = exp(-0.12 * max(0, n-2))
+    n=0,1,2 → 1.0 | n=3 → 0.887 | n=4 → 0.787 | n=5 → 0.698
+    """
+    return math.exp(-0.12 * max(0, matches_played - 2))
+
+
 def _fatigue_adjustment(matches_today_a: int, matches_today_b: int) -> float:
     """
-    Each extra match played earlier in the day costs roughly 3pp.
-    Returns prob nudge to ADD to prob_a (positive = A is fresher).
-    matches_today = number of matches already completed today BEFORE this one.
+    Intraday fatigue nudge. Converts per-player exponential decay to a prob shift.
+    Returns prob nudge to ADD to prob_a (positive = A is fresher than B).
+    matches_today = matches completed BEFORE this match.
     """
-    # Net fatigue delta: A's extra matches vs B's extra matches
-    delta = matches_today_b - matches_today_a
-    return delta * 0.03
+    perf_a = _fatigue_decay(matches_today_a)
+    perf_b = _fatigue_decay(matches_today_b)
+    total = perf_a + perf_b
+    if total <= 0:
+        return 0.0
+    return (perf_a / total) - 0.5  # centred on 0
 
 
 def _line_movement_edge(
     open_a: Optional[float], open_b: Optional[float],
     curr_a: Optional[float], curr_b: Optional[float],
+    circuit: str = "ittf",
 ) -> float:
     """
     Sharp money signal from line movement (American odds).
-    If the line on A moved from +150 to +120, the implied probability increased
-    by ~4pp — sharp bettors pushed it. We interpret that as a real signal.
+
+    Threshold: 10pp for ITTF/WTT (liquid markets, algorithmic makers).
+               5pp for club circuits (Setka/TT Cup) — bookies use basic
+               automated pricing; early local syndicate money moves lines fast.
 
     Returns prob nudge to add to prob_a (+ve = sharp money on A).
-    Threshold: only signal if |move| >= 10pp implied probability shift.
     """
     if None in (open_a, open_b, curr_a, curr_b):
         return 0.0
@@ -136,10 +150,10 @@ def _line_movement_edge(
     open_imp_a, _ = devig(to_implied(open_a), to_implied(open_b))
     curr_imp_a, _ = devig(to_implied(curr_a), to_implied(curr_b))
 
-    move = curr_imp_a - open_imp_a   # positive = money came in on A
-    if abs(move) < 0.10:             # ignore noise below 10pp
+    move = curr_imp_a - open_imp_a
+    threshold = 0.05 if circuit in ("setka", "ttcup", "club", "ukr_dl", "czk_dl") else 0.10
+    if abs(move) < threshold:
         return 0.0
-    # Cap nudge at ±8pp so one signal can't dominate
     return max(-0.08, min(0.08, move * 0.5))
 
 
@@ -418,6 +432,29 @@ def run_table_tennis_analysis(
     rank_b = int(pb.get("ranking") or 999)
     form_a = float(pa.get("recent_form") or 0.5)
     form_b = float(pb.get("recent_form") or 0.5)
+    # ── 2b. Enrich style/hand from local profile DB if context returned defaults ─
+    circuit = tour.lower()
+    is_club_circuit = circuit in ("setka", "ttcup", "club", "ukr_dl", "czk_dl",
+                                   "ukrainian dl", "czech dl", "ittf_club")
+    try:
+        from fetchers.setka import lookup_player_profile, get_matches_today
+        for key, player_name, pdata in [("player_a", player_a, pa), ("player_b", player_b, pb)]:
+            if pdata.get("style", "all-round") == "all-round":
+                profile = lookup_player_profile(player_name)
+                if profile:
+                    pdata["style"]     = profile.get("style", pdata.get("style", "all-round"))
+                    pdata["handedness"]= profile.get("hand",  pdata.get("handedness", "right"))
+                    steps.append({"step": "profile_lookup", "status": "ok",
+                                  "player": player_name, "profile": profile})
+
+        # Auto-fetch intraday match count if caller didn't supply it
+        if matches_today_a == 0 and is_club_circuit:
+            matches_today_a = get_matches_today(player_a, game_date)
+        if matches_today_b == 0 and is_club_circuit:
+            matches_today_b = get_matches_today(player_b, game_date)
+    except Exception as exc:
+        steps.append({"step": "profile_lookup", "status": "error", "error": str(exc)})
+
     style_a = str(pa.get("style") or "all-round")
     style_b = str(pb.get("style") or "all-round")
     hand_a  = str(pa.get("handedness") or "right")
@@ -472,12 +509,14 @@ def run_table_tennis_analysis(
     # Compute each signal as a probability in [0,1]
     form_prob_a   = form_a / (form_a + form_b) if (form_a + form_b) > 0 else 0.5
     fatigue_nudge = _fatigue_adjustment(matches_today_a, matches_today_b)
-    line_nudge    = _line_movement_edge(open_odds_a, open_odds_b, curr_odds_a, curr_odds_b)
+    line_nudge    = _line_movement_edge(open_odds_a, open_odds_b, curr_odds_a, curr_odds_b, circuit=circuit)
 
-    if fatigue_nudge != 0.0:
+    if matches_today_a > 0 or matches_today_b > 0:
         steps.append({"step": "fatigue", "status": "ok",
                       "matches_today_a": matches_today_a,
                       "matches_today_b": matches_today_b,
+                      "decay_a": round(_fatigue_decay(matches_today_a), 3),
+                      "decay_b": round(_fatigue_decay(matches_today_b), 3),
                       "nudge": round(fatigue_nudge, 3)})
     if line_nudge != 0.0:
         steps.append({"step": "line_movement", "status": "ok",
@@ -609,18 +648,23 @@ def run_table_tennis_analysis(
             match_id = cur.lastrowid
 
         signals_to_log = [
-            ("attack_quality_index",  player_a, aqi_a),
-            ("attack_quality_index",  player_b, aqi_b),
-            ("return_quality_index",  player_a, rqi_a),
-            ("return_quality_index",  player_b, rqi_b),
-            ("recent_form",           player_a, form_a),
-            ("recent_form",           player_b, form_b),
-            ("ranking",               player_a, float(rank_a)),
-            ("ranking",               player_b, float(rank_b)),
+            ("attack_quality_index",  player_a, aqi_a,      None),
+            ("attack_quality_index",  player_b, aqi_b,      None),
+            ("return_quality_index",  player_a, rqi_a,      None),
+            ("return_quality_index",  player_b, rqi_b,      None),
+            ("recent_form",           player_a, form_a,     None),
+            ("recent_form",           player_b, form_b,     None),
+            ("ranking",               player_a, float(rank_a), None),
+            ("ranking",               player_b, float(rank_b), None),
+            # Metadata signals — used by /accuracy endpoint for breakdown
+            ("data_confidence",       None, None, data_confidence),
+            ("recommendation",        None, None, recommendation),
         ]
-        for sig_name, participant, val in signals_to_log:
+        for sig_name, participant, val, text in signals_to_log:
             log_signal(match_id, sig_name, participant,
-                       signal_value=float(val), source="tsdb")
+                       signal_value=float(val) if val is not None else None,
+                       signal_text=text,
+                       source="tsdb")
 
         with get_db() as conn:
             conn.execute(
@@ -673,7 +717,9 @@ def run_table_tennis_analysis(
             curr_fair_a = curr_imp_a / (curr_imp_a + curr_imp_b)
             market_movement = curr_fair_a - open_fair_a  # + = money on A
 
-        SHARP_THRESHOLD = 0.08  # ≥8pp shift signals syndicated sharp money
+        # Club circuits: 5pp threshold (algorithmic bookmakers, local syndicates move fast)
+        # Liquid markets: 8pp threshold
+        SHARP_THRESHOLD = 0.05 if is_club_circuit else 0.08
 
         if market_movement >= SHARP_THRESHOLD:
             recommendation = player_a

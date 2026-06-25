@@ -275,6 +275,125 @@ def ttcup_player_profile(player_id: str) -> dict:
     return data
 
 
+# ── Intraday schedule (fatigue tracking) ─────────────────────────────────────
+
+def setka_matches_today(player_id: str, match_date: str | None = None) -> int:
+    """
+    Count how many matches a player has already completed TODAY on Setka Cup.
+    Used for intraday fatigue calculation.
+
+    match_date: ISO "YYYY-MM-DD"; defaults to today.
+    Returns an integer count (0 if unknown).
+    """
+    from datetime import date as _date
+    today_str = match_date or _date.today().isoformat()
+
+    html = ""
+    for path in [
+        f"/en/participants/{player_id}/matches",
+        f"/en/player/{player_id}/schedule",
+        f"/en/participants/{player_id}",
+    ]:
+        html = _get(f"{SETKA_BASE}{path}")
+        if html:
+            break
+    if not html:
+        return 0
+
+    # Count result rows matching today's date (two common formats)
+    date_variants = [
+        today_str,  # 2026-06-24
+        today_str[8:10] + "." + today_str[5:7] + "." + today_str[:4],  # 24.06.2026
+    ]
+    count = 0
+    for dv in date_variants:
+        count = max(count, len(re.findall(re.escape(dv), html)))
+    return min(count, 8)  # cap at 8 to filter data noise
+
+
+def ttcup_matches_today(player_id: str, match_date: str | None = None) -> int:
+    """Count how many matches a TT Cup player has completed today."""
+    from datetime import date as _date
+    today_str = match_date or _date.today().isoformat()
+
+    html = ""
+    for path in [
+        f"/en/players/{player_id}/matches",
+        f"/players/{player_id}",
+        f"/en/participant/{player_id}",
+    ]:
+        html = _get(f"{TTCUP_BASE}{path}")
+        if html:
+            break
+    if not html:
+        return 0
+
+    date_variants = [
+        today_str,
+        today_str[8:10] + "." + today_str[5:7] + "." + today_str[:4],
+    ]
+    count = 0
+    for dv in date_variants:
+        count = max(count, len(re.findall(re.escape(dv), html)))
+    return min(count, 8)
+
+
+def get_matches_today(name: str, match_date: str | None = None) -> int:
+    """
+    Look up a club TT player's intraday match count.
+    Tries Setka Cup then TT Cup. Returns 0 if both fail.
+    """
+    setka = setka_search_player(name)
+    if setka and setka.get("player_id"):
+        count = setka_matches_today(setka["player_id"], match_date)
+        if count > 0:
+            return count
+
+    ttcup = ttcup_search_player(name)
+    if ttcup and ttcup.get("player_id"):
+        return ttcup_matches_today(ttcup["player_id"], match_date)
+
+    return 0
+
+
+# ── Local style profile lookup ─────────────────────────────────────────────────
+
+def _load_profiles() -> dict:
+    import json, pathlib
+    profile_path = pathlib.Path(__file__).parent.parent / "data" / "tt_player_profiles.json"
+    try:
+        raw = json.loads(profile_path.read_text())
+        return {k: v for k, v in raw.items() if not k.startswith("_")}
+    except Exception:
+        return {}
+
+
+_PROFILES: dict | None = None  # lazy-loaded cache
+
+
+def lookup_player_profile(name: str) -> dict:
+    """
+    Return style/grip/hand profile for a circuit player from the local JSON.
+    Exact match first, then token-overlap fuzzy match (requires ≥2 shared tokens).
+    Returns {} if not found.
+    """
+    global _PROFILES
+    if _PROFILES is None:
+        _PROFILES = _load_profiles()
+
+    if name in _PROFILES:
+        return _PROFILES[name]
+
+    best: dict = {}
+    best_score = 1  # require at least 2 token overlaps
+    for key, profile in _PROFILES.items():
+        score = _name_score(name, key)
+        if score > best_score:
+            best_score = score
+            best = profile
+    return best
+
+
 # ── Unified lookup ────────────────────────────────────────────────────────────
 
 def lookup_club_tt_player(name: str) -> dict:
