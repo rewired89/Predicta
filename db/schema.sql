@@ -70,3 +70,22 @@ CREATE TABLE IF NOT EXISTS glicko2_ratings (
     updated_at TEXT NOT NULL,
     UNIQUE(participant, sport, surface)
 );
+
+CREATE TABLE IF NOT EXISTS intraday_trades (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    entry_time TEXT NOT NULL,
+    exit_time TEXT NOT NULL,
+    side TEXT NOT NULL CHECK(side IN ('long', 'short')),
+    entry_price REAL NOT NULL,
+    exit_price REAL NOT NULL,
+    planned_hold_bars INTEGER,
+    actual_hold_bars INTEGER,
+    entry_score REAL,
+    exit_reason TEXT,
+    slippage_entry REAL DEFAULT 0.0,
+    slippage_exit REAL DEFAULT 0.0,
+    pnl_dollars REAL,
+    pnl_pct REAL,
+    logged_at TEXT NOT NULL
+);

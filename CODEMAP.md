@@ -66,8 +66,24 @@ purpose: Context manager that yields an open SQLite connection with Row factory 
 inputs: db_path: Path = DB_PATH
 outputs: yields sqlite3.Connection
 calls: sqlite3.connect
-called_by: EloModel, Glicko2Model, predict_match, record_outcome, _market_consensus, log_signal, get_signals_for_match, fetch_signals_for_match, log_manual_odds, fetch_odds_snapshot, compute_metrics_from_db, generate_html_report, create_match, list_matches, get_match, add_signal, get_signals, list_predictions, get_odds, add_outcome, list_orders (app.py), _gather_training_data (ml_layer.py)
+called_by: EloModel, Glicko2Model, predict_match, record_outcome, _market_consensus, log_signal, get_signals_for_match, fetch_signals_for_match, log_manual_odds, fetch_odds_snapshot, compute_metrics_from_db, generate_html_report, create_match, list_matches, get_match, add_signal, get_signals, list_predictions, get_odds, add_outcome, list_orders (app.py), _gather_training_data (ml_layer.py), log_intraday_trade (intraday.py)
 mutates: predicta.db
+---
+
+---
+
+## db/schema.sql
+
+---
+name: intraday_trades
+type: table
+file: db/schema.sql
+purpose: Records completed intraday trades for post-trade analysis, slippage measurement, and future ML feature extraction. Stores entry/exit context (prices, times, side, scores, reasons) and actual vs planned hold duration. Used by log_intraday_trade() in intraday.py.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: log_intraday_trade (intraday.py)
+mutates: none (DDL)
 ---
 
 ---
@@ -1097,12 +1113,12 @@ mutates: none
 ---
 
 ---
-name: _liquidity_score
+name: _sig_liquidity
 type: function
 file: models/trading/intraday.py
-purpose: Spread-based liquidity filter. Hard reject at >0.3% spread (UNTRADEABLE) because day trading edge is 10–30 bps and wide spreads consume the entire profit margin. Also detects WIDE_SPREAD (>0.3%) and ELEVATED_SPREAD (>0.1%) with score penalties applied in compute_intraday_signals. Includes estimated_slippage_pct = spread/2 for market order cost modelling.
+purpose: Spread-based liquidity filter. Hard reject (pass=False) at >0.3% spread because day trading edge is 10–30 bps. UNTRADEABLE (>0.5%): score zeroed. WIDE_SPREAD (>0.3%): pass=False. ELEVATED_SPREAD (>0.1%): pass=True but 50% score haircut + 10% position reduction. LIQUID: no penalty. Includes estimated_slippage_pct = spread/2 for market order cost modelling.
 inputs: snapshot: dict (requires bid, ask, price keys)
-outputs: dict {score, label, bid, ask, spread_pct, estimated_slippage_pct}
+outputs: dict {score, label, bid, ask, spread_pct, estimated_slippage_pct, pass}
 calls: none
 called_by: compute_intraday_signals
 mutates: none
@@ -1112,9 +1128,9 @@ mutates: none
 name: _time_of_day_modifier
 type: function
 file: models/trading/intraday.py
-purpose: Returns a score multiplier (0.5–1.0) based on Eastern Time session quality. Prime time (10:00–11:30, 14:00–15:30) = 1.0; opening noise (9:30–10:00) = 0.7; lunch chop (11:30–14:00) = 0.5; close positioning (15:30–16:00) = 0.6. Applied as post-composite multiplier in compute_intraday_signals. Returns 1.0 on timestamp parse failure.
+purpose: Returns session-quality dict based on Eastern Time. MORNING_TREND (10:00–11:30) = 1.0; AFTERNOON_TREND (14:00–15:30) = 1.0; OPEN_NOISE (9:30–10:00) = 0.7; LUNCH_CHOP (11:30–14:00) = 0.4 with hard zero if score < 60; CLOSE_REVERSAL (15:30–16:00) = 0.6; MARKET_CLOSED = 0.0. Returns UNKNOWN with modifier=1.0 on parse failure.
 inputs: bar_timestamp: str (ISO 8601)
-outputs: float (0.5–1.0)
+outputs: dict {modifier, label, note}
 calls: datetime.fromisoformat, ZoneInfo
 called_by: compute_intraday_signals
 mutates: none
@@ -1136,7 +1152,7 @@ mutates: none
 name: compute_exit_action
 type: function
 file: models/trading/intraday.py
-purpose: Active position management for day trading — call after each new bar while a position is open. Implements three exit triggers: TIME_STOP (no progress after 10 bars / 50 min), BREAKEVEN_LOCK (move stop to entry+1 tick after 1R profit), SIGNAL_REVERSAL (composite score flips sign vs entry direction). Returns action dict for app.py to execute.
+purpose: Active position management for day trading — call after each new bar while a position is open. Four exit triggers: TIME_STOP (no progress after 10 bars/50 min), TRAIL_1.5R (trail stop 1.5R behind price at 2R profit, locks in 0.5R minimum), BREAKEVEN_LOCK (move stop to entry+1 tick after 1R profit), SIGNAL_REVERSAL (composite score flips sign AND |score| > 40 vs entry direction). Returns action dict for app.py to execute.
 inputs: entry: float, stop: float, target1: float, current_price: float, bars_held: int, current_signals: dict, entry_score: float
 outputs: dict {action: "EXIT"|"MODIFY_STOP"|"HOLD", reason: str, ...}
 calls: none
@@ -1148,9 +1164,9 @@ mutates: none
 name: _trade_levels
 type: function
 file: models/trading/intraday.py
-purpose: Calculates entry, stop-loss, and two take-profit levels using ATR multiples adjusted for market structure. Strong-trend label widens stop (2×) and target (3.5×) so normal noise doesn't stop out trend trades; neutral/range uses symmetric 1.5× stop and 2.5× target. Also adds estimated_slippage_pct from liquidity filter.
-inputs: bars: list[dict], snapshot: dict, side: str ("long" or "short"), trend_label: str = "neutral"
-outputs: dict {side, entry, stop, target1, target2, atr, risk_per_share, rr_ratio, stop_mult, target_mult, estimated_slippage_pct}
+purpose: Entry/stop/target levels + position sizing. Stop uses intraday_em dollars_1sigma (calibrated to hold period) when available, falls back to 1.5×ATR. Targets scale with trend (strong: 2.0× and 3.5×; else 1.5× and 2.5×). Position sizing: risk 1% of account, capped at 25%. ELEVATED_SPREAD reduces size 10% via liquidity_adjustment.
+inputs: bars: list[dict], snapshot: dict, side: str, trend_label: str = "neutral", hold_bars: int = 6, intraday_em: dict = None, liquidity: dict = None, account_value: float = 10000.0, risk_pct: float = 0.01
+outputs: dict {side, entry, stop, target1, target2, atr, stop_basis, risk_per_share, rr_ratio, shares, position_value, risk_dollars, slippage_estimate, liquidity_adjustment}
 calls: _atr
 called_by: compute_intraday_signals
 mutates: none
@@ -1172,12 +1188,24 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — runs all 8 signals + ensemble scoring + liquidity filter (hard reject if spread >0.3%) + time-of-day modifier (0.5× during lunch, 0.7× at open) + ATR trade levels with trend context + intraday expected move for accurate stop sizing reference.
-inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0
-outputs: dict {signals, score, levels, liquidity, intraday_expected_move}
-calls: _liquidity_score, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
+purpose: Main entry point — runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 60; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
+inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
+outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
+calls: _sig_liquidity, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
 called_by: intraday_analysis (app.py), _analyze_one (screener.py)
 mutates: none
+---
+
+---
+name: log_intraday_trade
+type: function
+file: models/trading/intraday.py
+purpose: Persists a completed intraday trade to the intraday_trades table for post-trade analysis and slippage tracking. Computes pnl_dollars and pnl_pct from prices when not supplied. Designed to be called after a position closes with actual fill prices. Returns {id, symbol, pnl_dollars} or {error}.
+inputs: symbol, entry_time, exit_time, side, entry_price, exit_price, planned_hold_bars, actual_hold_bars, entry_score, exit_reason, slippage_entry=0.0, slippage_exit=0.0, pnl_dollars=None, pnl_pct=None
+outputs: dict {id, symbol, pnl_dollars} or {error: str}
+calls: db.database.get_db
+called_by: none (utility; called by trade execution layer)
+mutates: intraday_trades table (INSERT)
 ---
 
 ---

@@ -333,44 +333,49 @@ def _sig_volume_surge(bars: list[dict]) -> dict:
 
 # ── Liquidity filter ──────────────────────────────────────────────────────────
 
-def _liquidity_score(snapshot: dict) -> dict:
+def _sig_liquidity(snapshot: dict) -> dict:
     """
     Spread-based liquidity filter. Day trading edge is 10–30 bps;
     a 30 bps spread consumes the entire profit margin.
-    Hard reject at >0.3% spread. Applies a penalty multiplier at 0.1–0.3%.
+    Hard reject (pass=False) at >0.3% spread. Penalty multiplier at 0.1–0.3%.
     """
     bid   = snapshot.get("bid", 0)
     ask   = snapshot.get("ask", 0)
     price = snapshot.get("price", 0)
     if not bid or not ask or not price or ask <= bid:
-        return {"score": 0, "label": "UNKNOWN", "spread_pct": 0.0, "estimated_slippage_pct": 0.0}
-    spread_pct  = (ask - bid) / price * 100
+        return {
+            "score": 0, "label": "UNKNOWN",
+            "spread_pct": 0.0, "estimated_slippage_pct": 0.0, "pass": True,
+        }
+    spread_pct   = (ask - bid) / price * 100
     slippage_pct = spread_pct / 2  # market order hits mid-spread
     if spread_pct > 0.5:
-        score, label = -100, "UNTRADEABLE"
+        score, label, tradeable = -100, "UNTRADEABLE", False
     elif spread_pct > 0.3:
-        score, label = -60, "WIDE_SPREAD"
+        score, label, tradeable = -60, "WIDE_SPREAD", False
     elif spread_pct > 0.1:
-        score, label = -20, "ELEVATED_SPREAD"
+        score, label, tradeable = -20, "ELEVATED_SPREAD", True
     else:
-        score, label = 0, "LIQUID"
+        score, label, tradeable = 0, "LIQUID", True
     return {
-        "score": score,
-        "label": label,
-        "bid": bid,
-        "ask": ask,
-        "spread_pct": round(spread_pct, 4),
+        "score":                score,
+        "label":                label,
+        "bid":                  bid,
+        "ask":                  ask,
+        "spread_pct":           round(spread_pct, 4),
         "estimated_slippage_pct": round(slippage_pct, 4),
+        "pass":                 tradeable,
     }
 
 
 # ── Time-of-day regime ────────────────────────────────────────────────────────
 
-def _time_of_day_modifier(bar_timestamp: str) -> float:
+def _time_of_day_modifier(bar_timestamp: str) -> dict:
     """
-    Multiplier (0.5–1.0) applied to composite score based on session quality.
-    Lunch chop (11:30–14:00 ET) kills momentum signals.
-    Returns 1.0 on parse failure so missing timestamps are safe.
+    Session-quality dict applied to composite score.
+    Returns {"modifier": float, "label": str, "note": str}.
+    Lunch chop uses 0.4× + hard zero if score < 60.
+    modifier=0.0 means outside trading hours — no signal should fire.
     """
     try:
         dt = datetime.fromisoformat(bar_timestamp.replace("Z", "+00:00"))
@@ -380,18 +385,26 @@ def _time_of_day_modifier(bar_timestamp: str) -> float:
             from datetime import timezone, timedelta
             dt_et = dt.astimezone(timezone(timedelta(hours=-4)))
         h = dt_et.hour + dt_et.minute / 60
-        if 9.5 <= h < 10.0:
-            return 0.7   # opening noise: fade extremes
-        elif 10.0 <= h < 11.5:
-            return 1.0   # prime trend window
-        elif 11.5 <= h < 14.0:
-            return 0.5   # lunch chop: severe penalty
-        elif 14.0 <= h < 15.5:
-            return 1.0   # afternoon continuation
+        if h < 9.5 or h >= 16.0:
+            return {"modifier": 0.0, "label": "MARKET_CLOSED",
+                    "note": "Outside regular trading hours"}
+        elif h < 10.0:
+            return {"modifier": 0.7, "label": "OPEN_NOISE",
+                    "note": "Opening volatility — fade extremes"}
+        elif h < 11.5:
+            return {"modifier": 1.0, "label": "MORNING_TREND",
+                    "note": "Prime trend window"}
+        elif h < 14.0:
+            return {"modifier": 0.4, "label": "LUNCH_CHOP",
+                    "note": "Thin volume — avoid momentum trades"}
+        elif h < 15.5:
+            return {"modifier": 1.0, "label": "AFTERNOON_TREND",
+                    "note": "Afternoon continuation window"}
         else:
-            return 0.6   # close positioning / reversals
+            return {"modifier": 0.6, "label": "CLOSE_REVERSAL",
+                    "note": "Late positioning — watch reversals"}
     except Exception:
-        return 1.0
+        return {"modifier": 1.0, "label": "UNKNOWN", "note": "Timestamp parse error"}
 
 
 # ── Intraday expected move ────────────────────────────────────────────────────
@@ -456,13 +469,22 @@ def compute_exit_action(
     if bars_held > 10 and abs(profit) < 0.3 * risk:
         return {"action": "EXIT", "reason": "TIME_STOP", "price": current_price, "r_multiple": r_multiple}
 
+    # 2R reached: trail stop 1.5R behind current price (locks in 0.5R minimum)
+    if r_multiple >= 2.0:
+        trail_dist = 1.5 * risk
+        new_stop = round(
+            (current_price - trail_dist) if long else (current_price + trail_dist), 4
+        )
+        return {"action": "MODIFY_STOP", "reason": "TRAIL_1.5R", "new_stop": new_stop, "r_multiple": r_multiple}
+
+    # 1R reached: lock stop at breakeven + 1 tick
     if r_multiple > 1.0:
         tick = current_price * 0.0001
         new_stop = round((entry + tick) if long else (entry - tick), 4)
         return {"action": "MODIFY_STOP", "reason": "BREAKEVEN_LOCK", "new_stop": new_stop, "r_multiple": r_multiple}
 
     current_score = current_signals.get("score", {}).get("value", 0)
-    if entry_score * current_score < 0 and abs(current_score) >= 20:
+    if entry_score * current_score < 0 and abs(current_score) > 40:
         return {
             "action": "EXIT", "reason": "SIGNAL_REVERSAL",
             "price": current_price, "entry_score": entry_score,
@@ -474,52 +496,91 @@ def compute_exit_action(
 
 # ── ATR-based trade levels ─────────────────────────────────────────────────────
 
-def _trade_levels(bars: list[dict], snapshot: dict, side: str, trend_label: str = "neutral") -> dict:
+def _trade_levels(
+    bars: list[dict],
+    snapshot: dict,
+    side: str,
+    trend_label: str = "neutral",
+    hold_bars: int = 6,
+    intraday_em: Optional[dict] = None,
+    liquidity: Optional[dict] = None,
+    account_value: float = 10000.0,
+    risk_pct: float = 0.01,
+) -> dict:
     """
-    Calculate entry / stop / target levels based on ATR.
-    side: "long" or "short"
-    trend_label: from _sig_trend_bias — widens stop/target in strong trends
-    so normal noise doesn't stop out trend trades prematurely.
+    Entry / stop / target levels + position sizing.
+    Stop distance: intraday expected move (1-sigma for hold period) when
+    available — calibrated to hold_bars, not daily HV. Falls back to 1.5×ATR.
+    Position sizing: risk 1% of account per trade; cap at 25%; reduce 10%
+    if spread is elevated to offset slippage.
     """
-    atr = _atr(bars, 14)
+    atr   = _atr(bars, 14)
     price = snapshot.get("price", bars[-1]["c"] if bars else 0)
-    if not atr or not price:
+    if not price:
         return {}
 
-    # Market structure adjusts ATR multiples
-    label_lower = trend_label.lower()
-    if "strong" in label_lower:
-        stop_mult, t1_mult, t2_mult = 2.0, 2.0, 3.5   # trend trade: wider stop, bigger target
-    elif "below" in label_lower or "downtrend" in label_lower:
-        stop_mult, t1_mult, t2_mult = 1.5, 1.5, 2.5   # mean reversion: symmetric
+    # Stop distance: intraday EM is calibrated to the hold period;
+    # ATR-1.5× is the safe fallback for when bars are too few.
+    if intraday_em and intraday_em.get("dollars_1sigma"):
+        stop_dist  = intraday_em["dollars_1sigma"]
+        stop_basis = "intraday_em"
+    elif atr:
+        stop_dist  = 1.5 * atr
+        stop_basis = "atr"
     else:
-        stop_mult, t1_mult, t2_mult = 1.5, 1.5, 2.5   # default
+        return {}
+
+    # Target multiples scale with market structure
+    label_lower = trend_label.lower()
+    t1_mult = 2.0 if "strong" in label_lower else 1.5
+    t2_mult = 3.5 if "strong" in label_lower else 2.5
 
     if side == "long":
         entry   = round(price, 2)
-        stop    = round(price - stop_mult * atr, 2)
-        target1 = round(price + t1_mult * atr, 2)
-        target2 = round(price + t2_mult * atr, 2)
+        stop    = round(price - stop_dist, 2)
+        target1 = round(price + t1_mult * stop_dist, 2)
+        target2 = round(price + t2_mult * stop_dist, 2)
     else:
         entry   = round(price, 2)
-        stop    = round(price + stop_mult * atr, 2)
-        target1 = round(price - t1_mult * atr, 2)
-        target2 = round(price - t2_mult * atr, 2)
+        stop    = round(price + stop_dist, 2)
+        target1 = round(price - t1_mult * stop_dist, 2)
+        target2 = round(price - t2_mult * stop_dist, 2)
 
     risk    = abs(entry - stop)
     reward1 = abs(target1 - entry)
     rr1     = round(reward1 / risk, 2) if risk else 0
+
+    # Position sizing
+    risk_amount = account_value * risk_pct
+    shares      = risk_amount / risk if risk else 0
+    # Cap at 25% of account; then derive consistent shares from capped value
+    position_value = min(shares * price, account_value * 0.25)
+    shares         = round(position_value / price, 4) if price else 0
+    position_value = round(position_value, 2)
+
+    # Liquidity adjustment: reduce size 10% for elevated spread
+    liq_label     = (liquidity or {}).get("label", "LIQUID")
+    slippage_est  = (liquidity or {}).get("estimated_slippage_pct", 0.0)
+    liq_adj       = 0.90 if liq_label == "ELEVATED_SPREAD" else 1.0
+    if liq_adj < 1.0:
+        shares         = round(shares * liq_adj, 4)
+        position_value = round(position_value * liq_adj, 2)
+
     return {
-        "side":          side,
-        "entry":         entry,
-        "stop":          stop,
-        "target1":       target1,
-        "target2":       target2,
-        "atr":           round(atr, 4),
-        "risk_per_share": round(risk, 4),
-        "rr_ratio":      rr1,
-        "stop_mult":     stop_mult,
-        "target_mult":   t2_mult,
+        "side":                 side,
+        "entry":                entry,
+        "stop":                 stop,
+        "target1":              target1,
+        "target2":              target2,
+        "atr":                  round(atr, 4) if atr else 0,
+        "stop_basis":           stop_basis,
+        "risk_per_share":       round(risk, 4),
+        "rr_ratio":             rr1,
+        "shares":               shares,
+        "position_value":       position_value,
+        "risk_dollars":         round(risk_amount, 2),
+        "slippage_estimate":    slippage_est,
+        "liquidity_adjustment": liq_adj,
     }
 
 
@@ -581,18 +642,21 @@ def compute_intraday_signals(
     daily_bars: list[dict],
     snapshot: dict,
     daily_avg_volume: float = 0,
+    hold_bars: int = 6,
 ) -> dict:
     """
     Full intraday signal computation.
+    hold_bars: number of 5-min bars to hold (default 6 = 30 min scalp).
     Returns signals + composite score (with liquidity & time-of-day adjustments)
-    + ATR trade levels + intraday expected move.
+    + trade levels (intraday-EM-based sizing) + intraday expected move
+    + exit_template (seed dict for compute_exit_action calls).
     """
     closes = [b["c"] for b in intraday_bars]
     if not closes:
         return {"error": "No intraday bars available"}
 
     # ── Liquidity filter ───────────────────────────────────────────────────────
-    liquidity = _liquidity_score(snapshot)
+    liquidity = _sig_liquidity(snapshot)
 
     # ── Eight-signal ensemble ──────────────────────────────────────────────────
     sigs = {
@@ -606,55 +670,150 @@ def compute_intraday_signals(
         "volsurge": _sig_volume_surge(intraday_bars),
     }
 
-    score = _composite(sigs)
+    score     = _composite(sigs)
     score_val = score["value"]
 
-    # ── Liquidity penalty: wide spread kills or reduces edge ───────────────────
+    # ── Liquidity penalty: hard reject or score haircut ────────────────────────
     liq_label = liquidity["label"]
-    if liq_label == "UNTRADEABLE":
-        score_val = -100
-        score["reasons"] = [f"UNTRADEABLE: {liquidity['spread_pct']:.3f}% spread"] + score["reasons"][:2]
-    elif liq_label in ("WIDE_SPREAD", "ELEVATED_SPREAD"):
+    if not liquidity["pass"]:
+        # UNTRADEABLE or WIDE_SPREAD: kill score entirely
+        score_val = 0
+        score["label"]   = "UNTRADEABLE" if liq_label == "UNTRADEABLE" else "WIDE_SPREAD"
+        score["reasons"] = [f"{liq_label}: {liquidity['spread_pct']:.3f}% spread"] + score["reasons"][:2]
+    elif liq_label == "ELEVATED_SPREAD":
         score_val = round(score_val * 0.5, 1)
         score["reasons"] = [f"Spread penalty ({liquidity['spread_pct']:.3f}%)"] + score["reasons"]
 
-    # ── Time-of-day modifier: reduce score during chop periods ────────────────
-    time_mod = 1.0
+    # ── Intraday expected move — compute before levels (used for stop sizing) ──
+    intraday_em = _intraday_expected_move(closes, hold_bars)
+
+    # ── Time-of-day modifier ───────────────────────────────────────────────────
+    time_info = {"modifier": 1.0, "label": "UNKNOWN", "note": ""}
     if intraday_bars:
         ts = intraday_bars[-1].get("t", "")
         if ts:
-            time_mod = _time_of_day_modifier(ts)
-            if time_mod < 1.0:
-                score_val = round(score_val * time_mod, 1)
-                score["reasons"] = [f"Time penalty ×{time_mod}"] + score["reasons"]
+            time_info = _time_of_day_modifier(ts)
 
-    # Reclassify label after adjustments
-    if score_val >= 60:
-        score["label"] = "Strong Buy"
-    elif score_val >= 20:
-        score["label"] = "Buy"
-    elif score_val <= -60:
-        score["label"] = "Strong Sell"
-    elif score_val <= -20:
-        score["label"] = "Sell"
-    else:
-        score["label"] = "Neutral"
-    score["value"] = score_val
+    time_mod = time_info["modifier"]
+
+    if time_mod == 0.0:
+        # Market closed — no signals should fire
+        score_val = 0
+        score["label"]   = "MARKET_CLOSED"
+        score["reasons"] = [time_info["note"]]
+    elif time_mod < 1.0:
+        score_val = round(score_val * time_mod, 1)
+        score["reasons"] = [f"Time modifier ×{time_mod} ({time_info['label']})"] + score["reasons"]
+        # Lunch hard zero: unless signal is conviction-level, suppress entirely
+        if time_info["label"] == "LUNCH_CHOP" and abs(score_val) < 60:
+            score_val        = 0
+            score["label"]   = "LUNCH_SUPPRESSED"
+            score["reasons"] = ["LUNCH_CHOP: score suppressed (< 60 threshold)"] + score["reasons"][1:]
+
+    # Reclassify label after all adjustments
+    if score["label"] not in ("UNTRADEABLE", "WIDE_SPREAD", "MARKET_CLOSED", "LUNCH_SUPPRESSED"):
+        if score_val >= 60:
+            score["label"] = "Strong Buy"
+        elif score_val >= 20:
+            score["label"] = "Buy"
+        elif score_val <= -60:
+            score["label"] = "Strong Sell"
+        elif score_val <= -20:
+            score["label"] = "Sell"
+        else:
+            score["label"] = "Neutral"
+
+    score["value"]         = score_val
     score["time_modifier"] = time_mod
+    score["time_label"]    = time_info["label"]
 
-    side = "long" if score_val >= 0 else "short"
+    side        = "long" if score_val >= 0 else "short"
     trend_label = sigs["trend"].get("label", "neutral")
-    levels = _trade_levels(intraday_bars, snapshot, side, trend_label)
+    levels      = _trade_levels(
+        intraday_bars, snapshot, side, trend_label,
+        hold_bars=hold_bars,
+        intraday_em=intraday_em,
+        liquidity=liquidity,
+    )
 
-    # ── Intraday expected move (for stop sizing reference) ─────────────────────
-    intraday_em = _intraday_expected_move(closes)
-    if levels and "estimated_slippage_pct" not in levels:
-        levels["estimated_slippage_pct"] = liquidity.get("estimated_slippage_pct", 0.0)
+    # ── exit_template: seed dict for compute_exit_action calls ────────────────
+    exit_template = {
+        "entry_price":  levels.get("entry"),
+        "stop_price":   levels.get("stop"),
+        "entry_score":  score_val,
+        "side":         levels.get("side", side),
+        "target1":      levels.get("target1"),
+        "target2":      levels.get("target2"),
+    }
 
     return {
-        "signals": sigs,
-        "score": score,
-        "levels": levels,
-        "liquidity": liquidity,
+        "signals":               sigs,
+        "score":                 score,
+        "levels":                levels,
+        "liquidity":             liquidity,
         "intraday_expected_move": intraday_em,
+        "exit_template":         exit_template,
     }
+
+
+# ── Trade logging ─────────────────────────────────────────────────────────────
+
+def log_intraday_trade(
+    symbol: str,
+    entry_time: str,
+    exit_time: str,
+    side: str,
+    entry_price: float,
+    exit_price: float,
+    planned_hold_bars: int,
+    actual_hold_bars: int,
+    entry_score: float,
+    exit_reason: str,
+    slippage_entry: float = 0.0,
+    slippage_exit: float = 0.0,
+    pnl_dollars: Optional[float] = None,
+    pnl_pct: Optional[float] = None,
+) -> dict:
+    """
+    Persist a completed intraday trade to the intraday_trades table.
+    Call after position is closed with actual execution prices.
+    pnl_dollars/pnl_pct are computed from prices if not supplied.
+    Returns {"id": row_id, "pnl_dollars": float} or {"error": str}.
+    """
+    try:
+        from db.database import get_db
+    except ImportError:
+        return {"error": "db.database not importable"}
+
+    if pnl_dollars is None and entry_price and exit_price:
+        raw = (exit_price - entry_price) if side == "long" else (entry_price - exit_price)
+        pnl_dollars = round(raw, 4)
+    if pnl_pct is None and entry_price and pnl_dollars is not None:
+        pnl_pct = round(pnl_dollars / entry_price * 100, 4)
+
+    try:
+        with get_db() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO intraday_trades (
+                    symbol, entry_time, exit_time, side,
+                    entry_price, exit_price,
+                    planned_hold_bars, actual_hold_bars,
+                    entry_score, exit_reason,
+                    slippage_entry, slippage_exit,
+                    pnl_dollars, pnl_pct,
+                    logged_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                (
+                    symbol, entry_time, exit_time, side,
+                    entry_price, exit_price,
+                    planned_hold_bars, actual_hold_bars,
+                    entry_score, exit_reason,
+                    slippage_entry, slippage_exit,
+                    pnl_dollars, pnl_pct,
+                ),
+            )
+            return {"id": cur.lastrowid, "symbol": symbol, "pnl_dollars": pnl_dollars}
+    except Exception as e:
+        return {"error": str(e)}
