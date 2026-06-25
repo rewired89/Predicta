@@ -11,7 +11,10 @@ from typing import Optional
 from db.database import get_db, init_db
 from fetchers.baseball import fetch_baseball_context, LEAGUE_AVG_FIP
 from fetchers.signals import log_signal
-from models.baseball_market import expected_runs, compute_baseball_markets
+from models.baseball_market import (
+    expected_runs_split, compute_baseball_markets,
+    platoon_wrc_adjust, LEAGUE_BULLPEN_FIP,
+)
 from models.elo import EloModel
 from models.kelly import kelly_stake
 
@@ -20,6 +23,19 @@ def _elo_from_winpct(win_pct: float) -> float:
     """Seed Elo from current-season win% so the blend uses real team strength."""
     wp = max(0.01, min(0.99, win_pct))
     return 1500.0 - 400.0 * math.log10((1 - wp) / wp)
+
+
+def _derive_bullpen_fip(team_era: float, starter_fip: float) -> float:
+    """
+    Estimate bullpen FIP from team ERA and starter FIP.
+    Formula: team_ERA ≈ (starter_FIP×5 + bullpen_FIP×4) / 9
+    => bullpen_FIP = (team_ERA×9 - starter_FIP×5) / 4
+    Clamped to realistic range [3.0, 7.5].
+    """
+    if not team_era or team_era <= 0:
+        return LEAGUE_BULLPEN_FIP
+    derived = (team_era * 9.0 - starter_fip * 5.0) / 4.0
+    return max(3.0, min(derived, 7.5))
 
 
 def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> dict:
@@ -72,12 +88,28 @@ def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> d
     if f5:
         hp, ap = pct(f5["p_home_win"]), pct(f5["p_away_win"])
         result["first_five"] = {
-            "label": "First 5 Innings",
+            "label": "First 5 Innings (Starter)",
             "options": [
                 {"label": team_home, "prob": hp, "best": hp >= ap},
                 {"label": team_away, "prob": ap, "best": ap > hp},
             ],
+            "mu_home_f5": f5.get("mu_home_f5"),
+            "mu_away_f5": f5.get("mu_away_f5"),
             "note": f5.get("note", ""),
+        }
+
+    l4 = markets.get("last_four", {})
+    if l4:
+        hp, ap = pct(l4["p_home_win"]), pct(l4["p_away_win"])
+        result["last_four"] = {
+            "label": "Innings 6–9 (Bullpen)",
+            "options": [
+                {"label": team_home, "prob": hp, "best": hp >= ap},
+                {"label": team_away, "prob": ap, "best": ap > hp},
+            ],
+            "mu_home_l4": l4.get("mu_home_l4"),
+            "mu_away_l4": l4.get("mu_away_l4"),
+            "note": l4.get("note", ""),
         }
 
     nrfi = markets.get("nrfi", {})
@@ -187,58 +219,84 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         starter_a  = {"name": sig_a.get("starter_name", "Unknown"),
                       "fip": fip_a, "era": float(sig_a.get("starter_era", LEAGUE_AVG_FIP) or LEAGUE_AVG_FIP),
                       "whip": 0.0, "k9": 0.0, "bb9": 0.0,
-                      "innings_pitched": 0, "recent_games": []}
+                      "innings_pitched": 0, "recent_games": [], "throws": "R"}
         starter_b  = {"name": sig_b.get("starter_name", "Unknown"),
                       "fip": fip_b, "era": float(sig_b.get("starter_era", LEAGUE_AVG_FIP) or LEAGUE_AVG_FIP),
                       "whip": 0.0, "k9": 0.0, "bb9": 0.0,
-                      "innings_pitched": 0, "recent_games": []}
+                      "innings_pitched": 0, "recent_games": [], "throws": "R"}
         record_a   = {"win_pct": win_pct_a, "games_played": 0}
         record_b   = {"win_pct": win_pct_b, "games_played": 0}
         hitting_a  = {"wrc_plus": wrc_a, "ops": 0.0, "runs_per_game": 0.0}
         hitting_b  = {"wrc_plus": wrc_b, "ops": 0.0, "runs_per_game": 0.0}
-        # Rebuild context stub so downstream code and narrative can access it
         context = {
             "team_a": {"name": team_a, "is_home": is_home_a, "hitting": hitting_a,
-                       "starter": starter_a, "record": record_a, "team_pitching": {}},
+                       "starter": starter_a, "record": record_a,
+                       "team_pitching": {"era": LEAGUE_BULLPEN_FIP}},
             "team_b": {"name": team_b, "is_home": not is_home_a, "hitting": hitting_b,
-                       "starter": starter_b, "record": record_b, "team_pitching": {}},
+                       "starter": starter_b, "record": record_b,
+                       "team_pitching": {"era": LEAGUE_BULLPEN_FIP}},
             "game": {"date": game_date, "venue": "", "park_factor": pf,
                      "home_team": team_home, "away_team": team_away},
             "sources": [{"label": "AI signal estimation",
                          "url": "", "snippet": sigs.get("notes", "")}],
         }
     else:
-        team_a     = context["team_a"]["name"]
-        team_b     = context["team_b"]["name"]
-        is_home_a  = context["team_a"]["is_home"]
+        team_a      = context["team_a"]["name"]
+        team_b      = context["team_b"]["name"]
+        is_home_a   = context["team_a"]["is_home"]
         park_factor = context["game"]["park_factor"]
-        team_home  = context["game"]["home_team"]
-        team_away  = context["game"]["away_team"]
-        hitting_a  = context["team_a"].get("hitting", {})
-        hitting_b  = context["team_b"].get("hitting", {})
-        starter_a  = context["team_a"].get("starter", {})
-        starter_b  = context["team_b"].get("starter", {})
-        record_a   = context["team_a"].get("record", {})
-        record_b   = context["team_b"].get("record", {})
+        team_home   = context["game"]["home_team"]
+        team_away   = context["game"]["away_team"]
+        hitting_a   = context["team_a"].get("hitting", {})
+        hitting_b   = context["team_b"].get("hitting", {})
+        starter_a   = context["team_a"].get("starter", {})
+        starter_b   = context["team_b"].get("starter", {})
+        record_a    = context["team_a"].get("record", {})
+        record_b    = context["team_b"].get("record", {})
         wrc_a = hitting_a.get("wrc_plus") or 100
         wrc_b = hitting_b.get("wrc_plus") or 100
         fip_a = starter_a.get("fip") or LEAGUE_AVG_FIP
         fip_b = starter_b.get("fip") or LEAGUE_AVG_FIP
 
-    # ── 3. Expected runs ─────────────────────────────────────────────────────
-    # Home team bats against away starter; away team bats against home starter.
+    # ── 3. Bullpen FIP derivation + platoon adjustment ────────────────────────
+    team_pit_a   = context["team_a"].get("team_pitching", {})
+    team_pit_b   = context["team_b"].get("team_pitching", {})
+    bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a)
+    bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b)
+
+    throws_a = starter_a.get("throws", "R")
+    throws_b = starter_b.get("throws", "R")
+    # team_a bats against team_b's starter (throws_b); team_b bats against team_a's starter (throws_a)
+    wrc_a_adj = platoon_wrc_adjust(wrc_a, throws_b)
+    wrc_b_adj = platoon_wrc_adjust(wrc_b, throws_a)
+
+    steps.append({"step": "bullpen_platoon", "status": "ok",
+                  "bullpen_fip_a": round(bullpen_fip_a, 2),
+                  "bullpen_fip_b": round(bullpen_fip_b, 2),
+                  "throws_a": throws_a, "throws_b": throws_b,
+                  "wrc_a_adj": round(wrc_a_adj, 1), "wrc_b_adj": round(wrc_b_adj, 1)})
+
+    # ── 4. Expected runs (split F5 / L4) ─────────────────────────────────────
+    # Home bats against away starter (F5) + away bullpen (L4); vice versa for away.
     if is_home_a:
-        mu_home = expected_runs(wrc_a, fip_b, park_factor, is_home=True)
-        mu_away = expected_runs(wrc_b, fip_a, park_factor, is_home=False)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False)
     else:
-        mu_home = expected_runs(wrc_b, fip_a, park_factor, is_home=True)
-        mu_away = expected_runs(wrc_a, fip_b, park_factor, is_home=False)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False)
+
+    mu_home = mu_home_f5 + mu_home_l4
+    mu_away = mu_away_f5 + mu_away_l4
 
     steps.append({"step": "run_model", "status": "ok",
-                  "mu_home": round(mu_home, 2), "mu_away": round(mu_away, 2)})
+                  "mu_home": round(mu_home, 2), "mu_away": round(mu_away, 2),
+                  "mu_home_f5": round(mu_home_f5, 2), "mu_home_l4": round(mu_home_l4, 2),
+                  "mu_away_f5": round(mu_away_f5, 2), "mu_away_l4": round(mu_away_l4, 2)})
 
-    # ── 4. Compute markets + raw moneyline probabilities ─────────────────────
-    markets_raw = compute_baseball_markets(mu_home, mu_away)
+    # ── 5. Compute markets ────────────────────────────────────────────────────
+    markets_raw = compute_baseball_markets(
+        mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4
+    )
     ml          = markets_raw["moneyline"]
     prob_home   = ml["p_home_win"]
     prob_away   = ml["p_away_win"]
@@ -247,41 +305,49 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     prob_a = prob_home if is_home_a else prob_away
     prob_b = prob_away if is_home_a else prob_home
 
-    # ── 5. Elo blend (30% weight) ────────────────────────────────────────────
+    # ── 6. Elo blend (30% weight) ────────────────────────────────────────────
     elo_explanation = ""
     try:
         elo = EloModel()
-        # Seed from current season win% so new teams aren't stuck at 1500
         if record_a.get("games_played", 0) >= 10:
             elo.set_rating(f"MLB:{team_a}", _elo_from_winpct(record_a["win_pct"]))
         if record_b.get("games_played", 0) >= 10:
             elo.set_rating(f"MLB:{team_b}", _elo_from_winpct(record_b["win_pct"]))
         elo_a, elo_b = elo.win_probability(f"MLB:{team_a}", f"MLB:{team_b}")
-        # 70% Poisson run model, 30% Elo (records-based)
         prob_a = 0.7 * prob_a + 0.3 * elo_a
         prob_b = 0.7 * prob_b + 0.3 * elo_b
         total  = prob_a + prob_b
         prob_a /= total
         prob_b /= total
         elo_explanation = (
-            f"Elo (from win%): {team_a} {elo_a*100:.1f}% / {team_b} {elo_b*100:.1f}%"
+            f" Elo (from win%): {team_a} {elo_a*100:.1f}% / {team_b} {elo_b*100:.1f}%."
         )
         steps.append({"step": "elo_blend", "status": "ok",
                       "elo_a": round(elo_a, 3), "elo_b": round(elo_b, 3)})
     except Exception as exc:
         steps.append({"step": "elo_blend", "status": "skipped", "error": str(exc)})
 
+    home_starter_name = starter_a["name"] if is_home_a else starter_b["name"]
+    away_starter_name = starter_b["name"] if is_home_a else starter_a["name"]
+    home_starter_fip  = fip_b if is_home_a else fip_a   # home bats vs away starter
+    away_starter_fip  = fip_a if is_home_a else fip_b
+    home_starter_hand = throws_b if is_home_a else throws_a
+    away_starter_hand = throws_a if is_home_a else throws_b
+    home_bp_fip = bullpen_fip_b if is_home_a else bullpen_fip_a
+    away_bp_fip = bullpen_fip_a if is_home_a else bullpen_fip_b
+
     explanation = (
-        f"Poisson run model: μ_home={mu_home:.2f} runs, μ_away={mu_away:.2f} runs. "
+        f"Split Poisson: F5 μ_home={mu_home_f5:.2f}+L4 {mu_home_l4:.2f}={mu_home:.2f} runs; "
+        f"F5 μ_away={mu_away_f5:.2f}+L4 {mu_away_l4:.2f}={mu_away:.2f} runs. "
         f"Park factor={park_factor}. "
-        f"Starters: home {starter_a['name'] if is_home_a else starter_b['name']} "
-        f"(FIP {fip_a if is_home_a else fip_b:.2f}) vs "
-        f"away {starter_b['name'] if is_home_a else starter_a['name']} "
-        f"(FIP {fip_b if is_home_a else fip_a:.2f}). "
+        f"Home starter: {home_starter_name} [{home_starter_hand}HP] FIP {home_starter_fip:.2f}, "
+        f"bullpen FIP {home_bp_fip:.2f}. "
+        f"Away starter: {away_starter_name} [{away_starter_hand}HP] FIP {away_starter_fip:.2f}, "
+        f"bullpen FIP {away_bp_fip:.2f}."
         + elo_explanation
     )
 
-    # ── 6. Persist ───────────────────────────────────────────────────────────
+    # ── 7. Persist ───────────────────────────────────────────────────────────
     match_id: Optional[int] = None
     try:
         with get_db() as conn:
@@ -301,13 +367,17 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             match_id = cur.lastrowid
 
         signals_to_log = [
-            ("wrc_plus",    team_a,     wrc_a),
-            ("wrc_plus",    team_b,     wrc_b),
-            ("starter_fip", team_a,     fip_a),
-            ("starter_fip", team_b,     fip_b),
-            ("park_factor", None,       park_factor),
-            ("mu_runs",     team_home,  mu_home),
-            ("mu_runs",     team_away,  mu_away),
+            ("wrc_plus",      team_a,    wrc_a),
+            ("wrc_plus",      team_b,    wrc_b),
+            ("starter_fip",   team_a,    fip_a),
+            ("starter_fip",   team_b,    fip_b),
+            ("bullpen_fip",   team_a,    bullpen_fip_a),
+            ("bullpen_fip",   team_b,    bullpen_fip_b),
+            ("park_factor",   None,      park_factor),
+            ("mu_runs",       team_home, mu_home),
+            ("mu_runs",       team_away, mu_away),
+            ("mu_runs_f5",    team_home, mu_home_f5),
+            ("mu_runs_f5",    team_away, mu_away_f5),
         ]
         for sig_name, participant, val in signals_to_log:
             log_signal(match_id, sig_name, participant,
@@ -319,7 +389,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                        (match_id, method, prob_a, prob_b, prob_draw, explanation, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    match_id, "baseball_v1",
+                    match_id, "baseball_v2",
                     round(prob_a, 6), round(prob_b, 6), 0.0,
                     explanation,
                     datetime.now(timezone.utc).isoformat(),
@@ -330,11 +400,10 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         steps.append({"step": "persist", "status": "error", "error": str(exc),
                       "trace": traceback.format_exc()})
 
-    # ── 7. Kelly stake ───────────────────────────────────────────────────────
-    # Use prob_a (team_a) vs -110 moneyline reference (decimal 1.909)
+    # ── 8. Kelly stake ───────────────────────────────────────────────────────
     kelly = kelly_stake(prob_a, 1.909, bankroll)
 
-    # ── 8. Narrative ─────────────────────────────────────────────────────────
+    # ── 9. Narrative ─────────────────────────────────────────────────────────
     narrative = ""
     try:
         from ai_agent_baseball import generate_baseball_narrative
@@ -368,6 +437,9 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     home_record   = record_a  if is_home_a else record_b
     away_record   = record_b  if is_home_a else record_a
 
+    home_bp_fip_out = bullpen_fip_b if is_home_a else bullpen_fip_a
+    away_bp_fip_out = bullpen_fip_a if is_home_a else bullpen_fip_b
+
     return {
         "match_id":   match_id,
         "team_a":     team_a,
@@ -384,28 +456,36 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "prob_draw":  0.0,
         "mu_home":    round(mu_home, 2),
         "mu_away":    round(mu_away, 2),
+        "mu_home_f5": round(mu_home_f5, 2),
+        "mu_away_f5": round(mu_away_f5, 2),
+        "mu_home_l4": round(mu_home_l4, 2),
+        "mu_away_l4": round(mu_away_l4, 2),
         "starters": {
             "home": {
-                "team":         team_home,
-                "name":         home_starter.get("name", "TBD"),
-                "fip":          home_starter.get("fip"),
-                "era":          home_starter.get("era"),
-                "whip":         home_starter.get("whip"),
-                "k9":           home_starter.get("k9"),
-                "bb9":          home_starter.get("bb9"),
+                "team":            team_home,
+                "name":            home_starter.get("name", "TBD"),
+                "throws":          home_starter.get("throws", "R"),
+                "fip":             home_starter.get("fip"),
+                "era":             home_starter.get("era"),
+                "whip":            home_starter.get("whip"),
+                "k9":              home_starter.get("k9"),
+                "bb9":             home_starter.get("bb9"),
                 "innings_pitched": home_starter.get("innings_pitched"),
-                "recent_games": home_starter.get("recent_games", []),
+                "recent_games":    home_starter.get("recent_games", []),
+                "bullpen_fip":     round(home_bp_fip_out, 2),
             },
             "away": {
-                "team":         team_away,
-                "name":         away_starter.get("name", "TBD"),
-                "fip":          away_starter.get("fip"),
-                "era":          away_starter.get("era"),
-                "whip":         away_starter.get("whip"),
-                "k9":           away_starter.get("k9"),
-                "bb9":          away_starter.get("bb9"),
+                "team":            team_away,
+                "name":            away_starter.get("name", "TBD"),
+                "throws":          away_starter.get("throws", "R"),
+                "fip":             away_starter.get("fip"),
+                "era":             away_starter.get("era"),
+                "whip":            away_starter.get("whip"),
+                "k9":              away_starter.get("k9"),
+                "bb9":             away_starter.get("bb9"),
                 "innings_pitched": away_starter.get("innings_pitched"),
-                "recent_games": away_starter.get("recent_games", []),
+                "recent_games":    away_starter.get("recent_games", []),
+                "bullpen_fip":     round(away_bp_fip_out, 2),
             },
         },
         "team_stats": {
