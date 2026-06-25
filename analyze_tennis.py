@@ -31,6 +31,32 @@ def _logistic(x: float, scale: float = 40.0) -> float:
     return 1.0 / (1.0 + math.exp(-x / scale))
 
 
+def _rest_days(last5: list[dict], game_date: str) -> int:
+    """Days since the player's last completed match. Returns 99 (= no penalty) if unknown."""
+    if not last5:
+        return 99
+    try:
+        last_date = last5[0]["date"]  # last5 is sorted newest-first
+        delta = (datetime.fromisoformat(game_date) - datetime.fromisoformat(last_date)).days
+        return max(0, delta)
+    except Exception:
+        return 99
+
+
+def _sqi_rest_factor(rest_days: int) -> float:
+    """
+    SQI multiplier based on rest between matches.
+    0 days (same-day double): -8%   — severe fatigue, serve quality drops significantly
+    1 day:                    -3%   — mild fatigue, minor serve degradation
+    2+ days:                   0%   — fully rested, no adjustment
+    """
+    if rest_days == 0:
+        return 0.92
+    if rest_days == 1:
+        return 0.97
+    return 1.0
+
+
 def _compute_point_probs(
     sqi_a: float, rqi_a: float,
     sqi_b: float, rqi_b: float,
@@ -279,6 +305,12 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     swr_a  = float(pa.get("surface_win_rate") or 0.5)
     swr_b  = float(pb.get("surface_win_rate") or 0.5)
 
+    # Rest-day fatigue: penalise SQI when a player competed recently
+    rest_a = _rest_days(pa.get("last5", []), game_date)
+    rest_b = _rest_days(pb.get("last5", []), game_date)
+    sqi_a  = round(sqi_a * _sqi_rest_factor(rest_a), 2)
+    sqi_b  = round(sqi_b * _sqi_rest_factor(rest_b), 2)
+
     # ── 3. Compute point-level probabilities (all signals feed in as modifiers) ─
     best_of = parsed.get("best_of") or (5 if tour in ("gs", "grand_slam") else 3)
     p_serve, p_return = _compute_point_probs(
@@ -363,6 +395,8 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             ("recent_form",          player_b, form_b,       None),
             ("ranking",              player_a, float(rank_a), None),
             ("ranking",              player_b, float(rank_b), None),
+            ("rest_days",            player_a, float(rest_a) if rest_a < 99 else None, None),
+            ("rest_days",            player_b, float(rest_b) if rest_b < 99 else None, None),
             ("data_confidence",      None,     None,          data_confidence),
             ("recommendation",       None,     None,          recommendation),
         ]

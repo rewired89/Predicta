@@ -278,13 +278,23 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                   "wrc_a_adj": round(wrc_a_adj, 1), "wrc_b_adj": round(wrc_b_adj, 1)})
 
     # ── 4. Expected runs (split F5 / L4) ─────────────────────────────────────
+    # Dynamic starter_frac from avg innings/start (season IP ÷ GS).
+    # Falls back to 5/9 default when GS=0 (TBD starters or AI-fallback path).
+    def _avg_ip(starter: dict) -> Optional[float]:
+        ip = starter.get("innings_pitched") or 0
+        gs = starter.get("games_started") or 0
+        return round(ip / gs, 2) if gs >= 3 else None
+
+    avg_ip_a = _avg_ip(starter_a)
+    avg_ip_b = _avg_ip(starter_b)
+
     # Home bats against away starter (F5) + away bullpen (L4); vice versa for away.
     if is_home_a:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a)
     else:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b)
 
     mu_home = mu_home_f5 + mu_home_l4
     mu_away = mu_away_f5 + mu_away_l4

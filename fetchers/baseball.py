@@ -462,8 +462,15 @@ def _get_team_hitting(team_id: str) -> dict:
     bb_n = _stat(stats, "walks", "baseOnBalls", "bb")
     pa   = _stat(stats, "plateAppearances", "pa") or max(gp * 36, 1)
 
-    # wRC+ approximation from OPS (2025-26 MLB avg OPS ~.730)
-    wrc_plus = round((ops / 0.730) * 100) if ops > 0 else 100
+    # wRC+ approximation: 2×OBP+SLG correlates ~0.97 with true wRC+ (vs ~0.93 for raw OPS).
+    # League avg 2×OBP+SLG ≈ 2×0.315+0.415 = 1.045 (2025-26 MLB).
+    # Falls back to OPS/0.730 when OBP or SLG are missing.
+    if obp > 0 and slg > 0:
+        wrc_plus = round(((2 * obp + slg) / 1.045) * 100)
+    elif ops > 0:
+        wrc_plus = round((ops / 0.730) * 100)
+    else:
+        wrc_plus = 100
 
     return {
         "ops":           round(ops, 3),

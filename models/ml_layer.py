@@ -9,7 +9,7 @@ import json
 
 from db.database import get_db
 
-MIN_SAMPLES = 50
+MIN_SAMPLES = 100
 MODEL_PATH_DEFAULT = "ml_model.json"
 
 try:

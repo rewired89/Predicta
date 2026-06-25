@@ -2,9 +2,12 @@
 Baseball market calculations using a split Poisson run model.
 
 Full-game expected runs = F5 (innings 1-5, starter) + L4 (innings 6-9, bullpen):
-  mu_f5 = LEAGUE_AVG × STARTER_FRAC × (wRC+/100) × (starter_FIP/LEAGUE_FIP) × park × home
-  mu_l4 = LEAGUE_AVG × BULLPEN_FRAC × (wRC+/100) × (bullpen_FIP/LEAGUE_FIP) × park × home
+  mu_f5 = LEAGUE_AVG × starter_frac × (wRC+/100) × (starter_FIP/LEAGUE_FIP) × park × home
+  mu_l4 = LEAGUE_AVG × bullpen_frac × (wRC+/100) × (bullpen_FIP/LEAGUE_FIP) × park × home
   mu_total = mu_f5 + mu_l4
+
+starter_frac = min(max(avg_ip, 3.0), 7.0) / 9.0  when avg_ip is known
+             = 5/9 (default) otherwise
 
 Platoon adjustment: RHB-heavy lineups gain ~5% wRC+ vs LHP starters.
 """
@@ -42,20 +45,33 @@ def expected_runs_split(
     opp_bullpen_fip: float,
     park_factor: float = 1.0,
     is_home: bool = False,
+    opp_starter_avg_ip: Optional[float] = None,
 ) -> tuple[float, float]:
     """
     Returns (mu_f5, mu_l4): expected runs for innings 1-5 and 6-9.
     F5 uses the opposing starter's FIP; L4 uses the bullpen FIP.
+
+    opp_starter_avg_ip: starter's season average innings per start.
+    When provided, starter_frac = avg_ip/9 (clamped 3–7 innings).
+    Defaults to STARTER_FRAC=5/9 when unknown.
     """
     off   = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
     home  = 1.03 if is_home else 1.0
     base  = LEAGUE_AVG_RUNS * off * park_factor * home
 
+    # Dynamic split: use actual avg IP/start when available
+    if opp_starter_avg_ip and opp_starter_avg_ip > 0:
+        sf = min(max(opp_starter_avg_ip, 3.0), 7.0) / 9.0
+        bf = 1.0 - sf
+    else:
+        sf = STARTER_FRAC
+        bf = BULLPEN_FRAC
+
     starter_fip = min(max(opp_starter_fip  or LEAGUE_AVG_FIP,    1.5), 7.5)
     bullpen_fip = min(max(opp_bullpen_fip  or LEAGUE_BULLPEN_FIP, 1.5), 7.5)
 
-    mu_f5 = base * STARTER_FRAC * (starter_fip / LEAGUE_AVG_FIP)
-    mu_l4 = base * BULLPEN_FRAC * (bullpen_fip / LEAGUE_AVG_FIP)
+    mu_f5 = base * sf * (starter_fip / LEAGUE_AVG_FIP)
+    mu_l4 = base * bf * (bullpen_fip / LEAGUE_AVG_FIP)
 
     return max(0.5, min(mu_f5, 6.0)), max(0.4, min(mu_l4, 5.0))
 
@@ -66,10 +82,11 @@ def expected_runs(
     park_factor: float = 1.0,
     is_home: bool = False,
     opp_bullpen_fip: Optional[float] = None,
+    opp_starter_avg_ip: Optional[float] = None,
 ) -> float:
     """Total expected runs combining F5 (starter) and L4 (bullpen) windows."""
     bp = opp_bullpen_fip if opp_bullpen_fip is not None else LEAGUE_BULLPEN_FIP
-    mu_f5, mu_l4 = expected_runs_split(wrc_plus, opp_starter_fip, bp, park_factor, is_home)
+    mu_f5, mu_l4 = expected_runs_split(wrc_plus, opp_starter_fip, bp, park_factor, is_home, opp_starter_avg_ip)
     return max(1.5, min(mu_f5 + mu_l4, 10.0))
 
 

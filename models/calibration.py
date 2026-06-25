@@ -24,6 +24,31 @@ def log_loss_score(predictions: list[float], outcomes: list[int], eps: float = 1
     return -total / len(predictions)
 
 
+def expected_calibration_error(
+    predictions: list[float], outcomes: list[int], n_bins: int = 10
+) -> float:
+    """
+    Expected Calibration Error — weighted average absolute difference between
+    mean predicted confidence and actual accuracy across n_bins buckets.
+    Target: ECE < 0.05 (well-calibrated), < 0.10 (acceptable).
+    """
+    if not predictions:
+        return float("nan")
+    bins: list[list] = [[] for _ in range(n_bins)]
+    for p, o in zip(predictions, outcomes):
+        idx = min(int(p * n_bins), n_bins - 1)
+        bins[idx].append((p, o))
+    ece = 0.0
+    n = len(predictions)
+    for bucket in bins:
+        if not bucket:
+            continue
+        avg_conf = sum(p for p, _ in bucket) / len(bucket)
+        avg_acc  = sum(o for _, o in bucket) / len(bucket)
+        ece += len(bucket) * abs(avg_conf - avg_acc)
+    return round(ece / n, 4)
+
+
 def reliability_curve(
     predictions: list[float], outcomes: list[int], n_bins: int = 10
 ) -> list[dict]:
@@ -181,6 +206,7 @@ def compute_metrics_from_db(method: Optional[str] = None, sport: Optional[str] =
     bs   = brier_score(preds, actuals)
     ll   = log_loss_score(preds, actuals)
     crv  = reliability_curve(preds, actuals)
+    ece  = expected_calibration_error(preds, actuals)
 
     # Benchmark comparison
     n = overall["n"]
@@ -208,5 +234,7 @@ def compute_metrics_from_db(method: Optional[str] = None, sport: Optional[str] =
         "log_loss_benchmark":{"random": 0.693, "perfect": 0.0,
                                "good_model": "< 0.55"},
         "reliability_curve": crv,
+        "ece":               round(ece, 4) if not math.isnan(ece) else None,
+        "ece_benchmark":     {"well_calibrated": "< 0.05", "acceptable": "< 0.10"},
         "benchmarks":        benchmarks,
     }

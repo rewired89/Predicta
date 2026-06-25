@@ -527,6 +527,18 @@ mutates: none
 ---
 
 ---
+name: expected_calibration_error
+type: function
+file: models/calibration.py
+purpose: Expected Calibration Error — weighted average absolute difference between mean predicted confidence and actual accuracy across n_bins probability buckets. Target ECE < 0.05 = well-calibrated, < 0.10 = acceptable. math: ECE = (1/N) × Σ_bins |mean_conf_bin - mean_acc_bin| × |bin|
+inputs: predictions: list[float], outcomes: list[int], n_bins: int = 10
+outputs: float (0–1, lower is better)
+calls: none
+called_by: compute_metrics_from_db
+mutates: none
+---
+
+---
 name: reliability_curve
 type: function
 file: models/calibration.py
@@ -622,7 +634,7 @@ mutates: none
 name: MIN_SAMPLES
 type: variable
 file: models/ml_layer.py
-purpose: Minimum number of resolved predictions (50) before the ML model will train; below this the Elo/Glicko baseline is more reliable.
+purpose: Minimum number of resolved predictions (100) before the ML model will train; below this the Elo/Glicko/Poisson baseline is more reliable than a fitted model (raised from 50 — too few samples risk overfitting with 5-10 features).
 inputs: none
 outputs: int
 calls: none
@@ -2624,7 +2636,7 @@ mutates: none
 name: _get_team_hitting
 type: function
 file: fetchers/baseball.py
-purpose: Fetches team batting stats from ESPN /teams/{id}/statistics; computes wRC+ approximation (OPS/0.730 × 100).
+purpose: Fetches team batting stats from ESPN /teams/{id}/statistics. wRC+ computed as (2×OBP+SLG)/1.045×100 when OBP/SLG available (correlates 0.97 with true wRC+), else falls back to OPS/0.730×100. math: wRC+ ≈ (2×OBP + SLG) / 1.045 × 100 where 1.045 = 2×0.315+0.415 (2025-26 MLB avg)
 inputs: team_id: str
 outputs: dict {ops, avg, obp, slg, k_pct, bb_pct, runs_per_game, wrc_plus}
 calls: _espn_get, _stat, _f
@@ -2760,8 +2772,8 @@ mutates: none
 name: expected_runs_split
 type: function
 file: models/baseball_market.py
-purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP) separately. Replaces single-FIP expected_runs as primary model function.
-inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False
+purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP). When opp_starter_avg_ip is provided, starter_frac = clamp(avg_ip, 3, 7)/9 (dynamic); otherwise falls back to fixed 5/9. math: mu_f5 = LEAGUE_AVG × starter_frac × (wRC+/100) × park × home × (starter_FIP/LEAGUE_FIP); mu_l4 = LEAGUE_AVG × bullpen_frac × (wRC+/100) × park × home × (bullpen_FIP/LEAGUE_FIP)
+inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_starter_avg_ip: Optional[float] = None
 outputs: tuple[float, float] — (mu_f5 clamped 0.5-6.0, mu_l4 clamped 0.4-5.0)
 calls: none
 called_by: run_baseball_analysis
@@ -3352,11 +3364,35 @@ mutates: none
 ---
 
 ---
+name: _rest_days
+type: function
+file: analyze_tennis.py
+purpose: Returns days since the player's last completed match by comparing last5[0]["date"] to game_date. Returns 99 (= no penalty applied) when last5 is empty or dates are unparseable.
+inputs: last5: list[dict], game_date: str (ISO "YYYY-MM-DD")
+outputs: int (0 = same day, 1 = next day, 2+ = rested, 99 = unknown)
+calls: datetime.fromisoformat
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
+name: _sqi_rest_factor
+type: function
+file: analyze_tennis.py
+purpose: Returns SQI multiplier for rest-day fatigue. 0 days = 0.92 (-8%), 1 day = 0.97 (-3%), 2+ days = 1.0 (no penalty). Captures measurable serve quality drop when players compete on consecutive or same days. Penalty logged as rest_days signal for future calibration.
+inputs: rest_days: int
+outputs: float (0.92 | 0.97 | 1.0)
+calls: none
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
 name: _compute_point_probs
 type: function
 file: analyze_tennis.py
-purpose: Compute P_serve (A wins point on A's serve) and P_return (A wins point on B's serve). SQI, RQI, surface win rate, and form all feed in as modifiers to the logistic — not blended as external percentages (Gemini fix).
-inputs: sqi_a, rqi_a, sqi_b, rqi_b: float (SQI/RQI centred on 100); swr_a, swr_b, form_a, form_b: float; surface: str
+purpose: Compute P_serve (A wins point on A's serve) and P_return (A wins point on B's serve). SQI, RQI, surface win rate, and form all feed in as modifiers to the logistic — not blended as external percentages. SQI values passed in have already been adjusted for rest-day fatigue by _sqi_rest_factor.
+inputs: sqi_a, rqi_a, sqi_b, rqi_b: float (SQI/RQI centred on 100, rest-adjusted); swr_a, swr_b, form_a, form_b: float; surface: str
 outputs: tuple[float, float] — (p_serve, p_return)
 calls: _logistic
 called_by: run_tennis_analysis
@@ -4017,15 +4053,16 @@ team_ERA ≈ (starter_FIP × 5 + bullpen_FIP × 4) / 9
 ```
 Clamped to `[3.0, 7.5]`.  If `team_ERA ≤ 0`, fallback to `LEAGUE_BULLPEN_FIP = 4.40`.
 
-#### 3d. wRC+ from OPS (approximation)
+#### 3d. wRC+ from OBP/SLG (improved approximation)
 ```
-wRC+ ≈ round((OPS / 0.730) × 100)
+wRC+ ≈ round(((2 × OBP + SLG) / 1.045) × 100)    when OBP and SLG are both available
+wRC+ ≈ round((OPS / 0.730) × 100)                  fallback when only OPS is available
 ```
-- 0.730 = 2025-26 MLB average OPS  
-- wRC+ = 100 → league average offense  
-- wRC+ = 120 → 20% better than average  
-- wRC+ = 80 → 20% worse than average  
-- Used because ESPN's `/teams/{id}/statistics` provides OPS but not wRC+ directly
+- 1.045 = 2×0.315 + 0.415 = 2025-26 MLB average (2×OBP + SLG)
+- 2×OBP+SLG weights OBP more heavily — a point of OBP is ~1.8× more valuable than a point of SLG in run creation
+- Correlates ~0.97 with true wRC+ vs ~0.93 for raw OPS
+- wRC+ = 100 → league average offense; 120 → 20% above average; 80 → 20% below average
+- Used because ESPN provides OPS, OBP, and SLG but not wRC+ directly
 
 #### 3e. Platoon Adjustment
 ```
@@ -4041,12 +4078,22 @@ off  = wRC+_adj / 100.0
 home = 1.03 if home else 1.0
 base = LEAGUE_AVG_RUNS × off × park_factor × home
 
-mu_f5 = base × STARTER_FRAC × (starter_FIP / LEAGUE_AVG_FIP)
-mu_l4 = base × BULLPEN_FRAC × (bullpen_FIP / LEAGUE_AVG_FIP)
+# Dynamic starter fraction (Kimi P0 fix — uses actual depth prediction per starter):
+if avg_ip_per_start is known (GS >= 3):
+    starter_frac = clamp(avg_ip, 3.0, 7.0) / 9.0
+    bullpen_frac = 1.0 - starter_frac
+else:
+    starter_frac = 5/9 = 0.556   (default)
+    bullpen_frac = 4/9 = 0.444
 
+mu_f5    = base × starter_frac × (starter_FIP / LEAGUE_AVG_FIP)
+mu_l4    = base × bullpen_frac × (bullpen_FIP / LEAGUE_AVG_FIP)
 mu_total = mu_f5 + mu_l4
 ```
 Clamped: `mu_f5 ∈ [0.5, 6.0]`, `mu_l4 ∈ [0.4, 5.0]`, `mu_total ∈ [1.5, 10.0]`
+
+avg_ip_per_start = `starter["innings_pitched"] / starter["games_started"]` (ESPN season stats).
+Minimum GS=3 before using dynamic fraction; otherwise defaults to 5/9.
 
 **Interpretation:** A team with wRC+=110 facing a FIP=3.50 starter at a neutral park:
 ```
