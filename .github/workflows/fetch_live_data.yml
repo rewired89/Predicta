@@ -29,10 +29,11 @@ jobs:
 
       - name: Fetch live data
         env:
-          SPORTSDATA_API_KEY: ${{ secrets.SPORTSDATA_API_KEY }}
-          ODDS_API_KEY:       ${{ secrets.ODDS_API_KEY }}
-          ALPACA_API_KEY:     ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY:  ${{ secrets.ALPACA_SECRET_KEY }}
+          SPORTSDATA_API_KEY:   ${{ secrets.SPORTSDATA_API_KEY }}
+          ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY }}
+          ALPACA_API_KEY:       ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY:    ${{ secrets.ALPACA_SECRET_KEY }}
+          OPENWEATHER_API_KEY:  ${{ secrets.OPENWEATHER_API_KEY }}
         run: python fetchers/live_data.py
 
       - name: Commit and push data files
