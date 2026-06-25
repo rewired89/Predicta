@@ -221,6 +221,89 @@ def ttcup_fetch_result(
     return None
 
 
+# ── ESPN MLB result lookup ─────────────────────────────────────────────────────
+
+def espn_fetch_baseball_result(
+    team_a: str,
+    team_b: str,
+    match_date: str,
+) -> Optional[dict]:
+    """
+    Look up a completed MLB game result from the ESPN scoreboard.
+
+    Args:
+        team_a:     Team name (any ESPN format — displayName, abbreviation, nickname)
+        team_b:     Team name
+        match_date: ISO date "YYYY-MM-DD"
+
+    Returns:
+        {result, score_a, score_b, source} or None.
+    """
+    try:
+        from fetchers.baseball import _get_scoreboard, _all_teams, _match_team
+    except ImportError:
+        return None
+
+    try:
+        teams = _all_teams()
+        mlb_a = _match_team(team_a, teams)
+        mlb_b = _match_team(team_b, teams)
+    except Exception:
+        return None
+
+    if not mlb_a or not mlb_b:
+        return None
+
+    id_a = str(mlb_a["id"])
+    id_b = str(mlb_b["id"])
+
+    try:
+        events = _get_scoreboard(match_date)
+    except Exception:
+        return None
+
+    for event in events:
+        for comp in event.get("competitions", []):
+            comp_ids = {
+                str(c.get("team", {}).get("id", ""))
+                for c in comp.get("competitors", [])
+            }
+            if id_a not in comp_ids or id_b not in comp_ids:
+                continue
+
+            # Only record completed games
+            stype = comp.get("status", {}).get("type", {})
+            if not stype.get("completed", False) and stype.get("state", "") != "post":
+                return None
+
+            scores: dict[str, int] = {}
+            for c in comp.get("competitors", []):
+                cid = str(c.get("team", {}).get("id", ""))
+                try:
+                    scores[cid] = int(c.get("score", 0))
+                except (ValueError, TypeError):
+                    scores[cid] = 0
+
+            sa = scores.get(id_a, 0)
+            sb = scores.get(id_b, 0)
+
+            if sa > sb:
+                result = "a"
+            elif sb > sa:
+                result = "b"
+            else:
+                result = "draw"
+
+            return {
+                "result":  result,
+                "score_a": sa,
+                "score_b": sb,
+                "source":  f"ESPN MLB scoreboard ({match_date})",
+            }
+
+    return None
+
+
 # ── Unified result fetcher ────────────────────────────────────────────────────
 
 def fetch_match_result(
@@ -234,8 +317,11 @@ def fetch_match_result(
     Try all available sources for a match result.
     Returns {result, score_a, score_b, source} or None.
     """
+    if sport == "baseball":
+        return espn_fetch_baseball_result(player_a, player_b, match_date)
+
     if sport != "table_tennis":
-        return None  # only TT auto-resolve implemented so far
+        return None  # tennis/soccer auto-resolve not yet implemented
 
     # Try Setka first
     res = setka_fetch_result(player_a, player_b, match_date)

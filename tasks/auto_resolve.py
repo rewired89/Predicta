@@ -99,7 +99,7 @@ def run_auto_resolve(dry_run: bool = False) -> dict:
             "source":   None,
         }
 
-        if sport not in ("table_tennis",):
+        if sport not in ("table_tennis", "baseball"):
             detail["status"] = "skipped"
             detail["note"]   = f"Auto-resolve not yet implemented for {sport}"
             summary["skipped"] += 1
@@ -111,8 +111,9 @@ def run_auto_resolve(dry_run: bool = False) -> dict:
         )
 
         if result_data is None:
+            source_label = "ESPN MLB scoreboard" if sport == "baseball" else "Setka Cup or TT Cup"
             detail["status"] = "failed"
-            detail["note"]   = "No result found on Setka Cup or TT Cup"
+            detail["note"]   = f"No result found on {source_label}"
             summary["failed"] += 1
         else:
             detail["result"]  = result_data["result"]

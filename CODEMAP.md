@@ -4197,13 +4197,25 @@ mutates: none (static file — update when new regulars join the circuit)
 ## fetchers/results_collector.py
 
 ---
+name: espn_fetch_baseball_result
+type: function
+file: fetchers/results_collector.py
+purpose: Look up a completed MLB game result from the ESPN scoreboard. Resolves team names via _match_team, finds the game in the scoreboard events for match_date, checks completion status, and extracts final run scores for each team.
+inputs: team_a, team_b: str, match_date: str (ISO "YYYY-MM-DD")
+outputs: Optional[dict {result, score_a, score_b, source}]
+calls: fetchers.baseball._get_scoreboard, _all_teams, _match_team
+called_by: fetch_match_result
+mutates: none
+---
+
+---
 name: fetch_match_result
 type: function
 file: fetchers/results_collector.py
-purpose: Unified entry point — try Setka Cup then TT Cup to fetch the actual result of a completed match. Returns {result, score_a, score_b, source} or None.
+purpose: Unified entry point — routes to ESPN MLB scoreboard for baseball; tries Setka Cup then TT Cup for table tennis; returns None for tennis/soccer (not yet implemented). Returns {result, score_a, score_b, source} or None.
 inputs: player_a, player_b: str, match_date: str (ISO), sport: str, tour: str
 outputs: Optional[dict]
-calls: setka_fetch_result, ttcup_fetch_result
+calls: espn_fetch_baseball_result, setka_fetch_result, ttcup_fetch_result
 called_by: run_auto_resolve
 mutates: none
 ---
@@ -4238,7 +4250,7 @@ mutates: none
 name: run_auto_resolve
 type: function
 file: tasks/auto_resolve.py
-purpose: Scan DB for unresolved predictions past scheduled_at. Fetch actual results from Setka/TT Cup and record outcomes automatically. Returns summary with per-match status. dry_run=True fetches but doesn't write.
+purpose: Scan DB for unresolved predictions past scheduled_at. Fetch actual results and record outcomes automatically. Supports: baseball (ESPN scoreboard), table_tennis (Setka/TT Cup). Tennis and soccer are skipped (manual outcome recording required). dry_run=True fetches but doesn't write.
 inputs: dry_run: bool = False
 outputs: dict {attempted, resolved, failed, skipped, details}
 calls: _pending_matches, fetch_match_result, record_outcome
