@@ -8,15 +8,13 @@ import os
 import re
 
 import anthropic
+from ai_client import get_client
 
 MODEL = "claude-haiku-4-5-20251001"
 
 
 def _client() -> anthropic.Anthropic:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise RuntimeError("ANTHROPIC_API_KEY not set.")
-    return anthropic.Anthropic(api_key=key)
+    return get_client()
 
 
 # ── 1. Parse query ────────────────────────────────────────────────────────────

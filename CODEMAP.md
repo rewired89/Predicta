@@ -4,6 +4,22 @@
 
 ---
 
+## ai_client.py
+
+---
+name: get_client
+type: function
+file: ai_client.py
+purpose: Shared Anthropic client factory. Tries ANTHROPIC_API_KEY first (local .env / CI), then falls back to CLAUDE_SESSION_INGRESS_TOKEN_FILE bearer token (Claude Code remote sessions). Raises RuntimeError if neither is available.
+inputs: none
+outputs: anthropic.Anthropic
+calls: anthropic.Anthropic
+called_by: _client (ai_agent.py, ai_agent_baseball.py, ai_agent_tennis.py, ai_agent_table_tennis.py, ai_agent_trading.py)
+mutates: none
+---
+
+---
+
 ## db/database.py
 
 ---
