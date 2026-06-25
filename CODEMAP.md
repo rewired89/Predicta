@@ -2215,6 +2215,96 @@ mutates: matches, signals, predictions tables
 ---
 
 ---
+name: home
+type: function
+file: app.py
+purpose: GET / — serves the landing page with Sports and Stock Market category cards (home.html).
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: HTTP GET /
+mutates: none
+---
+
+---
+name: sports
+type: function
+file: app.py
+purpose: GET /sports — serves the sports sub-landing page with Soccer and Baseball cards (sports.html).
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: HTTP GET /sports
+mutates: none
+---
+
+---
+name: soccer
+type: function
+file: app.py
+purpose: GET /soccer — serves the soccer analysis page (index.html).
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: HTTP GET /soccer
+mutates: none
+---
+
+---
+name: baseball_ui
+type: function
+file: app.py
+purpose: GET /baseball — serves the baseball analysis page (baseball.html).
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: HTTP GET /baseball
+mutates: none
+---
+
+## templates/home.html
+
+---
+name: home.html
+type: template
+file: templates/home.html
+purpose: Landing page with two category cards — Sports and Stock Market — using dark/neon-green portfolio-inspired design.
+inputs: none
+outputs: HTML
+calls: none
+called_by: home (app.py)
+mutates: none
+---
+
+## templates/sports.html
+
+---
+name: sports.html
+type: template
+file: templates/sports.html
+purpose: Sports sub-landing with Soccer and Baseball cards; shows model pills (Elo, FIP, etc.) for each sport.
+inputs: none
+outputs: HTML
+calls: none
+called_by: sports (app.py)
+mutates: none
+---
+
+## templates/baseball.html
+
+---
+name: baseball.html
+type: template
+file: templates/baseball.html
+purpose: Baseball analysis UI — natural language query → /analyze-baseball → renders probabilities, markets (moneyline, run line, totals, NRFI, first 5), and starter stats.
+inputs: none
+outputs: HTML
+calls: /analyze-baseball API
+called_by: baseball_ui (app.py)
+mutates: none
+---
+
+---
 
 ## db/database.py (additions)
 
