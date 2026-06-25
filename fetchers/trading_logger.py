@@ -1,0 +1,218 @@
+"""
+Trade lifecycle logger for intraday paper trading.
+
+Two-phase logging:
+  log_trade_entry  — inserts record at entry time, returns trade_id
+  log_trade_exit   — updates record at close, computes P&L + adjusted P&L
+
+adjusted_pnl subtracts half-spread cost on both legs to estimate live performance.
+Paper fills (Alpaca) are optimistic by ~spread/2 per leg vs real market orders.
+"""
+from __future__ import annotations
+from datetime import datetime, timezone
+from typing import Optional
+
+from db.database import get_db
+
+
+def log_trade_entry(
+    symbol: str,
+    side: str,
+    entry_price: float,
+    qty: float,
+    position_value: float,
+    entry_score: float,
+    time_of_day_label: str,
+    spread_pct: float,
+    planned_hold_bars: int,
+    stop_price: float,
+    target_price: float,
+    risk_dollars: float,
+    alpaca_order_id: Optional[str] = None,
+    entry_time: Optional[str] = None,
+) -> int:
+    """
+    Insert a new open trade record. exit_time and exit_price remain NULL
+    until log_trade_exit is called.
+    Returns the trade_id (row id).
+    """
+    if entry_time is None:
+        entry_time = datetime.now(timezone.utc).isoformat()
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO intraday_trades (
+                symbol, entry_time, side,
+                entry_price, qty, position_value,
+                entry_score, time_of_day_label,
+                spread_pct_at_entry, planned_hold_bars,
+                stop_price, target_price, risk_dollars,
+                alpaca_order_id, logged_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (
+                symbol, entry_time, side,
+                entry_price, qty, position_value,
+                entry_score, time_of_day_label,
+                spread_pct, planned_hold_bars,
+                stop_price, target_price, risk_dollars,
+                alpaca_order_id,
+            ),
+        )
+        return cur.lastrowid
+
+
+def log_trade_exit(
+    trade_id: int,
+    exit_price: float,
+    exit_reason: str,
+    actual_hold_bars: Optional[int] = None,
+    slippage_exit: float = 0.0,
+    exit_time: Optional[str] = None,
+) -> dict:
+    """
+    Close an open trade record with exit data. Computes:
+      pnl_dollars:  raw dollar P&L (exit_price - entry_price) × qty
+      pnl_pct:      raw % return per share
+      pnl_r:        P&L expressed as multiples of initial risk
+      adjusted_pnl: pnl_dollars minus estimated half-spread cost on both entry and exit
+                    legs — conservative proxy for live execution quality.
+    Returns the computed metrics dict.
+    """
+    if exit_time is None:
+        exit_time = datetime.now(timezone.utc).isoformat()
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM intraday_trades WHERE id = ?", (trade_id,)
+        ).fetchone()
+        if not row:
+            return {"error": f"Trade {trade_id} not found"}
+
+        entry_price    = row["entry_price"]
+        side           = row["side"]
+        qty            = row["qty"] or 1.0
+        position_value = row["position_value"] or (entry_price * qty)
+        risk_dollars   = row["risk_dollars"] or 0.0
+        spread_pct     = row["spread_pct_at_entry"] or 0.0
+
+        # Raw P&L
+        per_share  = (exit_price - entry_price) if side == "long" else (entry_price - exit_price)
+        pnl_dollars = round(per_share * qty, 4)
+        pnl_pct     = round(per_share / entry_price * 100, 4) if entry_price else 0.0
+        pnl_r       = round(pnl_dollars / risk_dollars, 3) if risk_dollars else None
+
+        # Adjusted P&L: subtract half-spread cost on both legs (entry + exit)
+        # half_spread × position_value × 2 legs
+        slippage_cost = round((spread_pct / 2 / 100) * position_value * 2, 4)
+        adjusted_pnl  = round(pnl_dollars - slippage_cost, 4)
+
+        conn.execute(
+            """
+            UPDATE intraday_trades SET
+                exit_time = ?, exit_price = ?,
+                exit_reason = ?, actual_hold_bars = ?,
+                slippage_exit = ?,
+                pnl_dollars = ?, pnl_pct = ?,
+                pnl_r = ?, adjusted_pnl = ?
+            WHERE id = ?
+            """,
+            (
+                exit_time, exit_price,
+                exit_reason, actual_hold_bars,
+                slippage_exit,
+                pnl_dollars, pnl_pct,
+                pnl_r, adjusted_pnl,
+                trade_id,
+            ),
+        )
+
+    return {
+        "trade_id":      trade_id,
+        "exit_price":    exit_price,
+        "exit_reason":   exit_reason,
+        "pnl_dollars":   pnl_dollars,
+        "pnl_pct":       pnl_pct,
+        "pnl_r":         pnl_r,
+        "adjusted_pnl":  adjusted_pnl,
+        "slippage_cost": slippage_cost,
+    }
+
+
+def get_trade_stats(days: int = 7) -> dict:
+    """
+    Aggregated paper trading performance for the last N days (closed trades only).
+    Includes breakdown by time-of-day label and exit reason.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM intraday_trades
+            WHERE entry_time >= datetime('now', ? || ' days')
+            AND exit_time IS NOT NULL
+            ORDER BY entry_time DESC
+            """,
+            (f"-{days}",),
+        ).fetchall()
+
+    if not rows:
+        return {"message": f"No closed trades in last {days} days", "total_trades": 0}
+
+    trades    = [dict(r) for r in rows]
+    n         = len(trades)
+    total_pnl = sum(t["pnl_dollars"] or 0 for t in trades)
+    adj_pnl   = sum(t.get("adjusted_pnl") or t["pnl_dollars"] or 0 for t in trades)
+    wins      = sum(1 for t in trades if (t["pnl_dollars"] or 0) > 0)
+    avg_r     = None
+    r_vals    = [t["pnl_r"] for t in trades if t.get("pnl_r") is not None]
+    if r_vals:
+        avg_r = round(sum(r_vals) / len(r_vals), 3)
+
+    # Time-of-day breakdown
+    tod_stats: dict = {}
+    for label in ("MORNING_TREND", "AFTERNOON_TREND", "OPEN_NOISE", "CLOSE_REVERSAL", "LUNCH_CHOP"):
+        subset = [t for t in trades if t.get("time_of_day_label") == label]
+        if subset:
+            s_wins = sum(1 for t in subset if (t["pnl_dollars"] or 0) > 0)
+            tod_stats[label] = {
+                "n":        len(subset),
+                "win_rate": round(s_wins / len(subset), 3),
+                "avg_pnl":  round(sum(t["pnl_dollars"] or 0 for t in subset) / len(subset), 2),
+                "avg_r":    round(
+                    sum(t["pnl_r"] for t in subset if t.get("pnl_r") is not None)
+                    / max(1, sum(1 for t in subset if t.get("pnl_r") is not None)), 3
+                ),
+            }
+
+    # Exit reason breakdown
+    reason_counts: dict = {}
+    for t in trades:
+        r = t.get("exit_reason") or "UNKNOWN"
+        reason_counts[r] = reason_counts.get(r, 0) + 1
+
+    return {
+        "period_days":       days,
+        "total_trades":      n,
+        "win_rate":          round(wins / n, 3) if n else 0,
+        "total_pnl":         round(total_pnl, 2),
+        "adjusted_pnl":      round(adj_pnl, 2),
+        "avg_pnl_per_trade": round(total_pnl / n, 2) if n else 0,
+        "avg_r":             avg_r,
+        "by_time_of_day":    tod_stats,
+        "by_exit_reason":    reason_counts,
+        "recent_trades": [
+            {
+                "symbol":         t["symbol"],
+                "side":           t["side"],
+                "entry_time":     t["entry_time"],
+                "exit_time":      t["exit_time"],
+                "pnl":            t["pnl_dollars"],
+                "pnl_r":          t.get("pnl_r"),
+                "adjusted_pnl":   t.get("adjusted_pnl"),
+                "exit_reason":    t["exit_reason"],
+                "tod_label":      t.get("time_of_day_label"),
+            }
+            for t in trades[:10]
+        ],
+    }

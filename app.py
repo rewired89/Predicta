@@ -519,3 +519,254 @@ def get_positions():
 def get_account():
     from fetchers.alpaca import get_account
     return get_account()
+
+
+# ── Signal-driven smart order ─────────────────────────────────────────────────
+
+class SmartOrderRequest(BaseModel):
+    symbol: str
+    account_value: float = 10000.0
+    hold_bars: int = 6          # 5-min bars to hold (6 = 30-min scalp)
+    min_score: float = 30.0     # minimum |score| to trade (default 30)
+
+
+@app.post("/trade/smart-order", status_code=201)
+def smart_trade(body: SmartOrderRequest):
+    """
+    Signal-driven bracket order. Computes intraday signals, applies
+    liquidity and time-of-day vetoes, sizes position via intraday EM,
+    places bracket order with Alpaca, and logs the entry automatically.
+
+    Rejection reasons (status=REJECTED): liquidity fail, lunch chop,
+    weak signal (|score| < min_score), missing trade levels.
+    """
+    from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars, place_bracket_order
+    from models.trading.intraday import compute_intraday_signals
+    from fetchers.trading_logger import log_trade_entry
+
+    # ── Data fetch ────────────────────────────────────────────────────────────
+    snap = get_snapshot(body.symbol)
+    if "error" in snap:
+        raise HTTPException(400, snap["error"])
+
+    intraday = get_bars(body.symbol, "5Min", 78)
+    daily    = get_daily_bars(body.symbol, days=60)
+    avg_vol  = sum(b.get("v", 0) for b in daily[-20:]) / 20 if len(daily) >= 20 else 1_000_000
+
+    # ── Signal computation ────────────────────────────────────────────────────
+    signals = compute_intraday_signals(
+        intraday, daily, snap, avg_vol, hold_bars=body.hold_bars
+    )
+    if "error" in signals:
+        raise HTTPException(400, signals["error"])
+
+    liq   = signals["liquidity"]
+    score = signals["score"]
+    score_val = score["value"]
+
+    # ── Liquidity veto ────────────────────────────────────────────────────────
+    if not liq.get("pass", True):
+        return {
+            "status":    "REJECTED",
+            "reason":    f"Liquidity gate: {liq['label']} ({liq['spread_pct']:.3f}% spread)",
+            "liquidity": liq,
+            "symbol":    body.symbol,
+        }
+
+    # ── Time-of-day veto ─────────────────────────────────────────────────────
+    tod_label = score.get("time_label", "UNKNOWN")
+    if tod_label == "MARKET_CLOSED":
+        return {
+            "status": "REJECTED",
+            "reason": "Market closed",
+            "symbol": body.symbol,
+        }
+    if tod_label == "LUNCH_CHOP" and abs(score_val) < 60:
+        return {
+            "status":    "REJECTED",
+            "reason":    "Lunch chop — score suppressed below 60 conviction threshold",
+            "score":     score,
+            "symbol":    body.symbol,
+        }
+
+    # ── Signal gate ───────────────────────────────────────────────────────────
+    if abs(score_val) < body.min_score:
+        return {
+            "status": "REJECTED",
+            "reason": f"Score {score_val:+.1f} below min_score ±{body.min_score}",
+            "score":  score,
+            "symbol": body.symbol,
+        }
+
+    side = "long" if score_val > 0 else "short"
+
+    # ── Trade levels ──────────────────────────────────────────────────────────
+    levels = signals.get("levels", {})
+    if not levels or not levels.get("stop") or not levels.get("target2"):
+        return {
+            "status": "REJECTED",
+            "reason": "Trade levels not computed (insufficient bar history)",
+            "symbol": body.symbol,
+        }
+
+    qty            = levels["shares"]
+    entry_price    = levels["entry"]
+    stop_loss      = levels["stop"]
+    take_profit    = levels["target2"]
+    position_value = levels["position_value"]
+    risk_dollars   = levels["risk_dollars"]
+
+    if qty <= 0:
+        return {
+            "status": "REJECTED",
+            "reason": "Position size is zero (score below ATR sizing threshold)",
+            "levels": levels,
+            "symbol": body.symbol,
+        }
+
+    # ── Place bracket order ───────────────────────────────────────────────────
+    alpaca_side  = "buy" if side == "long" else "sell"
+    order_result = place_bracket_order(
+        symbol      = body.symbol,
+        qty         = qty,
+        side        = alpaca_side,
+        entry_price = None,           # market entry — faster fill
+        take_profit = take_profit,
+        stop_loss   = stop_loss,
+    )
+    if "error" in order_result:
+        raise HTTPException(400, order_result.get("detail") or order_result["error"])
+
+    alpaca_order_id = order_result.get("id")
+
+    # ── Log entry ─────────────────────────────────────────────────────────────
+    trade_id = log_trade_entry(
+        symbol          = body.symbol,
+        side            = side,
+        entry_price     = entry_price,
+        qty             = qty,
+        position_value  = position_value,
+        entry_score     = score_val,
+        time_of_day_label = tod_label,
+        spread_pct      = liq.get("spread_pct", 0.0),
+        planned_hold_bars = body.hold_bars,
+        stop_price      = stop_loss,
+        target_price    = take_profit,
+        risk_dollars    = risk_dollars,
+        alpaca_order_id = alpaca_order_id,
+    )
+
+    return {
+        "status":             "SUBMITTED",
+        "predicta_trade_id":  trade_id,
+        "alpaca_order_id":    alpaca_order_id,
+        "symbol":             body.symbol,
+        "side":               side,
+        "qty":                qty,
+        "entry":              entry_price,
+        "stop":               stop_loss,
+        "target":             take_profit,
+        "position_value":     position_value,
+        "risk_dollars":       risk_dollars,
+        "score":              score,
+        "liquidity":          liq,
+        "rr_ratio":           levels.get("rr_ratio"),
+        "stop_basis":         levels.get("stop_basis"),
+    }
+
+
+# ── Exit sync ─────────────────────────────────────────────────────────────────
+
+def _determine_exit_reason(order: dict) -> str:
+    """
+    Map Alpaca bracket order leg status to our exit reason codes.
+    Bracket orders have legs: take-profit (limit) and stop-loss (stop).
+    """
+    legs = order.get("legs") or []
+    for leg in legs:
+        if leg.get("status") == "filled":
+            otype = (leg.get("type") or leg.get("order_type") or "").lower()
+            if "limit" in otype:
+                return "TARGET2"
+            if "stop" in otype:
+                return "STOP"
+    # Parent order cancelled or manually closed
+    if order.get("status") == "canceled":
+        return "MANUAL_CANCEL"
+    return "MANUAL"
+
+
+@app.post("/trade/sync-exits")
+def sync_trade_exits():
+    """
+    Poll Alpaca for filled/closed bracket orders and log exits for any
+    open trade records we have on file. Call every 5–10 minutes while
+    the market is open, or after session close.
+    """
+    from fetchers.alpaca import get_orders
+    from fetchers.trading_logger import log_trade_exit
+
+    closed_orders = get_orders(status="closed")
+    if not closed_orders:
+        return {"synced": 0, "checked": 0, "message": "No closed orders from Alpaca"}
+
+    synced = 0
+    skipped = 0
+    errors = []
+
+    for order in closed_orders:
+        alpaca_id = order.get("id")
+        if not alpaca_id:
+            continue
+
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id FROM intraday_trades WHERE alpaca_order_id = ? AND exit_time IS NULL",
+                (alpaca_id,),
+            ).fetchone()
+            if not row:
+                skipped += 1
+                continue
+            trade_id = row["id"]
+
+        fill_price = order.get("filled_avg_price")
+        if not fill_price:
+            skipped += 1
+            continue
+
+        try:
+            fill_price = float(fill_price)
+        except (TypeError, ValueError):
+            errors.append({"alpaca_id": alpaca_id, "error": "bad fill price"})
+            continue
+
+        exit_reason = _determine_exit_reason(order)
+        result = log_trade_exit(
+            trade_id    = trade_id,
+            exit_price  = fill_price,
+            exit_reason = exit_reason,
+        )
+        if "error" in result:
+            errors.append({"trade_id": trade_id, "error": result["error"]})
+        else:
+            synced += 1
+
+    return {
+        "synced":  synced,
+        "skipped": skipped,
+        "checked": len(closed_orders),
+        "errors":  errors,
+    }
+
+
+# ── Performance analytics ─────────────────────────────────────────────────────
+
+@app.get("/trade/performance")
+def trade_performance(days: int = 7):
+    """
+    Paper trading performance for the last N days.
+    Returns win rate, P&L, adjusted P&L (slippage-corrected), and
+    breakdown by time-of-day session and exit reason.
+    """
+    from fetchers.trading_logger import get_trade_stats
+    return get_trade_stats(days)

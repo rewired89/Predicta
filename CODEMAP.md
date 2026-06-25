@@ -66,7 +66,7 @@ purpose: Context manager that yields an open SQLite connection with Row factory 
 inputs: db_path: Path = DB_PATH
 outputs: yields sqlite3.Connection
 calls: sqlite3.connect
-called_by: EloModel, Glicko2Model, predict_match, record_outcome, _market_consensus, log_signal, get_signals_for_match, fetch_signals_for_match, log_manual_odds, fetch_odds_snapshot, compute_metrics_from_db, generate_html_report, create_match, list_matches, get_match, add_signal, get_signals, list_predictions, get_odds, add_outcome, list_orders (app.py), _gather_training_data (ml_layer.py), log_intraday_trade (intraday.py)
+called_by: EloModel, Glicko2Model, predict_match, record_outcome, _market_consensus, log_signal, get_signals_for_match, fetch_signals_for_match, log_manual_odds, fetch_odds_snapshot, compute_metrics_from_db, generate_html_report, create_match, list_matches, get_match, add_signal, get_signals, list_predictions, get_odds, add_outcome, list_orders (app.py), _gather_training_data (ml_layer.py), log_trade_entry/log_trade_exit/get_trade_stats (trading_logger.py)
 mutates: predicta.db
 ---
 
@@ -78,12 +78,120 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Records completed intraday trades for post-trade analysis, slippage measurement, and future ML feature extraction. Stores entry/exit context (prices, times, side, scores, reasons) and actual vs planned hold duration. Used by log_intraday_trade() in intraday.py.
+purpose: Two-phase trade record: entry inserted by log_trade_entry, exit columns updated by log_trade_exit. exit_time/exit_price are nullable until position closes. New columns vs v1: qty, position_value, time_of_day_label, stop_price, target_price, risk_dollars, spread_pct_at_entry, pnl_r, adjusted_pnl, alpaca_order_id. adjusted_pnl subtracts half-spread cost on both legs for conservative live P&L estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
-called_by: log_intraday_trade (intraday.py)
+called_by: log_trade_entry, log_trade_exit, get_trade_stats (trading_logger.py)
 mutates: none (DDL)
+---
+
+---
+
+## db/database.py (migrations)
+
+---
+name: _migrate_intraday_trades
+type: function
+file: db/database.py
+purpose: One-time migration to upgrade intraday_trades from v1 (exit_time NOT NULL, no lifecycle columns) to v2. If no rows exist, drops and recreates. If rows exist, adds missing nullable columns via ALTER TABLE. Checked by presence of alpaca_order_id column.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: PRAGMA table_info, ALTER TABLE, DROP TABLE
+called_by: init_db
+mutates: predicta.db schema
+---
+
+---
+
+## fetchers/trading_logger.py
+
+---
+name: log_trade_entry
+type: function
+file: fetchers/trading_logger.py
+purpose: Inserts an open trade record at entry time. exit_time and exit_price remain NULL until log_trade_exit is called. Captures: symbol, side, entry_price, qty, position_value, entry_score, time_of_day_label, spread_pct_at_entry, stop_price, target_price, risk_dollars, alpaca_order_id. Returns trade_id (int).
+inputs: symbol, side, entry_price, qty, position_value, entry_score, time_of_day_label, spread_pct, planned_hold_bars, stop_price, target_price, risk_dollars, alpaca_order_id=None, entry_time=None
+outputs: int (trade_id)
+calls: db.database.get_db
+called_by: smart_trade (app.py)
+mutates: intraday_trades table (INSERT)
+---
+
+---
+name: log_trade_exit
+type: function
+file: fetchers/trading_logger.py
+purpose: Updates an open trade record with exit data and computes: pnl_dollars (exit-entry × qty), pnl_pct, pnl_r (P&L in R multiples vs risk_dollars), adjusted_pnl (pnl_dollars minus half-spread cost × position_value × 2 legs — conservative live estimate since paper fills ignore spread).
+inputs: trade_id, exit_price, exit_reason, actual_hold_bars=None, slippage_exit=0.0, exit_time=None
+outputs: dict {trade_id, exit_price, exit_reason, pnl_dollars, pnl_pct, pnl_r, adjusted_pnl, slippage_cost}
+calls: db.database.get_db
+called_by: sync_trade_exits (app.py)
+mutates: intraday_trades table (UPDATE)
+---
+
+---
+name: get_trade_stats
+type: function
+file: fetchers/trading_logger.py
+purpose: Aggregated paper trading performance for last N days (closed trades only). Returns: win rate, total P&L, adjusted P&L, avg P&L/trade, avg R, breakdown by time-of-day label and exit reason, recent 10 trades.
+inputs: days: int = 7
+outputs: dict {period_days, total_trades, win_rate, total_pnl, adjusted_pnl, avg_pnl_per_trade, avg_r, by_time_of_day, by_exit_reason, recent_trades}
+calls: db.database.get_db
+called_by: trade_performance (app.py)
+mutates: none
+---
+
+---
+
+## app.py (trading endpoints)
+
+---
+name: smart_trade
+type: function
+file: app.py
+purpose: POST /trade/smart-order — signal-driven bracket order. Fetches snapshot + bars, computes intraday signals, applies liquidity veto (pass=False), time-of-day veto (MARKET_CLOSED, LUNCH_CHOP < 60), signal gate (|score| < min_score), places Alpaca market bracket order (entry=None), logs entry via log_trade_entry. Returns predicta_trade_id + alpaca_order_id.
+inputs: SmartOrderRequest {symbol, account_value=10000, hold_bars=6, min_score=30}
+outputs: dict {status, predicta_trade_id, alpaca_order_id, symbol, side, qty, entry, stop, target, ...}
+calls: get_snapshot, get_bars, get_daily_bars, compute_intraday_signals, place_bracket_order, log_trade_entry
+called_by: POST /trade/smart-order
+mutates: intraday_trades (INSERT via log_trade_entry)
+---
+
+---
+name: sync_trade_exits
+type: function
+file: app.py
+purpose: POST /trade/sync-exits — polls Alpaca closed orders and logs exits for any open intraday_trades matched by alpaca_order_id. Determines exit reason from bracket leg type (TARGET2, STOP, MANUAL). Returns synced/skipped/error counts.
+inputs: none
+outputs: dict {synced, skipped, checked, errors}
+calls: get_orders, log_trade_exit, get_db
+called_by: POST /trade/sync-exits (cron or frontend poll)
+mutates: intraday_trades (UPDATE via log_trade_exit)
+---
+
+---
+name: trade_performance
+type: function
+file: app.py
+purpose: GET /trade/performance?days=7 — returns aggregated paper trading stats via get_trade_stats. Includes win rate, total P&L, adjusted P&L, and breakdown by time-of-day session and exit reason.
+inputs: days: int = 7 (query param)
+outputs: dict from get_trade_stats
+calls: get_trade_stats
+called_by: GET /trade/performance
+mutates: none
+---
+
+---
+name: _determine_exit_reason
+type: function
+file: app.py
+purpose: Maps Alpaca bracket order leg status to internal exit reason codes: TARGET2 (limit leg filled), STOP (stop leg filled), MANUAL_CANCEL (order cancelled), MANUAL (fallback).
+inputs: alpaca_order: dict
+outputs: str ("TARGET2" | "STOP" | "MANUAL_CANCEL" | "MANUAL")
+calls: none
+called_by: sync_trade_exits
+mutates: none
 ---
 
 ---
