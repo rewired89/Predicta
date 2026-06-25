@@ -5124,3 +5124,289 @@ calls: fetch_pair_history, prices_to_series, pairs_signal, compute_pairs_levels
 called_by: POST /trade/pairs-signal
 mutates: none
 ---
+
+---
+name: pairs_candidates
+type: function
+file: app.py
+purpose: POST /trade/pairs-candidates — scan the 8 CANDIDATE_PAIRS for cointegration using full Engle-Granger test (statsmodels coint). Filters by OU half-life (default 1–30 days). Returns cointegrated pairs with current z-score and generate_pair_signal output. Run weekly.
+inputs: PairsCandidatesRequest {days=90, min_half_life=1.0, max_half_life=30.0}
+outputs: dict {candidate_pairs_tested, cointegrated_found, filters, pairs: [{sym1, sym2, pvalue, beta, half_life_days, current_zscore, signal: {action, confidence, long, short, stop_z, ...}}]}
+calls: find_all_pairs, generate_pair_signal, CANDIDATE_PAIRS
+called_by: POST /trade/pairs-candidates
+mutates: none
+---
+
+---
+name: ngram_build
+type: function
+file: app.py
+purpose: POST /trade/ngram-build — build or refresh n-gram pattern frequency tables for a list of symbols. Fetches up to 10,000 5-min bars from Alpaca, builds 3-bar pattern table, saves to ngram_models DB table. Takes ~2s per symbol.
+inputs: NgramBuildRequest {symbols: list[str], months=6}
+outputs: dict {symbols_requested, results: {symbol: "built" | "insufficient_data" | "error: ..."}}
+calls: build_ngram_from_alpaca
+called_by: POST /trade/ngram-build
+mutates: ngram_models table (INSERT OR REPLACE)
+---
+
+---
+
+## db/schema.sql (new tables — Round 7)
+
+---
+name: pair_signals
+type: table
+file: db/schema.sql
+purpose: Persists pair trade signals for tracking outcomes. Populated by log_pair_signal. exit_z/exit_time/pnl_pct/exit_reason filled when the trade closes. Indexed by (sym1, sym2) and created_at for range queries.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: log_pair_signal (models/trading/pairs.py)
+mutates: none (DDL)
+---
+
+---
+name: ngram_models
+type: table
+file: db/schema.sql
+purpose: Stores per-symbol n-gram frequency tables as JSON. UNIQUE(symbol, pattern_len) — one table per symbol/pattern length. updated_at drives staleness check in load_pattern_table (stale after 7 days → rebuild). bar_count records training data size.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: save_pattern_table, load_pattern_table (models/trading/ngram.py)
+mutates: none (DDL)
+---
+
+---
+
+## models/trading/pairs.py (Round 7 additions)
+
+---
+name: CANDIDATE_PAIRS
+type: variable
+file: models/trading/pairs.py
+purpose: 8 pre-defined sector-pairs with strong cointegration priors: XOM/CVX (oil), PEP/KO (beverages), JPM/BAC (banks), AAPL/MSFT (big tech), WMT/TGT (retail), DAL/UAL (airlines), INTC/AMD (semis), JNJ/PFE (pharma). Used by find_all_pairs and pairs-candidates endpoint.
+inputs: none
+outputs: list[tuple[str, str]]
+calls: none
+called_by: find_all_pairs, pairs_candidates (app.py)
+mutates: none
+---
+
+---
+name: _spread_stats
+type: function
+file: models/trading/pairs.py
+purpose: Compute spread mean, std, current value, and z-score for s1 - β×s2. Shared helper between test_cointegration and find_cointegrated_pairs to avoid duplication.
+inputs: s1: list[float], s2: list[float], beta: float
+outputs: dict {spread, spread_mean, spread_std, current_spread, zscore}
+calls: math.sqrt
+called_by: test_cointegration, find_cointegrated_pairs
+mutates: none
+---
+
+---
+name: test_cointegration
+type: function
+file: models/trading/pairs.py
+purpose: Full Engle-Granger cointegration analysis for a specific pair. Uses statsmodels.tsa.stattools.coint (proper 2-step EG procedure, more accurate than ADF alone). Falls back to ADF on OLS residuals if coint import fails. Returns rich dict including coint_score, pvalue, beta, spread stats, OU half-life, and current z-score. Primary input for find_all_pairs and generate_pair_signal.
+inputs: sym1: str, sym2: str, series: dict[str, list[float]]
+outputs: dict {sym1, sym2, cointegrated, pvalue, coint_score, beta, spread_mean, spread_std, half_life_days, current_zscore, n_obs}
+calls: _ols_beta, _spread_stats, _half_life, statsmodels.tsa.stattools.coint
+called_by: find_all_pairs
+mutates: none
+---
+
+---
+name: find_all_pairs
+type: function
+file: models/trading/pairs.py
+purpose: End-to-end weekly scan of CANDIDATE_PAIRS. Fetches daily bars for each pair via fetch_pair_history, runs test_cointegration (full EG test), filters by cointegration p<0.05 AND OU half-life in [min_half_life, max_half_life] days. Returns results sorted by p-value. Typical output: 2-4 cointegrated pairs from 8 candidates.
+inputs: days=90, min_half_life=1.0, max_half_life=30.0
+outputs: list[dict] (test_cointegration output for qualifying pairs, sorted by pvalue)
+calls: fetch_pair_history, prices_to_series, test_cointegration
+called_by: pairs_candidates (app.py), scripts/weekly_build.py
+mutates: none
+---
+
+---
+name: generate_pair_signal
+type: function
+file: models/trading/pairs.py
+purpose: Trade signal from a test_cointegration result dict. Fixed thresholds: entry |z|>2.0, target |z|<0.5, stop |z|>3.5. Confidence = min(|z|/3.5, 1.0). Includes expected_hold_days from OU half-life. Returns LONG_SPREAD (buy sym1 short sym2), SHORT_SPREAD (short sym1 buy sym2), or NONE.
+inputs: pair_result: dict (from test_cointegration / find_all_pairs)
+outputs: dict {action, zscore, long, short, beta, shares_ratio, entry_z, target_z, stop_z, confidence, expected_hold_days, note}
+calls: none
+called_by: pairs_candidates (app.py), scripts/weekly_build.py, tests
+mutates: none
+---
+
+---
+name: log_pair_signal
+type: function
+file: models/trading/pairs.py
+purpose: Persist a pair signal to pair_signals table for outcome tracking. sym1/sym2 are canonical (from test_cointegration). Returns row ID.
+inputs: signal: dict, sym1: str, sym2: str
+outputs: int (row ID)
+calls: db.database.get_db
+called_by: pairs_candidates (app.py) — optional, caller decides to log or not
+mutates: pair_signals table (INSERT)
+---
+
+---
+
+## models/trading/ngram.py
+
+---
+name: PATTERN_LENGTH
+type: variable
+file: models/trading/ngram.py
+purpose: N-gram context window length (3 bars). 3-bar patterns → 3^3 = 27 possible sequences (U/D/E per bar). 6 months of 5-min data gives ~120 samples per pattern on average — enough for 50-sample minimum.
+inputs: none
+outputs: int (3)
+calls: none
+called_by: encode_sequence, build_pattern_table, ngram_signal, save/load_pattern_table
+mutates: none
+---
+
+---
+name: encode_bar
+type: function
+file: models/trading/ngram.py
+purpose: Classify a single bar direction: U (up, ratio > 1.0001), D (down, ratio < 0.9999), E (equal, within 1bp). The 1bp threshold prevents noise from flat bars polluting the pattern table.
+inputs: current_close: float, previous_close: float
+outputs: str ("U" | "D" | "E")
+calls: none
+called_by: encode_sequence, build_pattern_table
+mutates: none
+---
+
+---
+name: encode_sequence
+type: function
+file: models/trading/ngram.py
+purpose: Encode a list of closes into a direction string. len(closes)≥2 required; returns string of length (len-1). Example: [100, 101, 100.5] → "UD".
+inputs: closes: list[float]
+outputs: str
+calls: encode_bar
+called_by: build_pattern_table, ngram_signal
+mutates: none
+---
+
+---
+name: build_pattern_table
+type: function
+file: models/trading/ngram.py
+purpose: Build frequency table from historical closes. For each overlapping (pattern_len+1) window: encode pattern from first pattern_len bars, record next bar direction. Returns {pattern_str: {U: n, D: n, E: n}} covering all observed patterns.
+inputs: closes: list[float], pattern_len: int = PATTERN_LENGTH
+outputs: dict[str, dict[str, int]]
+calls: encode_sequence, encode_bar
+called_by: build_ngram_from_alpaca
+mutates: none
+---
+
+---
+name: save_pattern_table
+type: function
+file: models/trading/ngram.py
+purpose: Upsert pattern frequency table into ngram_models (INSERT OR REPLACE, unique on symbol+pattern_len). Serialises table as JSON.
+inputs: symbol: str, table: dict, bar_count: int
+outputs: none
+calls: db.database.get_db
+called_by: build_ngram_from_alpaca
+mutates: ngram_models table
+---
+
+---
+name: load_pattern_table
+type: function
+file: models/trading/ngram.py
+purpose: Load pattern table from DB. Returns None if not found, table is stale (>max_age_days), or DB table doesn't exist yet. Caller should trigger rebuild on None.
+inputs: symbol: str, max_age_days: int = 7
+outputs: Optional[dict]
+calls: db.database.get_db
+called_by: ngram_signal
+mutates: none
+---
+
+---
+name: ngram_signal
+type: function
+file: models/trading/ngram.py
+purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table. Returns UP (p_up>0.55, conf=(p-0.5)×200), DOWN (p_down>0.55), or NONE. Confidence is on 0–100 scale. Requires min_samples historical occurrences — avoids false edge from rare patterns. Never raises; returns NONE on any failure.
+inputs: symbol: str, recent_closes: list[float], min_samples: int = 50
+outputs: dict {signal, confidence, historical_win_rate?, pattern?, n_historical?, expected_edge?, reason?}
+calls: encode_sequence, load_pattern_table
+called_by: compute_intraday_signals (intraday.py)
+mutates: none
+---
+
+---
+name: ngram_to_composite_score
+type: function
+file: models/trading/ngram.py
+purpose: Convert ngram signal to -100…+100 scale for ensemble blending. UP → +confidence, DOWN → -confidence, NONE → 0.
+inputs: signal: dict
+outputs: float
+calls: none
+called_by: compute_intraday_signals (intraday.py)
+mutates: none
+---
+
+---
+name: build_ngram_from_alpaca
+type: function
+file: models/trading/ngram.py
+purpose: Fetch historical 5-min bars from Alpaca (up to 10000 bars, ~6 months), build 3-bar pattern table, save to DB. Returns True on success. Takes ~2s per symbol. Call weekly per symbol via scripts/weekly_build.py.
+inputs: symbol: str, months: int = 6
+outputs: bool
+calls: fetchers.alpaca.get_bars, build_pattern_table, save_pattern_table
+called_by: ngram_build (app.py), scripts/weekly_build.py
+mutates: ngram_models table (via save_pattern_table)
+---
+
+---
+
+## models/trading/intraday.py (Round 7 update)
+
+---
+name: compute_intraday_signals (updated)
+type: function
+file: models/trading/intraday.py
+purpose: [UPDATED] Added symbol: str = None parameter and ngram blend. When symbol provided, loads ngram pattern table and blends result: agreement (same direction) boosts score ≤20% (×(1+conf/500)); disagreement reduces score 30% (×0.7). Only fires when |score_val|>0 (skips MARKET_CLOSED, LUNCH_SUPPRESSED, liquidity-killed scores). ngram added to returned signals dict as signals["ngram"]. Backward compatible — existing callers without symbol param are unaffected.
+inputs: ...(existing)..., symbol: str = None
+outputs: dict {signals (now includes signals["ngram"]), score, levels, liquidity, intraday_expected_move, exit_template}
+calls: ...(existing)..., ngram_signal, ngram_to_composite_score (conditional)
+called_by: intraday_analysis (app.py — now passes symbol=body.symbol), _analyze_one (screener.py — no change, symbol=None)
+mutates: none
+---
+
+---
+
+## scripts/weekly_build.py
+
+---
+name: weekly_build.py
+type: script
+file: scripts/weekly_build.py
+purpose: Weekly maintenance script. Run every Sunday before market open. Rebuilds n-gram frequency tables for 18-symbol watchlist (NGRAM_WATCHLIST) via build_ngram_from_alpaca. Scans CANDIDATE_PAIRS for cointegration via find_all_pairs and prints current z-scores + signals. Logs results to stdout. Cron: 0 8 * * 0 python scripts/weekly_build.py.
+inputs: none (standalone script)
+outputs: console report
+calls: init_db, build_ngram_from_alpaca, find_all_pairs, generate_pair_signal
+called_by: cron / manual
+mutates: ngram_models table
+---
+
+---
+
+## tests/ (Round 7 additions)
+
+---
+name: test_ngram.py
+type: pytest test suite
+file: tests/test_ngram.py
+purpose: 13 unit tests for models/trading/ngram.py. Covers: encode_bar U/D/E classification, encode_sequence multi-bar, build_pattern_table counts and edge cases, ngram_signal with no table / too few bars / mock UP table / mock DOWN / score conversion, and full DB round-trip via save_pattern_table + load_pattern_table.
+calls: models.trading.ngram, db.database.init_db
+called_by: pytest / python tests/test_ngram.py
+mutates: ngram_models table (test symbol "_TEST_NGRAM_SYMBOL_")
+---

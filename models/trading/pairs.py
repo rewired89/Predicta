@@ -6,13 +6,36 @@ Core idea: find two stocks whose price ratio is stationary (cointegrated),
 then trade the spread when it deviates beyond ±2σ from its mean.
 
 Market-neutral: profits from relative mispricing, not directional market moves.
+
+Two-level API:
+  Low-level  (API endpoints / custom lists): find_cointegrated_pairs, pairs_signal, compute_pairs_levels
+  High-level (weekly scan):                  find_all_pairs, generate_pair_signal, log_pair_signal
 """
 from __future__ import annotations
 import math
 from typing import Optional
 
+# ── Known candidate pairs (industry intuition, Kimi Round 7) ─────────────────
+# Each tuple is (sym1, sym2) — ordered by industry sector.
+# These are strong priors; validate cointegration with data before trading.
+CANDIDATE_PAIRS = [
+    ("XOM",  "CVX"),   # Oil majors — very tight cointegration historically
+    ("PEP",  "KO"),    # Beverages — same consumer demand cycle
+    ("JPM",  "BAC"),   # Money-center banks — same rate/credit exposure
+    ("AAPL", "MSFT"),  # Big tech — weaker, test before trading
+    ("WMT",  "TGT"),   # Discount retail — same consumer price sensitivity
+    ("DAL",  "UAL"),   # Airlines — same fuel/demand cycle (high vol)
+    ("INTC", "AMD"),   # Semiconductors — divergence play (may not cointegrate)
+    ("JNJ",  "PFE"),   # Pharma — same pipeline + regulatory risk
+]
 
-# ── Cointegration test ───────────────────────────────────────────────────────
+# Signal thresholds
+_ENTRY_Z = 2.0   # Open when |spread z-score| > 2σ
+_EXIT_Z  = 0.5   # Close when |z| < 0.5σ (near mean)
+_STOP_Z  = 3.5   # Stop at 3.5σ — spread breaking down, not mean-reverting
+
+
+# ── Low-level helpers ─────────────────────────────────────────────────────────
 
 def _ols_beta(x: list[float], y: list[float]) -> float:
     """OLS slope: β = Σ(xi - x̄)(yi - ȳ) / Σ(xi - x̄)²"""
@@ -24,25 +47,238 @@ def _ols_beta(x: list[float], y: list[float]) -> float:
     return num / den if den else 1.0
 
 
+def _half_life(spread: list[float]) -> Optional[int]:
+    """
+    Ornstein-Uhlenbeck half-life: how many days until the spread mean-reverts
+    halfway back. Lower = faster reversion = better for trading.
+    Estimated via OLS regression of Δspread on lagged spread.
+    Returns None if no mean reversion (β ≥ 0) or half-life > 365 days.
+    """
+    if len(spread) < 5:
+        return None
+    delta = [spread[i] - spread[i - 1] for i in range(1, len(spread))]
+    lagged = spread[:-1]
+    beta = _ols_beta(lagged, delta)
+    if beta >= 0:
+        return None
+    hl = -math.log(2) / beta
+    return int(round(hl)) if 0 < hl < 365 else None
+
+
+def _spread_stats(s1: list[float], s2: list[float], beta: float) -> dict:
+    """Compute spread mean, std, current value, and z-score."""
+    spread = [s1[k] - beta * s2[k] for k in range(len(s1))]
+    n = len(spread)
+    mean = sum(spread) / n
+    variance = sum((v - mean) ** 2 for v in spread) / n
+    std = math.sqrt(variance) if variance > 0 else 1.0
+    zscore = (spread[-1] - mean) / std
+    return {
+        "spread":         spread,
+        "spread_mean":    mean,
+        "spread_std":     std,
+        "current_spread": spread[-1],
+        "zscore":         zscore,
+    }
+
+
+# ── Cointegration test (Engle-Granger via statsmodels) ───────────────────────
+
+def test_cointegration(sym1: str, sym2: str, series: dict[str, list[float]]) -> dict:
+    """
+    Full cointegration analysis for a pair using the Engle-Granger test.
+
+    Uses statsmodels.tsa.stattools.coint for the p-value (more accurate than
+    ADF alone because it runs the full two-step EG procedure). Falls back to
+    ADF on the OLS residuals if statsmodels is unavailable.
+
+    Returns a rich analytics dict suitable for find_all_pairs filtering
+    and generate_pair_signal input.
+    """
+    s1 = series.get(sym1, [])
+    s2 = series.get(sym2, [])
+    if len(s1) < 20 or len(s2) < 20:
+        return {"error": f"Insufficient data for {sym1}/{sym2}"}
+
+    beta = _ols_beta(s2, s1)
+    ss = _spread_stats(s1, s2, beta)
+    hl = _half_life(ss["spread"])
+
+    # Engle-Granger cointegration p-value
+    try:
+        from statsmodels.tsa.stattools import coint as _coint
+        import numpy as np
+        coint_score, pvalue, _ = _coint(np.array(s1), np.array(s2))
+        coint_score = float(coint_score)
+        pvalue = float(pvalue)
+    except Exception:
+        # Fallback: ADF on the spread
+        try:
+            from statsmodels.tsa.stattools import adfuller
+            res = adfuller(ss["spread"], maxlag=1, regression="c", autolag=None)
+            coint_score = float(res[0])
+            pvalue = float(res[1])
+        except Exception:
+            coint_score = 0.0
+            pvalue = 1.0
+
+    return {
+        "sym1":            sym1,
+        "sym2":            sym2,
+        "cointegrated":    pvalue < 0.05,
+        "pvalue":          round(pvalue, 4),
+        "coint_score":     round(coint_score, 4),
+        "beta":            round(beta, 6),
+        "spread_mean":     round(ss["spread_mean"], 4),
+        "spread_std":      round(ss["spread_std"], 4),
+        "half_life_days":  hl,
+        "current_zscore":  round(ss["zscore"], 3),
+        "n_obs":           len(s1),
+    }
+
+
+def find_all_pairs(
+    days: int = 90,
+    min_half_life: float = 1.0,
+    max_half_life: float = 30.0,
+) -> list[dict]:
+    """
+    Scan all CANDIDATE_PAIRS for cointegration, filtered by half-life.
+
+    min_half_life / max_half_life: discard pairs that mean-revert too fast
+    (noise) or too slowly (capital tied up for months).
+
+    Recommended cadence: run weekly (Sunday before market open) and cache
+    results. Pairs status changes slowly — daily re-scanning is wasteful.
+
+    Returns: list of test_cointegration dicts sorted by p-value ascending.
+    """
+    from fetchers.pairs_data import fetch_pair_history, prices_to_series
+
+    results = []
+    for sym1, sym2 in CANDIDATE_PAIRS:
+        history = fetch_pair_history([sym1, sym2], days=days)
+        if not history or len(history) < int(days * 0.7):
+            continue
+        series = prices_to_series(history)
+        if sym1 not in series or sym2 not in series:
+            continue
+
+        result = test_cointegration(sym1, sym2, series)
+        if "error" in result:
+            continue
+
+        if (result["cointegrated"]
+                and result["half_life_days"] is not None
+                and min_half_life <= result["half_life_days"] <= max_half_life):
+            results.append(result)
+
+    return sorted(results, key=lambda x: x["pvalue"])
+
+
+# ── Signal generation (high-level) ───────────────────────────────────────────
+
+def generate_pair_signal(pair_result: dict) -> dict:
+    """
+    Generate a trade signal from a test_cointegration result dict.
+
+    Uses fixed z-score thresholds:
+      Entry:  |z| > 2.0σ
+      Target: |z| < 0.5σ (near mean)
+      Stop:   |z| > 3.5σ (spread widening further — not mean-reverting)
+
+    Confidence scales with z: conf = min(|z| / stop_z, 1.0).
+    expected_hold_days comes from the OU half-life — useful for sizing
+    position duration and deciding whether hold_bars needs to be extended.
+    """
+    z    = pair_result.get("current_zscore", 0)
+    sym1 = pair_result["sym1"]
+    sym2 = pair_result["sym2"]
+    beta = pair_result["beta"]
+    hl   = pair_result.get("half_life_days")
+
+    if z < -_ENTRY_Z:
+        return {
+            "action":              "LONG_SPREAD",
+            "zscore":              z,
+            "long":                sym1,
+            "short":               sym2,
+            "beta":                beta,
+            "shares_ratio":        beta,
+            "entry_z":             z,
+            "target_z":            _EXIT_Z,
+            "stop_z":              -_STOP_Z,
+            "confidence":          round(min(abs(z) / _STOP_Z, 1.0), 3),
+            "expected_hold_days":  hl,
+            "note":                f"Spread {z:.2f}σ below mean — buy {sym1}, short {sym2}",
+        }
+    elif z > _ENTRY_Z:
+        return {
+            "action":              "SHORT_SPREAD",
+            "zscore":              z,
+            "short":               sym1,
+            "long":                sym2,
+            "beta":                beta,
+            "shares_ratio":        beta,
+            "entry_z":             z,
+            "target_z":            -_EXIT_Z,
+            "stop_z":              _STOP_Z,
+            "confidence":          round(min(abs(z) / _STOP_Z, 1.0), 3),
+            "expected_hold_days":  hl,
+            "note":                f"Spread {z:.2f}σ above mean — short {sym1}, buy {sym2}",
+        }
+    else:
+        return {
+            "action": "NONE",
+            "zscore": z,
+            "note":   f"Within entry band (±{_ENTRY_Z}σ, current {z:.2f}σ)",
+        }
+
+
+def log_pair_signal(signal: dict, sym1: str, sym2: str) -> int:
+    """
+    Persist a pair signal to the pair_signals table for tracking.
+    sym1/sym2 are the canonical pair symbols (from test_cointegration).
+    Returns the row ID.
+    """
+    from db.database import get_db
+
+    action = signal.get("action", "NONE")
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO pair_signals (
+                sym1, sym2, action, zscore, beta,
+                entry_z, target_z, stop_z, confidence
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sym1, sym2,
+                action,
+                signal.get("zscore"),
+                signal.get("beta"),
+                signal.get("entry_z"),
+                signal.get("target_z"),
+                signal.get("stop_z"),
+                signal.get("confidence"),
+            ),
+        )
+        return cur.lastrowid
+
+
+# ── Low-level API (custom symbol lists, API endpoints) ────────────────────────
+
 def _adf_pvalue(residuals: list[float]) -> float:
     """
-    Simplified Augmented Dickey-Fuller approximation for the spread residuals.
-    Uses statsmodels if available for accuracy; falls back to a correlation-
-    based proxy that gives comparable ranking (useful for screening).
-
-    The p-value returned is from the ADF test for a unit root. Small p-value
-    (<0.05) means the spread is stationary — i.e., the pair is cointegrated.
+    ADF p-value for spread residuals. Uses statsmodels; falls back to an
+    autocorrelation proxy if unavailable (for ranking purposes only).
     """
     try:
         from statsmodels.tsa.stattools import adfuller
         result = adfuller(residuals, maxlag=1, regression="c", autolag=None)
-        return float(result[1])  # p-value
+        return float(result[1])
     except ImportError:
         pass
-
-    # Fallback: first-order autocorrelation proxy
-    # A random walk has autocorr ≈ 1.0; a stationary series has lower autocorr.
-    # We map autocorr → approximate p-value (heuristic, for ranking only).
     n = len(residuals)
     if n < 4:
         return 1.0
@@ -51,9 +287,7 @@ def _adf_pvalue(residuals: list[float]) -> float:
     numer = sum(diffs[i] * diffs[i - 1] for i in range(1, n))
     denom = sum(d ** 2 for d in diffs)
     autocorr = numer / denom if denom else 1.0
-    # Heuristic: autocorr near 1 → p ≈ 1.0; autocorr near 0 → p ≈ 0.01
-    p_proxy = max(0.0, min(1.0, autocorr ** 2))
-    return p_proxy
+    return max(0.0, min(1.0, autocorr ** 2))
 
 
 def find_cointegrated_pairs(
@@ -61,15 +295,14 @@ def find_cointegrated_pairs(
     pvalue_threshold: float = 0.05,
 ) -> list[dict]:
     """
-    Test all pairs in `series` for cointegration.
+    Test all pairs from a custom series dict for cointegration.
+    Used by the /trade/pairs-scan API endpoint for arbitrary watchlists.
 
     Args:
         series: {symbol: [close_price, ...]} — aligned lists, same length.
         pvalue_threshold: pairs with ADF p-value below this are returned.
 
-    Returns:
-        List of dicts sorted by p-value ascending:
-        [{"sym1", "sym2", "beta", "pvalue", "half_life_days"}, ...]
+    Returns list of dicts sorted by p-value ascending.
     """
     symbols = list(series.keys())
     results = []
@@ -81,10 +314,9 @@ def find_cointegrated_pairs(
             if len(s1) < 20 or len(s2) < 20:
                 continue
 
-            # Estimate hedge ratio: s1 = β × s2 + ε
             beta = _ols_beta(s2, s1)
-            spread = [s1[k] - beta * s2[k] for k in range(len(s1))]
-            pvalue = _adf_pvalue(spread)
+            ss   = _spread_stats(s1, s2, beta)
+            pvalue = _adf_pvalue(ss["spread"])
 
             if pvalue <= pvalue_threshold:
                 results.append({
@@ -92,30 +324,11 @@ def find_cointegrated_pairs(
                     "sym2":           s2_name,
                     "beta":           round(beta, 6),
                     "pvalue":         round(pvalue, 4),
-                    "half_life_days": _half_life(spread),
+                    "half_life_days": _half_life(ss["spread"]),
                 })
 
     return sorted(results, key=lambda x: x["pvalue"])
 
-
-def _half_life(spread: list[float]) -> Optional[int]:
-    """
-    Ornstein-Uhlenbeck half-life: how many days until the spread mean-reverts
-    halfway back. Lower = faster mean reversion = better for trading.
-    Estimated via OLS regression of Δspread on lagged spread.
-    """
-    if len(spread) < 5:
-        return None
-    delta = [spread[i] - spread[i - 1] for i in range(1, len(spread))]
-    lagged = spread[:-1]
-    beta = _ols_beta(lagged, delta)
-    if beta >= 0:
-        return None  # No mean reversion (positive feedback)
-    hl = -math.log(2) / beta
-    return int(round(hl)) if 0 < hl < 365 else None
-
-
-# ── Signal generation ────────────────────────────────────────────────────────
 
 def pairs_signal(
     sym1: str,
@@ -127,23 +340,12 @@ def pairs_signal(
     exit_z: float = 0.5,
 ) -> dict:
     """
-    Generate a pairs trade signal using the z-score of the spread.
+    Z-score signal for a custom-supplied pair. Used by /trade/pairs-scan
+    and /trade/pairs-signal API endpoints.
 
     Long spread  (zscore < -entry_z): buy sym1, short sym2
     Short spread (zscore >  entry_z): short sym1, buy sym2
     Exit zone    (|zscore| < exit_z): close existing position
-
-    Args:
-        sym1, sym2: symbol names matching keys in `series`
-        beta: hedge ratio from find_cointegrated_pairs
-        series: {symbol: [close_price, ...]}
-        lookback: rolling window for spread mean/std computation
-        entry_z: z-score threshold to enter (default 2.0σ)
-        exit_z: z-score threshold to exit (default 0.5σ)
-
-    Returns:
-        {action, zscore, sym1, sym2, long_sym, short_sym, confidence,
-         spread_mean, spread_std, current_spread}
     """
     s1 = series.get(sym1, [])
     s2 = series.get(sym2, [])
@@ -151,49 +353,36 @@ def pairs_signal(
         return {"action": "ERROR", "error": f"Missing data for {sym1} or {sym2}"}
 
     window = min(lookback, len(s1), len(s2))
-    s1_w = s1[-window:]
-    s2_w = s2[-window:]
+    ss = _spread_stats(s1[-window:], s2[-window:], beta)
 
-    spread = [s1_w[k] - beta * s2_w[k] for k in range(window)]
-    spread_mean = sum(spread) / len(spread)
-    variance = sum((v - spread_mean) ** 2 for v in spread) / len(spread)
-    spread_std = math.sqrt(variance) if variance > 0 else 1.0
-
-    current_spread = spread[-1]
-    zscore = (current_spread - spread_mean) / spread_std
+    zscore   = ss["zscore"]
+    abs_z    = abs(zscore)
+    conf     = round(min(abs_z / (entry_z + 1.0), 1.0), 3)
 
     base = {
-        "sym1":            sym1,
-        "sym2":            sym2,
-        "beta":            round(beta, 6),
-        "zscore":          round(zscore, 3),
-        "current_spread":  round(current_spread, 4),
-        "spread_mean":     round(spread_mean, 4),
-        "spread_std":      round(spread_std, 4),
+        "sym1":           sym1,
+        "sym2":           sym2,
+        "beta":           round(beta, 6),
+        "zscore":         round(zscore, 3),
+        "current_spread": round(ss["current_spread"], 4),
+        "spread_mean":    round(ss["spread_mean"], 4),
+        "spread_std":     round(ss["spread_std"], 4),
     }
 
-    abs_z = abs(zscore)
-
     if zscore < -entry_z:
-        # Spread below mean → sym1 cheap relative to sym2
-        confidence = min(abs_z / (entry_z + 1.0), 1.0)
-        return {**base, "action": "LONG_SPREAD",
-                "long_sym": sym1, "short_sym": sym2,
-                "confidence": round(confidence, 3),
-                "note": f"Spread at {zscore:.2f}σ below mean — buy {sym1}, short {sym2}"}
+        return {**base, "action": "LONG_SPREAD", "long_sym": sym1, "short_sym": sym2,
+                "confidence": conf,
+                "note": f"Spread {zscore:.2f}σ below mean — buy {sym1}, short {sym2}"}
     elif zscore > entry_z:
-        # Spread above mean → sym1 expensive relative to sym2
-        confidence = min(abs_z / (entry_z + 1.0), 1.0)
-        return {**base, "action": "SHORT_SPREAD",
-                "long_sym": sym2, "short_sym": sym1,
-                "confidence": round(confidence, 3),
-                "note": f"Spread at {zscore:.2f}σ above mean — short {sym1}, buy {sym2}"}
+        return {**base, "action": "SHORT_SPREAD", "long_sym": sym2, "short_sym": sym1,
+                "confidence": conf,
+                "note": f"Spread {zscore:.2f}σ above mean — short {sym1}, buy {sym2}"}
     elif abs_z < exit_z:
         return {**base, "action": "EXIT_ZONE",
-                "note": f"Spread at {zscore:.2f}σ — within exit zone, close any open position"}
+                "note": f"Spread {zscore:.2f}σ — within exit zone, close any open position"}
     else:
         return {**base, "action": "NONE",
-                "note": f"Spread at {zscore:.2f}σ — inside entry threshold, no action"}
+                "note": f"Spread {zscore:.2f}σ — inside entry threshold, no action"}
 
 
 def compute_pairs_levels(
@@ -208,15 +397,8 @@ def compute_pairs_levels(
     exit_z: float = 0.5,
 ) -> dict:
     """
-    Compute position sizes and risk levels for a pairs trade.
-
-    Dollar-neutral: long_value ≈ short_value.
-    Risk is defined as: spread moving to stop_z instead of reverting to exit_z.
-
-    Returns:
-        {long_sym, short_sym, long_price, short_price,
-         long_qty, short_qty, long_value, short_value,
-         stop_z, target_z, risk_dollars, expected_r}
+    Dollar-neutral position sizing for a pairs trade.
+    Risk = spread widening 1σ beyond current z (mean-reversion fails).
     """
     long_price  = series[long_sym][-1]
     short_price = series[short_sym][-1]
@@ -224,51 +406,35 @@ def compute_pairs_levels(
     if not long_price or not short_price:
         return {"error": "Missing current price for position sizing"}
 
-    # Dollar risk budget
     risk_dollars = account_value * risk_pct
+    stop_z       = abs(zscore) + 1.0
+    target_z     = exit_z
 
-    # Stop: spread widens another 1σ beyond current z (mean-reversion fails)
-    stop_z   = abs(zscore) + 1.0
-    # Target: spread mean-reverts to exit zone
-    target_z = exit_z
-
-    # Expected spread move in dollars at stop vs target
-    # For long spread: PnL ≈ (beta × short_price_move - long_price_move)
-    # Simplified: risk per spread unit = spread_std × 1σ stop extension
-    spread_risk_per_unit = spread_std * 1.0  # 1σ adverse move
+    spread_risk_per_unit = spread_std * 1.0
     if spread_risk_per_unit <= 0:
         return {"error": "Spread std is zero, cannot size position"}
 
-    # Number of spread units: risk_dollars / dollars_at_risk_per_unit
-    # 1 spread unit = 1 share of long_sym, beta shares of short_sym
-    # Approximate dollar risk per spread unit ≈ spread_risk_per_unit
-    units = risk_dollars / spread_risk_per_unit
-    units = max(1.0, round(units, 1))
-
+    units     = max(1.0, round(risk_dollars / spread_risk_per_unit, 1))
     long_qty  = round(units)
     short_qty = round(units * beta)
 
-    long_value  = round(long_qty * long_price, 2)
-    short_value = round(short_qty * short_price, 2)
-
-    # Expected R: (current_z - target_z) / (stop_z - current_z)
     current_abs_z = abs(zscore)
-    reward = max(current_abs_z - target_z, 0)
-    risk   = max(stop_z - current_abs_z, 0.01)
-    expected_r = round(reward / risk, 2)
+    reward     = max(current_abs_z - target_z, 0)
+    risk_z     = max(stop_z - current_abs_z, 0.01)
+    expected_r = round(reward / risk_z, 2)
 
     return {
-        "long_sym":    long_sym,
-        "short_sym":   short_sym,
-        "long_price":  round(long_price, 4),
-        "short_price": round(short_price, 4),
-        "long_qty":    long_qty,
-        "short_qty":   short_qty,
-        "long_value":  long_value,
-        "short_value": short_value,
-        "beta":        round(beta, 4),
-        "stop_z":      round(stop_z, 2),
-        "target_z":    round(target_z, 2),
+        "long_sym":     long_sym,
+        "short_sym":    short_sym,
+        "long_price":   round(long_price, 4),
+        "short_price":  round(short_price, 4),
+        "long_qty":     long_qty,
+        "short_qty":    short_qty,
+        "long_value":   round(long_qty * long_price, 2),
+        "short_value":  round(short_qty * short_price, 2),
+        "beta":         round(beta, 4),
+        "stop_z":       round(stop_z, 2),
+        "target_z":     round(target_z, 2),
         "risk_dollars": round(risk_dollars, 2),
-        "expected_r":  expected_r,
+        "expected_r":   expected_r,
     }

@@ -109,3 +109,34 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON intraday_trades(symbol, entry_time);
+
+CREATE TABLE IF NOT EXISTS pair_signals (
+    id INTEGER PRIMARY KEY,
+    sym1 TEXT NOT NULL,
+    sym2 TEXT NOT NULL,
+    action TEXT CHECK(action IN ('LONG_SPREAD', 'SHORT_SPREAD', 'NONE')),
+    zscore REAL,
+    beta REAL,
+    entry_z REAL,
+    target_z REAL,
+    stop_z REAL,
+    confidence REAL,
+    exit_z REAL,
+    exit_time TEXT,
+    pnl_pct REAL,
+    exit_reason TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pair_signals_sym ON pair_signals(sym1, sym2);
+CREATE INDEX IF NOT EXISTS idx_pair_signals_created ON pair_signals(created_at);
+
+CREATE TABLE IF NOT EXISTS ngram_models (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    pattern_len INTEGER NOT NULL,
+    bar_count INTEGER,
+    table_json TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(symbol, pattern_len)
+);
+CREATE INDEX IF NOT EXISTS idx_ngram_symbol ON ngram_models(symbol);

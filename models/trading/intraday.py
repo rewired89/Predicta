@@ -643,6 +643,7 @@ def compute_intraday_signals(
     snapshot: dict,
     daily_avg_volume: float = 0,
     hold_bars: int = 6,
+    symbol: Optional[str] = None,
 ) -> dict:
     """
     Full intraday signal computation.
@@ -710,6 +711,30 @@ def compute_intraday_signals(
             score["label"]   = "LUNCH_SUPPRESSED"
             score["reasons"] = ["LUNCH_CHOP: score suppressed (< 60 threshold)"] + score["reasons"][1:]
 
+    # ── N-gram pattern blend (only when symbol provided + score is active) ─────
+    ngram = {"signal": "NONE", "confidence": 0}
+    if symbol and abs(score_val) > 0 and len(closes) >= 4:
+        try:
+            from models.trading.ngram import ngram_signal, ngram_to_composite_score
+            ngram = ngram_signal(symbol, closes)
+            ng_score = ngram_to_composite_score(ngram)
+            if ngram.get("confidence", 0) > 20:
+                existing_sign = 1 if score_val > 0 else -1
+                ngram_sign    = 1 if ng_score > 0 else -1 if ng_score < 0 else 0
+                wr = ngram.get("historical_win_rate", 0)
+                pat = ngram.get("pattern", "?")
+                if ngram_sign != 0 and existing_sign == ngram_sign:
+                    # Agreement: max +20% boost (confidence/500, so 100 conf → ×1.20)
+                    score_val = round(score_val * (1 + ngram["confidence"] / 500), 1)
+                    score["reasons"].append(f"N-gram confirms ({pat}, {wr:.0%} WR)")
+                elif ngram_sign != 0 and existing_sign != ngram_sign:
+                    # Disagreement: reduce 30%
+                    score_val = round(score_val * 0.7, 1)
+                    score["reasons"].append(f"N-gram conflicts ({pat}, {wr:.0%} WR) — confidence reduced")
+        except Exception:
+            pass  # Never let ngram failure break signal generation
+    sigs["ngram"] = ngram
+
     # Reclassify label after all adjustments
     if score["label"] not in ("UNTRADEABLE", "WIDE_SPREAD", "MARKET_CLOSED", "LUNCH_SUPPRESSED"):
         if score_val >= 60:
@@ -747,12 +772,12 @@ def compute_intraday_signals(
     }
 
     return {
-        "signals":               sigs,
-        "score":                 score,
-        "levels":                levels,
-        "liquidity":             liquidity,
+        "signals":                sigs,   # includes sigs["ngram"] when symbol provided
+        "score":                  score,
+        "levels":                 levels,
+        "liquidity":              liquidity,
         "intraday_expected_move": intraday_em,
-        "exit_template":         exit_template,
+        "exit_template":          exit_template,
     }
 
 

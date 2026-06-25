@@ -446,7 +446,7 @@ def intraday_analysis(body: IntradayRequest):
     intraday = get_bars(body.symbol, "5Min", 78)
     daily = get_daily_bars(body.symbol, 60)
     avg_vol = sum(b.get("v", 0) for b in daily[-20:]) / 20 if daily else 1_000_000
-    result = compute_intraday_signals(intraday, daily, snap, avg_vol)
+    result = compute_intraday_signals(intraday, daily, snap, avg_vol, symbol=body.symbol)
     if "error" in result:
         raise HTTPException(400, result["error"])
 
@@ -1003,4 +1003,79 @@ def pairs_signal_endpoint(body: PairsSignalRequest):
         "beta":   body.beta,
         "signal": sig,
         "levels": levels,
+    }
+
+
+class PairsCandidatesRequest(BaseModel):
+    days: int = 90
+    min_half_life: float = 1.0
+    max_half_life: float = 30.0
+
+
+@app.post("/trade/pairs-candidates")
+def pairs_candidates(body: PairsCandidatesRequest):
+    """
+    Scan the 8 pre-defined CANDIDATE_PAIRS for cointegration using the
+    full Engle-Granger test (statsmodels). Filters by half-life so only
+    pairs that mean-revert within a tradeable window are returned.
+
+    Run weekly (Sunday before market open) via scripts/weekly_build.py.
+    Results are stable week-to-week — daily re-scanning is wasteful.
+
+    Returns cointegrated pairs with current z-score and trade signal.
+    """
+    from models.trading.pairs import find_all_pairs, generate_pair_signal, CANDIDATE_PAIRS
+
+    pairs = find_all_pairs(
+        days=body.days,
+        min_half_life=body.min_half_life,
+        max_half_life=body.max_half_life,
+    )
+
+    results = []
+    for p in pairs:
+        sig = generate_pair_signal(p)
+        results.append({**p, "signal": sig})
+
+    return {
+        "candidate_pairs_tested": len(CANDIDATE_PAIRS),
+        "cointegrated_found":     len(results),
+        "filters": {
+            "days": body.days,
+            "min_half_life_days": body.min_half_life,
+            "max_half_life_days": body.max_half_life,
+        },
+        "pairs": results,
+    }
+
+
+class NgramBuildRequest(BaseModel):
+    symbols: list[str]
+    months: int = 6
+
+
+@app.post("/trade/ngram-build")
+def ngram_build(body: NgramBuildRequest):
+    """
+    Build or refresh n-gram pattern tables for a list of symbols.
+    Fetches up to 10,000 5-min bars (~6 months) from Alpaca and stores
+    frequency tables in the ngram_models DB table.
+
+    Call weekly per symbol. Takes ~2s per symbol (one API fetch each).
+    Returns per-symbol success/fail status.
+    """
+    from models.trading.ngram import build_ngram_from_alpaca
+
+    results = {}
+    for sym in body.symbols:
+        sym = sym.upper().strip()
+        try:
+            ok = build_ngram_from_alpaca(sym, months=body.months)
+            results[sym] = "built" if ok else "insufficient_data"
+        except Exception as e:
+            results[sym] = f"error: {e}"
+
+    return {
+        "symbols_requested": len(body.symbols),
+        "results":           results,
     }
