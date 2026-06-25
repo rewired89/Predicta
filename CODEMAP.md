@@ -647,7 +647,7 @@ name: BASEBALL_FEATURES / TENNIS_FEATURES / SOCCER_FEATURES / TABLE_TENNIS_FEATU
 type: variable
 file: models/ml_layer.py
 purpose: Sport-specific ML feature lists; signal names must match what log_signal() records in each sport's pipeline. Missing signals default to 0.0 at train/predict time.
-  BASEBALL: wrc_plus, starter_fip, bullpen_fip, park_factor, platoon_adj, starter_avg_ip, home_boost, elo_rating
+  BASEBALL: wrc_plus, starter_fip, bullpen_fip, park_factor, platoon_adj, starter_avg_ip, home_boost, elo_rating, wind_factor, temp_factor, is_dome
   TENNIS:   sqi, rqi, surface_win_rate, form_score, rest_days, glicko2_rating, surface_amp
   SOCCER:   elo_diff, glicko2_diff, form_diff, h2h_decayed, rest_diff, key_player_out_flag, neutral_site_flag, fatigue_flag, home_adv
   TABLE_TENNIS: elo_diff, glicko2_diff, form_diff, h2h_decayed, fatigue_flag
