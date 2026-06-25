@@ -126,6 +126,28 @@ def _stat(stats_list: list, *names: str, default: float = 0.0) -> float:
     return default
 
 
+def _extract_category(data: dict, keywords: list) -> list:
+    """
+    Extract a stats list from an ESPN team statistics response.
+    Handles two formats:
+      New: data["results"]["stats"]["categories"][n]["stats"]
+      Old: data["statistics"][n]["stats"]  or  data["splits"]["categories"][n]["stats"]
+    """
+    # New ESPN format (seen in /teams/{id}/statistics as of 2026)
+    for cat in data.get("results", {}).get("stats", {}).get("categories", []):
+        if any(kw in cat.get("name", "").lower() for kw in keywords):
+            return cat.get("stats", [])
+    # Old flat format
+    for section in data.get("statistics", []):
+        if isinstance(section, dict) and any(kw in section.get("name", "").lower() for kw in keywords):
+            return section.get("stats", [])
+    # Old splits format
+    for cat in data.get("splits", {}).get("categories", []):
+        if any(kw in cat.get("name", "").lower() for kw in keywords):
+            return cat.get("stats", [])
+    return []
+
+
 def _ip_from_espn(ip_val) -> float:
     """
     ESPN returns IP as a decimal where the tenths digit represents outs (0–2).
@@ -199,7 +221,9 @@ def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
 
 def _get_all_records() -> dict[str, dict]:
     """
-    Fetch all team W-L records from standings.
+    Fetch all team W-L records.
+    Primary: ESPN /standings endpoint.
+    Fallback: parse recordSummary ("48-31") from cached team stats.
     Returns {team_id: {wins, losses, games_played, win_pct, run_differential}}.
     """
     data = _espn_get("/standings")
@@ -207,13 +231,12 @@ def _get_all_records() -> dict[str, dict]:
 
     def _walk(node):
         if isinstance(node, dict):
-            # If this is a standings node with entries
             for entry in node.get("standings", {}).get("entries", []):
                 tid = str(entry.get("team", {}).get("id", ""))
                 if not tid:
                     continue
                 stats = entry.get("stats", [])
-                wins  = int(_stat(stats, "wins"))
+                wins   = int(_stat(stats, "wins"))
                 losses = int(_stat(stats, "losses"))
                 gp = wins + losses
                 rd = int(_stat(stats, "pointDifferential", "runDifferential"))
@@ -228,6 +251,26 @@ def _get_all_records() -> dict[str, dict]:
                 _walk(child)
 
     _walk(data)
+
+    # Fallback: extract records from team stats cache when standings returns nothing useful
+    if not records:
+        all_team_stats: dict = load_cached("mlb_team_stats.json") or {}
+        for tid, tdata in all_team_stats.items():
+            rec_str = tdata.get("team", {}).get("recordSummary", "")
+            if rec_str and "-" in rec_str:
+                try:
+                    w, l = map(int, rec_str.split("-"))
+                    gp = w + l
+                    records[tid] = {
+                        "wins":             w,
+                        "losses":           l,
+                        "games_played":     gp,
+                        "win_pct":          round(w / gp, 3) if gp > 0 else 0.5,
+                        "run_differential": 0,
+                    }
+                except ValueError:
+                    pass
+
     return records
 
 
@@ -347,31 +390,38 @@ def _get_team_pitching(team_id: str) -> dict:
     Fetch team-level pitching stats from ESPN /teams/{id}/statistics.
     Returns ERA, WHIP, K/9 as proxies for overall pitching quality.
     Used to derive bullpen ERA = (team_ERA × 9 - starter_FIP × 5) / 4.
+    Handles both old and new ESPN response formats.
     """
     data = _espn_get(f"/teams/{team_id}/statistics")
-    stats: list = []
-    for section in data.get("statistics", []):
-        if isinstance(section, dict):
-            name = section.get("name", "").lower()
-            if "pitch" in name:
-                stats = section.get("stats", [])
-                break
-    if not stats:
-        splits = data.get("splits", {}).get("categories", [])
-        for cat in splits:
-            if "pitch" in cat.get("name", "").lower():
-                stats = cat.get("stats", [])
-                break
-    if not stats:
+    pitch_stats  = _extract_category(data, ["pitching", "pitch"])
+    field_stats  = _extract_category(data, ["fielding", "field"])
+
+    if not pitch_stats:
         return {"era": LEAGUE_AVG_FIP, "whip": 1.30, "k9": 8.5}
 
-    era  = _stat(stats, "ERA",  "era",  default=LEAGUE_AVG_FIP)
-    whip = _stat(stats, "WHIP", "whip", default=1.30)
-    k9   = _stat(stats, "strikeoutsPerNineInnings", "K9", "so9", default=8.5)
+    # In the new format ERA/WHIP aren't stored directly — calculate from components
+    era  = _stat(pitch_stats, "ERA",  "era",  default=0.0)
+    whip = _stat(pitch_stats, "WHIP", "whip", default=0.0)
+    k9   = _stat(pitch_stats, "strikeoutsPerNineInnings", "K9", "so9", default=0.0)
+
+    if era == 0.0 or whip == 0.0:
+        # New format: calculate ERA/WHIP from components
+        er   = _stat(pitch_stats, "earnedRuns")
+        hits = _stat(pitch_stats, "hits")
+        bb   = _stat(pitch_stats, "walks")
+        # IP from fielding category (fullInningsPlayed = defensive innings faced = IP)
+        ip   = _stat(field_stats, "fullInningsPlayed") if field_stats else 0.0
+        if ip > 0:
+            era  = round((er * 9) / ip, 2)
+            whip = round((hits + bb) / ip, 3)
+        if not k9:
+            k = _stat(pitch_stats, "strikeouts")
+            k9 = round((k * 9) / ip, 2) if ip > 0 else 8.5
+
     return {
         "era":  era  if era  > 0 else LEAGUE_AVG_FIP,
         "whip": whip if whip > 0 else 1.30,
-        "k9":   k9,
+        "k9":   k9   if k9  > 0 else 8.5,
     }
 
 
@@ -394,40 +444,25 @@ def _get_pitcher_handedness(athlete_id: str) -> str:
 def _get_team_hitting(team_id: str) -> dict:
     """
     Fetch team batting season stats. Returns wRC+ (OPS-derived), OPS, runs/game.
+    Handles both old and new ESPN /teams/{id}/statistics response formats.
     """
     data = _espn_get(f"/teams/{team_id}/statistics")
-
-    stats: list = []
-    for section in data.get("statistics", []):
-        if isinstance(section, dict):
-            name = section.get("name", "").lower()
-            if "batt" in name or "hitting" in name or "offens" in name:
-                stats = section.get("stats", [])
-                break
-            # might be a flat list under "splits"
+    stats = _extract_category(data, ["batting", "hitting", "offens"])
     if not stats:
-        # Try splits / categories structure
-        splits = data.get("splits", {}).get("categories", [])
-        for cat in splits:
-            if "batt" in cat.get("name", "").lower() or "hit" in cat.get("name", "").lower():
-                stats = cat.get("stats", [])
-                break
-
-    if not stats:
-        # Try top-level stats array (some ESPN endpoints return everything flat)
         stats = data.get("stats", [])
 
+    # ESPN field name varies by format: new=OPS/onBasePct/slugAvg, old=ops/onBasePercentage/sluggingPercentage
     ops  = _stat(stats, "OPS", "ops", "onBasePlusSlugging")
-    avg  = _stat(stats, "battingAverage", "avg", "average")
-    obp  = _stat(stats, "onBasePercentage", "obp")
-    slg  = _stat(stats, "sluggingPercentage", "slg")
+    avg  = _stat(stats, "avg", "battingAverage", "average")
+    obp  = _stat(stats, "onBasePct", "onBasePercentage", "obp")
+    slg  = _stat(stats, "slugAvg", "sluggingPercentage", "slg")
     runs = _stat(stats, "runs", "runsScored", "r")
-    gp   = _stat(stats, "gamesPlayed", "gp") or 1
+    gp   = _stat(stats, "teamGamesPlayed", "gamesPlayed", "gp") or 1
     k_n  = _stat(stats, "strikeouts", "so", "k")
     bb_n = _stat(stats, "walks", "baseOnBalls", "bb")
     pa   = _stat(stats, "plateAppearances", "pa") or max(gp * 36, 1)
 
-    # wRC+ approximation from OPS (2024 MLB avg OPS ~.730)
+    # wRC+ approximation from OPS (2025-26 MLB avg OPS ~.730)
     wrc_plus = round((ops / 0.730) * 100) if ops > 0 else 100
 
     return {
