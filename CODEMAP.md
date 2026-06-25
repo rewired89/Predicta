@@ -643,14 +643,48 @@ mutates: none
 ---
 
 ---
-name: FEATURE_SIGNALS
+name: BASEBALL_FEATURES / TENNIS_FEATURES / SOCCER_FEATURES / TABLE_TENNIS_FEATURES
 type: variable
 file: models/ml_layer.py
-purpose: List of signal names used as features for the ML calibration model.
-inputs: none
-outputs: list[str]
+purpose: Sport-specific ML feature lists; signal names must match what log_signal() records in each sport's pipeline. Missing signals default to 0.0 at train/predict time.
+  BASEBALL: wrc_plus, starter_fip, bullpen_fip, park_factor, platoon_adj, starter_avg_ip, home_boost, elo_rating
+  TENNIS:   sqi, rqi, surface_win_rate, form_score, rest_days, glicko2_rating, surface_amp
+  SOCCER:   elo_diff, glicko2_diff, form_diff, h2h_decayed, rest_diff, key_player_out_flag, neutral_site_flag, fatigue_flag, home_adv
+  TABLE_TENNIS: elo_diff, glicko2_diff, form_diff, h2h_decayed, fatigue_flag
 calls: none
-called_by: _gather_training_data, predict
+called_by: _feature_list
+mutates: none
+---
+
+---
+name: SPORT_FEATURES
+type: variable
+file: models/ml_layer.py
+purpose: Dict mapping sport name → feature list (e.g. "baseball" → BASEBALL_FEATURES). Used by _feature_list() to select the right schema at train/predict time.
+calls: none
+called_by: _feature_list
+mutates: none
+---
+
+---
+name: FEATURE_SCHEMA_VERSION
+type: variable
+file: models/ml_layer.py
+purpose: Version string ("2025-06-v2") for detecting schema migrations. Included in train() return dict so model artifacts are traceable to feature schema.
+calls: none
+called_by: train
+mutates: none
+---
+
+---
+name: _feature_list
+type: function
+file: models/ml_layer.py
+purpose: Returns feature list for a given sport, or union of all sport features (sparse, missing=0.0) when sport is None.
+inputs: sport: Optional[str]
+outputs: list[str]
+calls: SPORT_FEATURES
+called_by: _gather_training_data, train, predict
 mutates: none
 ---
 
@@ -658,10 +692,10 @@ mutates: none
 name: _gather_training_data
 type: function
 file: models/ml_layer.py
-purpose: Queries DB for predictions + outcomes + signals and assembles feature matrix X and label vector y for training.
-inputs: none
+purpose: Queries DB for predictions + outcomes + signals and assembles feature matrix X and label vector y. When sport is specified, filters to that sport and uses its feature schema; otherwise uses union schema for mixed-sport training.
+inputs: sport: Optional[str] = None
 outputs: tuple (X: list[list], y: list[int])
-calls: get_db
+calls: get_db, _feature_list
 called_by: train
 mutates: none
 ---
@@ -670,10 +704,10 @@ mutates: none
 name: train
 type: function
 file: models/ml_layer.py
-purpose: Trains a calibrated logistic regression or GBM model on historical prediction data and saves it to disk with joblib.
-inputs: model_path: str = MODEL_PATH_DEFAULT, use_gbm: bool = False
-outputs: dict {status, samples, model_path} or {error}
-calls: _gather_training_data, LogisticRegression, GradientBoostingClassifier, CalibratedClassifierCV, joblib.dump
+purpose: Trains a calibrated logistic regression or GBM model on historical prediction data and saves it to disk with joblib. Sport parameter selects feature schema and filters training data.
+inputs: model_path: str = MODEL_PATH_DEFAULT, use_gbm: bool = False, sport: Optional[str] = None
+outputs: dict {status, samples, model_path, sport, features, schema_version} or {error}
+calls: _gather_training_data, _feature_list, LogisticRegression, GradientBoostingClassifier, CalibratedClassifierCV, joblib.dump
 called_by: none (invoked manually / via CLI)
 mutates: ml_model.json (creates/overwrites)
 ---
@@ -682,10 +716,10 @@ mutates: ml_model.json (creates/overwrites)
 name: predict
 type: function
 file: models/ml_layer.py
-purpose: Loads a saved ML model and returns predicted win probability for a feature dict; returns None on any failure.
-inputs: features: dict, model_path: str = MODEL_PATH_DEFAULT
+purpose: Loads a saved ML model and returns predicted win probability for a feature dict. Sport parameter must match the sport used during training to select the right feature schema.
+inputs: features: dict, model_path: str = MODEL_PATH_DEFAULT, sport: Optional[str] = None
 outputs: Optional[float]
-calls: joblib.load, np.array
+calls: joblib.load, np.array, _feature_list
 called_by: none (invoked manually / via CLI)
 mutates: none
 ---
@@ -4570,12 +4604,39 @@ User query
 | DEFAULT_K | 30 | models/elo.py | Default K-factor |
 | surf_serve_amp (grass) | 1.15 | analyze_tennis.py | Grass serve multiplier |
 | surf_serve_amp (clay) | 0.88 | analyze_tennis.py | Clay serve suppressor |
-| logistic_scale | 40.0 | analyze_tennis.py | SQI→probability scale |
+| logistic_scale | 40.0 | analyze_tennis.py | SQI→probability scale — NEEDS VALIDATION: validate_tennis_scale.py output shows scale=40 produces ~80pp hold-rate gap vs ATP reference of ~20-25pp; likely too aggressive. Run tests/validate_tennis_scale.py with real ATP match data to find optimal value (likely 80-120). |
 | extras_home_pct | 0.52 | baseball_market.py | MLB extras home win rate |
 | DIXON_COLES_TAU | 0.10 | models/dixon_coles.py | Low-score correction |
 | HOME_ADVANTAGE | 1.15 | models/dixon_coles.py | Soccer home boost (xG) |
-| MIN_SAMPLES | 50 | models/ml_layer.py | ML training threshold |
+| MIN_SAMPLES | 100 | models/ml_layer.py | ML training threshold |
 
 ---
 
 *End of Math & Models Reference. Feed this section to Gemini with a specific matchup to get a parallel probability estimate or parameter critique.*
+
+---
+
+## tests/
+
+---
+name: validate_tennis_scale.py
+type: script (standalone, no project imports)
+file: tests/validate_tennis_scale.py
+purpose: Sanity-check the logistic_scale parameter in analyze_tennis.py against ATP hold-rate benchmarks. Computes model-implied service game hold% for elite vs qualifier matchups at multiple scales. Focus metric: GAP column should match ATP reference of ~20-25pp (relative-calibration note: absolute hold% values will be lower than ATP because p_serve is centred at 0.5 for equal players). Populate TEST_MATCHES with real match data from Tennis Abstract / UTS to run grid-search validation.
+inputs: none (standalone)
+outputs: console table — p_serve, hold%, gap across scales + optional best-scale from TEST_MATCHES
+calls: none (stdlib only)
+called_by: developer manually (python tests/validate_tennis_scale.py)
+mutates: none
+open_issue: scale=40 produces ~80pp gap (too aggressive); likely needs raising to 80-120 once real data confirms
+---
+
+---
+name: test_smoke.py
+type: pytest test suite
+file: tests/test_smoke.py
+purpose: Smoke tests for core pipeline functions.
+calls: various pipeline modules
+called_by: pytest
+mutates: none
+---
