@@ -387,20 +387,61 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     # Home bats against away starter (F5) + away bullpen (L4); vice versa for away.
     off_rest_home = fatigue_a["off_rest_mult"] if is_home_a else fatigue_b["off_rest_mult"]
     off_rest_away = fatigue_b["off_rest_mult"] if is_home_a else fatigue_a["off_rest_mult"]
+
+    # Pitch-process signals: home bats against away starter, vice versa
+    # so we pass the OPPOSING starter's process metrics with each call.
     if is_home_a:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b, weather_factor, off_rest_home)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a, weather_factor, off_rest_away)
+        mu_home_f5, mu_home_l4 = expected_runs_split(
+            wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b,
+            weather_factor, off_rest_home,
+            opp_starter_csw_pct=starter_b.get("csw_pct"),
+            opp_starter_fb_velo=starter_b.get("avg_fb_velo"),
+            opp_starter_o_swing=starter_b.get("o_swing_pct"),
+        )
+        mu_away_f5, mu_away_l4 = expected_runs_split(
+            wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a,
+            weather_factor, off_rest_away,
+            opp_starter_csw_pct=starter_a.get("csw_pct"),
+            opp_starter_fb_velo=starter_a.get("avg_fb_velo"),
+            opp_starter_o_swing=starter_a.get("o_swing_pct"),
+        )
     else:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a, weather_factor, off_rest_home)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b, weather_factor, off_rest_away)
+        mu_home_f5, mu_home_l4 = expected_runs_split(
+            wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a,
+            weather_factor, off_rest_home,
+            opp_starter_csw_pct=starter_a.get("csw_pct"),
+            opp_starter_fb_velo=starter_a.get("avg_fb_velo"),
+            opp_starter_o_swing=starter_a.get("o_swing_pct"),
+        )
+        mu_away_f5, mu_away_l4 = expected_runs_split(
+            wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b,
+            weather_factor, off_rest_away,
+            opp_starter_csw_pct=starter_b.get("csw_pct"),
+            opp_starter_fb_velo=starter_b.get("avg_fb_velo"),
+            opp_starter_o_swing=starter_b.get("o_swing_pct"),
+        )
 
     mu_home = mu_home_f5 + mu_home_l4
     mu_away = mu_away_f5 + mu_away_l4
 
+    from models.baseball_market import pitcher_process_adjustment
+    _proc_home_starter = starter_b if is_home_a else starter_a
+    _proc_away_starter = starter_a if is_home_a else starter_b
     steps.append({"step": "run_model", "status": "ok",
                   "mu_home": round(mu_home, 2), "mu_away": round(mu_away, 2),
                   "mu_home_f5": round(mu_home_f5, 2), "mu_home_l4": round(mu_home_l4, 2),
-                  "mu_away_f5": round(mu_away_f5, 2), "mu_away_l4": round(mu_away_l4, 2)})
+                  "mu_away_f5": round(mu_away_f5, 2), "mu_away_l4": round(mu_away_l4, 2),
+                  "process_adj_home_starter": round(pitcher_process_adjustment(
+                      _proc_home_starter.get("csw_pct"),
+                      _proc_home_starter.get("avg_fb_velo"),
+                      _proc_home_starter.get("o_swing_pct"),
+                  ), 4),
+                  "process_adj_away_starter": round(pitcher_process_adjustment(
+                      _proc_away_starter.get("csw_pct"),
+                      _proc_away_starter.get("avg_fb_velo"),
+                      _proc_away_starter.get("o_swing_pct"),
+                  ), 4),
+                  })
 
     # ── 5. Compute markets ────────────────────────────────────────────────────
     markets_raw = compute_baseball_markets(

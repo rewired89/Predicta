@@ -5993,3 +5993,16 @@ called_by: run_baseball_analysis (analyze_baseball.py step 2.6)
 mutates: none
 ---
 
+
+---
+name: pitcher_process_adjustment
+type: function
+file: models/baseball_market.py
+purpose: Converts pitch-level process metrics to a run-prevention multiplier for mu_f5. Each signal shifts the adjustment: CSW% (called strike + whiff, 1.7% per pp), avg_fb_velo (1% per mph), o_swing_pct (chase rate, 1.2% per pp). Each capped ±8%; combined ±12%. Returns 1.0 when all None. Applied to mu_f5 only (starter innings); bullpen has no per-pitcher process data.
+inputs: csw_pct: Optional[float], avg_fb_velo: Optional[float], o_swing_pct: Optional[float]
+outputs: float (0.88–1.12)
+calls: none
+called_by: expected_runs_split
+mutates: none
+---
+

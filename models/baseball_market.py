@@ -39,6 +39,42 @@ def platoon_wrc_adjust(wrc_plus: float, pitcher_throws: str) -> float:
     return wrc_plus * PLATOON_VS_RHP
 
 
+LEAGUE_AVG_CSW_PCT   = 0.285   # 2024 MLB called strike + whiff rate
+LEAGUE_AVG_FB_VELO   = 93.5    # 2024 MLB average 4-seam fastball velocity (mph)
+LEAGUE_AVG_CHASE_PCT = 0.295   # 2024 MLB O-Swing% (out-of-zone swing rate)
+
+
+def pitcher_process_adjustment(
+    csw_pct: Optional[float] = None,
+    avg_fb_velo: Optional[float] = None,
+    o_swing_pct: Optional[float] = None,
+) -> float:
+    """
+    Convert pitch-level process metrics to a run-prevention multiplier for mu_f5.
+    < 1.0 means the pitcher suppresses runs more than FIP/SIERA alone captures;
+    > 1.0 means the opposite (process metrics suggest worse than FIP).
+
+    Research basis:
+      CSW%: ~0.73 R² with full-season K%; each 1pp above avg → ~1.7% fewer runs
+        (FanGraphs: CSW best early-season K% predictor, Baseball Savant correlation)
+      Velocity: each 1 mph above avg FB velo → ~1.0% fewer runs allowed
+        (PITCHf/x studies; effect tapers above 97 mph)
+      O-Swing%: each 1pp above avg → ~1.2% fewer runs
+        (high chase = fewer walks + weaker contact on out-of-zone pitches)
+
+    Each signal capped at ±8%; combined cap ±12%.
+    Returns 1.0 when all inputs are None (no adjustment).
+    """
+    adj = 0.0
+    if csw_pct is not None:
+        adj += max(-0.08, min(0.08, (csw_pct - LEAGUE_AVG_CSW_PCT) * 1.70))
+    if avg_fb_velo is not None:
+        adj += max(-0.08, min(0.08, (avg_fb_velo - LEAGUE_AVG_FB_VELO) * 0.010))
+    if o_swing_pct is not None:
+        adj += max(-0.08, min(0.08, (o_swing_pct - LEAGUE_AVG_CHASE_PCT) * 1.20))
+    return max(0.88, min(1.12, 1.0 - adj))
+
+
 def expected_runs_split(
     wrc_plus: float,
     opp_starter_fip: float,
@@ -48,25 +84,27 @@ def expected_runs_split(
     opp_starter_avg_ip: Optional[float] = None,
     weather_factor: float = 1.0,
     off_rest_mult: float = 1.0,
+    opp_starter_csw_pct: Optional[float] = None,
+    opp_starter_fb_velo: Optional[float] = None,
+    opp_starter_o_swing: Optional[float] = None,
 ) -> tuple[float, float]:
     """
     Returns (mu_f5, mu_l4): expected runs for innings 1-5 and 6-9.
-    F5 uses the opposing starter's FIP; L4 uses the bullpen FIP.
 
-    opp_starter_avg_ip: starter's season average innings per start.
-    When provided, starter_frac = avg_ip/9 (clamped 3–7 innings).
-    Defaults to STARTER_FRAC=5/9 when unknown.
+    F5 uses the opposing starter's FIP (already replaced by SIERA via enrich_starter
+    when FanGraphs data is available). L4 uses derived bullpen FIP.
 
-    weather_factor: combined temp+wind multiplier (1.0 = neutral, dome = 1.0).
-      = temp_factor × (1 + wind_factor × wind_mph × 0.004), capped ±15%.
-    off_rest_mult: rest-day offense adjustment (0.99–1.01); default 1.0.
+    pitch-process signals (csw_pct, fb_velo, o_swing) feed pitcher_process_adjustment()
+    which multiplies mu_f5 only — capturing what SIERA doesn't yet reflect
+    (e.g. a pitcher with great CSW% but few innings this season).
+
+    weather_factor: temp+wind combined (1.0 = neutral/dome), capped ±15%.
+    off_rest_mult:  rest-day offense adj (0.99–1.01).
     """
-    off   = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
-    home  = 1.03 if is_home else 1.0
-    # weather and rest applied to base; wind/temp only matter for outdoor parks
-    base  = LEAGUE_AVG_RUNS * off * park_factor * home * weather_factor * off_rest_mult
+    off  = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
+    home = 1.03 if is_home else 1.0
+    base = LEAGUE_AVG_RUNS * off * park_factor * home * weather_factor * off_rest_mult
 
-    # Dynamic split: use actual avg IP/start when available
     if opp_starter_avg_ip and opp_starter_avg_ip > 0:
         sf = min(max(opp_starter_avg_ip, 3.0), 7.0) / 9.0
         bf = 1.0 - sf
@@ -77,7 +115,13 @@ def expected_runs_split(
     starter_fip = min(max(opp_starter_fip  or LEAGUE_AVG_FIP,    1.5), 7.5)
     bullpen_fip = min(max(opp_bullpen_fip  or LEAGUE_BULLPEN_FIP, 1.5), 7.5)
 
-    mu_f5 = base * sf * (starter_fip / LEAGUE_AVG_FIP)
+    process_adj = pitcher_process_adjustment(
+        csw_pct     = opp_starter_csw_pct,
+        avg_fb_velo = opp_starter_fb_velo,
+        o_swing_pct = opp_starter_o_swing,
+    )
+
+    mu_f5 = base * sf * (starter_fip / LEAGUE_AVG_FIP) * process_adj
     mu_l4 = base * bf * (bullpen_fip / LEAGUE_AVG_FIP)
 
     return max(0.5, min(mu_f5, 6.0)), max(0.4, min(mu_l4, 5.0))
