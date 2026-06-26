@@ -11,6 +11,7 @@ from typing import Optional
 
 from db.database import get_db, init_db
 from fetchers.baseball import fetch_baseball_context, LEAGUE_AVG_FIP
+from fetchers.savant import enrich_starter, enrich_team_hitting
 from fetchers.signals import log_signal
 from fetchers.weather import fetch_game_weather, weather_to_signals, team_to_stadium_code
 from models.baseball_market import (
@@ -279,6 +280,32 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         fip_a = starter_a.get("fip") or LEAGUE_AVG_FIP
         fip_b = starter_b.get("fip") or LEAGUE_AVG_FIP
 
+    # ── 2.5. Enrich starters with FanGraphs SIERA/xFIP + Statcast barrel% ────
+    # Non-destructive: enrich_starter returns a new dict; originals unchanged.
+    # Falls back silently — ESPN data remains the guaranteed fallback.
+    if not ai_fallback:
+        abbr_a = context["team_a"].get("abbreviation", "")
+        abbr_b = context["team_b"].get("abbreviation", "")
+        try:
+            starter_a = enrich_starter(starter_a, abbr_a)
+            starter_b = enrich_starter(starter_b, abbr_b)
+            hitting_a = enrich_team_hitting(hitting_a, abbr_a)
+            hitting_b = enrich_team_hitting(hitting_b, abbr_b)
+            # Re-read FIP after enrichment (may now be SIERA or xFIP)
+            fip_a = starter_a.get("fip") or LEAGUE_AVG_FIP
+            fip_b = starter_b.get("fip") or LEAGUE_AVG_FIP
+            wrc_a = hitting_a.get("wrc_plus") or 100
+            wrc_b = hitting_b.get("wrc_plus") or 100
+            steps.append({
+                "step": "savant_enrich", "status": "ok",
+                "fip_source_a": starter_a.get("fip_source", "espn"),
+                "fip_source_b": starter_b.get("fip_source", "espn"),
+                "wrc_source_a": hitting_a.get("wrc_plus_source", "espn"),
+                "wrc_source_b": hitting_b.get("wrc_plus_source", "espn"),
+            })
+        except Exception as exc:
+            steps.append({"step": "savant_enrich", "status": "skipped", "error": str(exc)})
+
     # ── 3. Bullpen FIP derivation + platoon adjustment ────────────────────────
     # avg IP needed here (bullpen derivation) AND below (expected_runs_split).
     def _avg_ip(starter: dict) -> Optional[float]:
@@ -427,6 +454,13 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
             signals_to_log.append(("starter_avg_ip", team_a, avg_ip_a))
         if avg_ip_b is not None:
             signals_to_log.append(("starter_avg_ip", team_b, avg_ip_b))
+        for sig, key in (("siera", "siera"), ("xfip", "xfip"),
+                         ("barrel_pct_against", "barrel_pct_against"),
+                         ("xwoba_against", "xwoba_against")):
+            if starter_a.get(key) is not None:
+                signals_to_log.append((sig, team_a, starter_a[key]))
+            if starter_b.get(key) is not None:
+                signals_to_log.append((sig, team_b, starter_b[key]))
         for sig_name, participant, val in signals_to_log:
             log_signal(match_id, sig_name, participant,
                        signal_value=float(val), source="mlb_api")
@@ -529,37 +563,53 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 "whip":            home_starter.get("whip"),
                 "k9":              home_starter.get("k9"),
                 "bb9":             home_starter.get("bb9"),
-                "innings_pitched": home_starter.get("innings_pitched"),
-                "recent_games":    home_starter.get("recent_games", []),
-                "bullpen_fip":     round(home_bp_fip_out, 2),
+                "innings_pitched":      home_starter.get("innings_pitched"),
+                "recent_games":         home_starter.get("recent_games", []),
+                "bullpen_fip":          round(home_bp_fip_out, 2),
+                "siera":                home_starter.get("siera"),
+                "xfip":                 home_starter.get("xfip"),
+                "fip_source":           home_starter.get("fip_source", "espn"),
+                "barrel_pct_against":   home_starter.get("barrel_pct_against"),
+                "xwoba_against":        home_starter.get("xwoba_against"),
             },
             "away": {
-                "team":            team_away,
-                "name":            away_starter.get("name", "TBD"),
-                "throws":          away_starter.get("throws", "R"),
-                "fip":             away_starter.get("fip"),
-                "era":             away_starter.get("era"),
-                "whip":            away_starter.get("whip"),
-                "k9":              away_starter.get("k9"),
-                "bb9":             away_starter.get("bb9"),
-                "innings_pitched": away_starter.get("innings_pitched"),
-                "recent_games":    away_starter.get("recent_games", []),
-                "bullpen_fip":     round(away_bp_fip_out, 2),
+                "team":                 team_away,
+                "name":                 away_starter.get("name", "TBD"),
+                "throws":               away_starter.get("throws", "R"),
+                "fip":                  away_starter.get("fip"),
+                "era":                  away_starter.get("era"),
+                "whip":                 away_starter.get("whip"),
+                "k9":                   away_starter.get("k9"),
+                "bb9":                  away_starter.get("bb9"),
+                "innings_pitched":      away_starter.get("innings_pitched"),
+                "recent_games":         away_starter.get("recent_games", []),
+                "bullpen_fip":          round(away_bp_fip_out, 2),
+                "siera":                away_starter.get("siera"),
+                "xfip":                 away_starter.get("xfip"),
+                "fip_source":           away_starter.get("fip_source", "espn"),
+                "barrel_pct_against":   away_starter.get("barrel_pct_against"),
+                "xwoba_against":        away_starter.get("xwoba_against"),
             },
         },
         "team_stats": {
             "home": {
-                "team":       team_home,
-                "record":     home_record,
-                "wrc_plus":   home_hitting.get("wrc_plus"),
-                "ops":        home_hitting.get("ops"),
+                "team":          team_home,
+                "record":        home_record,
+                "wrc_plus":      home_hitting.get("wrc_plus"),
+                "wrc_source":    home_hitting.get("wrc_plus_source", "espn"),
+                "woba":          home_hitting.get("woba"),
+                "iso":           home_hitting.get("iso"),
+                "ops":           home_hitting.get("ops"),
                 "runs_per_game": home_hitting.get("runs_per_game"),
             },
             "away": {
-                "team":       team_away,
-                "record":     away_record,
-                "wrc_plus":   away_hitting.get("wrc_plus"),
-                "ops":        away_hitting.get("ops"),
+                "team":          team_away,
+                "record":        away_record,
+                "wrc_plus":      away_hitting.get("wrc_plus"),
+                "wrc_source":    away_hitting.get("wrc_plus_source", "espn"),
+                "woba":          away_hitting.get("woba"),
+                "iso":           away_hitting.get("iso"),
+                "ops":           away_hitting.get("ops"),
                 "runs_per_game": away_hitting.get("runs_per_game"),
             },
         },

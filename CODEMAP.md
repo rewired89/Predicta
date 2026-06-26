@@ -3334,12 +3334,12 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse → fetch ESPN → compute avg_ip → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. starter_avg_ip + weather) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → result dict.
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → result dict.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
-outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with throws, bullpen_fip), team_stats, kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
+outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
+calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
 called_by: analyze_baseball (app.py)
-mutates: matches, signals (incl. weather signals), predictions tables
+mutates: matches, signals (incl. weather + savant signals), predictions tables
 ---
 
 ---
@@ -5786,3 +5786,168 @@ calls: models.trading.ngram, db.database.init_db
 called_by: pytest / python tests/test_ngram.py
 mutates: ngram_models table (test symbol "_TEST_NGRAM_SYMBOL_")
 ---
+
+---
+
+## fetchers/savant.py
+
+---
+name: fetch_pitcher_fg
+type: function
+file: fetchers/savant.py
+purpose: Look up a starting pitcher's advanced FanGraphs stats for a season. Returns dict with siera, xfip, fip, era, k_pct, bb_pct, swstr_pct, gb_pct, hr_per_9, whip, ip, war, source. Empty dict on lookup failure. Uses pybaseball.pitching_stats() with module-level season cache.
+inputs: name: str, season: int | None
+outputs: dict
+calls: _load_fg_pitchers, _match_name, _safe_float
+called_by: enrich_starter
+mutates: _PITCHER_CACHE
+---
+
+---
+name: fetch_team_batting_fg
+type: function
+file: fetchers/savant.py
+purpose: Aggregate FanGraphs batting stats for a full team roster. Returns PA-weighted team averages: wrc_plus (real), woba, iso, babip, k_pct, bb_pct, obp, slg. Replaces ESPN wRC+ approximation when available. Uses _ESPN_TO_FG_ABBR mapping for team name normalization.
+inputs: team_abbr: str, season: int | None
+outputs: dict
+calls: _load_fg_batters
+called_by: enrich_team_hitting
+mutates: _BATTER_CACHE
+---
+
+---
+name: fetch_team_statcast
+type: function
+file: fetchers/savant.py
+purpose: Fetch team-level Statcast aggregates from Baseball Savant CSV export. player_type="pitcher" → barrel% against, hard-hit% against, xwOBA against. player_type="batter" → team barrel%, exit velo, xwOBA. Runs without pybaseball via direct httpx CSV fetch.
+inputs: team_abbr: str, season: int | None, player_type: str = "pitcher"
+outputs: dict
+calls: httpx, pd.read_csv
+called_by: (available for future use)
+mutates: none
+---
+
+---
+name: fetch_pitcher_statcast
+type: function
+file: fetchers/savant.py
+purpose: Fetch individual pitcher Statcast metrics from Baseball Savant leaderboard. Returns barrel_pct_against, hard_hit_pct_against, exit_velo_against, xwoba_against. Uses pybaseball.statcast_pitcher_exitvelo_barrels() with Savant "Last, First" name matching.
+inputs: player_name: str, season: int | None
+outputs: dict
+calls: pyb.statcast_pitcher_exitvelo_barrels, _match_name_savant, _safe_float
+called_by: enrich_starter
+mutates: none
+---
+
+---
+name: enrich_starter
+type: function
+file: fetchers/savant.py
+purpose: Non-destructively enrich an ESPN starter dict with FanGraphs SIERA/xFIP and Savant barrel%/xwOBA. Priority for fip field: SIERA > xFIP > FG FIP > original ESPN FIP. fip_source key records which was used. Returns new merged dict; original unchanged. Falls back silently.
+inputs: starter: dict, team_abbr: str = "", season: int | None
+outputs: dict
+calls: fetch_pitcher_fg, fetch_pitcher_statcast
+called_by: run_baseball_analysis (analyze_baseball.py step 2.5)
+mutates: none
+---
+
+---
+name: enrich_team_hitting
+type: function
+file: fetchers/savant.py
+purpose: Non-destructively enrich an ESPN team hitting dict with real FanGraphs wRC+, wOBA, ISO. Replaces the ESPN wRC+ approximation (2×OBP+SLG)/1.045×100 when FG data is available. wrc_plus_source key records "fangraphs" vs "espn".
+inputs: hitting: dict, team_abbr: str, season: int | None
+outputs: dict
+calls: fetch_team_batting_fg
+called_by: run_baseball_analysis (analyze_baseball.py step 2.5)
+mutates: none
+---
+
+---
+name: _ESPN_TO_FG_ABBR
+type: variable
+file: fetchers/savant.py
+purpose: ESPN team abbreviation → FanGraphs abbreviation mapping for teams that differ (WSH→WSN, CWS→CHW, KC→KCR, SD→SDP, SF→SFG, TB→TBR).
+inputs: none
+outputs: dict[str, str]
+calls: none
+called_by: fetch_team_batting_fg
+mutates: none
+---
+
+---
+name: _PITCHER_CACHE / _BATTER_CACHE
+type: variable
+file: fetchers/savant.py
+purpose: Module-level season caches keyed by year. Prevents re-fetching FanGraphs data for the same season within a single process run.
+inputs: none
+outputs: dict[int, pd.DataFrame]
+calls: none
+called_by: _load_fg_pitchers, _load_fg_batters
+mutates: populated on first fetch per season
+---
+
+---
+
+## fetchers/understat.py
+
+---
+name: fetch_league_xg
+type: function
+file: fetchers/understat.py
+purpose: Fetch all teams' xG table for a European soccer league and season from Understat. Extracts JSON from page HTML via regex (no API key). Returns list of dicts with: team, xg, xga, npxg, npxga, xg_per_game, xga_per_game, goals, goals_against, matches, pts, position. Empty list on failure. Results cached in _LEAGUE_CACHE keyed by (league, season).
+inputs: league: str, season: int
+outputs: list[dict]
+calls: _get, _extract_json_var
+called_by: fetch_team_xg, _LEAGUE_CACHE
+mutates: _LEAGUE_CACHE
+---
+
+---
+name: fetch_team_xg
+type: function
+file: fetchers/understat.py
+purpose: Fetch a single team's xG season stats from Understat league table. Uses _ESPN_TO_UNDERSTAT mapping + fuzzy matching for team name normalization. Returns dict with xg, xga, npxg, npxga, xg_per_game, xga_per_game, goals, goals_against, matches, position, source. Empty dict on failure.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: fetch_league_xg, _fuzzy_match
+called_by: enrich_soccer_teams
+mutates: none
+---
+
+---
+name: fetch_team_recent_xg
+type: function
+file: fetchers/understat.py
+purpose: Rolling xG/xGA averages over the last N matches (default 5) as a form indicator. Fetches team page HTML and extracts per-game datesData JSON. Returns xg_per_game, xga_per_game, goals_per_game, ga_per_game, matches_used. Empty dict on failure.
+inputs: team_name: str, league: str, season: int, last_n: int = 5
+outputs: dict
+calls: _get, _extract_json_var
+called_by: enrich_soccer_teams
+mutates: none
+---
+
+---
+name: enrich_soccer_teams
+type: function
+file: fetchers/understat.py
+purpose: Enrich both home and away soccer teams with Understat xG data. Returns {"home": {...}, "away": {...}} with season xG totals and rolling-5 recent form. Both dicts are empty on failure — soccer pipeline falls back to ESPN. Ready to wire into analyze_soccer.py.
+inputs: home_name: str, away_name: str, league: str, season: int
+outputs: dict {"home": dict, "away": dict}
+calls: fetch_team_xg, fetch_team_recent_xg
+called_by: (ready for analyze_soccer.py integration)
+mutates: none
+---
+
+---
+name: _ESPN_TO_UNDERSTAT
+type: variable
+file: fetchers/understat.py
+purpose: Common/ESPN team name → Understat canonical name mapping. Covers EPL, La Liga, Bundesliga, Serie A, Ligue 1 variants.
+inputs: none
+outputs: dict[str, str]
+calls: none
+called_by: fetch_team_xg, fetch_team_recent_xg
+mutates: none
+---
+
