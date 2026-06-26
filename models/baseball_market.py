@@ -39,30 +39,36 @@ def platoon_wrc_adjust(wrc_plus: float, pitcher_throws: str) -> float:
     return wrc_plus * PLATOON_VS_RHP
 
 
-LEAGUE_AVG_CSW_PCT   = 0.285   # 2024 MLB called strike + whiff rate
-LEAGUE_AVG_FB_VELO   = 93.5    # 2024 MLB average 4-seam fastball velocity (mph)
-LEAGUE_AVG_CHASE_PCT = 0.295   # 2024 MLB O-Swing% (out-of-zone swing rate)
+LEAGUE_AVG_CSW_PCT    = 0.285   # 2024 MLB called strike + whiff rate
+LEAGUE_AVG_FB_VELO    = 93.5    # 2024 MLB average 4-seam fastball velocity (mph)
+LEAGUE_AVG_CHASE_PCT  = 0.295   # 2024 MLB O-Swing% (out-of-zone swing rate)
+LEAGUE_AVG_BARREL_PCT = 0.075   # 2024 MLB barrel% against (batted-ball quality)
 
 
 def pitcher_process_adjustment(
     csw_pct: Optional[float] = None,
     avg_fb_velo: Optional[float] = None,
     o_swing_pct: Optional[float] = None,
+    barrel_pct_against: Optional[float] = None,
 ) -> float:
     """
     Convert pitch-level process metrics to a run-prevention multiplier for mu_f5.
-    < 1.0 means the pitcher suppresses runs more than FIP/SIERA alone captures;
-    > 1.0 means the opposite (process metrics suggest worse than FIP).
+    < 1.0 means the pitcher suppresses runs beyond what FIP/SIERA captures;
+    > 1.0 means the opposite.
 
     Research basis:
       CSW%: ~0.73 R² with full-season K%; each 1pp above avg → ~1.7% fewer runs
-        (FanGraphs: CSW best early-season K% predictor, Baseball Savant correlation)
-      Velocity: each 1 mph above avg FB velo → ~1.0% fewer runs allowed
-        (PITCHf/x studies; effect tapers above 97 mph)
-      O-Swing%: each 1pp above avg → ~1.2% fewer runs
-        (high chase = fewer walks + weaker contact on out-of-zone pitches)
+      Velocity: each 1 mph above avg → ~1.0% fewer runs (PITCHf/x studies)
+      O-Swing%: each 1pp above avg → ~1.2% fewer runs (chase = weak contact)
+      Barrel%: ~0.85 R² with future ERA (Statcast; FIP misses "almost HRs");
+        each 1pp above avg → ~2.5% more runs allowed
 
-    Each signal capped at ±8%; combined cap ±12%.
+    Why barrel% matters even when SIERA is available:
+      SIERA uses GB/FB rate and HR/FB rate, but barrel% is measured on contact
+      quality rather than outcomes. A pitcher giving up 12% barrels will allow
+      more hard-hit outs that don't show in SIERA yet, predicting future HR/ERA.
+
+    Each signal capped ±8%; combined cap ±15%.
     Returns 1.0 when all inputs are None (no adjustment).
     """
     adj = 0.0
@@ -72,7 +78,10 @@ def pitcher_process_adjustment(
         adj += max(-0.08, min(0.08, (avg_fb_velo - LEAGUE_AVG_FB_VELO) * 0.010))
     if o_swing_pct is not None:
         adj += max(-0.08, min(0.08, (o_swing_pct - LEAGUE_AVG_CHASE_PCT) * 1.20))
-    return max(0.88, min(1.12, 1.0 - adj))
+    if barrel_pct_against is not None:
+        # High barrel% → pitcher is worse than FIP suggests → positive adj → MORE runs
+        adj -= max(-0.08, min(0.08, (barrel_pct_against - LEAGUE_AVG_BARREL_PCT) * 2.50))
+    return max(0.85, min(1.15, 1.0 - adj))
 
 
 def expected_runs_split(
@@ -87,6 +96,7 @@ def expected_runs_split(
     opp_starter_csw_pct: Optional[float] = None,
     opp_starter_fb_velo: Optional[float] = None,
     opp_starter_o_swing: Optional[float] = None,
+    opp_starter_barrel_pct: Optional[float] = None,
 ) -> tuple[float, float]:
     """
     Returns (mu_f5, mu_l4): expected runs for innings 1-5 and 6-9.
@@ -116,9 +126,10 @@ def expected_runs_split(
     bullpen_fip = min(max(opp_bullpen_fip  or LEAGUE_BULLPEN_FIP, 1.5), 7.5)
 
     process_adj = pitcher_process_adjustment(
-        csw_pct     = opp_starter_csw_pct,
-        avg_fb_velo = opp_starter_fb_velo,
-        o_swing_pct = opp_starter_o_swing,
+        csw_pct             = opp_starter_csw_pct,
+        avg_fb_velo         = opp_starter_fb_velo,
+        o_swing_pct         = opp_starter_o_swing,
+        barrel_pct_against  = opp_starter_barrel_pct,
     )
 
     mu_f5 = base * sf * (starter_fip / LEAGUE_AVG_FIP) * process_adj

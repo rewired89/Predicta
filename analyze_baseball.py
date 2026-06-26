@@ -394,31 +394,35 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         mu_home_f5, mu_home_l4 = expected_runs_split(
             wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b,
             weather_factor, off_rest_home,
-            opp_starter_csw_pct=starter_b.get("csw_pct"),
-            opp_starter_fb_velo=starter_b.get("avg_fb_velo"),
-            opp_starter_o_swing=starter_b.get("o_swing_pct"),
+            opp_starter_csw_pct    = starter_b.get("csw_pct"),
+            opp_starter_fb_velo    = starter_b.get("avg_fb_velo"),
+            opp_starter_o_swing    = starter_b.get("o_swing_pct"),
+            opp_starter_barrel_pct = starter_b.get("barrel_pct_against"),
         )
         mu_away_f5, mu_away_l4 = expected_runs_split(
             wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a,
             weather_factor, off_rest_away,
-            opp_starter_csw_pct=starter_a.get("csw_pct"),
-            opp_starter_fb_velo=starter_a.get("avg_fb_velo"),
-            opp_starter_o_swing=starter_a.get("o_swing_pct"),
+            opp_starter_csw_pct    = starter_a.get("csw_pct"),
+            opp_starter_fb_velo    = starter_a.get("avg_fb_velo"),
+            opp_starter_o_swing    = starter_a.get("o_swing_pct"),
+            opp_starter_barrel_pct = starter_a.get("barrel_pct_against"),
         )
     else:
         mu_home_f5, mu_home_l4 = expected_runs_split(
             wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a,
             weather_factor, off_rest_home,
-            opp_starter_csw_pct=starter_a.get("csw_pct"),
-            opp_starter_fb_velo=starter_a.get("avg_fb_velo"),
-            opp_starter_o_swing=starter_a.get("o_swing_pct"),
+            opp_starter_csw_pct    = starter_a.get("csw_pct"),
+            opp_starter_fb_velo    = starter_a.get("avg_fb_velo"),
+            opp_starter_o_swing    = starter_a.get("o_swing_pct"),
+            opp_starter_barrel_pct = starter_a.get("barrel_pct_against"),
         )
         mu_away_f5, mu_away_l4 = expected_runs_split(
             wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b,
             weather_factor, off_rest_away,
-            opp_starter_csw_pct=starter_b.get("csw_pct"),
-            opp_starter_fb_velo=starter_b.get("avg_fb_velo"),
-            opp_starter_o_swing=starter_b.get("o_swing_pct"),
+            opp_starter_csw_pct    = starter_b.get("csw_pct"),
+            opp_starter_fb_velo    = starter_b.get("avg_fb_velo"),
+            opp_starter_o_swing    = starter_b.get("o_swing_pct"),
+            opp_starter_barrel_pct = starter_b.get("barrel_pct_against"),
         )
 
     mu_home = mu_home_f5 + mu_home_l4
