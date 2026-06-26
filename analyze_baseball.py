@@ -12,6 +12,7 @@ from typing import Optional
 from db.database import get_db, init_db
 from fetchers.baseball import fetch_baseball_context, LEAGUE_AVG_FIP
 from fetchers.savant import enrich_starter, enrich_team_hitting
+from fetchers.schedule import fetch_team_fatigue
 from fetchers.signals import log_signal
 from fetchers.weather import fetch_game_weather, weather_to_signals, team_to_stadium_code
 from models.baseball_market import (
@@ -306,6 +307,48 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         except Exception as exc:
             steps.append({"step": "savant_enrich", "status": "skipped", "error": str(exc)})
 
+    # ── 2.6. Weather fetch + fatigue / rest ──────────────────────────────────
+    # Weather is now applied to the run model (not just logged).
+    weather_data = None
+    try:
+        stadium_code = team_to_stadium_code(team_home)
+        if stadium_code:
+            weather_data = fetch_game_weather(stadium_code, game_date)
+    except Exception:
+        pass
+    weather_sigs = weather_to_signals(weather_data)
+
+    id_a = context["team_a"].get("id", "") if not ai_fallback else ""
+    id_b = context["team_b"].get("id", "") if not ai_fallback else ""
+
+    fatigue_a = fetch_team_fatigue(str(id_a), game_date)
+    fatigue_b = fetch_team_fatigue(str(id_b), game_date)
+
+    # Combined weather multiplier (applied to all expected runs for this park)
+    # temp_factor ≈ 1.0 ± 0.05; wind_factor [-1,+1] × wind_mph × 0.004
+    is_dome    = bool(weather_sigs.get("is_dome"))
+    temp_f     = weather_sigs.get("temp_factor", 1.0)
+    wind_align = weather_sigs.get("wind_factor", 0.0)
+    wind_mph   = weather_sigs.get("wind_mph", 0.0)
+    if is_dome:
+        weather_factor = 1.0
+    else:
+        wind_contrib   = wind_align * wind_mph * 0.004   # ±6% at 15mph aligned wind
+        weather_factor = max(0.85, min(1.15, temp_f * (1.0 + wind_contrib)))
+
+    steps.append({
+        "step":            "fatigue_weather",
+        "status":          "ok",
+        "games_last_3_a":  fatigue_a.get("games_last_3"),
+        "games_last_3_b":  fatigue_b.get("games_last_3"),
+        "rest_days_a":     fatigue_a.get("rest_days"),
+        "rest_days_b":     fatigue_b.get("rest_days"),
+        "bullpen_fat_a":   fatigue_a["bullpen_fatigue_mult"],
+        "bullpen_fat_b":   fatigue_b["bullpen_fatigue_mult"],
+        "weather_factor":  round(weather_factor, 4),
+        "is_dome":         is_dome,
+    })
+
     # ── 3. Bullpen FIP derivation + platoon adjustment ────────────────────────
     # avg IP needed here (bullpen derivation) AND below (expected_runs_split).
     def _avg_ip(starter: dict) -> Optional[float]:
@@ -322,6 +365,11 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     era_b = starter_b.get("era") or None
     bullpen_fip_a = _derive_bullpen_fip(team_pit_a.get("era", 0), fip_a, avg_ip_a, era_a)
     bullpen_fip_b = _derive_bullpen_fip(team_pit_b.get("era", 0), fip_b, avg_ip_b, era_b)
+    # Apply fatigue multiplier: tired bullpen → effectively worse FIP
+    bullpen_fip_a *= fatigue_a["bullpen_fatigue_mult"]
+    bullpen_fip_b *= fatigue_b["bullpen_fatigue_mult"]
+    bullpen_fip_a  = max(3.0, min(bullpen_fip_a, 7.5))
+    bullpen_fip_b  = max(3.0, min(bullpen_fip_b, 7.5))
 
     throws_a = starter_a.get("throws", "R")
     throws_b = starter_b.get("throws", "R")
@@ -337,12 +385,14 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
 
     # ── 4. Expected runs (split F5 / L4) ─────────────────────────────────────
     # Home bats against away starter (F5) + away bullpen (L4); vice versa for away.
+    off_rest_home = fatigue_a["off_rest_mult"] if is_home_a else fatigue_b["off_rest_mult"]
+    off_rest_away = fatigue_b["off_rest_mult"] if is_home_a else fatigue_a["off_rest_mult"]
     if is_home_a:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, True,  avg_ip_b, weather_factor, off_rest_home)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, False, avg_ip_a, weather_factor, off_rest_away)
     else:
-        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a)
-        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b)
+        mu_home_f5, mu_home_l4 = expected_runs_split(wrc_b_adj, fip_a, bullpen_fip_a, park_factor, True,  avg_ip_a, weather_factor, off_rest_home)
+        mu_away_f5, mu_away_l4 = expected_runs_split(wrc_a_adj, fip_b, bullpen_fip_b, park_factor, False, avg_ip_b, weather_factor, off_rest_away)
 
     mu_home = mu_home_f5 + mu_home_l4
     mu_away = mu_away_f5 + mu_away_l4
@@ -395,6 +445,17 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     home_bp_fip = bullpen_fip_b if is_home_a else bullpen_fip_a
     away_bp_fip = bullpen_fip_a if is_home_a else bullpen_fip_b
 
+    # Build fatigue/weather note for explanation
+    _fat_note = ""
+    if fatigue_a.get("games_last_3") is not None or fatigue_b.get("games_last_3") is not None:
+        gl3a = fatigue_a.get("games_last_3", "?")
+        gl3b = fatigue_b.get("games_last_3", "?")
+        _fat_note = f" Fatigue: {team_a} {gl3a}g/3d, {team_b} {gl3b}g/3d."
+    _wx_note = (
+        f" Weather factor {weather_factor:.3f}" + (" (dome)" if is_dome else "")
+        + "."
+    ) if weather_factor != 1.0 or is_dome else ""
+
     explanation = (
         f"Split Poisson: F5 μ_home={mu_home_f5:.2f}+L4 {mu_home_l4:.2f}={mu_home:.2f} runs; "
         f"F5 μ_away={mu_away_f5:.2f}+L4 {mu_away_l4:.2f}={mu_away:.2f} runs. "
@@ -403,20 +464,10 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         f"bullpen FIP {home_bp_fip:.2f}. "
         f"Away starter: {away_starter_name} [{away_starter_hand}HP] FIP {away_starter_fip:.2f}, "
         f"bullpen FIP {away_bp_fip:.2f}."
-        + elo_explanation
+        + _fat_note + _wx_note + elo_explanation
     )
 
-    # ── 6.5. Weather signals (stored only; NOT applied to run model yet) ────
-    # Enable the wind/temp adjustment in expected_runs_split after 50+
-    # baseball predictions confirm the effect on scoring.
-    weather_data = None
-    try:
-        stadium_code = team_to_stadium_code(team_home)
-        if stadium_code:
-            weather_data = fetch_game_weather(stadium_code, game_date)
-    except Exception:
-        pass
-    weather_sigs = weather_to_signals(weather_data)
+    # weather_data / weather_sigs already fetched at step 2.6 above
 
     # ── 7. Persist ───────────────────────────────────────────────────────────
     match_id: Optional[int] = None
@@ -454,6 +505,17 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
             signals_to_log.append(("starter_avg_ip", team_a, avg_ip_a))
         if avg_ip_b is not None:
             signals_to_log.append(("starter_avg_ip", team_b, avg_ip_b))
+        if fatigue_a.get("games_last_3") is not None:
+            signals_to_log.append(("games_last_3", team_a, fatigue_a["games_last_3"]))
+            signals_to_log.append(("bullpen_fatigue_mult", team_a, fatigue_a["bullpen_fatigue_mult"]))
+        if fatigue_b.get("games_last_3") is not None:
+            signals_to_log.append(("games_last_3", team_b, fatigue_b["games_last_3"]))
+            signals_to_log.append(("bullpen_fatigue_mult", team_b, fatigue_b["bullpen_fatigue_mult"]))
+        if fatigue_a.get("rest_days") is not None:
+            signals_to_log.append(("rest_days", team_a, fatigue_a["rest_days"]))
+        if fatigue_b.get("rest_days") is not None:
+            signals_to_log.append(("rest_days", team_b, fatigue_b["rest_days"]))
+        signals_to_log.append(("weather_factor", None, weather_factor))
         for sig, key in (
             ("siera",               "siera"),
             ("xfip",                "xfip"),

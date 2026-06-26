@@ -3098,8 +3098,8 @@ mutates: none
 name: expected_runs_split
 type: function
 file: models/baseball_market.py
-purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP). When opp_starter_avg_ip is provided, starter_frac = clamp(avg_ip, 3, 7)/9 (dynamic); otherwise falls back to fixed 5/9. math: mu_f5 = LEAGUE_AVG × starter_frac × (wRC+/100) × park × home × (starter_FIP/LEAGUE_FIP); mu_l4 = LEAGUE_AVG × bullpen_frac × (wRC+/100) × park × home × (bullpen_FIP/LEAGUE_FIP)
-inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_starter_avg_ip: Optional[float] = None
+purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP). When opp_starter_avg_ip is provided, starter_frac = clamp(avg_ip, 3, 7)/9 (dynamic); otherwise falls back to fixed 5/9. weather_factor (temp+wind combined, 0.85–1.15) and off_rest_mult (0.99–1.01) applied to base. math: base = LEAGUE_AVG × (wRC+/100) × park × home × weather_factor × off_rest_mult; mu_f5 = base × starter_frac × (starter_FIP/LEAGUE_FIP); mu_l4 = base × bullpen_frac × (bullpen_FIP/LEAGUE_FIP).
+inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_starter_avg_ip: Optional[float] = None, weather_factor: float = 1.0, off_rest_mult: float = 1.0
 outputs: tuple[float, float] — (mu_f5 clamped 0.5-6.0, mu_l4 clamped 0.4-5.0)
 calls: none
 called_by: run_baseball_analysis
@@ -5973,6 +5973,23 @@ inputs: team_name: str, league: str, season: int
 outputs: dict
 calls: _get, _extract_json_var
 called_by: enrich_soccer_teams
+mutates: none
+---
+
+
+---
+
+## fetchers/schedule.py
+
+---
+name: fetch_team_fatigue
+type: function
+file: fetchers/schedule.py
+purpose: Compute bullpen fatigue and rest-day context from ESPN schedule. Counts games played in last 3 days by calling _get_scoreboard for each of the 3 prior dates and checking if the team appears. Returns games_last_3, rest_days, bullpen_fatigue_mult (0.97–1.08 applied to bullpen_fip), off_rest_mult (0.99–1.01 applied to wrc_plus in expected_runs_split). Falls back to neutral multipliers (1.0) on any ESPN failure.
+inputs: team_id: str, game_date: str (ISO)
+outputs: dict {games_last_3, rest_days, bullpen_fatigue_mult, off_rest_mult, source}
+calls: _get_scoreboard (fetchers/baseball.py)
+called_by: run_baseball_analysis (analyze_baseball.py step 2.6)
 mutates: none
 ---
 

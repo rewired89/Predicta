@@ -46,6 +46,8 @@ def expected_runs_split(
     park_factor: float = 1.0,
     is_home: bool = False,
     opp_starter_avg_ip: Optional[float] = None,
+    weather_factor: float = 1.0,
+    off_rest_mult: float = 1.0,
 ) -> tuple[float, float]:
     """
     Returns (mu_f5, mu_l4): expected runs for innings 1-5 and 6-9.
@@ -54,10 +56,15 @@ def expected_runs_split(
     opp_starter_avg_ip: starter's season average innings per start.
     When provided, starter_frac = avg_ip/9 (clamped 3–7 innings).
     Defaults to STARTER_FRAC=5/9 when unknown.
+
+    weather_factor: combined temp+wind multiplier (1.0 = neutral, dome = 1.0).
+      = temp_factor × (1 + wind_factor × wind_mph × 0.004), capped ±15%.
+    off_rest_mult: rest-day offense adjustment (0.99–1.01); default 1.0.
     """
     off   = (wrc_plus or LEAGUE_AVG_WRC_PLUS) / 100.0
     home  = 1.03 if is_home else 1.0
-    base  = LEAGUE_AVG_RUNS * off * park_factor * home
+    # weather and rest applied to base; wind/temp only matter for outdoor parks
+    base  = LEAGUE_AVG_RUNS * off * park_factor * home * weather_factor * off_rest_mult
 
     # Dynamic split: use actual avg IP/start when available
     if opp_starter_avg_ip and opp_starter_avg_ip > 0:
