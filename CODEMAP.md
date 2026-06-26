@@ -6435,12 +6435,13 @@ mutates: none
 name: build_nrfi_dataset
 type: script
 file: scripts/build_nrfi_dataset.py
-purpose: One-time scraper that builds data/nrfi_dataset.csv — the training set for the NRFI XGBoost model. Pulls 2022–2024 MLB regular-season games from MLB Stats API (linescore for NRFI outcome, boxscore for starter names), looks up per-season pitcher stats from FanGraphs (via pybaseball: SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB). Writes per-season checkpoints so the run can be resumed if interrupted. Run locally (external HTTP blocked in container).
+purpose: One-time scraper that builds data/nrfi_dataset.csv — the training set for the NRFI XGBoost model. Pulls 2022–2024 MLB regular-season games from MLB Stats API (linescore for NRFI outcome, boxscore for starter names + top-3 lineup batters via battingOrder field), looks up per-season pitcher stats from FanGraphs (via pybaseball: SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%) and batter wRC+ for lineup spots 1-3 (home_top3_wrc, away_top3_wrc). Writes per-season checkpoints so the run can be resumed if interrupted. Run locally (external HTTP blocked in container).
 inputs: --seasons (default 2022 2023 2024), --output (default data/nrfi_dataset.csv), --delay (default 1.0s)
 outputs: data/nrfi_dataset.csv (~7300 rows), data/nrfi_checkpoint_{year}.csv per season
-calls: MLB Stats API, pybaseball.pitching_stats
+calls: MLB Stats API, pybaseball.pitching_stats, pybaseball.batting_stats
 called_by: manual (one-time): python scripts/build_nrfi_dataset.py
 mutates: data/nrfi_dataset.csv
+key_functions: get_starters (extracts top-3 batters from battingOrder), _load_fg_batters_season, lookup_top3_wrc, _load_fg_season, lookup_pitcher_fg, build_season, get_season_game_pks, get_linescore
 ---
 
 ---
@@ -6451,10 +6452,10 @@ mutates: data/nrfi_dataset.csv
 name: nrfi_model
 type: module
 file: models/nrfi_model.py
-purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: home/away starter SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%, park_factor, is_dome. Trained on 2022-2023, tested on 2024 hold-out. Isotonic calibration applied. Auto-loads from models/nrfi_xgb.json on app startup; falls back silently to Poisson if model file absent.
+purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: home/away starter SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%, top-3 lineup wRC+ (home_top3_wrc, away_top3_wrc), park_factor, is_dome. Trained on 2022-2023, tested on 2024 hold-out. Platt scaling (LogisticRegression) calibration applied on 2023 val fold. Auto-loads from models/nrfi_xgb.json on app startup; falls back silently to Poisson if model file absent.
 inputs: dataset: data/nrfi_dataset.csv (for training)
 outputs: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
-calls: xgboost.XGBClassifier, sklearn.isotonic.IsotonicRegression
+calls: xgboost.XGBClassifier, sklearn.linear_model.LogisticRegression (Platt scaling)
 called_by: predict_nrfi (imported by analyze_baseball.py)
 mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl (training only)
 ---
@@ -6463,10 +6464,10 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl (training only)
 name: predict_nrfi
 type: function
 file: models/nrfi_model.py
-purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Accepts home_starter/away_starter dicts with any subset of model features; missing fields default to league-average values. Lazy-loads model on first call.
-inputs: home_starter: dict, away_starter: dict, home_team: str, park_factor: Optional[float]
+purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Accepts home_starter/away_starter dicts with any subset of model features; missing fields default to league-average values. Optional home_top3_wrc/away_top3_wrc params for live lineup data (defaults to 100 when not available). Lazy-loads model on first call.
+inputs: home_starter: dict, away_starter: dict, home_team: str, park_factor: Optional[float], home_top3_wrc: Optional[float], away_top3_wrc: Optional[float]
 outputs: Optional[float] — calibrated probability of NRFI
-calls: xgboost.XGBClassifier.predict_proba, IsotonicRegression.predict
+calls: xgboost.XGBClassifier.predict_proba, LogisticRegression.predict_proba
 called_by: run_baseball_analysis (analyze_baseball.py)
 mutates: none
 ---
@@ -6475,10 +6476,10 @@ mutates: none
 name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
-purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, and top feature importances. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
-calls: xgboost.XGBClassifier, IsotonicRegression, sklearn metrics
+calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve
 called_by: __main__ (CLI: python models/nrfi_model.py --train)
 mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 ---

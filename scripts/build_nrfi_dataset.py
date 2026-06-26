@@ -108,10 +108,13 @@ CSV_COLUMNS = [
     "away_siera", "away_xfip", "away_fip",
     "away_csw_pct", "away_o_swing_pct", "away_k_pct",
     "away_bb_pct", "away_gb_pct", "away_hr_fb_pct",
+    # top-3 lineup wRC+ (Kimi: only these batters face the starter in the 1st inning)
+    "home_top3_wrc", "away_top3_wrc",
     # game context
     "park_factor", "is_dome",
     # enrichment flags
     "home_fg_found", "away_fg_found",
+    "home_top3_found", "away_top3_found",
 ]
 
 
@@ -166,31 +169,51 @@ def get_linescore(game_pk: int) -> Optional[dict]:
 
 
 def get_starters(game_pk: int) -> Optional[dict]:
-    """Return {home_team, away_team, home_starter_name, away_starter_name}."""
+    """Return starters + top-3 lineup batters for both teams from boxscore."""
     try:
         time.sleep(REQUEST_DELAY)
         data = _mlb_get(f"game/{game_pk}/boxscore")
         teams = data.get("teams", {})
 
-        def _starter(side: str) -> tuple[str, str]:
+        def _starter_and_top3(side: str) -> tuple:
             t        = teams.get(side, {})
             abbr_raw = t.get("team", {}).get("abbreviation", "")
             abbr     = MLB_TO_ESPN.get(abbr_raw, abbr_raw)
             pitchers = t.get("pitchers", [])
-            if not pitchers:
-                return abbr, ""
-            starter_id = pitchers[0]
-            players    = t.get("players", {})
-            name = players.get(f"ID{starter_id}", {}).get("person", {}).get("fullName", "")
-            return abbr, name
+            players  = t.get("players", {})
 
-        home_abbr, home_name = _starter("home")
-        away_abbr, away_name = _starter("away")
+            name = ""
+            if pitchers:
+                starter_id = pitchers[0]
+                name = players.get(f"ID{starter_id}", {}).get("person", {}).get("fullName", "")
+
+            # battingOrder: 100=leadoff, 200=2nd, 300=3rd; only exact slots (no subs)
+            order_batters: list[tuple[int, str]] = []
+            for pid_key, pdata in players.items():
+                bo = pdata.get("battingOrder")
+                if bo is None:
+                    continue
+                try:
+                    bo_int = int(bo)
+                except (TypeError, ValueError):
+                    continue
+                if bo_int in (100, 200, 300):
+                    batter_name = pdata.get("person", {}).get("fullName", "")
+                    order_batters.append((bo_int, batter_name))
+
+            order_batters.sort(key=lambda x: x[0])
+            top3 = [bname for _, bname in order_batters[:3]]
+            return abbr, name, top3
+
+        home_abbr, home_name, home_top3 = _starter_and_top3("home")
+        away_abbr, away_name, away_top3 = _starter_and_top3("away")
         return {
             "home_team":    home_abbr,
             "away_team":    away_abbr,
             "home_starter": home_name,
             "away_starter": away_name,
+            "home_top3":    home_top3,
+            "away_top3":    away_top3,
         }
     except Exception as e:
         print(f"    boxscore {game_pk}: {e}")
@@ -199,7 +222,8 @@ def get_starters(game_pk: int) -> Optional[dict]:
 
 # ── FanGraphs pitcher lookup ──────────────────────────────────────────────────
 
-_FG_CACHE: dict[int, "pd.DataFrame"] = {}   # season → DataFrame
+_FG_CACHE: dict[int, "pd.DataFrame"] = {}         # season → pitcher DataFrame
+_FG_BATTER_CACHE: dict[int, "pd.DataFrame"] = {}  # season → batter DataFrame
 
 
 def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
@@ -229,6 +253,60 @@ def _safe(val, default: float = float("nan")) -> float:
         return f if f == f else default   # NaN check
     except (TypeError, ValueError):
         return default
+
+
+def _load_fg_batters_season(season: int) -> Optional["pd.DataFrame"]:
+    if season in _FG_BATTER_CACHE:
+        return _FG_BATTER_CACHE[season]
+    print(f"  Loading FanGraphs batting stats for {season}…")
+    try:
+        df = pyb.batting_stats(season, qual=50)   # 50 PA minimum
+        if df is not None and not df.empty:
+            df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
+            _FG_BATTER_CACHE[season] = df
+            print(f"  FanGraphs batting {season}: {len(df)} batters loaded")
+            return df
+    except Exception as e:
+        print(f"  FanGraphs batting {season} failed: {e}")
+    return None
+
+
+def lookup_top3_wrc(names: list, season: int) -> tuple:
+    """Return (avg_wrc_plus, n_found) for a list of batter names (top-3 lineup spots)."""
+    if not names:
+        return float("nan"), 0
+    df = _load_fg_batters_season(season)
+    if df is None:
+        return float("nan"), 0
+
+    norm_names = df["_norm"].tolist()
+    wrc_values = []
+
+    for name in names:
+        if not name:
+            continue
+        norm_target = _norm(name)
+
+        if norm_target in norm_names:
+            idx = norm_names.index(norm_target)
+        else:
+            last = norm_target.split()[-1] if norm_target else ""
+            last_matches = [i for i, n in enumerate(norm_names) if n.split()[-1] == last]
+            if len(last_matches) == 1:
+                idx = last_matches[0]
+            else:
+                close = difflib.get_close_matches(norm_target, norm_names, n=1, cutoff=0.82)
+                if not close:
+                    continue
+                idx = norm_names.index(close[0])
+
+        wrc = _safe(df.iloc[idx].get("wRC+"))
+        if wrc == wrc:   # not NaN
+            wrc_values.append(wrc)
+
+    if not wrc_values:
+        return float("nan"), 0
+    return sum(wrc_values) / len(wrc_values), len(wrc_values)
 
 
 def lookup_pitcher_fg(name: str, season: int) -> dict:
@@ -306,13 +384,19 @@ def build_season(season: int, checkpoint_path: Path) -> list[dict]:
         if starters is None:
             continue
 
-        home_team = starters["home_team"]
-        away_team = starters["away_team"]
-        h_name    = starters["home_starter"]
-        a_name    = starters["away_starter"]
+        home_team  = starters["home_team"]
+        away_team  = starters["away_team"]
+        h_name     = starters["home_starter"]
+        a_name     = starters["away_starter"]
+        home_top3  = starters.get("home_top3", [])
+        away_top3  = starters.get("away_top3", [])
 
         h_fg = lookup_pitcher_fg(h_name, season)
         a_fg = lookup_pitcher_fg(a_name, season)
+
+        # top-3 lineup wRC+ (away team bats against home starter; home bats against away starter)
+        home_t3_wrc, home_t3_found = lookup_top3_wrc(home_top3, season)
+        away_t3_wrc, away_t3_found = lookup_top3_wrc(away_top3, season)
 
         park_factor = PARK_FACTORS.get(home_team, 1.0)
         is_dome     = 1 if home_team in DOME_TEAMS else 0
@@ -348,10 +432,14 @@ def build_season(season: int, checkpoint_path: Path) -> list[dict]:
             "away_bb_pct":    a_fg.get("bb_pct", float("nan")),
             "away_gb_pct":    a_fg.get("gb_pct", float("nan")),
             "away_hr_fb_pct": a_fg.get("hr_fb_pct", float("nan")),
+            "home_top3_wrc":  home_t3_wrc,
+            "away_top3_wrc":  away_t3_wrc,
             "park_factor":    park_factor,
             "is_dome":        is_dome,
             "home_fg_found":  int(h_fg.get("found", False)),
             "away_fg_found":  int(a_fg.get("found", False)),
+            "home_top3_found": home_t3_found,
+            "away_top3_found": away_t3_found,
         }
         rows.append(row)
 
@@ -412,14 +500,17 @@ def main():
     nrfi_n = sum(1 for r in all_rows if int(r.get("nrfi", 0)) == 1)
     fg_both = sum(1 for r in all_rows
                   if int(r.get("home_fg_found", 0)) and int(r.get("away_fg_found", 0)))
+    t3_both = sum(1 for r in all_rows
+                  if int(r.get("home_top3_found", 0)) > 0 and int(r.get("away_top3_found", 0)) > 0)
 
     print(f"\n{'='*60}")
     print(f"DONE")
-    print(f"  Total games:          {total}")
-    print(f"  NRFI outcomes:        {nrfi_n} ({nrfi_n/total*100:.1f}%)")
-    print(f"  YRFI outcomes:        {total-nrfi_n} ({(total-nrfi_n)/total*100:.1f}%)")
-    print(f"  Both starters found:  {fg_both} ({fg_both/total*100:.1f}%)")
-    print(f"  Output:               {args.output}")
+    print(f"  Total games:             {total}")
+    print(f"  NRFI outcomes:           {nrfi_n} ({nrfi_n/total*100:.1f}%)")
+    print(f"  YRFI outcomes:           {total-nrfi_n} ({(total-nrfi_n)/total*100:.1f}%)")
+    print(f"  Both starters found:     {fg_both} ({fg_both/total*100:.1f}%)")
+    print(f"  Both top-3 found (≥1ea): {t3_both} ({t3_both/total*100:.1f}%)")
+    print(f"  Output:                  {args.output}")
     print(f"\nNext step: python models/nrfi_model.py --train")
 
 

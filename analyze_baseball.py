@@ -837,7 +837,11 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     # predict_nrfi() returns None when models/nrfi_xgb.json doesn't exist yet.
     # Once you run: python scripts/build_nrfi_dataset.py && python models/nrfi_model.py --train
     # the trained model is used automatically on every restart.
-    _nrfi_ml_prob = predict_nrfi(home_starter, away_starter, home_team, park_factor)
+    # top-3 wRC+ not available in live pipeline — model uses league-average (100) as default
+    _nrfi_ml_prob = predict_nrfi(
+        home_starter, away_starter, home_team, park_factor,
+        home_top3_wrc=None, away_top3_wrc=None,
+    )
     if _nrfi_ml_prob is not None and "nrfi" in formatted_markets:
         _p_nrfi_ml = round(_nrfi_ml_prob * 100, 1)
         _p_yrfi_ml = round((1 - _nrfi_ml_prob) * 100, 1)

@@ -43,6 +43,8 @@ FEATURES = [
     "away_siera",      "away_xfip",      "away_fip",
     "away_csw_pct",    "away_o_swing_pct", "away_k_pct",
     "away_bb_pct",     "away_gb_pct",    "away_hr_fb_pct",
+    # top-3 lineup wRC+ — only spots 1-3 bat in the 1st inning
+    "home_top3_wrc",   "away_top3_wrc",
     "park_factor",     "is_dome",
 ]
 
@@ -66,6 +68,8 @@ FEATURE_DEFAULTS = {
     "away_bb_pct":       0.082,
     "away_gb_pct":       0.440,
     "away_hr_fb_pct":    0.115,
+    "home_top3_wrc":     100.0,   # league average wRC+ = 100 by definition
+    "away_top3_wrc":     100.0,
     "park_factor":       1.0,
     "is_dome":           0,
 }
@@ -125,6 +129,8 @@ def predict_nrfi(
     away_starter: dict,
     home_team: str = "",
     park_factor: Optional[float] = None,
+    home_top3_wrc: Optional[float] = None,
+    away_top3_wrc: Optional[float] = None,
 ) -> Optional[float]:
     """
     Return calibrated NRFI probability (0–1) using the trained XGBoost model.
@@ -132,12 +138,11 @@ def predict_nrfi(
 
     home_starter / away_starter dicts accept any keys from the analysis pipeline:
       siera, xfip, fip, csw_pct, o_swing_pct, k_pct, bb_pct, gb_pct, hr_fb_pct
+    home_top3_wrc / away_top3_wrc: avg wRC+ for lineup spots 1-3 (default: 100)
     Missing keys default to league-average values.
     """
     if not _load_model() or _xgb_model is None:
         return None
-
-    import xgboost as xgb
 
     pf      = park_factor or _PARK_FACTORS.get(home_team.upper(), 1.0)
     is_dome = 1 if home_team.upper() in _DOME_TEAMS else 0
@@ -152,6 +157,11 @@ def predict_nrfi(
             return float(val)
         except (TypeError, ValueError):
             return FEATURE_DEFAULTS.get(key, 0.0)
+
+    def _scalar(val: Optional[float], default: float) -> float:
+        if val is None or (isinstance(val, float) and val != val):
+            return default
+        return float(val)
 
     # Build feature vector — order must match FEATURES list
     fv = [
@@ -173,6 +183,8 @@ def predict_nrfi(
         _get(away_starter, "bb_pct", "bb_pct"),
         _get(away_starter, "gb_pct", "gb_pct"),
         _get(away_starter, "hr_fb_pct"),
+        _scalar(home_top3_wrc, FEATURE_DEFAULTS["home_top3_wrc"]),
+        _scalar(away_top3_wrc, FEATURE_DEFAULTS["away_top3_wrc"]),
         pf,
         float(is_dome),
     ]
@@ -181,9 +193,9 @@ def predict_nrfi(
 
     try:
         raw_prob = float(_xgb_model.predict_proba(X)[0][1])
-        # Apply isotonic calibration if available
         if _calibrator is not None:
-            raw_prob = float(_calibrator.predict([raw_prob])[0])
+            # Platt scaling: LogisticRegression.predict_proba expects 2-D input
+            raw_prob = float(_calibrator.predict_proba([[raw_prob]])[0][1])
         return max(0.0, min(1.0, raw_prob))
     except Exception:
         return None
@@ -206,7 +218,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     try:
         import xgboost as xgb
         from sklearn.calibration import calibration_curve
-        from sklearn.isotonic import IsotonicRegression
+        from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
         import pandas as pd
     except ImportError as e:
@@ -270,15 +282,16 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         verbose=50,
     )
 
-    # Isotonic calibration on the 2023 validation fold
+    # Platt scaling (logistic regression) on the 2023 validation fold
+    # More robust than isotonic at <5000 samples; avoids staircase overfitting
     raw_val_probs = model.predict_proba(X_val)[:, 1]
-    calibrator    = IsotonicRegression(out_of_bounds="clip")
-    calibrator.fit(raw_val_probs, y_val)
-    print("\nIsotonic calibration fitted on 2023 val fold")
+    calibrator    = LogisticRegression(C=1.0, solver="lbfgs")
+    calibrator.fit(raw_val_probs.reshape(-1, 1), y_val)
+    print("\nPlatt scaling (logistic) fitted on 2023 val fold")
 
     # Test-set evaluation (2024 — never seen)
     raw_test_probs = model.predict_proba(X_test)[:, 1]
-    cal_test_probs = calibrator.predict(raw_test_probs)
+    cal_test_probs = calibrator.predict_proba(raw_test_probs.reshape(-1, 1))[:, 1]
 
     brier_raw = brier_score_loss(y_test, raw_test_probs)
     brier_cal = brier_score_loss(y_test, cal_test_probs)
@@ -314,6 +327,35 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         print("\n~ 60-65% accuracy at BET threshold — modest edge, keep collecting data.")
     else:
         print("\n✗ <60% at BET threshold — base rate beats the filter. Do not use.")
+
+    # Calibration curve — checks if predicted probabilities match actual frequencies
+    print(f"\n{'='*50}")
+    print(f"CALIBRATION CURVE (2024 hold-out)")
+    print(f"{'='*50}")
+    print(f"  {'Bin':>10}  {'Pred%':>7}  {'Actual%':>8}  {'n':>5}  {'Δ':>6}")
+    try:
+        frac_pos, mean_pred = calibration_curve(y_test, cal_test_probs, n_bins=8, strategy="quantile")
+        # Compute bin counts manually
+        import numpy as _np
+        bin_edges = _np.percentile(cal_test_probs, _np.linspace(0, 100, 9))
+        bin_counts = []
+        for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+            mask = (cal_test_probs >= lo) & (cal_test_probs <= hi)
+            bin_counts.append(mask.sum())
+        for mp, fp, cnt in zip(mean_pred, frac_pos, bin_counts):
+            delta = fp - mp
+            bar = "+" * int(abs(delta) * 20) if delta > 0 else "-" * int(abs(delta) * 20)
+            print(f"  {mp*100:>9.1f}%  {mp*100:>6.1f}%  {fp*100:>7.1f}%  {cnt:>5}  {delta:>+.3f}  {bar}")
+        avg_delta = abs(frac_pos - mean_pred).mean()
+        print(f"\n  Mean |calibration error|: {avg_delta:.4f}  (0=perfect, 0.05=acceptable)")
+        if avg_delta < 0.04:
+            print("  ✓ Well-calibrated — probabilities are trustworthy.")
+        elif avg_delta < 0.08:
+            print("  ~ Acceptable calibration — slight over/under-confidence in some bins.")
+        else:
+            print("  ✗ Poor calibration — probabilities don't reflect true frequencies.")
+    except Exception as e:
+        print(f"  (calibration curve error: {e})")
 
     # Feature importance
     importance = dict(zip(FEATURES, model.feature_importances_))
