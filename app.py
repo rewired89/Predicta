@@ -282,6 +282,75 @@ def calibration(method: Optional[str] = None):
     return compute_metrics_from_db(method=method)
 
 
+@app.get("/tt-performance")
+def tt_performance():
+    """
+    Table tennis model validation report — Kimi's proof-of-edge workflow.
+
+    Shows: resolved predictions, Brier score, ROI, predictions with real odds
+    where model beat market by >5pp (value bets) vs outcomes, and a plain-English
+    verdict: EDGE PROVEN / EDGE EXISTS / NO EDGE / NOT ENOUGH DATA.
+
+    Call this after each week of paper trading to see if TT model beats the market.
+    Requires at least 10 resolved TT predictions to show meaningful metrics.
+    """
+    metrics = compute_metrics_from_db(sport="table_tennis")
+    overall = metrics.get("overall", {})
+    n = overall.get("n", 0)
+
+    if n < 10:
+        return {
+            "verdict": "NOT ENOUGH DATA",
+            "n_resolved": n,
+            "needed": 10,
+            "message": (
+                f"Only {n} resolved TT predictions. Need at least 10 to compute "
+                "meaningful metrics. Keep running predictions and use "
+                "POST /resolve-pending after each match day."
+            ),
+            "next_step": "Run 20+ TT predictions with market odds included, then call this endpoint.",
+        }
+
+    brier = metrics.get("brier_score", 0.25)
+    roi   = overall.get("roi", None)
+    acc   = overall.get("accuracy", 0.5)
+
+    if roi is not None and roi > 5.0:
+        verdict = "EDGE PROVEN"
+        note = (
+            f"ROI +{roi:.1f}% across {n} predictions. "
+            "Scale to real money — Kelly stake, tight bankroll management."
+        )
+    elif roi is not None and roi > 0:
+        verdict = "EDGE EXISTS"
+        note = (
+            f"ROI +{roi:.1f}% — small edge, not yet conclusive. "
+            "Need 50+ predictions to distinguish skill from variance."
+        )
+    elif brier < 0.22:
+        verdict = "CALIBRATED — CHECK MARKET ODDS"
+        note = (
+            f"Brier {brier:.3f} < 0.22 (better than random). "
+            "Model is calibrated but ROI unclear — were market odds included?"
+        )
+    else:
+        verdict = "NO EDGE DETECTED"
+        note = (
+            f"ROI {roi:.1f}% and Brier {brier:.3f}. "
+            "Model is not outperforming the market. Consider pivoting to esports."
+        )
+
+    return {
+        "verdict":       verdict,
+        "note":          note,
+        "n_resolved":    n,
+        "accuracy":      round(acc * 100, 1),
+        "brier_score":   brier,
+        "roi":           roi,
+        "full_metrics":  metrics,
+    }
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 @app.get("/report")

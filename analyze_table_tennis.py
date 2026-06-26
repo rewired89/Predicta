@@ -14,7 +14,7 @@ from db.database import get_db, init_db
 from fetchers.table_tennis import fetch_table_tennis_context
 from fetchers.signals import log_signal
 from models.glicko import Glicko2Model
-from models.kelly import kelly_stake
+from models.kelly import kelly_stake, american_to_decimal, market_edge_summary
 
 
 def _elo_from_ranking(ranking: int) -> float:
@@ -681,8 +681,28 @@ def run_table_tennis_analysis(
         steps.append({"step": "persist", "status": "error", "error": str(exc),
                       "trace": traceback.format_exc()})
 
-    # ── 8. Kelly stake ────────────────────────────────────────────────────────
-    kelly = kelly_stake(prob_a, 1.909, bankroll)
+    # ── 8. Kelly stake + market comparison ──────────────────────────────────
+    # Use actual market odds when available; fall back to -110 default.
+    # Prefer current odds over opening (line has settled).
+    _best_odds_a = curr_odds_a or open_odds_a
+    _best_odds_b = curr_odds_b or open_odds_b
+    if _best_odds_a is not None:
+        kelly_dec_a = american_to_decimal(float(_best_odds_a))
+        kelly_dec_b = american_to_decimal(float(_best_odds_b)) if _best_odds_b is not None else 1.909
+    else:
+        kelly_dec_a = 1.909
+        kelly_dec_b = 1.909
+    kelly = kelly_stake(prob_a, kelly_dec_a, bankroll)
+
+    _using_default_odds = (kelly_dec_a == 1.909 and kelly_dec_b == 1.909)
+    if not _using_default_odds:
+        market_comparison = market_edge_summary(prob_a, prob_b, kelly_dec_a, kelly_dec_b)
+    else:
+        market_comparison = {
+            "has_real_odds": False,
+            "note": ("Include opening odds in your query for market edge. "
+                     "Example: 'Fan Zhendong -160 vs Ma Long +130'"),
+        }
 
     # ── 9. Narrative ──────────────────────────────────────────────────────────
     narrative = ""
@@ -742,12 +762,36 @@ def run_table_tennis_analysis(
         steps.append({"step": "market_efficiency", "status": "ok",
                       "market_movement": round(market_movement, 4),
                       "sharp_threshold": SHARP_THRESHOLD})
+    elif market_comparison.get("has_real_odds"):
+        # Value gate: only recommend when model beats market implied by >5pp
+        VALUE_GATE = 0.05
+        edge_a = market_comparison["edge_a"]
+        edge_b = market_comparison["edge_b"]
+        if edge_a >= VALUE_GATE:
+            recommendation = player_a
+            recommendation_reason = (
+                f"VALUE: model {prob_a*100:.1f}% vs market {market_comparison['breakeven_a']*100:.1f}% "
+                f"(+{edge_a*100:.1f}pp edge) — {market_comparison['verdict_a']}"
+            )
+        elif edge_b >= VALUE_GATE:
+            recommendation = player_b
+            recommendation_reason = (
+                f"VALUE: model {prob_b*100:.1f}% vs market {market_comparison['breakeven_b']*100:.1f}% "
+                f"(+{edge_b*100:.1f}pp edge) — {market_comparison['verdict_b']}"
+            )
+        else:
+            recommendation = "PASS"
+            recommendation_reason = (
+                f"No value: model ({prob_a*100:.1f}% / {prob_b*100:.1f}%) is within "
+                f"5pp of market implied. Vig ({market_comparison['vig']*100:.1f}%) "
+                f"makes this unprofitable."
+            )
     elif prob_a > prob_b:
         recommendation = player_a
-        recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}% vs book)"
+        recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}%) — add odds for value check"
     else:
         recommendation = player_b
-        recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}% vs book)"
+        recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}%) — add odds for value check"
 
     return {
         "match_id":        match_id,
@@ -786,6 +830,8 @@ def run_table_tennis_analysis(
         "last10_b":          context.get("player_b", {}).get("last10", []),
         "model_explanation": explanation,
         "kelly_note":        kelly.get("note", ""),
+        "kelly_edge":        round(kelly.get("edge", 0.0) * 100, 2),
+        "market_comparison": market_comparison,
         "data_confidence":   data_confidence,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,

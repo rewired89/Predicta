@@ -4015,8 +4015,9 @@ type: function
 file: analyze_table_tennis.py
 purpose: Full TT pipeline: parse → ITTF/WTT/Setka/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → Bayesian prior shrinkage → market efficiency model → persist → Kelly → narrative.
 inputs: user_query: str, bankroll: float, open_odds_a/b: float?, curr_odds_a/b: float?, matches_today_a/b: int
-outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, steps
-calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, generate_table_tennis_narrative, log_signal, get_db
+outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, market_comparison, kelly_edge, steps
+notes: Kelly now uses real odds (curr > open > 1.909 default); recommendation uses 5pp value gate when real odds provided (PASS if no edge); market_comparison same shape as baseball
+calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, american_to_decimal, market_edge_summary, generate_table_tennis_narrative, log_signal, get_db
 called_by: analyze_table_tennis endpoint (app.py)
 mutates: matches, signals, predictions tables
 ---
