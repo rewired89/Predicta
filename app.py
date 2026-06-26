@@ -381,6 +381,21 @@ def baseball_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "baseball.html").read_text(encoding="utf-8"))
 
 
+@app.get("/tennis", response_class=HTMLResponse)
+def tennis_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "tennis.html").read_text(encoding="utf-8"))
+
+
+@app.get("/ping-pong", response_class=HTMLResponse)
+def ping_pong_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "ping_pong.html").read_text(encoding="utf-8"))
+
+
+@app.get("/esports", response_class=HTMLResponse)
+def esports_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "esports.html").read_text(encoding="utf-8"))
+
+
 @app.get("/trading", response_class=HTMLResponse)
 def trading():
     return HTMLResponse(content=(TEMPLATES_DIR / "trading.html").read_text(encoding="utf-8"))
@@ -467,6 +482,29 @@ def analyze_table_tennis(body: TableTennisRequest):
         matches_today_b=body.matches_today_b,
     )
     if "error" in result and not result.get("player_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class EsportsRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+    odds_a_american: Optional[float] = None
+    odds_b_american: Optional[float] = None
+
+
+@app.post("/analyze-esports")
+def analyze_esports(body: EsportsRequest):
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_esports import run_esports_analysis
+    result = run_esports_analysis(
+        body.query,
+        bankroll=body.bankroll,
+        odds_a_american=body.odds_a_american,
+        odds_b_american=body.odds_b_american,
+    )
+    if "error" in result and not result.get("team_a"):
         raise HTTPException(500, detail=result["error"])
     return result
 

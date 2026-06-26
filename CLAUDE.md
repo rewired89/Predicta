@@ -21,6 +21,7 @@
 - **Baseball Savant** (via pybaseball) enriches starters with barrel%_against/xwOBA_against and pitch arsenal (avg_fb_velo, fastball_pct, whiff%)
 - SportsData.io API key is invalid (value = "1") — all SportsData.io calls fail silently; ESPN fallback always runs
 - OpenWeatherMap weather data requires `OPENWEATHER_API_KEY` env var (free tier); model runs fine without it
+- **PandaScore** (via `fetchers/esports.py`) provides e-sports team data, rankings, and H2H; requires `PANDASCORE_API_KEY` env var; falls back to Claude AI estimates when key is absent
 
 ## Active Sports Pipelines
 
@@ -29,7 +30,8 @@
 | Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 70/30 Elo blend + FanGraphs SIERA/Savant Statcast enrichment + market comparison layer |
 | Tennis (ATP/WTA) | analyze_tennis.py | Nested Markov chain (points→games→sets→match) |
 | Soccer | analyze_soccer.py | Dixon-Coles Poisson + Elo |
-| Table Tennis | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer |
+| Table Tennis (Ping Pong) | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer |
+| E-Sports (CS2/LoL/Dota2/Valorant) | analyze_esports.py | 60% Elo (from world ranking) + 40% recent form blend + H2H adjustment + market comparison layer; PandaScore API primary, Claude AI fallback |
 
 ## ML Layer Status
 

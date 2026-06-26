@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Sports — Predicta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #080d14;
+    --surface:    #0e1520;
+    --surface2:   #111b2e;
+    --border:     #1a2840;
+    --green:      #00e676;
+    --green-dim:  #00e67622;
+    --green-glow: 0 0 32px #00e67633;
+    --purple:     #a78bfa;
+    --purple-dim: #a78bfa22;
+    --amber:      #fbbf24;
+    --red:        #f87171;
+    --cyan:       #22d3ee;
+    --text:       #e2e8f0;
+    --muted:      #5a7299;
+    --radius:     14px;
+  }
+
+  html { font-size: 15px; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header {
+    background: rgba(8,13,20,.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo { font-size: 1.3rem; font-weight: 800; color: var(--green); letter-spacing: -.5px; }
+  .badge { background: #00e67618; color: var(--green); font-size: .65rem; padding: 2px 8px; border-radius: 99px; font-weight: 700; letter-spacing: .8px; border: 1px solid #00e67630; }
+  header nav { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+  header nav a { color: var(--muted); text-decoration: none; font-size: .82rem; font-weight: 500; transition: color .2s; }
+  header nav a:hover { color: var(--text); }
+  header nav a.active { color: var(--green); }
+
+  /* ── Page layout ── */
+  .page { flex: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; width: 100%; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; transition: color .2s; }
+  .breadcrumb a:hover { color: var(--green); }
+  .breadcrumb .sep { color: var(--border); }
+  .breadcrumb .current { color: var(--text); }
+
+  /* ── Hero ── */
+  .hero { margin-bottom: 36px; }
+  .hero-eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--green); opacity: .7; margin-bottom: 8px; }
+  .hero-title { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 800; line-height: 1.1; letter-spacing: -.5px; margin-bottom: 8px; }
+  .hero-title .accent { color: var(--green); }
+  .hero-sub { color: var(--muted); font-size: .88rem; line-height: 1.6; max-width: 560px; }
+
+  /* ── Game selector ── */
+  .game-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .game-tab {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    font-size: .78rem; font-weight: 600; color: var(--muted); padding: 7px 14px;
+    cursor: pointer; transition: border-color .2s, color .2s, background .2s;
+  }
+  .game-tab:hover { border-color: var(--green); color: var(--green); }
+  .game-tab.active { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+
+  /* ── Card ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .card + .card { margin-top: 16px; }
+  .card-title { font-size: .7rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+  /* ── Query form ── */
+  .query-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
+  .query-label { font-size: .72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .query-row { display: flex; gap: 10px; }
+  .query-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-size: .92rem; padding: 12px 16px; outline: none; transition: border-color .2s;
+  }
+  .query-input:focus { border-color: var(--green); }
+  .query-input::placeholder { color: var(--muted); }
+  .btn-analyze {
+    background: var(--green); color: #080d14; border: none; border-radius: 10px;
+    padding: 12px 24px; font-size: .88rem; font-weight: 700; cursor: pointer;
+    transition: opacity .2s, transform .15s; white-space: nowrap;
+  }
+  .btn-analyze:hover { opacity: .88; transform: translateY(-1px); }
+  .btn-analyze:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  /* ── Odds inputs ── */
+  .odds-section { margin-top: 18px; }
+  .odds-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .odds-toggle-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
+  .odds-toggle svg { transition: transform .2s; }
+  .odds-toggle.open svg { transform: rotate(180deg); }
+  .odds-pair { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .odds-pair.visible { display: grid; }
+  .odds-group label { font-size: .7rem; color: var(--muted); font-weight: 600; letter-spacing: .5px; display: block; margin-bottom: 5px; text-transform: uppercase; }
+  .odds-input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: .88rem; padding: 9px 12px; outline: none; transition: border-color .2s;
+  }
+  .odds-input:focus { border-color: var(--green); }
+  .odds-input::placeholder { color: var(--muted); }
+
+  /* ── Example chips ── */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 99px;
+    font-size: .75rem; color: var(--muted); padding: 5px 12px; cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .chip:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── Steps tracker ── */
+  .steps-row { display: flex; gap: 0; margin-bottom: 24px; }
+  .step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+  .step:not(:last-child)::after {
+    content: ''; position: absolute; top: 13px; left: 50%; width: 100%; height: 1px;
+    background: var(--border); z-index: 0;
+  }
+  .step-dot {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: .65rem; font-weight: 700; color: var(--muted); position: relative; z-index: 1;
+    transition: border-color .3s, background .3s, color .3s;
+  }
+  .step-dot.active { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+  .step-dot.done { border-color: var(--green); background: var(--green); color: #080d14; }
+  .step-label { font-size: .62rem; color: var(--muted); text-align: center; max-width: 80px; line-height: 1.3; }
+
+  /* ── Results ── */
+  #results { display: none; }
+  #results.visible { display: block; }
+
+  /* ── Match header ── */
+  .match-header {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+  }
+  .match-game-badge {
+    font-size: .72rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 6px; background: var(--cyan); color: #080d14;
+  }
+  .match-format { font-size: .8rem; color: var(--muted); }
+
+  /* ── Team cards ── */
+  .matchup { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: start; margin-bottom: 16px; }
+  .team-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;
+  }
+  .team-card.winner { border-color: var(--green); box-shadow: var(--green-glow); }
+  .team-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .team-sub { font-size: .72rem; color: var(--muted); margin-bottom: 14px; }
+  .team-stats { display: flex; flex-direction: column; gap: 8px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; }
+  .stat-label { font-size: .72rem; color: var(--muted); }
+  .stat-value { font-size: .85rem; font-weight: 700; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.cyan { color: var(--cyan); }
+  .stat-value.amber { color: var(--amber); }
+
+  .vs-divider { display: flex; align-items: center; justify-content: center; padding-top: 20px; }
+  .vs-badge {
+    width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 800; color: var(--muted);
+  }
+
+  /* ── Probability bars ── */
+  .prob-section { margin-bottom: 16px; }
+  .prob-label-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .prob-name { font-size: .82rem; font-weight: 700; }
+  .prob-val { font-size: 1.2rem; font-weight: 800; }
+  .prob-val.green  { color: var(--green); }
+  .prob-val.purple { color: var(--purple); }
+  .prob-bar-track { height: 10px; border-radius: 99px; background: var(--bg); overflow: hidden; position: relative; }
+  .prob-bar-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+  .prob-bar-fill.green  { background: linear-gradient(90deg, var(--green), #00bcd4); }
+  .prob-bar-fill.purple { background: linear-gradient(90deg, var(--purple), #818cf8); }
+
+  /* ── Market comparison ── */
+  .market-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+  .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .market-verdict {
+    font-size: .75rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 6px;
+  }
+  .market-verdict.value   { background: #00e67622; color: var(--green);  border: 1px solid #00e67640; }
+  .market-verdict.pass    { background: #fbbf2422; color: var(--amber);  border: 1px solid #fbbf2440; }
+  .market-verdict.slight  { background: #a78bfa22; color: var(--purple); border: 1px solid #a78bfa40; }
+  .market-verdict.avoid   { background: #f8717122; color: var(--red);    border: 1px solid #f8717140; }
+  .market-verdict.no-odds { background: #1a284022; color: var(--muted);  border: 1px solid var(--border); }
+  .market-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .mstat { text-align: center; }
+  .mstat-val { font-size: 1.3rem; font-weight: 800; color: var(--green); }
+  .mstat-lbl { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 2px; }
+  .market-reason { font-size: .8rem; color: var(--muted); line-height: 1.5; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+  /* ── Recommendation ── */
+  .rec-card { border-radius: var(--radius); padding: 22px 24px; margin-bottom: 16px; display: flex; align-items: center; gap: 18px; }
+  .rec-card.rec-bet  { background: #00e67612; border: 1px solid #00e67630; }
+  .rec-card.rec-pass { background: #fbbf2410; border: 1px solid #fbbf2430; }
+  .rec-icon { font-size: 2rem; flex-shrink: 0; }
+  .rec-body { flex: 1; }
+  .rec-label { font-size: .65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .rec-player { font-size: 1.25rem; font-weight: 800; }
+  .rec-player.green { color: var(--green); }
+  .rec-player.amber { color: var(--amber); }
+  .rec-reason { font-size: .8rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  /* ── H2H ── */
+  .h2h-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; text-align: center; }
+  .h2h-num { font-size: 2.2rem; font-weight: 800; }
+  .h2h-num.green  { color: var(--green); }
+  .h2h-num.purple { color: var(--purple); }
+  .h2h-sep { font-size: .8rem; color: var(--muted); font-weight: 700; }
+  .h2h-name { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+
+  /* ── Narrative ── */
+  .narrative { font-size: .9rem; line-height: 1.8; color: var(--text); background: var(--surface2); border-left: 3px solid var(--green); padding: 16px 18px; border-radius: 0 10px 10px 0; }
+
+  /* ── Pipeline trace ── */
+  .trace-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .trace-header svg { transition: transform .2s; }
+  .trace-header.open svg { transform: rotate(180deg); }
+  .trace-steps { display: none; margin-top: 14px; }
+  .trace-steps.visible { display: flex; flex-direction: column; gap: 8px; }
+  .trace-step { display: flex; gap: 10px; align-items: flex-start; font-size: .78rem; }
+  .trace-status { font-weight: 700; font-size: .65rem; padding: 2px 7px; border-radius: 4px; margin-top: 1px; flex-shrink: 0; }
+  .trace-status.ok    { background: #00e67618; color: var(--green); }
+  .trace-status.warn  { background: #fbbf2418; color: var(--amber); }
+  .trace-status.error { background: #f8717118; color: var(--red); }
+  .trace-name { color: var(--text); font-weight: 600; }
+  .trace-data { color: var(--muted); word-break: break-all; }
+
+  /* ── Confidence ── */
+  .confidence-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+  .confidence-badge.high   { background: #00e67618; color: var(--green); border: 1px solid #00e67630; }
+  .confidence-badge.medium { background: #fbbf2418; color: var(--amber); border: 1px solid #fbbf2430; }
+  .confidence-badge.low    { background: #f8717118; color: var(--red);   border: 1px solid #f8717130; }
+
+  /* ── Spinner ── */
+  .spinner { display: none; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
+  .spinner.active { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box { background: #f8717112; border: 1px solid #f8717130; border-radius: 10px; padding: 14px 18px; color: var(--red); font-size: .85rem; margin-top: 16px; display: none; }
+  .error-box.visible { display: block; }
+
+  /* ── Responsive ── */
+  @media (max-width: 680px) {
+    .matchup { grid-template-columns: 1fr; }
+    .vs-divider { display: none; }
+    .market-stats { grid-template-columns: 1fr 1fr; }
+    .match-header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Predicta</div>
+  <div class="badge">PAPER MODE</div>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/sports" class="active">Sports</a>
+    <a href="/trading">Markets</a>
+    <a href="/report">Report</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<div class="page">
+
+  <div class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/sports">Sports</a>
+    <span class="sep">›</span>
+    <span class="current">E-Sports</span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-eyebrow">E-Sports · Elo + Form · PandaScore · CS2 · LoL · Dota 2 · Valorant</div>
+    <h1 class="hero-title">E-Sports <span class="accent">Analysis</span></h1>
+    <p class="hero-sub">Elo rating from world rankings blended with recent form signal — plus sportsbook market edge comparison and Kelly stake sizing.</p>
+  </div>
+
+  <!-- Game selector -->
+  <div class="game-tabs" id="gameTabs">
+    <div class="game-tab active" data-game="cs2" onclick="selectGame(this)">⚡ CS2</div>
+    <div class="game-tab" data-game="lol" onclick="selectGame(this)">🏆 League of Legends</div>
+    <div class="game-tab" data-game="dota2" onclick="selectGame(this)">🗡 Dota 2</div>
+    <div class="game-tab" data-game="valorant" onclick="selectGame(this)">🎯 Valorant</div>
+  </div>
+
+  <!-- Query Card -->
+  <div class="query-card">
+    <div class="query-label">Match Query</div>
+    <div class="query-row">
+      <input id="queryInput" class="query-input" type="text"
+             placeholder="e.g. Natus Vincere vs FaZe Clan ESL Pro League CS2"
+             autocomplete="off" />
+      <button id="analyzeBtn" class="btn-analyze" onclick="runAnalysis()">
+        <span id="btnText">Analyze</span>
+        <span id="btnSpinner" class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="odds-section">
+      <div class="odds-toggle" id="oddsToggle" onclick="toggleOdds()">
+        <span class="odds-toggle-label">&#9881; Add sportsbook odds (enables value check)</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="#5a7299" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="odds-pair" id="oddsPair">
+        <div class="odds-group">
+          <label>Team A odds (American)</label>
+          <input id="oddsA" class="odds-input" type="number" placeholder="-130" />
+        </div>
+        <div class="odds-group">
+          <label>Team B odds (American)</label>
+          <input id="oddsB" class="odds-input" type="number" placeholder="+110" />
+        </div>
+      </div>
+    </div>
+
+    <div class="chips" id="exampleChips">
+      <span class="chip" onclick="setQuery('Natus Vincere vs FaZe Clan ESL Pro League CS2')">NaVi vs FaZe — CS2</span>
+      <span class="chip" onclick="setQuery('T1 vs G2 Esports Worlds League of Legends')">T1 vs G2 — LoL</span>
+      <span class="chip" onclick="setQuery('Team Liquid vs OG The International Dota 2')">Liquid vs OG — Dota 2</span>
+      <span class="chip" onclick="setQuery('Sentinels vs Team Liquid VCT Americas Valorant')">Sentinels vs Liquid — Valorant</span>
+    </div>
+  </div>
+
+  <!-- Step tracker -->
+  <div class="steps-row" id="stepsRow" style="display:none">
+    <div class="step">
+      <div class="step-dot" id="s1">1</div>
+      <div class="step-label">Parse query</div>
+    </div>
+    <div class="step">
+      <div class="step-dot" id="s2">2</div>
+      <div class="step-label">Fetch team data</div>
+    </div>
+    <div class="step">
+      <div class="step-dot" id="s3">3</div>
+      <div class="step-label">Elo + form model</div>
+    </div>
+    <div class="step">
+      <div class="step-dot" id="s4">4</div>
+      <div class="step-label">Market comparison</div>
+    </div>
+    <div class="step">
+      <div class="step-dot" id="s5">5</div>
+      <div class="step-label">Generate narrative</div>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Match header -->
+    <div class="match-header">
+      <div>
+        <div style="font-size:.7rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px">Match</div>
+        <div style="font-size:1rem; font-weight:700" id="matchTitle">—</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px">
+        <span class="match-format" id="matchFormat">—</span>
+        <span class="match-game-badge" id="matchGame">—</span>
+      </div>
+    </div>
+
+    <!-- Team matchup -->
+    <div class="matchup">
+      <div class="team-card" id="cardA">
+        <div class="team-name" id="teamAName">—</div>
+        <div class="team-sub" id="teamARegion">—</div>
+        <div class="team-stats">
+          <div class="stat-row">
+            <span class="stat-label">World Ranking</span>
+            <span class="stat-value cyan" id="teamARank">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Elo Rating</span>
+            <span class="stat-value green" id="teamAElo">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Recent Form</span>
+            <span class="stat-value" id="teamAForm">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="vs-divider"><div class="vs-badge">VS</div></div>
+
+      <div class="team-card" id="cardB">
+        <div class="team-name" id="teamBName">—</div>
+        <div class="team-sub" id="teamBRegion">—</div>
+        <div class="team-stats">
+          <div class="stat-row">
+            <span class="stat-label">World Ranking</span>
+            <span class="stat-value cyan" id="teamBRank">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Elo Rating</span>
+            <span class="stat-value green" id="teamBElo">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Recent Form</span>
+            <span class="stat-value" id="teamBForm">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Probabilities -->
+    <div class="card prob-section">
+      <div class="card-title">Win Probability</div>
+      <div style="margin-bottom:14px">
+        <div class="prob-label-row">
+          <span class="prob-name" id="probNameA">—</span>
+          <span class="prob-val green" id="probValA">—%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill green" id="probBarA" style="width:50%"></div>
+        </div>
+      </div>
+      <div>
+        <div class="prob-label-row">
+          <span class="prob-name" id="probNameB">—</span>
+          <span class="prob-val purple" id="probValB">—%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill purple" id="probBarB" style="width:50%"></div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:.73rem; color:var(--muted)">
+        Model: 60% Elo + 40% recent form, adjusted for H2H
+      </div>
+    </div>
+
+    <!-- Market comparison -->
+    <div class="market-card">
+      <div class="card-title" style="margin-bottom:0">Market Comparison</div>
+      <div class="market-header">
+        <div style="font-size:.85rem; color:var(--muted)" id="marketSide">—</div>
+        <div class="market-verdict no-odds" id="marketVerdict">No Odds</div>
+      </div>
+      <div class="market-stats">
+        <div class="mstat">
+          <div class="mstat-val" id="modelEdge">—</div>
+          <div class="mstat-lbl">Model Edge</div>
+        </div>
+        <div class="mstat">
+          <div class="mstat-val" id="kellyStake">—</div>
+          <div class="mstat-lbl">Kelly Stake</div>
+        </div>
+        <div class="mstat">
+          <div class="mstat-val" id="marketProb">—</div>
+          <div class="mstat-lbl">Market Prob</div>
+        </div>
+      </div>
+      <div class="market-reason" id="marketReason">Supply odds above to see market comparison and value analysis.</div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="rec-card rec-bet" id="recCard">
+      <div class="rec-icon" id="recIcon">🎮</div>
+      <div class="rec-body">
+        <div class="rec-label">Recommendation</div>
+        <div class="rec-player green" id="recTeam">—</div>
+        <div class="rec-reason" id="recReason">—</div>
+      </div>
+    </div>
+
+    <!-- Narrative -->
+    <div class="card">
+      <div class="card-title">AI Narrative</div>
+      <div class="narrative" id="narrative">—</div>
+    </div>
+
+    <!-- H2H -->
+    <div class="card">
+      <div class="card-title">Head-to-Head</div>
+      <div class="h2h-grid">
+        <div>
+          <div class="h2h-num green" id="h2hWinsA">0</div>
+          <div class="h2h-name" id="h2hNameA">—</div>
+        </div>
+        <div class="h2h-sep">vs</div>
+        <div>
+          <div class="h2h-num purple" id="h2hWinsB">0</div>
+          <div class="h2h-name" id="h2hNameB">—</div>
+        </div>
+      </div>
+      <div id="h2hEncounters" style="margin-top:14px; font-size:.75rem; color:var(--muted);"></div>
+    </div>
+
+    <!-- Confidence + trace -->
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">Data Confidence</div>
+        <div class="confidence-badge" id="confidenceBadge">—</div>
+      </div>
+      <div class="trace-header" id="traceToggle" onclick="toggleTrace()">
+        <span style="font-size:.72rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted)">Pipeline Trace</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="#5a7299" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="trace-steps" id="traceSteps"></div>
+    </div>
+
+  </div><!-- /results -->
+</div>
+
+<footer style="text-align:center; padding:20px; font-size:.75rem; color:var(--muted); border-top:1px solid var(--border)">
+  Predicta · Paper mode only · No real wagers or trades are placed.
+</footer>
+
+<script>
+let selectedGame = 'cs2';
+
+const GAME_PLACEHOLDERS = {
+  cs2:      'Natus Vincere vs FaZe Clan ESL Pro League CS2',
+  lol:      'T1 vs G2 Esports Worlds LoL',
+  dota2:    'Team Liquid vs OG The International Dota 2',
+  valorant: 'Sentinels vs Team Liquid VCT Americas Valorant',
+};
+
+function selectGame(el) {
+  document.querySelectorAll('.game-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedGame = el.dataset.game;
+  document.getElementById('queryInput').placeholder = GAME_PLACEHOLDERS[selectedGame] || '';
+}
+
+function setQuery(q) { document.getElementById('queryInput').value = q; }
+
+function toggleOdds() {
+  document.getElementById('oddsToggle').classList.toggle('open');
+  document.getElementById('oddsPair').classList.toggle('visible');
+}
+
+function toggleTrace() {
+  document.getElementById('traceToggle').classList.toggle('open');
+  document.getElementById('traceSteps').classList.toggle('visible');
+}
+
+function setStep(n, state) {
+  const dot = document.getElementById('s' + n);
+  if (!dot) return;
+  dot.className = 'step-dot ' + state;
+  if (state === 'done') dot.textContent = '✓';
+}
+
+function parseFloatOrNull(id) {
+  const v = document.getElementById(id).value.trim();
+  return v ? parseFloat(v) : null;
+}
+
+async function runAnalysis() {
+  let query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+
+  // Inject game hint if not already present
+  if (!query.toLowerCase().includes(selectedGame) && !query.toLowerCase().includes(selectedGame.replace('2','').replace('dota2','dota'))) {
+    const gameLabel = { cs2: 'CS2', lol: 'League of Legends', dota2: 'Dota 2', valorant: 'Valorant' }[selectedGame] || selectedGame;
+    query = query + ' ' + gameLabel;
+  }
+
+  const btn = document.getElementById('analyzeBtn');
+  const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('btnSpinner');
+  const errorBox = document.getElementById('errorBox');
+  const results = document.getElementById('results');
+  const stepsRow = document.getElementById('stepsRow');
+
+  btn.disabled = true;
+  btnText.style.display = 'none';
+  spinner.classList.add('active');
+  errorBox.classList.remove('visible');
+  results.classList.remove('visible');
+  stepsRow.style.display = 'flex';
+  for (let i = 1; i <= 5; i++) { const d = document.getElementById('s'+i); if (d) { d.className = 'step-dot'; d.textContent = i; } }
+
+  const stepDelay = ms => new Promise(r => setTimeout(r, ms));
+  setStep(1, 'active');
+
+  const oddsA = parseFloatOrNull('oddsA');
+  const oddsB = parseFloatOrNull('oddsB');
+  const body = { query, bankroll: 1000, odds_a_american: oddsA, odds_b_american: oddsB };
+
+  let data;
+  try {
+    await stepDelay(200);
+    setStep(1, 'done'); setStep(2, 'active');
+
+    const resp = await fetch('/analyze-esports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    setStep(2, 'done'); setStep(3, 'active');
+    await stepDelay(150);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'Request failed');
+    }
+    data = await resp.json();
+    setStep(3, 'done'); setStep(4, 'active');
+    await stepDelay(100);
+    setStep(4, 'done'); setStep(5, 'active');
+    await stepDelay(100);
+    setStep(5, 'done');
+  } catch (e) {
+    for (let i = 1; i <= 5; i++) { const d = document.getElementById('s'+i); if (d && d.classList.contains('active')) d.className = 'step-dot'; }
+    errorBox.textContent = e.message || 'Analysis failed.';
+    errorBox.classList.add('visible');
+    btn.disabled = false;
+    btnText.style.display = '';
+    spinner.classList.remove('active');
+    return;
+  }
+
+  renderResults(data);
+  results.classList.add('visible');
+  btn.disabled = false;
+  btnText.style.display = '';
+  spinner.classList.remove('active');
+}
+
+function renderResults(d) {
+  const ta = d.team_stats?.team_a || {};
+  const tb = d.team_stats?.team_b || {};
+  const mc = d.market_comparison || {};
+
+  // Match header
+  document.getElementById('matchTitle').textContent   = `${d.team_a} vs ${d.team_b}`;
+  document.getElementById('matchFormat').textContent  = d.format || 'Bo3';
+  document.getElementById('matchGame').textContent    = d.game || '—';
+
+  // Team cards
+  document.getElementById('teamAName').textContent   = d.team_a || '—';
+  document.getElementById('teamBName').textContent   = d.team_b || '—';
+  document.getElementById('teamARegion').textContent = ta.region || '—';
+  document.getElementById('teamBRegion').textContent = tb.region || '—';
+  document.getElementById('teamARank').textContent   = ta.ranking && ta.ranking < 999 ? '#' + ta.ranking : 'Unranked';
+  document.getElementById('teamBRank').textContent   = tb.ranking && tb.ranking < 999 ? '#' + tb.ranking : 'Unranked';
+  document.getElementById('teamAElo').textContent    = ta.elo ?? '—';
+  document.getElementById('teamBElo').textContent    = tb.elo ?? '—';
+  document.getElementById('teamAForm').textContent   = ta.form != null ? ta.form + '%' : '—';
+  document.getElementById('teamBForm').textContent   = tb.form != null ? tb.form + '%' : '—';
+
+  // Highlight winner
+  const pA = d.prob_a || 0, pB = d.prob_b || 0;
+  document.getElementById('cardA').className = 'team-card' + (pA > pB ? ' winner' : '');
+  document.getElementById('cardB').className = 'team-card' + (pB > pA ? ' winner' : '');
+
+  // Probabilities
+  document.getElementById('probNameA').textContent = d.team_a || '—';
+  document.getElementById('probNameB').textContent = d.team_b || '—';
+  document.getElementById('probValA').textContent  = pA + '%';
+  document.getElementById('probValB').textContent  = pB + '%';
+  document.getElementById('probBarA').style.width  = pA + '%';
+  document.getElementById('probBarB').style.width  = pB + '%';
+
+  // Market
+  const label = (mc.label || '').toLowerCase();
+  const verdictEl = document.getElementById('marketVerdict');
+  verdictEl.textContent = mc.label || 'No Odds';
+  verdictEl.className = 'market-verdict ' + (
+    label.includes('value') ? 'value' :
+    label.includes('pass') ? 'pass' :
+    label.includes('slight') ? 'slight' :
+    label.includes('avoid') ? 'avoid' : 'no-odds'
+  );
+  document.getElementById('marketSide').textContent  = mc.recommended_side ? 'Lean: ' + mc.recommended_side : 'Add odds to enable value analysis';
+  document.getElementById('modelEdge').textContent   = mc.edge_pct != null ? mc.edge_pct.toFixed(1) + '%' : '—';
+  document.getElementById('kellyStake').textContent  = mc.kelly_stake != null ? '$' + mc.kelly_stake.toFixed(0) : '—';
+  document.getElementById('marketProb').textContent  = mc.market_prob != null ? (mc.market_prob * 100).toFixed(1) + '%' : '—';
+  document.getElementById('marketReason').textContent = mc.reason || 'Supply odds above to see market comparison and value analysis.';
+
+  // Recommendation
+  const rec = d.recommendation || '—';
+  const isPass = rec.toLowerCase() === 'pass' || rec.toLowerCase().includes('skip');
+  const recCard = document.getElementById('recCard');
+  recCard.className = 'rec-card ' + (isPass ? 'rec-pass' : 'rec-bet');
+  document.getElementById('recIcon').textContent   = isPass ? '⏸' : '🎮';
+  document.getElementById('recTeam').textContent   = rec;
+  document.getElementById('recTeam').className     = 'rec-player ' + (isPass ? 'amber' : 'green');
+  document.getElementById('recReason').textContent = d.recommendation_reason || '—';
+
+  // Narrative
+  document.getElementById('narrative').textContent = d.narrative || '—';
+
+  // H2H
+  const h2h = d.h2h || {};
+  document.getElementById('h2hWinsA').textContent = h2h.wins_a ?? 0;
+  document.getElementById('h2hWinsB').textContent = h2h.wins_b ?? 0;
+  document.getElementById('h2hNameA').textContent = d.team_a || '—';
+  document.getElementById('h2hNameB').textContent = d.team_b || '—';
+  const encounters = h2h.last_encounters || [];
+  const encEl = document.getElementById('h2hEncounters');
+  if (encounters.length) {
+    encEl.textContent = encounters.slice(0, 5).map(e =>
+      `${e.date || ''} ${e.winner || ''} ${e.score ? '(' + e.score + ')' : ''}`.trim()
+    ).join(' · ');
+  } else {
+    encEl.textContent = 'No H2H encounters on record.';
+  }
+
+  // Confidence badge
+  const conf = (d.data_confidence || 'medium').toLowerCase();
+  const badgeEl = document.getElementById('confidenceBadge');
+  badgeEl.textContent = (d.data_confidence || 'Medium').toUpperCase();
+  badgeEl.className = 'confidence-badge ' + (conf.includes('high') ? 'high' : conf.includes('low') ? 'low' : 'medium');
+
+  // Trace
+  renderTrace(d.steps || []);
+}
+
+function renderTrace(steps) {
+  const container = document.getElementById('traceSteps');
+  container.innerHTML = '';
+  steps.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'trace-step';
+    const statusClass = s.status === 'ok' ? 'ok' : s.status === 'warn' ? 'warn' : 'error';
+    const dataStr = s.data ? JSON.stringify(s.data).slice(0, 120) : '';
+    div.innerHTML = `
+      <span class="trace-status ${statusClass}">${(s.status || '').toUpperCase()}</span>
+      <div>
+        <span class="trace-name">${s.step || ''}</span>
+        ${dataStr ? `<div class="trace-data">${dataStr}</div>` : ''}
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('queryInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runAnalysis();
+});
+</script>
+</body>
+</html>

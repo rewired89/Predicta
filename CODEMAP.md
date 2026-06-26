@@ -2684,7 +2684,7 @@ mutates: none
 name: sports.html
 type: template
 file: templates/sports.html
-purpose: Sports sub-landing with Soccer and Baseball cards; shows model pills (Elo, FIP, etc.) for each sport.
+purpose: Sports sub-landing with Soccer, Baseball, Tennis, Ping Pong, and E-Sports cards; shows model pills for each sport.
 inputs: none
 outputs: HTML
 calls: none
@@ -6078,5 +6078,298 @@ outputs: float (0.85–1.15)
 calls: none
 called_by: expected_runs_split
 mutates: none
+---
+
+
+---
+
+## fetchers/esports.py
+
+---
+name: PANDASCORE_API_KEY
+type: variable
+file: fetchers/esports.py
+purpose: PandaScore API key from env var PANDASCORE_API_KEY; empty string disables PandaScore calls and falls back to Claude AI estimates.
+inputs: none
+outputs: str
+calls: none
+called_by: _pandascore_get
+mutates: none
+---
+
+---
+name: _normalise_game
+type: function
+file: fetchers/esports.py
+purpose: Normalise free-text game name (e.g. "csgo", "League") to a PandaScore slug (cs2, lol, dota2, valorant).
+inputs: raw: str
+outputs: str
+calls: none
+called_by: fetch_esports_context, _search_team, _team_recent_matches, _h2h_from_pandascore
+mutates: none
+---
+
+---
+name: _pandascore_get
+type: function
+file: fetchers/esports.py
+purpose: Authenticated GET to PandaScore API with retry on 429; returns empty list when PANDASCORE_API_KEY is absent.
+inputs: path: str, params: Optional[dict], retries: int = 2
+outputs: list | dict
+calls: requests.get
+called_by: _search_team, _team_recent_matches, _h2h_from_pandascore
+mutates: none
+---
+
+---
+name: _search_team
+type: function
+file: fetchers/esports.py
+purpose: Search PandaScore for a team by name in a given game; prefers exact name match, falls back to first result.
+inputs: name: str, game: str
+outputs: dict (PandaScore team object) or {}
+calls: _pandascore_get
+called_by: fetch_esports_context
+mutates: none
+---
+
+---
+name: _team_recent_matches
+type: function
+file: fetchers/esports.py
+purpose: Fetch last n completed matches for a team ID from PandaScore.
+inputs: team_id: int, game: str, n: int = 10
+outputs: list
+calls: _pandascore_get
+called_by: fetch_esports_context
+mutates: none
+---
+
+---
+name: _compute_form
+type: function
+file: fetchers/esports.py
+purpose: Compute win rate (0.0–1.0) for a team from a list of PandaScore match objects.
+inputs: team_id: int, matches: list
+outputs: float
+calls: none
+called_by: fetch_esports_context
+mutates: none
+---
+
+---
+name: _h2h_from_pandascore
+type: function
+file: fetchers/esports.py
+purpose: Retrieve head-to-head wins and last encounters for two PandaScore team IDs.
+inputs: team_a_id: int, team_b_id: int, game: str, n: int = 10
+outputs: dict {wins_a, wins_b, last_encounters}
+calls: _pandascore_get
+called_by: fetch_esports_context
+mutates: none
+---
+
+---
+name: _fallback_team_info
+type: function
+file: fetchers/esports.py
+purpose: Claude AI fallback — estimates world ranking, recent form, and region when PandaScore is unavailable.
+inputs: name: str, game: str
+outputs: dict {ranking, form, region}
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: fetch_esports_context
+mutates: none
+---
+
+---
+name: fetch_esports_context
+type: function
+file: fetchers/esports.py
+purpose: Main e-sports data entry — returns team data, H2H, and sources for two teams. Tries PandaScore first; falls back to Claude AI estimates for any missing team.
+inputs: team_a: str, team_b: str, game: str
+outputs: dict {team_a, team_b, game, team_a_data, team_b_data, h2h, sources}
+calls: _search_team, _team_recent_matches, _compute_form, _h2h_from_pandascore, _fallback_team_info
+called_by: run_esports_analysis (analyze_esports.py)
+mutates: none
+---
+
+---
+
+## ai_agent_esports.py
+
+---
+name: parse_esports_query
+type: function
+file: ai_agent_esports.py
+purpose: Extract team_a, team_b, game, format, date, notes from free-text. Claude claude-haiku-4-5-20251001 first; heuristic regex fallback.
+inputs: user_text: str
+outputs: dict {team_a, team_b, game, format, date, notes}
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_esports_analysis (analyze_esports.py)
+mutates: none
+---
+
+---
+name: generate_esports_narrative
+type: function
+file: ai_agent_esports.py
+purpose: Generate a 2-3 sentence analytical match preview using Claude. Falls back to template string on API failure.
+inputs: team_a, team_b, game, prob_a, prob_b, team_a_data, team_b_data, recommendation, data_confidence, notes
+outputs: str
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_esports_analysis (analyze_esports.py)
+mutates: none
+---
+
+---
+
+## analyze_esports.py
+
+---
+name: _elo_from_ranking
+type: function
+file: analyze_esports.py
+purpose: Convert world ranking to Elo-like rating. Rank 1 ≈ 2200, floors at 1300. Formula: max(1300, 2200 − 400×log10(rank)).
+inputs: ranking: int
+outputs: float
+calls: math.log10
+called_by: run_esports_analysis
+mutates: none
+---
+
+---
+name: _elo_prob
+type: function
+file: analyze_esports.py
+purpose: Standard Elo win probability for team A given two Elo ratings.
+inputs: elo_a: float, elo_b: float
+outputs: float (0–1)
+calls: none
+called_by: run_esports_analysis
+mutates: none
+---
+
+---
+name: _h2h_adjustment
+type: function
+file: analyze_esports.py
+purpose: Nudge probability by H2H record; max ±3pp, requires ≥3 encounters.
+inputs: prob: float, wins_a: int, wins_b: int
+outputs: float
+calls: none
+called_by: run_esports_analysis
+mutates: none
+---
+
+---
+name: run_esports_analysis
+type: function
+file: analyze_esports.py
+purpose: Full e-sports pipeline: parse query → fetch PandaScore/Claude context → Elo from ranking → 60% Elo + 40% form blend → H2H adjustment → market comparison → Kelly → persist DB → AI narrative.
+inputs: user_query: str, bankroll: float = 1000.0, odds_a_american: Optional[float], odds_b_american: Optional[float]
+outputs: dict {match_id, team_a, team_b, game, format, date, recommendation, recommendation_reason, prob_a, prob_b, team_stats, h2h, market_comparison, kelly, kelly_note, kelly_edge, narrative, data_confidence, raw_sources, steps}
+calls: parse_esports_query, fetch_esports_context, american_to_decimal, market_edge_summary, kelly_stake, get_db, log_signal, generate_esports_narrative
+called_by: analyze_esports (app.py POST /analyze-esports)
+mutates: matches, predictions, signals tables
+---
+
+---
+
+## templates/tennis.html
+
+---
+name: tennis.html
+type: template
+file: templates/tennis.html
+purpose: Tennis analysis UI — natural language query → POST /analyze-tennis → renders player stats (SQI, RQI, surface win rate, form, ranking), probability bars, recommendation badge, H2H, last 5 results, narrative, and pipeline trace.
+inputs: none
+outputs: HTML
+calls: /analyze-tennis API
+called_by: tennis_ui (app.py GET /tennis)
+mutates: none
+---
+
+---
+
+## templates/ping_pong.html
+
+---
+name: ping_pong.html
+type: template
+file: templates/ping_pong.html
+purpose: Ping Pong (table tennis) analysis UI — natural language query + optional American odds inputs → POST /analyze-table-tennis → renders player stats (AQI, RQI, form, style, ranking), probability bars, market comparison card (VALUE/PASS/SLIGHT EDGE/AVOID), recommendation badge, H2H, recent form, narrative.
+inputs: none
+outputs: HTML
+calls: /analyze-table-tennis API
+called_by: ping_pong_ui (app.py GET /ping-pong)
+mutates: none
+---
+
+---
+
+## templates/esports.html
+
+---
+name: esports.html
+type: template
+file: templates/esports.html
+purpose: E-Sports analysis UI — game selector tabs (CS2/LoL/Dota2/Valorant), natural language query + optional American odds → POST /analyze-esports → renders team stats (ranking, Elo, form, region), probability bars, market comparison, recommendation, H2H, narrative, pipeline trace.
+inputs: none
+outputs: HTML
+calls: /analyze-esports API
+called_by: esports_ui (app.py GET /esports)
+mutates: none
+---
+
+---
+
+## app.py (new sport UI routes)
+
+---
+name: tennis_ui
+type: function
+file: app.py
+purpose: GET /tennis — serves tennis.html analysis UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: GET /tennis
+mutates: none
+---
+
+---
+name: ping_pong_ui
+type: function
+file: app.py
+purpose: GET /ping-pong — serves ping_pong.html analysis UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: GET /ping-pong
+mutates: none
+---
+
+---
+name: esports_ui
+type: function
+file: app.py
+purpose: GET /esports — serves esports.html analysis UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: GET /esports
+mutates: none
+---
+
+---
+name: analyze_esports
+type: function
+file: app.py
+purpose: POST /analyze-esports — runs full e-sports pipeline from natural language query + optional American odds.
+inputs: body: EsportsRequest {query, bankroll, odds_a_american, odds_b_american}
+outputs: dict (full analysis result from run_esports_analysis)
+calls: run_esports_analysis
+called_by: HTTP POST /analyze-esports
+mutates: matches, predictions, signals tables
 ---
 
