@@ -180,6 +180,24 @@
 
   #error-card { display: none; background: #1a0505; border: 1px solid var(--red); border-radius: var(--radius); padding: 16px 20px; margin-top: 20px; font-size: .88rem; color: #fca5a5; }
 
+  /* ── Market edge card ─────────────────────────────────────── */
+  #market-edge-card { display:none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 14px; overflow: hidden; }
+  .edge-header { padding: 10px 16px; font-size: .76rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .edge-header .vig-note { font-weight: 400; font-size: .68rem; }
+  .edge-body { display: grid; grid-template-columns: 1fr 1fr; }
+  .edge-team { padding: 14px 16px; }
+  .edge-team:first-child { border-right: 1px solid var(--border); }
+  .edge-team-name { font-size: .82rem; font-weight: 700; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .edge-row-line { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: 4px; }
+  .edge-row-line span:first-child { color: var(--muted); }
+  .edge-row-line span:last-child { font-weight: 600; }
+  .edge-badge { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 99px; font-size: .72rem; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+  .badge-value      { background: #003d1e; color: #4ade80; border: 1px solid #166534; }
+  .badge-slight     { background: #1a2e0a; color: #86efac; border: 1px solid #166534; }
+  .badge-fair       { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+  .badge-avoid      { background: #1a0505; color: #fca5a5; border: 1px solid #7f1d1d; }
+  .edge-no-odds     { padding: 14px 16px; font-size: .8rem; color: var(--muted); font-style: italic; }
+
   .paper-banner { font-size: .75rem; background: #1a1000; border: 1px solid var(--amber); color: var(--amber); padding: 6px 14px; border-radius: 6px; display: inline-block; margin-bottom: 24px; }
 
   /* ── Market cards ─────────────────────────────────────── */
@@ -242,12 +260,12 @@
 
   <div class="prompt-card">
     <div class="prompt-label">Game query</div>
-    <textarea id="query-input" placeholder="e.g. Yankees vs Red Sox tonight at Fenway. Who wins and what's the over/under?"></textarea>
+    <textarea id="query-input" placeholder="e.g. Yankees -130 vs Red Sox +110 tonight — include sportsbook odds to see market edge"></textarea>
     <div class="prompt-row">
       <div class="examples">
-        <span class="example-chip" onclick="fillExample(this)">Yankees vs Red Sox tonight</span>
-        <span class="example-chip" onclick="fillExample(this)">Dodgers vs Giants this weekend</span>
-        <span class="example-chip" onclick="fillExample(this)">Astros vs Cubs June 2025</span>
+        <span class="example-chip" onclick="fillExample(this)">Yankees -130 vs Red Sox +110 tonight</span>
+        <span class="example-chip" onclick="fillExample(this)">Dodgers vs Giants today</span>
+        <span class="example-chip" onclick="fillExample(this)">Astros -125 vs Tigers +105 today</span>
       </div>
       <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">
         <span class="spinner" id="spinner"></span>
@@ -283,6 +301,19 @@
           <div class="prob-bar-wrap"><div class="prob-bar bar-b" id="bar-b"></div></div>
           <div class="prob-pct pct-b" id="pct-b">—</div>
         </div>
+      </div>
+
+      <!-- Market edge vs sportsbook -->
+      <div id="market-edge-card">
+        <div class="edge-header">
+          <span>Model vs Sportsbook</span>
+          <span class="vig-note" id="edge-vig-note"></span>
+        </div>
+        <div id="edge-body-real" class="edge-body" style="display:none">
+          <div class="edge-team" id="edge-side-a"></div>
+          <div class="edge-team" id="edge-side-b"></div>
+        </div>
+        <div id="edge-body-hint" class="edge-no-odds" style="display:none"></div>
       </div>
 
       <div class="narrative" id="res-narrative"></div>
@@ -575,6 +606,47 @@ async function runAnalysis() {
     setBar("bar-a", "pct-a", data.prob_a);
     setBar("bar-b", "pct-b", data.prob_b);
     document.getElementById("res-narrative").textContent = data.narrative;
+
+    // ── Market edge card ──────────────────────────────────────────────────
+    const mc = data.market_comparison || {};
+    const edgeCard = document.getElementById("market-edge-card");
+    edgeCard.style.display = "block";
+    if (mc.has_real_odds) {
+      document.getElementById("edge-vig-note").textContent =
+        `Vig: ${(mc.vig * 100).toFixed(1)}%`;
+      document.getElementById("edge-body-hint").style.display = "none";
+      const realBody = document.getElementById("edge-body-real");
+      realBody.style.display = "grid";
+
+      function verdictBadgeClass(v) {
+        if (v === "VALUE")       return "badge-value";
+        if (v === "SLIGHT EDGE") return "badge-slight";
+        if (v === "AVOID")       return "badge-avoid";
+        return "badge-fair";
+      }
+      function edgeSideHtml(teamName, modelPct, marketPct, breakeven, edge, verdict) {
+        const edgePp = (edge * 100).toFixed(1);
+        const edgeSign = edge >= 0 ? "+" : "";
+        return `
+          <div class="edge-team-name">${teamName}</div>
+          <div class="edge-row-line"><span>Our model</span><span>${modelPct.toFixed(1)}%</span></div>
+          <div class="edge-row-line"><span>Market (no-vig)</span><span>${(marketPct*100).toFixed(1)}%</span></div>
+          <div class="edge-row-line"><span>Break-even needed</span><span>${(breakeven*100).toFixed(1)}%</span></div>
+          <div class="edge-row-line"><span>Edge</span><span>${edgeSign}${edgePp}pp</span></div>
+          <span class="edge-badge ${verdictBadgeClass(verdict)}">${verdict}</span>`;
+      }
+      document.getElementById("edge-side-a").innerHTML = edgeSideHtml(
+        data.team_a, data.prob_a, mc.market_implied_a, mc.breakeven_a, mc.edge_a, mc.verdict_a
+      );
+      document.getElementById("edge-side-b").innerHTML = edgeSideHtml(
+        data.team_b, data.prob_b, mc.market_implied_b, mc.breakeven_b, mc.edge_b, mc.verdict_b
+      );
+    } else {
+      document.getElementById("edge-body-real").style.display = "none";
+      const hint = document.getElementById("edge-body-hint");
+      hint.style.display = "block";
+      hint.textContent = mc.note || "Include odds in your query for market comparison.";
+    }
 
     // Confidence
     const conf = data.data_confidence || "medium";

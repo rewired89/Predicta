@@ -21,10 +21,19 @@ def _client() -> anthropic.Anthropic:
 
 PARSE_SYSTEM = """You extract structured MLB baseball game information from a user query.
 Return ONLY valid JSON with these keys:
-  team_a  — home team (or first team mentioned if home/away unclear)
-  team_b  — away team (or second team mentioned)
-  date    — ISO date YYYY-MM-DD, or null to mean today
-  notes   — any extra context (weather, injuries, series info)
+  team_a           — home team (or first team mentioned if home/away unclear)
+  team_b           — away team (or second team mentioned)
+  date             — ISO date YYYY-MM-DD, or null to mean today
+  odds_a_american  — American odds for team_a if mentioned (e.g. -130, +110), or null
+  odds_b_american  — American odds for team_b if mentioned, or null
+  notes            — any extra context (weather, injuries, series info)
+
+Examples of odds in queries:
+  "NYY -130 vs BOS +110"        → odds_a_american: -130, odds_b_american: 110
+  "HOU -125, TOR +105"          → odds_a_american: -125, odds_b_american: 105
+  "LAD is -145 favorite"        → odds_a_american: -145, odds_b_american: null
+  "Yankees vs Red Sox tonight"  → odds_a_american: null, odds_b_american: null
+
 No markdown, no prose — raw JSON only."""
 
 

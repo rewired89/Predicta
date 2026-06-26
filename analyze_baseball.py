@@ -20,7 +20,7 @@ from models.baseball_market import (
     platoon_wrc_adjust, LEAGUE_BULLPEN_FIP,
 )
 from models.elo import EloModel
-from models.kelly import kelly_stake
+from models.kelly import kelly_stake, american_to_decimal, market_edge_summary
 
 
 def _elo_from_winpct(win_pct: float) -> float:
@@ -197,6 +197,16 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     team_a_raw = parsed.get("team_a", "Team A")
     team_b_raw = parsed.get("team_b", "Team B")
     game_date  = parsed.get("date") or datetime.now(timezone.utc).date().isoformat()
+
+    # Override odds from query text if sportsbook lines were included
+    _oa = parsed.get("odds_a_american")
+    _ob = parsed.get("odds_b_american")
+    if _oa is not None:
+        try: odds_a = american_to_decimal(float(_oa))
+        except Exception: pass
+    if _ob is not None:
+        try: odds_b = american_to_decimal(float(_ob))
+        except Exception: pass
 
     # ── 2. Fetch MLB data (with AI fallback when API is unreachable) ────────────
     context: dict = {}
@@ -609,10 +619,20 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         steps.append({"step": "persist", "status": "error", "error": str(exc),
                       "trace": traceback.format_exc()})
 
-    # ── 8. Kelly stake ───────────────────────────────────────────────────────
-    # Use caller-supplied decimal odds when available; default 1.909 ≈ -110.
+    # ── 8. Kelly stake + market comparison ──────────────────────────────────
     kelly   = kelly_stake(prob_a, odds_a, bankroll)
     kelly_b = kelly_stake(prob_b, odds_b, bankroll)
+
+    # Market comparison: only meaningful when the caller provided real odds
+    _using_default_odds = (abs(odds_a - 1.909) < 0.001 and abs(odds_b - 1.909) < 0.001)
+    if not _using_default_odds:
+        market_comparison = market_edge_summary(prob_a, prob_b, odds_a, odds_b)
+    else:
+        market_comparison = {
+            "has_real_odds": False,
+            "note": ("Include sportsbook odds in your query to see market edge. "
+                     "Example: 'NYY -130 vs BOS +110 tonight'"),
+        }
 
     # ── 9. Narrative ─────────────────────────────────────────────────────────
     narrative = ""
@@ -830,6 +850,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "kelly_note":        kelly.get("note", ""),
         "markets":           formatted_markets,
         "ai_signals":        ai_signals,
+        "market_comparison": market_comparison,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,
     }

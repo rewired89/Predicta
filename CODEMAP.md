@@ -666,7 +666,43 @@ purpose: Computes recommended paper stake using quarter-Kelly formula from model
 inputs: your_prob: float, decimal_odds: float, bankroll: float, fraction: float = KELLY_FRACTION
 outputs: dict {edge, full_kelly_fraction, applied_kelly_fraction, recommended_stake, bankroll, paper_mode, note}
 calls: none
-called_by: predict_match
+called_by: predict_match, run_baseball_analysis
+mutates: none
+---
+
+---
+name: american_to_decimal
+type: function
+file: models/kelly.py
+purpose: Convert American odds to decimal. -130 → 1.769, +110 → 2.100
+inputs: american: float
+outputs: float
+calls: none
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
+name: vig_removed_prob
+type: function
+file: models/kelly.py
+purpose: Strip bookmaker vig from two decimal odds; returns true implied probabilities summing to 1.
+inputs: decimal_a: float, decimal_b: float
+outputs: tuple[float, float]
+calls: none
+called_by: market_edge_summary
+mutates: none
+---
+
+---
+name: market_edge_summary
+type: function
+file: models/kelly.py
+purpose: Compare model probabilities to market odds — computes edge_a/b, vig, breakeven, verdict (VALUE/SLIGHT EDGE/FAIR/AVOID). Only meaningful when real sportsbook odds are provided.
+inputs: model_prob_a: float, model_prob_b: float, decimal_a: float, decimal_b: float
+outputs: dict {has_real_odds, market_implied_a/b, breakeven_a/b, edge_a/b, vig, verdict_a/b}
+calls: vig_removed_prob
+called_by: run_baseball_analysis
 mutates: none
 ---
 
