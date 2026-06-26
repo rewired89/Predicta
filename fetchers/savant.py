@@ -124,20 +124,33 @@ def fetch_pitcher_fg(
             return {}
         row = df[df["Name"] == matched].iloc[0]
         return {
-            "name":      matched,
-            "siera":     _safe_float(row.get("SIERA")),
-            "xfip":      _safe_float(row.get("xFIP")),
-            "fip":       _safe_float(row.get("FIP")),
-            "era":       _safe_float(row.get("ERA")),
-            "k_pct":     _safe_float(row.get("K%")),
-            "bb_pct":    _safe_float(row.get("BB%")),
-            "swstr_pct": _safe_float(row.get("SwStr%")),
-            "gb_pct":    _safe_float(row.get("GB%")),
-            "hr_per_9":  _safe_float(row.get("HR/9")),
-            "whip":      _safe_float(row.get("WHIP")),
-            "ip":        _safe_float(row.get("IP")),
-            "war":       _safe_float(row.get("WAR")),
-            "source":    "fangraphs",
+            "name":         matched,
+            # Quality / run prevention
+            "siera":        _safe_float(row.get("SIERA")),
+            "xfip":         _safe_float(row.get("xFIP")),
+            "fip":          _safe_float(row.get("FIP")),
+            "era":          _safe_float(row.get("ERA")),
+            # Strikeout / walk profile
+            "k_pct":        _safe_float(row.get("K%")),
+            "bb_pct":       _safe_float(row.get("BB%")),
+            "k_bb_ratio":   _safe_float(row.get("K-BB%")),
+            # Pitch command (Kimi feature set — all from FanGraphs pitching_stats)
+            "swstr_pct":    _safe_float(row.get("SwStr%")),   # swinging strike rate
+            "f_strike_pct": _safe_float(row.get("F-Strike%")), # first-pitch strike rate
+            "zone_pct":     _safe_float(row.get("Zone%")),    # pitches in strike zone
+            "o_swing_pct":  _safe_float(row.get("O-Swing%")), # chase rate (out-of-zone swings)
+            "contact_pct":  _safe_float(row.get("Contact%")), # contact rate on swings
+            "csw_pct":      _safe_float(row.get("CSW%")),     # called strike + whiff %
+            # Batted-ball / HR
+            "gb_pct":       _safe_float(row.get("GB%")),
+            "fb_pct":       _safe_float(row.get("FB%")),
+            "hr_per_9":     _safe_float(row.get("HR/9")),
+            "hr_fb_pct":    _safe_float(row.get("HR/FB")),    # HR per fly ball (luck indicator)
+            # Workload
+            "whip":         _safe_float(row.get("WHIP")),
+            "ip":           _safe_float(row.get("IP")),
+            "war":          _safe_float(row.get("WAR")),
+            "source":       "fangraphs",
         }
     except Exception:
         return {}
@@ -336,6 +349,85 @@ def fetch_pitcher_statcast(
         return {}
 
 
+def fetch_pitcher_arsenal(
+    player_name: str,
+    season: Optional[int] = None,
+) -> dict:
+    """
+    Fetch pitch-mix and velocity profile from Baseball Savant pitch arsenal leaderboard.
+
+    Returns: fastball_pct, breaking_pct, offspeed_pct, avg_velo, top_pitch_type,
+    plus per-pitch whiff%, usage%. These are the Kimi-recommended pitch-level
+    features: pitch mix vs LHB/RHB, velocity, movement differentials.
+
+    whiff% by pitch type is a leading indicator for K rate changes.
+    """
+    if not _HAS_PYBASEBALL or not _HAS_PANDAS:
+        return {}
+    try:
+        yr = season or _current_season()
+        df = pyb.statcast_pitcher_pitch_arsenal(yr, minP=100)
+        if df is None or df.empty:
+            return {}
+        names = df["last_name, first_name"].tolist() if "last_name, first_name" in df.columns else []
+        matched = _match_name_savant(player_name, names)
+        if not matched:
+            return {}
+        rows = df[df["last_name, first_name"] == matched]
+        if rows.empty:
+            return {}
+
+        # Aggregate pitch mix into FB / Breaking / Offspeed buckets
+        # pitch_type column: FF/SI=fastball, SL/CU/KC=breaking, CH/FS=offspeed
+        fb_types = {"FF", "SI", "FC"}
+        br_types = {"SL", "CU", "KC", "CS", "SV"}
+        os_types = {"CH", "FS", "FO", "SC"}
+
+        fb_pct = br_pct = os_pct = 0.0
+        top_pitch = ""
+        top_usage = 0.0
+        pitches = []
+
+        for _, r in rows.iterrows():
+            pt   = str(r.get("pitch_type", "")).upper()
+            pct  = _safe_float(r.get("pitch_percent")) or 0.0
+            velo = _safe_float(r.get("avg_speed"))
+            whiff = _safe_float(r.get("whiff_percent"))
+            if pct > top_usage:
+                top_usage = pct
+                top_pitch = pt
+            if pt in fb_types:
+                fb_pct += pct
+            elif pt in br_types:
+                br_pct += pct
+            elif pt in os_types:
+                os_pct += pct
+            if velo:
+                pitches.append((pt, pct, velo, whiff))
+
+        # Weighted average fastball velo
+        fb_rows = [(p, u, v, w) for p, u, v, w in pitches if p in fb_types and v]
+        avg_fb_velo = (
+            sum(v * u for _, u, v, _ in fb_rows) / sum(u for _, u, _, _ in fb_rows)
+            if fb_rows else None
+        )
+
+        return {
+            "fastball_pct":   round(fb_pct, 1),
+            "breaking_pct":   round(br_pct, 1),
+            "offspeed_pct":   round(os_pct, 1),
+            "top_pitch_type": top_pitch,
+            "avg_fb_velo":    avg_fb_velo,
+            "pitch_details":  [
+                {"type": p, "usage_pct": u, "avg_velo": v, "whiff_pct": w}
+                for p, u, v, w in sorted(pitches, key=lambda x: -x[1])
+            ],
+            "source": "baseball_savant_arsenal",
+        }
+    except Exception:
+        return {}
+
+
 def _match_name_savant(target: str, savant_names: list[str]) -> Optional[str]:
     """Match 'First Last' against Savant's 'Last, First' format."""
     parts = target.strip().split()
@@ -385,12 +477,20 @@ def enrich_starter(
             )
         if fg.get("era"):
             result["era"] = fg["era"]
-        result["siera"]      = fg.get("siera")
-        result["xfip"]       = fg.get("xfip")
-        result["k_pct"]      = fg.get("k_pct")
-        result["bb_pct"]     = fg.get("bb_pct")
-        result["swstr_pct"]  = fg.get("swstr_pct")
-        result["fg_war"]     = fg.get("war")
+        result["siera"]         = fg.get("siera")
+        result["xfip"]          = fg.get("xfip")
+        result["k_pct"]         = fg.get("k_pct")
+        result["bb_pct"]        = fg.get("bb_pct")
+        result["k_bb_ratio"]    = fg.get("k_bb_ratio")
+        result["swstr_pct"]     = fg.get("swstr_pct")
+        result["fg_war"]        = fg.get("war")
+        # Pitch command features (Kimi recommendations)
+        result["f_strike_pct"]  = fg.get("f_strike_pct")   # first-pitch strike %
+        result["zone_pct"]      = fg.get("zone_pct")        # zone rate
+        result["o_swing_pct"]   = fg.get("o_swing_pct")     # chase rate
+        result["contact_pct"]   = fg.get("contact_pct")     # contact on swings
+        result["csw_pct"]       = fg.get("csw_pct")         # called strike + whiff
+        result["hr_fb_pct"]     = fg.get("hr_fb_pct")       # HR/FB (luck factor)
 
     sv = fetch_pitcher_statcast(name, yr)
     if sv:
@@ -398,6 +498,15 @@ def enrich_starter(
         result["hard_hit_pct_against"] = sv.get("hard_hit_pct_against")
         result["exit_velo_against"]    = sv.get("exit_velo_against")
         result["xwoba_against"]        = sv.get("xwoba_against")
+
+    ar = fetch_pitcher_arsenal(name, yr)
+    if ar:
+        result["avg_fb_velo"]     = ar.get("avg_fb_velo")    # fastball velocity
+        result["fastball_pct"]    = ar.get("fastball_pct")   # pitch mix
+        result["breaking_pct"]    = ar.get("breaking_pct")
+        result["offspeed_pct"]    = ar.get("offspeed_pct")
+        result["top_pitch_type"]  = ar.get("top_pitch_type")
+        result["pitch_details"]   = ar.get("pitch_details", [])
 
     return result
 

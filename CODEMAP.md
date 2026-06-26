@@ -5951,3 +5951,28 @@ called_by: fetch_team_xg, fetch_team_recent_xg
 mutates: none
 ---
 
+
+---
+name: fetch_pitcher_arsenal
+type: function
+file: fetchers/savant.py
+purpose: Fetch pitch-mix and velocity profile from Baseball Savant pitch arsenal leaderboard. Returns fastball_pct, breaking_pct, offspeed_pct, avg_fb_velo, top_pitch_type, per-pitch usage% and whiff%. Implements Kimi-recommended pitch-level features. Uses pybaseball.statcast_pitcher_pitch_arsenal() with Savant "Last, First" name matching.
+inputs: player_name: str, season: int | None
+outputs: dict
+calls: pyb.statcast_pitcher_pitch_arsenal, _match_name_savant, _safe_float
+called_by: enrich_starter
+mutates: none
+---
+
+---
+name: fetch_team_shot_quality (understat.py)
+type: function
+file: fetchers/understat.py
+purpose: Fetch shot-level quality metrics from Understat team page shotData JSON. Computes xg_per_shot (shot quality), sot_pct (shots on target %), goal_overperform (goals/xG ratio — regression signal: >1.15 likely to regress), xga_per_shot (quality conceded). Implements Kimi-recommended event-level features for soccer.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _get, _extract_json_var
+called_by: enrich_soccer_teams
+mutates: none
+---
+

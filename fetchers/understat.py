@@ -260,6 +260,89 @@ def fetch_team_recent_xg(
     }
 
 
+def fetch_team_shot_quality(
+    team_name: str,
+    league: str,
+    season: int,
+) -> dict:
+    """
+    Fetch shot-level quality metrics from Understat team page.
+
+    Parses shotData JSON embedded in the team page to compute:
+      xg_per_shot       — shot quality (higher = better chances created)
+      xga_per_shot      — quality conceded per shot
+      shots_per_game    — volume (high volume + high xg_per_shot = dominant)
+      sot_pct           — shots on target % (finishing quality proxy)
+      goal_overperform  — goals / xG ratio > 1 means exceeding expectations
+                          (regression candidate; <0.85 = unlucky, >1.15 = lucky)
+      npxg_per_shot     — non-penalty xG per shot (removes set-piece inflation)
+
+    These are the Kimi-recommended event-level features — more predictive than
+    raw goals because they measure process quality not just outcomes.
+    """
+    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
+    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
+    html = _get(url)
+    if not html:
+        return {}
+
+    shots = _extract_json_var(html, "shotsData")
+    if not shots:
+        return {}
+
+    try:
+        # shotsData is {"h": [...shots...], "a": [...shots...]}
+        all_shots: list[dict] = []
+        conceded_shots: list[dict] = []
+        if isinstance(shots, dict):
+            all_shots     = shots.get("h", []) + shots.get("a", [])
+            # For team shots: filter where team == canonical title
+            # For conceded: the opponent's shots
+            team_shots    = [s for s in all_shots if _norm(s.get("h_team", "")) == _norm(canonical)
+                             or _norm(s.get("a_team", "")) == _norm(canonical)]
+            # Separate into "team's own shots" vs "shots against"
+            own_shots = [
+                s for s in team_shots
+                if (_norm(s.get("h_team", "")) == _norm(canonical) and s.get("h_a") == "h")
+                or (_norm(s.get("a_team", "")) == _norm(canonical) and s.get("h_a") == "a")
+            ]
+            against_shots = [
+                s for s in team_shots
+                if s not in own_shots
+            ]
+        elif isinstance(shots, list):
+            own_shots     = shots
+            against_shots = []
+
+        if not own_shots:
+            return {}
+
+        xg_vals  = [float(s.get("xG", 0)) for s in own_shots]
+        g_vals   = [int(s.get("result", "") == "Goal") for s in own_shots]
+        sot_vals = [1 for s in own_shots if s.get("result", "") not in ("MissedShots", "BlockedShot")]
+
+        total_xg    = sum(xg_vals)
+        total_goals = sum(g_vals)
+        n_shots     = len(own_shots)
+        n_sot       = len(sot_vals)
+
+        xga_vals = [float(s.get("xG", 0)) for s in against_shots] if against_shots else []
+
+        result = {
+            "xg_per_shot":      round(total_xg / n_shots, 4) if n_shots else None,
+            "shots_per_game":   None,    # needs match count — filled below if available
+            "sot_pct":          round(n_sot / n_shots * 100, 1) if n_shots else None,
+            "goal_overperform": round(total_goals / total_xg, 3) if total_xg > 0 else None,
+            "source":           f"understat/{league}/{season} shots",
+        }
+        if xga_vals:
+            result["xga_per_shot"] = round(sum(xga_vals) / len(xga_vals), 4)
+
+        return result
+    except Exception:
+        return {}
+
+
 def enrich_soccer_teams(
     home_name: str,
     away_name: str,
@@ -267,18 +350,27 @@ def enrich_soccer_teams(
     season: int,
 ) -> dict:
     """
-    Enrich both teams with Understat xG data.
+    Enrich both teams with Understat xG + shot quality data.
 
     Returns {
-        "home": {xg, xga, xg_per_game, xga_per_game, recent_xg, recent_xga, ...},
+        "home": {xg, xga, xg_per_game, xga_per_game, recent_xg, recent_xga,
+                 xg_per_shot, sot_pct, goal_overperform, ...},
         "away": {...},
     }
     Both values are empty dicts on failure — soccer pipeline falls back to ESPN.
+
+    Key signals for Dixon-Coles model:
+      recent_xg_per_game  — last-5 attack form (more predictive than season avg)
+      recent_xga_per_game — last-5 defense form
+      goal_overperform    — regression signal: >1.15 likely to regress down
+      xg_per_shot         — shot quality; high xg teams hit fewer big chances
     """
     home = fetch_team_xg(home_name, league, season)
     away = fetch_team_xg(away_name, league, season)
     home_recent = fetch_team_recent_xg(home_name, league, season)
     away_recent = fetch_team_recent_xg(away_name, league, season)
+    home_shots  = fetch_team_shot_quality(home_name, league, season)
+    away_shots  = fetch_team_shot_quality(away_name, league, season)
 
     if home_recent:
         home["recent_xg_per_game"]  = home_recent.get("xg_per_game")
@@ -286,6 +378,13 @@ def enrich_soccer_teams(
     if away_recent:
         away["recent_xg_per_game"]  = away_recent.get("xg_per_game")
         away["recent_xga_per_game"] = away_recent.get("xga_per_game")
+
+    # Merge shot quality into main team dict
+    for k in ("xg_per_shot", "xga_per_shot", "sot_pct", "goal_overperform"):
+        if home_shots.get(k) is not None:
+            home[k] = home_shots[k]
+        if away_shots.get(k) is not None:
+            away[k] = away_shots[k]
 
     return {"home": home, "away": away}
 

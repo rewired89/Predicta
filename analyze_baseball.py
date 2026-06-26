@@ -454,9 +454,18 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
             signals_to_log.append(("starter_avg_ip", team_a, avg_ip_a))
         if avg_ip_b is not None:
             signals_to_log.append(("starter_avg_ip", team_b, avg_ip_b))
-        for sig, key in (("siera", "siera"), ("xfip", "xfip"),
-                         ("barrel_pct_against", "barrel_pct_against"),
-                         ("xwoba_against", "xwoba_against")):
+        for sig, key in (
+            ("siera",               "siera"),
+            ("xfip",                "xfip"),
+            ("barrel_pct_against",  "barrel_pct_against"),
+            ("xwoba_against",       "xwoba_against"),
+            ("f_strike_pct",        "f_strike_pct"),
+            ("zone_pct",            "zone_pct"),
+            ("o_swing_pct",         "o_swing_pct"),
+            ("csw_pct",             "csw_pct"),
+            ("avg_fb_velo",         "avg_fb_velo"),
+            ("hr_fb_pct",           "hr_fb_pct"),
+        ):
             if starter_a.get(key) is not None:
                 signals_to_log.append((sig, team_a, starter_a[key]))
             if starter_b.get(key) is not None:
@@ -571,6 +580,14 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 "fip_source":           home_starter.get("fip_source", "espn"),
                 "barrel_pct_against":   home_starter.get("barrel_pct_against"),
                 "xwoba_against":        home_starter.get("xwoba_against"),
+                "f_strike_pct":         home_starter.get("f_strike_pct"),
+                "zone_pct":             home_starter.get("zone_pct"),
+                "o_swing_pct":          home_starter.get("o_swing_pct"),
+                "csw_pct":              home_starter.get("csw_pct"),
+                "avg_fb_velo":          home_starter.get("avg_fb_velo"),
+                "fastball_pct":         home_starter.get("fastball_pct"),
+                "breaking_pct":         home_starter.get("breaking_pct"),
+                "pitch_details":        home_starter.get("pitch_details", []),
             },
             "away": {
                 "team":                 team_away,
@@ -589,6 +606,14 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 "fip_source":           away_starter.get("fip_source", "espn"),
                 "barrel_pct_against":   away_starter.get("barrel_pct_against"),
                 "xwoba_against":        away_starter.get("xwoba_against"),
+                "f_strike_pct":         away_starter.get("f_strike_pct"),
+                "zone_pct":             away_starter.get("zone_pct"),
+                "o_swing_pct":          away_starter.get("o_swing_pct"),
+                "csw_pct":              away_starter.get("csw_pct"),
+                "avg_fb_velo":          away_starter.get("avg_fb_velo"),
+                "fastball_pct":         away_starter.get("fastball_pct"),
+                "breaking_pct":         away_starter.get("breaking_pct"),
+                "pitch_details":        away_starter.get("pitch_details", []),
             },
         },
         "team_stats": {
