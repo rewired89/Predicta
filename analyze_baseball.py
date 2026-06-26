@@ -79,15 +79,17 @@ def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> d
 
     rl = markets.get("run_line", [])
     if rl:
-        r = rl[0]
-        hp, ap = pct(r["p_home_covers"]), pct(r["p_away_covers"])
         result["run_line"] = {
             "label": "Run Line",
-            "options": [
-                {"label": f"{team_home} -{r['line']}", "prob": hp, "best": hp >= ap},
-                {"label": f"{team_away} +{r['line']}", "prob": ap, "best": ap > hp},
+            "lines": [
+                {
+                    "label":         r["label"],
+                    "p_home_covers": pct(r["p_home_covers"]),
+                    "p_away_covers": pct(r["p_away_covers"]),
+                    "p_push":        pct(r["p_push"]),
+                }
+                for r in rl
             ],
-            "p_push": pct(r["p_push"]),
         }
 
     totals = markets.get("totals", [])

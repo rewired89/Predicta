@@ -494,11 +494,11 @@ function renderMarkets(markets, teamA, teamB) {
   const tt = markets.team_totals;
   if (tt) {
     [["home", teamA], ["away", teamB]].forEach(([side, name]) => {
-      const lines = tt[side];
-      if (!lines) return;
+      const sideData = tt[side];
+      if (!sideData || !sideData.lines) return;
       const card = document.createElement("div");
       card.className = "market-card";
-      const rows = lines.map(l => `<tr>
+      const rows = sideData.lines.map(l => `<tr>
         <td>Over ${l.line}</td><td>${l.p_over}%</td><td>${l.p_under}%</td>
       </tr>`).join("");
       card.innerHTML = `<div class="market-title">${name} — Team Total</div>
