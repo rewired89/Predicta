@@ -3325,6 +3325,7 @@ file: analyze_baseball.py
 purpose: Transforms raw baseball market probability dicts into frontend-ready format with percentages, labels, and best-option flags. run_line uses lines:[{label,p_home_covers,p_away_covers,p_push}]; totals uses lines:[{line,p_over,p_under}]; team_totals.home/.away are {team,mu,lines:[...]}.
 inputs: markets: dict, team_home: str, team_away: str
 outputs: dict {moneyline, run_line{label,lines}, totals{label,lines}, first_five, last_four, nrfi, team_totals{home:{team,mu,lines},away:{...}}}
+notes: run_baseball_analysis also returns ai_signals list built from all collected data (wRC+, FIP/SIERA, CSW%, velo, barrel%, bullpen FIP, fatigue, weather)
 calls: none
 called_by: run_baseball_analysis
 mutates: none

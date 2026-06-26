@@ -89,12 +89,15 @@ def _load_fg_pitchers(season: int) -> Optional["pd.DataFrame"]:
         return None
     if season in _PITCHER_CACHE:
         return _PITCHER_CACHE[season]
-    try:
-        df = pyb.pitching_stats(season, qual=10)
-        _PITCHER_CACHE[season] = df
-        return df
-    except Exception:
-        return None
+    for yr in (season, season - 1):
+        try:
+            df = pyb.pitching_stats(yr, qual=10)
+            if df is not None and not df.empty:
+                _PITCHER_CACHE[season] = df
+                return df
+        except Exception:
+            continue
+    return None
 
 
 def fetch_pitcher_fg(
@@ -163,12 +166,15 @@ def _load_fg_batters(season: int) -> Optional["pd.DataFrame"]:
         return None
     if season in _BATTER_CACHE:
         return _BATTER_CACHE[season]
-    try:
-        df = pyb.batting_stats(season, qual=100)
-        _BATTER_CACHE[season] = df
-        return df
-    except Exception:
-        return None
+    for yr in (season, season - 1):
+        try:
+            df = pyb.batting_stats(yr, qual=100)
+            if df is not None and not df.empty:
+                _BATTER_CACHE[season] = df
+                return df
+        except Exception:
+            continue
+    return None
 
 
 def fetch_team_batting_fg(

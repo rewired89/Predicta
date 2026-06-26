@@ -651,6 +651,83 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     home_bp_fip_out = bullpen_fip_b if is_home_a else bullpen_fip_a
     away_bp_fip_out = bullpen_fip_a if is_home_a else bullpen_fip_b
 
+    # ── Build ai_signals list for "Model signals used" table ──────────────────
+    _fat_home = fatigue_a if is_home_a else fatigue_b
+    _fat_away = fatigue_b if is_home_a else fatigue_a
+    _bp_home  = bullpen_fip_a if is_home_a else bullpen_fip_b
+    _bp_away  = bullpen_fip_b if is_home_a else bullpen_fip_a
+
+    ai_signals: list[dict] = []
+    def _add(team: str, signal: str, value, source: str) -> None:
+        if value is not None:
+            ai_signals.append({"team": team, "signal": signal,
+                                "value": str(value), "source": source})
+
+    # Offense
+    _add(team_home, "wRC+", home_hitting.get("wrc_plus"),
+         home_hitting.get("wrc_plus_source", "espn"))
+    _add(team_away, "wRC+", away_hitting.get("wrc_plus"),
+         away_hitting.get("wrc_plus_source", "espn"))
+    if home_hitting.get("woba"):
+        _add(team_home, "wOBA", round(home_hitting["woba"], 3), "fangraphs")
+    if away_hitting.get("woba"):
+        _add(team_away, "wOBA", round(away_hitting["woba"], 3), "fangraphs")
+    if home_hitting.get("iso"):
+        _add(team_home, "ISO", round(home_hitting["iso"], 3), "fangraphs")
+    if away_hitting.get("iso"):
+        _add(team_away, "ISO", round(away_hitting["iso"], 3), "fangraphs")
+
+    # Starters
+    for tm, s in [(team_home, home_starter), (team_away, away_starter)]:
+        nm  = s.get("name", "")
+        src = s.get("fip_source", "espn")
+        metric = "SIERA" if s.get("siera") else ("xFIP" if s.get("xfip") else "FIP")
+        val    = s.get("siera") or s.get("xfip") or s.get("fip")
+        if val:
+            _add(tm, f"{metric} ({nm})", round(float(val), 2), src)
+        if s.get("era"):
+            _add(tm, f"ERA ({nm})", round(float(s["era"]), 2), src)
+        if s.get("csw_pct"):
+            _add(tm, f"CSW% ({nm})", f"{s['csw_pct']*100:.1f}%", "savant")
+        if s.get("avg_fb_velo"):
+            _add(tm, f"FB Velo ({nm})", f"{s['avg_fb_velo']:.1f} mph", "savant")
+        if s.get("o_swing_pct"):
+            _add(tm, f"O-Swing% ({nm})", f"{s['o_swing_pct']*100:.1f}%", "fangraphs")
+        if s.get("barrel_pct_against"):
+            _add(tm, f"Barrel% vs ({nm})", f"{s['barrel_pct_against']*100:.1f}%", "savant")
+        if s.get("fastball_pct"):
+            _add(tm, f"Fastball% ({nm})", f"{s['fastball_pct']:.0f}%", "savant")
+
+    # Bullpen
+    _add(team_home, "Bullpen FIP (adj)", round(_bp_home, 2), "derived")
+    _add(team_away, "Bullpen FIP (adj)", round(_bp_away, 2), "derived")
+
+    # Fatigue & rest
+    for tm, fat in [(team_home, _fat_home), (team_away, _fat_away)]:
+        if fat.get("games_last_3") is not None:
+            _add(tm, "Games last 3 days", fat["games_last_3"], "espn_schedule")
+        if fat.get("rest_days") is not None:
+            _add(tm, "Rest days", fat["rest_days"], "espn_schedule")
+        mult = fat.get("bullpen_fatigue_mult", 1.0)
+        if mult != 1.0:
+            _add(tm, "Bullpen fatigue mult", round(mult, 2), "espn_schedule")
+
+    # Park & weather
+    _add("—", "Park factor", park_factor, "espn")
+    if is_dome:
+        _add("—", "Venue type", "Dome — weather neutral", "stadium")
+    else:
+        wconf = weather_sigs.get("weather_confidence", 0.0)
+        _wsrc = "openweather" if wconf > 0 else "no OPENWEATHER_API_KEY"
+        tf = weather_sigs.get("temp_f", 72.0)
+        wm = weather_sigs.get("wind_mph", 0.0)
+        if tf != 72.0:
+            _add("—", "Temperature", f"{tf:.0f}°F", _wsrc)
+        if wm > 0:
+            _add("—", "Wind speed", f"{wm:.0f} mph", _wsrc)
+        if weather_factor != 1.0:
+            _add("—", "Weather factor", round(weather_factor, 3), _wsrc)
+
     return {
         "match_id":   match_id,
         "team_a":     team_a,
@@ -752,6 +829,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "kelly_b":           kelly_b,
         "kelly_note":        kelly.get("note", ""),
         "markets":           formatted_markets,
+        "ai_signals":        ai_signals,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,
     }
