@@ -375,6 +375,8 @@ def build_season(season: int, checkpoint_path: Path) -> list[dict]:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    global REQUEST_DELAY
+
     parser = argparse.ArgumentParser(description="Build historical NRFI training dataset")
     parser.add_argument("--seasons", nargs="+", type=int, default=DEFAULT_SEASONS,
                         help="MLB seasons to scrape (default: 2022 2023 2024)")
@@ -384,7 +386,6 @@ def main():
                         help="Seconds between MLB API calls (default: 1.0)")
     args = parser.parse_args()
 
-    global REQUEST_DELAY
     REQUEST_DELAY = args.delay
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
