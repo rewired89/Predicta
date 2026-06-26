@@ -21,6 +21,7 @@ from models.baseball_market import (
 )
 from models.elo import EloModel
 from models.kelly import kelly_stake, american_to_decimal, market_edge_summary
+from models.nrfi_model import predict_nrfi, model_available as nrfi_model_available
 
 
 def _elo_from_winpct(win_pct: float) -> float:
@@ -831,6 +832,38 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     # Starters in home/away order for easy frontend rendering
     home_starter = starter_a if is_home_a else starter_b
     away_starter = starter_b if is_home_a else starter_a
+
+    # ── NRFI model override (replaces mu/9 approximation when trained) ────────
+    # predict_nrfi() returns None when models/nrfi_xgb.json doesn't exist yet.
+    # Once you run: python scripts/build_nrfi_dataset.py && python models/nrfi_model.py --train
+    # the trained model is used automatically on every restart.
+    _nrfi_ml_prob = predict_nrfi(home_starter, away_starter, home_team, park_factor)
+    if _nrfi_ml_prob is not None and "nrfi" in formatted_markets:
+        _p_nrfi_ml = round(_nrfi_ml_prob * 100, 1)
+        _p_yrfi_ml = round((1 - _nrfi_ml_prob) * 100, 1)
+        formatted_markets["nrfi"] = {
+            "label": "NRFI / YRFI",
+            "options": [
+                {"label": "NRFI (No Run First Inning)", "prob": _p_nrfi_ml,
+                 "best": _p_nrfi_ml >= _p_yrfi_ml},
+                {"label": "YRFI (Yes Run First Inning)", "prob": _p_yrfi_ml,
+                 "best": _p_yrfi_ml > _p_nrfi_ml},
+            ],
+            "note": "XGBoost model trained on 2022–2024 MLB first-inning outcomes",
+            "model": "xgb_calibrated",
+        }
+        steps.append({"step": "nrfi_model", "status": "ok",
+                      "p_nrfi": _p_nrfi_ml, "source": "xgboost"})
+    else:
+        # Poisson mu/9 approximation — unvalidated, label it clearly
+        if "nrfi" in formatted_markets:
+            formatted_markets["nrfi"]["note"] = (
+                "Poisson approximation (mu/9) — unvalidated. "
+                "Run build_nrfi_dataset.py + nrfi_model.py --train to activate XGBoost model."
+            )
+            formatted_markets["nrfi"]["model"] = "poisson_approx"
+        steps.append({"step": "nrfi_model", "status": "skipped",
+                      "reason": "model not trained yet"})
     home_hitting  = hitting_a if is_home_a else hitting_b
     away_hitting  = hitting_b if is_home_a else hitting_a
     home_record   = record_a  if is_home_a else record_b
