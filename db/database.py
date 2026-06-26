@@ -7,7 +7,7 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
 def _migrate_sport_check(conn: sqlite3.Connection) -> None:
-    """One-time migration: widen matches.sport CHECK to include 'baseball'."""
+    """Widen matches.sport CHECK to include all active sports (baseball, esports)."""
     # Clean up any leftover backup table from a previously interrupted migration
     bak_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='_matches_bak'"
@@ -19,12 +19,13 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='matches'"
     ).fetchone()
-    if row and "'baseball'" not in row[0]:
+    FULL_CONSTRAINT = "'soccer','table_tennis','tennis','baseball','esports'"
+    if row and FULL_CONSTRAINT not in row[0]:
         conn.execute("ALTER TABLE matches RENAME TO _matches_bak")
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE matches (
                 id INTEGER PRIMARY KEY,
-                sport TEXT NOT NULL CHECK(sport IN ('soccer','table_tennis','tennis','baseball')),
+                sport TEXT NOT NULL CHECK(sport IN ({FULL_CONSTRAINT})),
                 league TEXT,
                 participant_a TEXT NOT NULL,
                 participant_b TEXT NOT NULL,

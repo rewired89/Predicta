@@ -265,6 +265,138 @@ def signal_accuracy():
     return result
 
 
+# ── Prediction Audit ──────────────────────────────────────────────────────────
+
+def _categorize_prediction(
+    was_correct: bool,
+    prob_a: float,
+    score_a,
+    score_b,
+    sport: str,
+    signals: dict,
+) -> str:
+    """Assign a failure (or success) category to a resolved prediction."""
+    max_prob = max(prob_a, 1.0 - prob_a)
+
+    if was_correct:
+        return "CORRECT_HIGH_CONF" if max_prob >= 0.65 else "CORRECT"
+
+    # Data quality gate
+    for key, val in signals.items():
+        if "data_confidence" in key and isinstance((val or {}).get("text"), str):
+            if "Low" in val["text"]:
+                return "LOW_DATA_QUALITY"
+
+    # Coin flip — less than 4pp model edge, outcome is noise
+    if max_prob < 0.54:
+        return "COIN_FLIP"
+
+    # Close game / match (within 1 run/goal/game)
+    if score_a is not None and score_b is not None:
+        if abs(score_a - score_b) <= 1:
+            return "CLOSE_GAME"
+
+    # High confidence miss
+    if max_prob >= 0.65:
+        return "HIGH_CONFIDENCE_MISS"
+
+    # Weather impact (baseball / soccer)
+    if sport in ("baseball", "soccer"):
+        wind = (signals.get("wind_factor") or {}).get("value")
+        if wind is not None and abs(wind - 1.0) > 0.03:
+            return "WEATHER_IMPACT"
+
+    return "NORMAL_VARIANCE"
+
+
+@app.get("/prediction-audit")
+def prediction_audit(sport: Optional[str] = None, limit: int = 100):
+    """
+    Resolved predictions with failure categories and all logged signals.
+
+    Use this to diagnose model weaknesses: filter by sport or category,
+    then copy the output via GET /audit for AI review.
+
+    Categories:
+      CORRECT / CORRECT_HIGH_CONF — model was right
+      HIGH_CONFIDENCE_MISS — model >65% confident, still wrong
+      CLOSE_GAME — outcome within 1 run/goal (variance, not model error)
+      COIN_FLIP — edge <4pp, outcome is noise
+      WEATHER_IMPACT — wind/temp signals were non-neutral
+      LOW_DATA_QUALITY — data_confidence=Low at prediction time
+      NORMAL_VARIANCE — within normal model range, no clear signal
+    """
+    with get_db() as conn:
+        q = """
+            SELECT m.id, m.sport, m.league, m.participant_a, m.participant_b,
+                   m.scheduled_at, m.venue,
+                   p.prob_a, p.prob_b, p.method, p.explanation,
+                   o.result, o.score_a, o.score_b, o.recorded_at
+            FROM matches m
+            JOIN predictions p ON p.match_id = m.id
+            JOIN outcomes    o ON o.match_id = m.id
+            WHERE 1=1
+        """
+        params: list = []
+        if sport:
+            q += " AND m.sport = ?"
+            params.append(sport)
+        q += " ORDER BY m.scheduled_at DESC LIMIT ?"
+        params.append(limit)
+        rows = conn.execute(q, params).fetchall()
+
+        results = []
+        for row in rows:
+            r = dict(row)
+            mid = r["id"]
+
+            # Pull all signals for this match
+            sigs_raw = conn.execute(
+                "SELECT signal_name, participant, signal_value, signal_text "
+                "FROM signals WHERE match_id=?", (mid,)
+            ).fetchall()
+
+            signals: dict = {}
+            for s in sigs_raw:
+                key = s["signal_name"]
+                if s["participant"]:
+                    key = f"{key}_{s['participant']}"
+                signals[key] = {"value": s["signal_value"], "text": s["signal_text"]}
+
+            prob_a = r["prob_a"] or 0.5
+            predicted = "a" if prob_a >= 0.5 else "b"
+            was_correct = predicted == r["result"]
+
+            r["signals"] = signals
+            r["predicted_winner"] = predicted
+            r["was_correct"] = was_correct
+            r["failure_category"] = _categorize_prediction(
+                was_correct, prob_a, r["score_a"], r["score_b"], r["sport"], signals
+            )
+            results.append(r)
+
+    # Summary stats
+    total = len(results)
+    correct = sum(1 for r in results if r["was_correct"])
+    cat_counts: dict = {}
+    for r in results:
+        cat = r["failure_category"]
+        cat_counts[cat] = cat_counts.get(cat, 0) + 1
+
+    return {
+        "total": total,
+        "correct": correct,
+        "accuracy_pct": round(correct / total * 100, 1) if total else 0,
+        "category_counts": cat_counts,
+        "predictions": results,
+    }
+
+
+@app.get("/audit", response_class=HTMLResponse)
+def audit_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "audit.html").read_text(encoding="utf-8"))
+
+
 # ── Accuracy & Calibration ────────────────────────────────────────────────────
 
 @app.get("/accuracy")

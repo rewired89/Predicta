@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prediction Audit — Predicta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #080d14;
+    --surface:    #0e1520;
+    --surface2:   #111b2e;
+    --border:     #1a2840;
+    --green:      #00e676;
+    --green-dim:  #00e67622;
+    --purple:     #a78bfa;
+    --amber:      #fbbf24;
+    --red:        #f87171;
+    --cyan:       #22d3ee;
+    --text:       #e2e8f0;
+    --muted:      #5a7299;
+    --radius:     12px;
+  }
+
+  html { font-size: 14px; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header {
+    background: rgba(8,13,20,.9); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 13px 28px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo { font-size: 1.2rem; font-weight: 800; color: var(--green); letter-spacing: -.5px; }
+  .badge { background: #00e67618; color: var(--green); font-size: .6rem; padding: 2px 7px; border-radius: 99px; font-weight: 700; letter-spacing: .8px; border: 1px solid #00e67630; }
+  header nav { margin-left: auto; display: flex; gap: 18px; align-items: center; }
+  header nav a { color: var(--muted); text-decoration: none; font-size: .8rem; font-weight: 500; transition: color .2s; }
+  header nav a:hover { color: var(--text); }
+  header nav a.active { color: var(--green); }
+
+  /* ── Page ── */
+  .page { flex: 1; max-width: 1200px; margin: 0 auto; padding: 28px 20px 80px; width: 100%; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--muted); margin-bottom: 24px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--green); }
+  .breadcrumb .sep { color: var(--border); }
+
+  /* ── Hero ── */
+  .hero { margin-bottom: 28px; }
+  .hero-eyebrow { font-size: .65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green); opacity: .7; margin-bottom: 6px; }
+  .hero-title { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; letter-spacing: -.3px; margin-bottom: 6px; }
+  .hero-title .accent { color: var(--green); }
+  .hero-sub { font-size: .82rem; color: var(--muted); line-height: 1.6; max-width: 580px; }
+
+  /* ── Controls ── */
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .select-wrap { position: relative; }
+  select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: .8rem; padding: 8px 30px 8px 12px;
+    outline: none; appearance: none; cursor: pointer; min-width: 140px;
+    transition: border-color .2s;
+  }
+  select:focus { border-color: var(--green); }
+  .select-wrap::after {
+    content: '▾'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none; font-size: .75rem;
+  }
+  .btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: .8rem; font-weight: 600; padding: 8px 16px;
+    cursor: pointer; transition: border-color .2s, color .2s, background .2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { border-color: var(--green); color: var(--green); }
+  .btn.primary { background: var(--green); color: #080d14; border-color: var(--green); font-weight: 700; }
+  .btn.primary:hover { opacity: .88; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Summary cards ── */
+  .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .scard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; text-align: center;
+  }
+  .scard-val { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .scard-lbl { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 4px; }
+  .scard-val.green { color: var(--green); }
+  .scard-val.red   { color: var(--red); }
+  .scard-val.amber { color: var(--amber); }
+
+  /* ── Category legend ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .cat-chip {
+    font-size: .68rem; font-weight: 700; padding: 3px 10px; border-radius: 99px;
+    letter-spacing: .3px; cursor: pointer; transition: opacity .2s;
+  }
+  .cat-chip.inactive { opacity: .35; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  thead th {
+    font-size: .62rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border);
+    text-align: left; white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--text); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 10px 10px; vertical-align: top; }
+  tbody tr.is-correct { border-left: 3px solid var(--green); }
+  tbody tr.is-wrong   { border-left: 3px solid var(--red); }
+
+  /* ── Category badges ── */
+  .cat-badge {
+    display: inline-block; font-size: .62rem; font-weight: 700; padding: 2px 8px;
+    border-radius: 4px; letter-spacing: .5px; white-space: nowrap;
+  }
+  .cat-CORRECT              { background: #00e67620; color: var(--green); }
+  .cat-CORRECT_HIGH_CONF    { background: #00e67630; color: var(--green); border: 1px solid #00e67650; }
+  .cat-HIGH_CONFIDENCE_MISS { background: #f8717125; color: var(--red); }
+  .cat-CLOSE_GAME           { background: #fbbf2420; color: var(--amber); }
+  .cat-COIN_FLIP            { background: #a78bfa20; color: var(--purple); }
+  .cat-WEATHER_IMPACT       { background: #22d3ee20; color: var(--cyan); }
+  .cat-LOW_DATA_QUALITY     { background: #f8717120; color: #f87171cc; }
+  .cat-NORMAL_VARIANCE      { background: #1a284030; color: var(--muted); }
+
+  /* ── Prob bar ── */
+  .prob-bar { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; margin-top: 4px; }
+  .prob-bar-fill { height: 100%; border-radius: 99px; }
+  .prob-bar-fill.green  { background: var(--green); }
+  .prob-bar-fill.purple { background: var(--purple); }
+
+  /* ── Signals tooltip / expand ── */
+  .signals-preview { font-size: .72rem; color: var(--muted); line-height: 1.7; max-width: 300px; }
+  .signals-preview span.sig-name { color: var(--text); font-weight: 600; }
+  .expand-btn { font-size: .65rem; color: var(--green); cursor: pointer; background: none; border: none; padding: 0; margin-top: 2px; display: block; }
+
+  /* ── Copy panel ── */
+  .copy-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 20px;
+  }
+  .copy-panel-title { font-size: .68rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .copy-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── Spinner ── */
+  .spinner { display: none; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
+  .spinner.active { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: .88rem; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--surface);
+    border: 1px solid var(--green); border-radius: 8px; padding: 10px 18px;
+    font-size: .82rem; color: var(--green); font-weight: 600;
+    opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .25s;
+    pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 600px) {
+    .controls { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Predicta</div>
+  <div class="badge">PAPER MODE</div>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/sports">Sports</a>
+    <a href="/report">Report</a>
+    <a href="/audit" class="active">Audit</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<div class="page">
+
+  <div class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span style="color:var(--text)">Prediction Audit</span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-eyebrow">Model Diagnostics · Failure Analysis · AI Export</div>
+    <h1 class="hero-title">Prediction <span class="accent">Audit</span></h1>
+    <p class="hero-sub">Every resolved prediction with failure categories and logged signals. Filter, diagnose, and copy the full dataset for AI review.</p>
+  </div>
+
+  <!-- Copy panel -->
+  <div class="copy-panel">
+    <div class="copy-panel-title">Copy for AI Review</div>
+    <div class="copy-buttons">
+      <button class="btn primary" onclick="copyForAI('all')">📋 Copy All (AI-ready format)</button>
+      <button class="btn" onclick="copyForAI('failed')">📋 Copy Failures Only</button>
+      <button class="btn" onclick="copyForAI('baseball')">📋 Copy Baseball</button>
+      <button class="btn" onclick="copyForAI('summary')">📋 Copy Summary Only</button>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="select-wrap">
+      <select id="sportFilter" onchange="applyFilters()">
+        <option value="">All Sports</option>
+        <option value="baseball">Baseball</option>
+        <option value="tennis">Tennis</option>
+        <option value="table_tennis">Table Tennis</option>
+        <option value="soccer">Soccer</option>
+        <option value="esports">E-Sports</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <select id="catFilter" onchange="applyFilters()">
+        <option value="">All Categories</option>
+        <option value="CORRECT">Correct</option>
+        <option value="CORRECT_HIGH_CONF">Correct High Conf</option>
+        <option value="HIGH_CONFIDENCE_MISS">High Conf Miss</option>
+        <option value="CLOSE_GAME">Close Game</option>
+        <option value="COIN_FLIP">Coin Flip</option>
+        <option value="WEATHER_IMPACT">Weather Impact</option>
+        <option value="LOW_DATA_QUALITY">Low Data Quality</option>
+        <option value="NORMAL_VARIANCE">Normal Variance</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <select id="resultFilter" onchange="applyFilters()">
+        <option value="">All Outcomes</option>
+        <option value="correct">Correct only</option>
+        <option value="wrong">Wrong only</option>
+      </select>
+    </div>
+    <button class="btn" onclick="loadData()">
+      <span id="refreshSpinner" class="spinner"></span>
+      ↺ Refresh
+    </button>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="summary-row" id="summaryRow" style="display:none">
+    <div class="scard">
+      <div class="scard-val" id="sumTotal">—</div>
+      <div class="scard-lbl">Total</div>
+    </div>
+    <div class="scard">
+      <div class="scard-val green" id="sumCorrect">—</div>
+      <div class="scard-lbl">Correct</div>
+    </div>
+    <div class="scard">
+      <div class="scard-val red" id="sumWrong">—</div>
+      <div class="scard-lbl">Wrong</div>
+    </div>
+    <div class="scard">
+      <div class="scard-val" id="sumAccuracy">—</div>
+      <div class="scard-lbl">Accuracy</div>
+    </div>
+    <div class="scard">
+      <div class="scard-val amber" id="sumHighConfMiss">—</div>
+      <div class="scard-lbl">High Conf Miss</div>
+    </div>
+    <div class="scard">
+      <div class="scard-val" id="sumCloseGame">—</div>
+      <div class="scard-lbl">Close Game</div>
+    </div>
+  </div>
+
+  <!-- Category legend chips -->
+  <div class="legend" id="legendRow" style="display:none"></div>
+
+  <!-- Table -->
+  <div class="table-wrap" id="tableWrap">
+    <div class="empty-state" id="emptyState">Loading predictions…</div>
+    <table id="auditTable" style="display:none">
+      <thead>
+        <tr>
+          <th onclick="sortBy('scheduled_at')">Date ↕</th>
+          <th onclick="sortBy('sport')">Sport ↕</th>
+          <th>Match</th>
+          <th onclick="sortBy('prob_a')">Predicted ↕</th>
+          <th>Actual</th>
+          <th>Score</th>
+          <th onclick="sortBy('failure_category')">Category ↕</th>
+          <th>Key Signals</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="auditBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<footer style="text-align:center; padding:20px; font-size:.72rem; color:var(--muted); border-top:1px solid var(--border)">
+  Predicta · Paper mode only · Audit data is for model calibration only.
+</footer>
+
+<script>
+let allData = [];
+let sortKey = 'scheduled_at';
+let sortAsc = false;
+
+const CAT_COLORS = {
+  CORRECT:              '#00e676',
+  CORRECT_HIGH_CONF:    '#00e676',
+  HIGH_CONFIDENCE_MISS: '#f87171',
+  CLOSE_GAME:           '#fbbf24',
+  COIN_FLIP:            '#a78bfa',
+  WEATHER_IMPACT:       '#22d3ee',
+  LOW_DATA_QUALITY:     '#f87171',
+  NORMAL_VARIANCE:      '#5a7299',
+};
+
+const CAT_DESC = {
+  CORRECT:              'Predicted correctly',
+  CORRECT_HIGH_CONF:    'Correct + model ≥65% confident',
+  HIGH_CONFIDENCE_MISS: 'Model ≥65% confident, still wrong',
+  CLOSE_GAME:           'Result within 1 run/goal — variance',
+  COIN_FLIP:            'Edge <4pp — outcome is noise',
+  WEATHER_IMPACT:       'Wind/temp signals were non-neutral',
+  LOW_DATA_QUALITY:     'Data confidence was Low at prediction time',
+  NORMAL_VARIANCE:      'Within expected model variance range',
+};
+
+async function loadData() {
+  const spinner = document.getElementById('refreshSpinner');
+  spinner.classList.add('active');
+  document.getElementById('emptyState').textContent = 'Loading…';
+  document.getElementById('auditTable').style.display = 'none';
+  document.getElementById('summaryRow').style.display = 'none';
+  document.getElementById('legendRow').style.display = 'none';
+
+  try {
+    const resp = await fetch('/prediction-audit?limit=200');
+    const json = await resp.json();
+    allData = json.predictions || [];
+    renderSummary(json);
+    renderLegend(json.category_counts || {});
+    applyFilters();
+  } catch (e) {
+    document.getElementById('emptyState').textContent = 'Failed to load: ' + e.message;
+  } finally {
+    spinner.classList.remove('active');
+  }
+}
+
+function renderSummary(json) {
+  const total = json.total || 0;
+  const correct = json.correct || 0;
+  const cats = json.category_counts || {};
+  document.getElementById('summaryRow').style.display = '';
+  document.getElementById('sumTotal').textContent    = total;
+  document.getElementById('sumCorrect').textContent  = correct;
+  document.getElementById('sumWrong').textContent    = total - correct;
+  document.getElementById('sumAccuracy').textContent = (json.accuracy_pct || 0) + '%';
+  document.getElementById('sumHighConfMiss').textContent = cats['HIGH_CONFIDENCE_MISS'] || 0;
+  document.getElementById('sumCloseGame').textContent    = (cats['CLOSE_GAME'] || 0) + (cats['COIN_FLIP'] ? ' +' + cats['COIN_FLIP'] + ' CF' : '');
+}
+
+function renderLegend(cats) {
+  const row = document.getElementById('legendRow');
+  row.innerHTML = '';
+  row.style.display = '';
+  Object.entries(cats).sort((a,b) => b[1]-a[1]).forEach(([cat, count]) => {
+    const chip = document.createElement('span');
+    chip.className = 'cat-chip';
+    chip.style.background = (CAT_COLORS[cat] || '#5a7299') + '22';
+    chip.style.color = CAT_COLORS[cat] || '#5a7299';
+    chip.style.border = '1px solid ' + (CAT_COLORS[cat] || '#5a7299') + '44';
+    chip.title = CAT_DESC[cat] || cat;
+    chip.textContent = `${cat} (${count})`;
+    chip.onclick = () => {
+      document.getElementById('catFilter').value = cat;
+      applyFilters();
+    };
+    row.appendChild(chip);
+  });
+}
+
+function applyFilters() {
+  const sport = document.getElementById('sportFilter').value;
+  const cat   = document.getElementById('catFilter').value;
+  const res   = document.getElementById('resultFilter').value;
+
+  let filtered = allData.filter(r => {
+    if (sport && r.sport !== sport) return false;
+    if (cat && r.failure_category !== cat) return false;
+    if (res === 'correct' && !r.was_correct) return false;
+    if (res === 'wrong' && r.was_correct) return false;
+    return true;
+  });
+
+  filtered = sortRows(filtered);
+  renderTable(filtered);
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  applyFilters();
+}
+
+function sortRows(rows) {
+  return [...rows].sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    const cmp = String(va).localeCompare(String(vb), undefined, {numeric: true});
+    return sortAsc ? cmp : -cmp;
+  });
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('auditBody');
+  const table = document.getElementById('auditTable');
+  const empty = document.getElementById('emptyState');
+
+  tbody.innerHTML = '';
+
+  if (!rows.length) {
+    table.style.display = 'none';
+    empty.textContent = 'No predictions match the current filters.';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  table.style.display = '';
+
+  rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.className = r.was_correct ? 'is-correct' : 'is-wrong';
+    const date = (r.scheduled_at || '').slice(0, 10);
+    const pA   = (r.prob_a * 100).toFixed(1);
+    const pB   = ((1 - r.prob_a) * 100).toFixed(1);
+    const predTeam = r.predicted_winner === 'a' ? r.participant_a : r.participant_b;
+    const predProb = r.predicted_winner === 'a' ? pA : pB;
+    const actualTeam = r.result === 'a' ? r.participant_a : r.result === 'b' ? r.participant_b : 'Draw';
+    const score = (r.score_a != null && r.score_b != null) ? `${r.score_a}–${r.score_b}` : '—';
+
+    // Key signals (top 5 most relevant)
+    const sigHtml = renderSignalsPreview(r.signals, r.sport, r.participant_a, r.participant_b, idx);
+
+    tr.innerHTML = `
+      <td style="white-space:nowrap; color:var(--muted)">${date}</td>
+      <td><span style="font-size:.65rem; background:var(--surface2); border:1px solid var(--border); padding:2px 7px; border-radius:4px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px">${r.sport}</span></td>
+      <td>
+        <div style="font-weight:700; font-size:.82rem">${r.participant_a} <span style="color:var(--muted); font-weight:400">vs</span> ${r.participant_b}</div>
+        <div style="font-size:.68rem; color:var(--muted); margin-top:2px">${r.league || ''}</div>
+      </td>
+      <td>
+        <div style="font-weight:700">${predTeam}</div>
+        <div style="font-size:.7rem; color:var(--green)">${predProb}%</div>
+        <div class="prob-bar"><div class="prob-bar-fill ${r.predicted_winner === 'a' ? 'green' : 'purple'}" style="width:${predProb}%"></div></div>
+      </td>
+      <td>
+        <div style="font-weight:700; color:${r.was_correct ? 'var(--green)' : 'var(--red)'}">${actualTeam}</div>
+        <div style="font-size:.68rem; color:var(--muted)">${r.was_correct ? '✓ Correct' : '✗ Wrong'}</div>
+      </td>
+      <td style="font-size:.82rem; color:var(--muted)">${score}</td>
+      <td><span class="cat-badge cat-${r.failure_category}" title="${CAT_DESC[r.failure_category] || ''}">${r.failure_category.replace(/_/g, ' ')}</span></td>
+      <td id="sig-${idx}">${sigHtml}</td>
+      <td>
+        <button class="btn" style="padding:4px 8px; font-size:.65rem" onclick="copyRow(${idx})" title="Copy this prediction for AI review">📋</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  // store filtered for copy operations
+  window._currentRows = rows;
+}
+
+function renderSignalsPreview(signals, sport, teamA, teamB, idx) {
+  if (!signals || !Object.keys(signals).length) {
+    return '<span style="color:var(--muted); font-size:.72rem">No signals logged</span>';
+  }
+
+  // Priority signals per sport
+  const PRIORITY = {
+    baseball: ['starter_fip', 'wrc_plus', 'park_factor', 'wind_factor', 'data_confidence', 'siera', 'xfip', 'csw_pct', 'barrel_pct_against'],
+    tennis:   ['sqi', 'rqi', 'surface_win_rate', 'form_score', 'glicko2_rating', 'data_confidence'],
+    table_tennis: ['elo_diff', 'form_diff', 'glicko2_diff', 'data_confidence'],
+    soccer:   ['elo_diff', 'form_diff', 'h2h_decayed', 'xg_per_shot', 'data_confidence'],
+    esports:  ['elo_a', 'elo_b', 'form_a', 'form_b', 'data_confidence'],
+  };
+  const priority = PRIORITY[sport] || [];
+
+  // Sort: priority first, then alphabetical
+  const entries = Object.entries(signals);
+  entries.sort(([a],[b]) => {
+    const pa = priority.findIndex(p => a.startsWith(p));
+    const pb = priority.findIndex(p => b.startsWith(p));
+    if (pa !== -1 && pb !== -1) return pa - pb;
+    if (pa !== -1) return -1;
+    if (pb !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const top5 = entries.slice(0, 5);
+  const rest = entries.slice(5);
+
+  const fmt = ([k, v]) => {
+    const val = v?.value != null ? Number(v.value).toFixed(2) : (v?.text || '—');
+    return `<span class="sig-name">${k.replace(/_/g,'_​')}</span>: ${val}`;
+  };
+
+  let html = `<div class="signals-preview">${top5.map(fmt).join('<br>')}</div>`;
+  if (rest.length) {
+    html += `<button class="expand-btn" onclick="expandSigs(${idx})">+ ${rest.length} more signals</button>`;
+    // Store rest data for expansion
+    window[`_sigRest_${idx}`] = rest;
+  }
+  return html;
+}
+
+function expandSigs(idx) {
+  const cell = document.getElementById('sig-' + idx);
+  const btn = cell?.querySelector('.expand-btn');
+  if (!btn || !window[`_sigRest_${idx}`]) return;
+  const rest = window[`_sigRest_${idx}`];
+  const preview = cell.querySelector('.signals-preview');
+  if (preview) {
+    preview.innerHTML += '<br>' + rest.map(([k, v]) => {
+      const val = v?.value != null ? Number(v.value).toFixed(2) : (v?.text || '—');
+      return `<span class="sig-name">${k}</span>: ${val}`;
+    }).join('<br>');
+  }
+  btn.remove();
+}
+
+function copyRow(idx) {
+  const rows = window._currentRows || [];
+  const r = rows[idx];
+  if (!r) return;
+  const text = formatRowForAI(r);
+  copyToClipboard(text);
+}
+
+function formatRowForAI(r) {
+  const pA = (r.prob_a * 100).toFixed(1);
+  const pB = ((1 - r.prob_a) * 100).toFixed(1);
+  const predTeam = r.predicted_winner === 'a' ? r.participant_a : r.participant_b;
+  const actualTeam = r.result === 'a' ? r.participant_a : r.result === 'b' ? r.participant_b : 'Draw';
+  const score = (r.score_a != null && r.score_b != null) ? `${r.score_a}–${r.score_b}` : 'unknown';
+
+  let lines = [
+    `Match: ${r.participant_a} vs ${r.participant_b}`,
+    `Sport: ${r.sport}${r.league ? ' (' + r.league + ')' : ''}`,
+    `Date: ${(r.scheduled_at || '').slice(0, 10)}`,
+    `Model: ${r.participant_a} ${pA}% | ${r.participant_b} ${pB}%`,
+    `Predicted: ${predTeam}`,
+    `Actual: ${actualTeam} won  Score: ${score}`,
+    `Outcome: ${r.was_correct ? 'CORRECT' : 'WRONG'}`,
+    `Failure Category: ${r.failure_category}  (${CAT_DESC[r.failure_category] || ''})`,
+    `Method: ${r.method || '—'}`,
+    ``,
+    `Signals:`,
+  ];
+
+  const sigs = r.signals || {};
+  Object.entries(sigs).forEach(([k, v]) => {
+    const val = v?.value != null ? Number(v.value).toFixed(3) : (v?.text || '—');
+    lines.push(`  ${k}: ${val}`);
+  });
+
+  return lines.join('\n');
+}
+
+function copyForAI(mode) {
+  const rows = window._currentRows || [];
+  if (!rows.length) { showToast('No data loaded yet'); return; }
+
+  let filtered;
+  if (mode === 'failed') filtered = rows.filter(r => !r.was_correct);
+  else if (mode === 'baseball') filtered = rows.filter(r => r.sport === 'baseball');
+  else if (mode === 'summary') filtered = rows;
+  else filtered = rows;
+
+  const correct = filtered.filter(r => r.was_correct).length;
+  const wrong = filtered.length - correct;
+  const catCounts = {};
+  filtered.forEach(r => { catCounts[r.failure_category] = (catCounts[r.failure_category] || 0) + 1; });
+
+  const lines = [
+    '=== PREDICTA PREDICTION AUDIT ===',
+    `Generated: ${new Date().toISOString().slice(0,10)}`,
+    `Mode: ${mode}  |  Total: ${filtered.length}  |  Correct: ${correct}  |  Wrong: ${wrong}  |  Accuracy: ${filtered.length ? (correct/filtered.length*100).toFixed(1) : 0}%`,
+    '',
+    '=== SUMMARY BY CATEGORY ===',
+    ...Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `  ${k}: ${v}  — ${CAT_DESC[k] || ''}`),
+    '',
+    '=== MODEL QUESTIONS FOR AI REVIEW ===',
+    '1. Baseball run model: Is the FIP-based Poisson approach sound? Should park factors be multiplicative or additive? Is STARTER_FRAC=5/9 right given modern bullpen usage (openers, bulk relievers)?',
+    '2. Bullpen FIP derivation: formula (team_ERA×9 − starter_FIP×5) / 4 assumes 5 IP. Is this reasonable? How does opener strategy affect this?',
+    '3. wRC+ approximation: wRC+ ≈ (OPS / 0.730) × 100. How large is the error vs true wRC+?',
+    '4. Tennis logistic scale: scale=40. Is this well-calibrated?',
+    '5. Elo blend: 70% Poisson + 30% Elo. Is this optimal?',
+    '6. Kelly fraction: Quarter-Kelly (0.25). Is this appropriate for a new model?',
+    '',
+    mode === 'summary' ? '(predictions omitted — summary mode)' : `=== ${mode === 'failed' ? 'FAILED' : 'ALL'} PREDICTIONS ===`,
+  ];
+
+  if (mode !== 'summary') {
+    filtered.forEach((r, i) => {
+      lines.push('');
+      lines.push(`--- [${i+1}] ${r.was_correct ? '✓' : '✗'} ${r.failure_category} ---`);
+      lines.push(formatRowForAI(r));
+    });
+  }
+
+  lines.push('');
+  lines.push('=== END OF AUDIT ===');
+
+  copyToClipboard(lines.join('\n'));
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied to clipboard!');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied!');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Load on page open
+loadData();
+</script>
+</body>
+</html>

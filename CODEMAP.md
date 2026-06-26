@@ -6373,3 +6373,75 @@ called_by: HTTP POST /analyze-esports
 mutates: matches, predictions, signals tables
 ---
 
+---
+
+## app.py (prediction audit)
+
+---
+name: _categorize_prediction
+type: function
+file: app.py
+purpose: Assign a failure (or success) category to a resolved prediction. Returns one of 7 labels: CORRECT, CORRECT_HIGH_CONF, HIGH_CONFIDENCE_MISS, CLOSE_GAME, COIN_FLIP, WEATHER_IMPACT, LOW_DATA_QUALITY, NORMAL_VARIANCE. Called per-row inside prediction_audit at query time — nothing is stored; categories are computed fresh from logged signals + probability.
+inputs: was_correct: bool, prob_a: float, score_a: int|None, score_b: int|None, sport: str, signals: dict
+outputs: str (category label)
+calls: none
+called_by: prediction_audit
+mutates: none
+---
+
+---
+name: prediction_audit
+type: function
+file: app.py
+purpose: GET /prediction-audit?sport=&limit=100 — returns resolved predictions with full logged signals and failure category per row. Summary block includes total, correct count, accuracy_pct, and category_counts dict. Used by audit UI and for copy-for-AI export.
+inputs: sport: Optional[str] = None, limit: int = 100 (query params)
+outputs: dict {total, correct, accuracy_pct, category_counts, predictions: list[dict]}
+calls: get_db, _categorize_prediction
+called_by: GET /prediction-audit, audit.html (fetch)
+mutates: none
+---
+
+---
+name: audit_ui
+type: function
+file: app.py
+purpose: GET /audit — serves audit.html, the prediction failure analysis UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: GET /audit
+mutates: none
+---
+
+---
+
+## templates/audit.html
+
+---
+name: audit.html
+type: template
+file: templates/audit.html
+purpose: Prediction audit and failure analysis UI. Fetches GET /prediction-audit on load. Displays summary cards (total, correct, wrong, accuracy, high-conf misses, close games). Category legend chips filter the table. Per-row: date, sport badge, match, predicted team+prob+bar, actual result (color-coded), score, failure_category badge, key signals preview with expand button. Copy panel exports AI-ready structured text via 4 buttons: Copy All, Copy Failures Only, Copy Baseball, Copy Summary Only. Output includes Kimi's 7 model-design questions for AI reviewer context.
+inputs: none (static HTML; fetches /prediction-audit via JS)
+outputs: HTMLResponse
+calls: GET /prediction-audit
+called_by: GET /audit (audit_ui in app.py)
+mutates: none
+---
+
+---
+
+## db/database.py (migrations)
+
+---
+name: _migrate_sport_check
+type: function
+file: db/database.py
+purpose: Widens the matches.sport CHECK constraint to include all 5 active sports: soccer, table_tennis, tennis, baseball, esports. Detects if the full constraint string is absent from the existing DDL and, if so, renames the table, recreates it with the full constraint, copies data back, and drops the backup. Idempotent — skips if constraint already present. Also cleans up any leftover _matches_bak from a previously interrupted migration.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: sqlite3.Connection.execute, conn.commit
+called_by: init_db
+mutates: predicta.db schema (matches table DDL)
+---
+
