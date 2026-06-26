@@ -2449,6 +2449,18 @@ mutates: outcomes table (unless dry_run)
 ---
 
 ---
+name: tt_performance
+type: function
+file: app.py
+purpose: GET /tt-performance — Kimi's proof-of-edge endpoint for table tennis validation. Returns verdict: EDGE PROVEN (ROI>5%), EDGE EXISTS (ROI>0%), CALIBRATED-CHECK-ODDS (Brier<0.22), NO EDGE, or NOT ENOUGH DATA (<10 resolved). Plain-English guidance for each state. Call weekly after paper trading round-trip.
+inputs: none
+outputs: dict {verdict, n_resolved, roi?, brier_score?, message, next_step}
+calls: compute_metrics_from_db(sport="table_tennis")
+called_by: HTTP GET /tt-performance
+mutates: none
+---
+
+---
 name: signal_accuracy
 type: function
 file: app.py
@@ -3294,9 +3306,9 @@ mutates: none
 name: parse_baseball_query
 type: function
 file: ai_agent_baseball.py
-purpose: Sends user's baseball query to Claude and returns structured JSON with home team, away team, date, and notes.
+purpose: Sends user's baseball query to Claude and returns structured JSON with home team, away team, date, notes, and optional American odds. Extracts odds_a_american and odds_b_american when present in query (e.g. "NYY -130 vs BOS +110 tonight").
 inputs: user_text: str
-outputs: dict {team_a, team_b, date, notes}
+outputs: dict {team_a, team_b, date, notes, odds_a_american?: float, odds_b_american?: float}
 calls: _client, client.messages.create, json.loads, re.sub
 called_by: run_baseball_analysis
 mutates: none
@@ -5828,6 +5840,30 @@ mutates: ngram_models table (test symbol "_TEST_NGRAM_SYMBOL_")
 ---
 
 ## fetchers/savant.py
+
+---
+name: _load_fg_pitchers
+type: function
+file: fetchers/savant.py
+purpose: Load FanGraphs pitching_stats DataFrame for a season. Tries `season` first, then `season-1` as fallback — handles mid-season gaps where current-year data is not yet available (e.g. 2026 in June). Results cached in _PITCHER_CACHE keyed by the requested season. Returns None when pybaseball/pandas not installed.
+inputs: season: int
+outputs: Optional[pd.DataFrame]
+calls: pyb.pitching_stats
+called_by: fetch_pitcher_fg
+mutates: _PITCHER_CACHE
+---
+
+---
+name: _load_fg_batters
+type: function
+file: fetchers/savant.py
+purpose: Load FanGraphs batting_stats DataFrame for a season. Same season-1 fallback as _load_fg_pitchers — if current year empty or errors, silently retries with season-1. Results cached in _BATTER_CACHE. Returns None when pybaseball/pandas not installed.
+inputs: season: int
+outputs: Optional[pd.DataFrame]
+calls: pyb.batting_stats
+called_by: fetch_team_batting_fg
+mutates: _BATTER_CACHE
+---
 
 ---
 name: fetch_pitcher_fg
