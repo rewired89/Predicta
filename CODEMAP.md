@@ -6429,6 +6429,10 @@ called_by: GET /audit (audit_ui in app.py)
 mutates: none
 ---
 
+## nav link updates (Audit in all sport pages)
+
+Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tennis.html, ping_pong.html, esports.html. All point to GET /audit. ping_pong.html also has diagnosis shortcut buttons (📊 TT Prediction Audit → /audit?sport=table_tennis, 🔬 Model Performance → /tt-performance).
+
 ---
 
 ## db/database.py (migrations)
