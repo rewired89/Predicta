@@ -131,6 +131,45 @@
 
   #results { display: none; margin-top: 28px; }
 
+  /* ── Bet Recommendations ── */
+  #bet-recs { margin-bottom: 20px; }
+  .bet-recs-title { font-size: .72rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green); opacity: .7; margin-bottom: 10px; }
+  .bet-recs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .bet-recs-grid { grid-template-columns: 1fr; } }
+
+  .bet-card {
+    border-radius: var(--radius); padding: 16px 18px;
+    border: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .bet-card.verdict-BET   { border-color: var(--green); background: #00e67608; }
+  .bet-card.verdict-LEAN  { border-color: var(--amber); background: #fbbf2408; }
+  .bet-card.verdict-SKIP  { border-color: var(--border); opacity: .6; }
+
+  .bet-verdict {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .68rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 99px;
+  }
+  .verdict-BET  .bet-verdict { background: #00e67618; color: var(--green); border: 1px solid #00e67640; }
+  .verdict-LEAN .bet-verdict { background: #fbbf2418; color: var(--amber); border: 1px solid #fbbf2440; }
+  .verdict-SKIP .bet-verdict { background: var(--border); color: var(--muted); border: 1px solid transparent; }
+
+  .bet-market { font-size: .68rem; color: var(--muted); font-weight: 600; letter-spacing: .8px; text-transform: uppercase; }
+  .bet-label  { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+  .bet-prob   { font-size: .78rem; color: var(--muted); }
+  .bet-prob strong { color: var(--text); }
+  .bet-conf   { font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; display: inline-block; }
+  .conf-HIGH   { background: #00e67618; color: var(--green); }
+  .conf-MEDIUM { background: #fbbf2418; color: var(--amber); }
+  .conf-LOW    { background: #60a5fa18; color: #60a5fa; }
+
+  .bet-reasons { font-size: .75rem; color: var(--muted); line-height: 1.5; padding-top: 4px; border-top: 1px solid var(--border); }
+  .bet-reasons li { list-style: none; padding-left: 12px; position: relative; }
+  .bet-reasons li::before { content: '✓'; position: absolute; left: 0; color: var(--green); }
+  .verdict-SKIP .bet-reasons li::before { content: '✗'; color: var(--red); }
+  .verdict-LEAN .bet-reasons li::before { content: '~'; color: var(--amber); }
+
   .prediction-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
   .match-header { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
   .team-name { font-size: 1.3rem; font-weight: 700; text-align: center; min-width: 120px; }
@@ -283,6 +322,13 @@
   <div id="error-card"></div>
 
   <div id="results">
+
+    <!-- Bet Recommendations -->
+    <div id="bet-recs" style="display:none;">
+      <div class="bet-recs-title">What to bet</div>
+      <div class="bet-recs-grid" id="bet-recs-grid"></div>
+    </div>
+
     <div class="prediction-card">
       <div class="match-header">
         <div class="team-name" id="res-team-a"></div>
@@ -434,6 +480,38 @@ function marketOptionRow(opt) {
     <div class="market-bar-wrap"><div class="market-bar" style="width:${opt.prob}%"></div></div>
     <span class="market-pct">${opt.prob}%</span>
   </div>`;
+}
+
+function renderBetRecs(recs) {
+  const section = document.getElementById("bet-recs");
+  const grid    = document.getElementById("bet-recs-grid");
+  if (!recs || recs.length === 0) { section.style.display = "none"; return; }
+  section.style.display = "block";
+  grid.innerHTML = "";
+
+  const icons = { BET: "🎯", LEAN: "↗", SKIP: "—" };
+
+  recs.forEach(r => {
+    const reasonsHtml = (r.reasons && r.reasons.length)
+      ? `<ul class="bet-reasons">${r.reasons.map(x => `<li>${x}</li>`).join("")}</ul>`
+      : (r.skip_reason ? `<ul class="bet-reasons"><li>${r.skip_reason}</li></ul>` : "");
+
+    const confHtml = r.confidence
+      ? `<span class="bet-conf conf-${r.confidence}">${r.confidence}</span>`
+      : "";
+
+    grid.innerHTML += `
+      <div class="bet-card verdict-${r.verdict}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span class="bet-market">${r.market}</span>
+          ${confHtml}
+        </div>
+        <span class="bet-verdict">${icons[r.verdict] || ""} ${r.verdict}</span>
+        <div class="bet-label">${r.bet}</div>
+        <div class="bet-prob">Model: <strong>${r.model_prob}%</strong> (threshold ${r.threshold}%)</div>
+        ${reasonsHtml}
+      </div>`;
+  });
 }
 
 function renderMarkets(markets, teamA, teamB) {
@@ -718,6 +796,9 @@ async function runAnalysis() {
 
     // Trace
     document.getElementById("trace-pre").textContent = JSON.stringify(data.steps, null, 2);
+
+    // Bet recommendations
+    renderBetRecs(data.bet_recommendations || []);
 
     // Markets
     renderMarkets(data.markets || {}, data.team_a, data.team_b);

@@ -170,6 +170,174 @@ def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> d
     return result
 
 
+def _bet_recommendations(
+    formatted_markets: dict,
+    home_starter: dict,
+    away_starter: dict,
+    team_home: str,
+    team_away: str,
+) -> list[dict]:
+    """
+    Explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline.
+
+    NRFI:      prob >= 65% + at least one starter with CSW% > 30% OR barrel% < 6.5%
+    F5:        leading side >= 60% + SIERA/FIP gap between starters >= 1.0
+    Full Game: leading side >= 62%
+
+    Uses formatted_markets (probabilities already in %).
+    """
+    recs: list[dict] = []
+
+    # ── NRFI ─────────────────────────────────────────────────────────────────
+    nrfi = formatted_markets.get("nrfi", {})
+    if nrfi:
+        opts     = nrfi.get("options", [])
+        p_nrfi   = opts[0]["prob"] if opts else 50.0
+        p_yrfi   = opts[1]["prob"] if len(opts) > 1 else 50.0
+        main_side = "NRFI" if p_nrfi >= p_yrfi else "YRFI"
+        main_prob = max(p_nrfi, p_yrfi)
+
+        # Starter quality gate — CSW% and barrel% from Savant
+        elite: list[str] = []
+        for label, s in ((team_home, home_starter), (team_away, away_starter)):
+            name = s.get("name", label + " starter")
+            csw  = s.get("csw_pct")
+            brl  = s.get("barrel_pct_against")
+            if csw is not None and csw > 0.300:
+                elite.append(f"{name} CSW% {csw*100:.1f}% (elite, league avg 28.5%)")
+            if brl is not None and brl < 0.065:
+                elite.append(f"{name} barrel% {brl*100:.1f}% against (low, league avg 7.5%)")
+
+        if main_side == "NRFI" and p_nrfi >= 65.0 and elite:
+            verdict     = "BET"
+            confidence  = "HIGH" if (p_nrfi >= 70.0 and len(elite) >= 2) else "MEDIUM"
+            reasons     = [f"Model: {p_nrfi:.1f}% NRFI probability (threshold 65%)"] + elite
+            skip_reason = None
+        elif main_side == "YRFI" and p_yrfi >= 65.0:
+            verdict     = "BET"
+            confidence  = "MEDIUM"
+            reasons     = [f"Model: {p_yrfi:.1f}% YRFI — both starters expected to give up first-inning runs"]
+            skip_reason = None
+        else:
+            verdict     = "SKIP"
+            confidence  = None
+            reasons     = []
+            parts: list[str] = []
+            if main_side == "NRFI" and p_nrfi < 65.0:
+                parts.append(f"NRFI {p_nrfi:.1f}% below 65% threshold")
+            if main_side == "NRFI" and not elite:
+                parts.append("no elite starter signals (need CSW% > 30% or barrel% < 6.5%)")
+            skip_reason = "; ".join(parts) or f"edge insufficient ({main_side} {main_prob:.1f}%)"
+
+        recs.append({
+            "market":      "NRFI",
+            "verdict":     verdict,
+            "bet":         "NRFI Yes (No Run 1st Inning)" if main_side == "NRFI" else "YRFI Yes (Run 1st Inning)",
+            "model_prob":  round(main_prob, 1),
+            "threshold":   65.0,
+            "confidence":  confidence,
+            "reasons":     reasons,
+            "skip_reason": skip_reason,
+        })
+
+    # ── F5 ───────────────────────────────────────────────────────────────────
+    f5 = formatted_markets.get("first_five", {})
+    if f5:
+        opts         = f5.get("options", [])
+        home_f5_prob = opts[0]["prob"] if opts else 50.0
+        away_f5_prob = opts[1]["prob"] if len(opts) > 1 else 50.0
+        leading_side = "home" if home_f5_prob >= away_f5_prob else "away"
+        leading_team = team_home if leading_side == "home" else team_away
+        leading_prob = max(home_f5_prob, away_f5_prob)
+
+        # Use SIERA when available; fall back to FIP
+        home_q = home_starter.get("siera") or home_starter.get("fip") or 4.00
+        away_q = away_starter.get("siera") or away_starter.get("fip") or 4.00
+        home_src = "SIERA" if home_starter.get("siera") else "FIP"
+        away_src = "SIERA" if away_starter.get("siera") else "FIP"
+
+        if leading_side == "home":
+            fav_q, fav_src, fav_name = home_q, home_src, home_starter.get("name", "Home starter")
+            dog_q, dog_src, dog_name = away_q, away_src, away_starter.get("name", "Away starter")
+        else:
+            fav_q, fav_src, fav_name = away_q, away_src, away_starter.get("name", "Away starter")
+            dog_q, dog_src, dog_name = home_q, home_src, home_starter.get("name", "Home starter")
+
+        # Positive gap = favored team has better (lower) starter SIERA
+        gap = dog_q - fav_q
+
+        if leading_prob >= 60.0 and gap >= 1.0:
+            verdict     = "BET"
+            confidence  = "HIGH" if (leading_prob >= 65.0 and gap >= 1.5) else "MEDIUM"
+            reasons     = [
+                f"Model: {leading_prob:.1f}% F5 for {leading_team}",
+                f"Starter gap: {fav_name} {fav_src} {fav_q:.2f} vs {dog_name} {dog_src} {dog_q:.2f} (gap {gap:.2f}, threshold 1.0)",
+            ]
+            skip_reason = None
+        elif leading_prob >= 60.0:
+            verdict     = "LEAN"
+            confidence  = "LOW"
+            reasons     = [
+                f"Model: {leading_prob:.1f}% F5 for {leading_team} — starter gap {gap:.2f} < 1.0",
+            ]
+            skip_reason = f"Starter SIERA/FIP gap {gap:.2f} below 1.0 — soft lean only"
+        else:
+            verdict     = "SKIP"
+            confidence  = None
+            reasons     = []
+            skip_reason = f"F5 probability {leading_prob:.1f}% below 60% threshold"
+
+        recs.append({
+            "market":      "F5",
+            "verdict":     verdict,
+            "bet":         f"{leading_team} to lead after 5 innings",
+            "model_prob":  round(leading_prob, 1),
+            "threshold":   60.0,
+            "confidence":  confidence,
+            "reasons":     reasons,
+            "skip_reason": skip_reason,
+        })
+
+    # ── Full Game Moneyline ───────────────────────────────────────────────────
+    ml = formatted_markets.get("moneyline", {})
+    if ml:
+        opts         = ml.get("options", [])
+        home_ml_prob = opts[0]["prob"] if opts else 50.0
+        away_ml_prob = opts[1]["prob"] if len(opts) > 1 else 50.0
+        leading_side = "home" if home_ml_prob >= away_ml_prob else "away"
+        leading_team = team_home if leading_side == "home" else team_away
+        leading_prob = max(home_ml_prob, away_ml_prob)
+
+        if leading_prob >= 62.0:
+            verdict     = "BET"
+            confidence  = "HIGH" if leading_prob >= 68.0 else "MEDIUM"
+            reasons     = [f"Model: {leading_prob:.1f}% full-game edge for {leading_team}"]
+            skip_reason = None
+        elif leading_prob >= 57.0:
+            verdict     = "LEAN"
+            confidence  = "LOW"
+            reasons     = [f"Model: {leading_prob:.1f}% — soft edge for {leading_team}"]
+            skip_reason = "Below 62% full-game threshold — lean only, no bet"
+        else:
+            verdict     = "SKIP"
+            confidence  = None
+            reasons     = []
+            skip_reason = f"{leading_prob:.1f}% — coin-flip range, no edge"
+
+        recs.append({
+            "market":      "Full Game",
+            "verdict":     verdict,
+            "bet":         f"{leading_team} moneyline",
+            "model_prob":  round(leading_prob, 1),
+            "threshold":   62.0,
+            "confidence":  confidence,
+            "reasons":     reasons,
+            "skip_reason": skip_reason,
+        })
+
+    return recs
+
+
 def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                           odds_a: float = 1.909, odds_b: float = 1.909) -> dict:
     """
@@ -849,6 +1017,9 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "kelly_b":           kelly_b,
         "kelly_note":        kelly.get("note", ""),
         "markets":           formatted_markets,
+        "bet_recommendations": _bet_recommendations(
+            formatted_markets, home_starter, away_starter, team_home, team_away
+        ),
         "ai_signals":        ai_signals,
         "market_comparison": market_comparison,
         "raw_sources":       context.get("sources", []),

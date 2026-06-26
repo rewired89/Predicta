@@ -6429,6 +6429,20 @@ called_by: GET /audit (audit_ui in app.py)
 mutates: none
 ---
 
+## analyze_baseball.py (bet recommendations)
+
+---
+name: _bet_recommendations
+type: function
+file: analyze_baseball.py
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 65% + at least one starter with CSW% > 30% OR barrel% < 6.5%. F5: leading side >= 60% + SIERA/FIP gap between starters >= 1.0. Full Game: leading side >= 62%. Uses formatted_markets dict (probabilities already in %). Returns list of dicts with market, verdict, bet, model_prob, threshold, confidence, reasons, skip_reason.
+inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str
+outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
+calls: none
+called_by: run_baseball_analysis
+mutates: none
+---
+
 ## nav link updates (Audit in all sport pages)
 
 Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tennis.html, ping_pong.html, esports.html. All point to GET /audit. ping_pong.html also has diagnosis shortcut buttons (📊 TT Prediction Audit → /audit?sport=table_tennis, 🔬 Model Performance → /tt-performance).
