@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-06-27T12:05:07.551385+00:00",
+  "fetched_at": "2026-06-27T17:52:30.864685+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-06-26T06:51Z"
+            "lastUpdated": "2026-06-26T16:00Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-06-26T06:51Z"
+            "lastUpdated": "2026-06-26T16:00Z"
           }
         ],
         "calendarType": "day",
@@ -227,6 +227,7 @@
           "2026-06-25T07:00Z",
           "2026-06-26T07:00Z",
           "2026-06-27T07:00Z",
+          "2026-06-28T07:00Z",
           "2026-06-29T07:00Z",
           "2026-06-30T07:00Z",
           "2026-07-01T07:00Z",
@@ -266,7 +267,7 @@
         "id": "444-2026",
         "uid": "s:850~l:900~e:444-2026",
         "date": "2026-06-20T04:00Z",
-        "endDate": "2026-06-28T03:59Z",
+        "endDate": "2026-06-29T03:59Z",
         "major": false,
         "name": "Lexus Eastbourne Open",
         "shortName": "Lexus Eastbourne Open",
@@ -6048,9 +6049,9 @@
               {
                 "id": "177243",
                 "uid": "s:850~l:900~e:444-2026~c:177243",
-                "date": "2026-06-27T13:30Z",
-                "startDate": "2026-06-27T13:30Z",
-                "timeValid": true,
+                "date": "2026-06-28T04:00Z",
+                "startDate": "2026-06-28T04:00Z",
+                "timeValid": false,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -6060,20 +6061,25 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Sat, June 27th at 9:30 AM EDT",
-                    "shortDetail": "6/27 - 9:30 AM EDT"
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
                   }
                 },
                 "venue": {
                   "fullName": "Eastbourne, Great Britain",
-                  "court": "Centre Court"
+                  "court": ""
                 },
                 "format": {
                   "regulation": {
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Ugo Humbert (FRA) bt Zizou Bergs (BEL) 2-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6087,6 +6093,11 @@
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
                       "displayName": "Ugo Humbert",
@@ -6124,6 +6135,11 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "f64b5d97-6080-dfef-5cda-95fb7375d278",
                       "displayName": "Zizou Bergs",
@@ -13439,17 +13455,17 @@
                 "date": "2026-06-27T11:05Z",
                 "startDate": "2026-06-27T11:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -13463,7 +13479,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Tatjana Maria (GER) leads (2) Madison Keys (USA) 5-7 0-0",
+                    "text": "(2) Madison Keys (USA) bt Tatjana Maria (GER) 7-5 6-4",
                     "type": "event"
                   }
                 ],
@@ -13477,7 +13493,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -13487,7 +13503,8 @@
                         "winner": true
                       },
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -13527,14 +13544,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 5.0,
                         "winner": false
                       },
                       {
-                        "value": 0.0
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -13569,11 +13587,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 444,
                 "type": {
                   "id": "2",
@@ -16691,9 +16704,9 @@
               {
                 "id": "178167",
                 "uid": "s:850~l:900~e:444-2026~c:178167",
-                "date": "2026-06-27T15:00Z",
-                "startDate": "2026-06-27T15:00Z",
-                "timeValid": true,
+                "date": "2026-06-28T04:00Z",
+                "startDate": "2026-06-28T04:00Z",
+                "timeValid": false,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -16703,13 +16716,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Sat, June 27th at 11:00 AM EDT",
-                    "shortDetail": "6/27 - 11:00 AM EDT"
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
                   }
                 },
                 "venue": {
                   "fullName": "Eastbourne, Great Britain",
-                  "court": "Centre Court"
+                  "court": ""
                 },
                 "format": {
                   "regulation": {
@@ -20414,7 +20427,7 @@
           "type": "day",
           "timeZone": "America/New_York",
           "startDate": "2026-06-20T04:00Z",
-          "endDate": "2026-06-27T04:00Z",
+          "endDate": "2026-06-28T04:00Z",
           "calendar": [
             "2026-06-20T04:00Z",
             "2026-06-21T04:00Z",
@@ -20423,7 +20436,8 @@
             "2026-06-24T04:00Z",
             "2026-06-25T04:00Z",
             "2026-06-26T04:00Z",
-            "2026-06-27T04:00Z"
+            "2026-06-27T04:00Z",
+            "2026-06-28T04:00Z"
           ]
         }
       },
@@ -29398,17 +29412,17 @@
                 "date": "2026-06-27T10:50Z",
                 "startDate": "2026-06-27T10:50Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -29422,7 +29436,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(3) Ellen Perez (AUS) & Demi Schuurs (NED) is tied with Aldila Sutjiadi (INA) & Vera Zvonareva (RUS) 1-6 5-4",
+                    "text": "Aldila Sutjiadi (INA) & Vera Zvonareva (RUS) bt (3) Ellen Perez (AUS) & Demi Schuurs (NED) 6-1 4-6 1-0 (10-5)",
                     "type": "event"
                   }
                 ],
@@ -29436,7 +29450,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
@@ -29446,7 +29460,13 @@
                         "winner": false
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 5,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -29521,14 +29541,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 4.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -29598,11 +29624,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 636,
                 "type": {
                   "id": "4",
@@ -47011,9 +47032,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3998",
@@ -47134,9 +47180,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "15467",
@@ -47254,9 +47325,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "1590",
@@ -47374,9 +47470,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "11226",
@@ -47497,9 +47618,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3621",
@@ -47617,9 +47763,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2636",
@@ -47740,9 +47911,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10130",
@@ -47860,9 +48056,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3310",
@@ -47980,9 +48201,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10386",
@@ -48103,9 +48349,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "1862",
@@ -48223,9 +48494,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2366",
@@ -48346,9 +48642,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2964",
@@ -48469,9 +48790,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "16614",
@@ -48592,9 +48938,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2726",
@@ -48715,9 +49086,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "11640",
@@ -48835,9 +49231,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3304",
@@ -48955,9 +49376,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10373",
@@ -49075,9 +49521,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10239",
@@ -49195,9 +49666,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2869",
@@ -49315,9 +49811,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2874",
@@ -49438,9 +49959,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10105",
@@ -49558,9 +50104,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "7833",
@@ -49681,9 +50252,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3371",
@@ -49801,9 +50397,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "9213",
@@ -49921,9 +50542,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "4008",
@@ -50044,9 +50690,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2383",
@@ -50167,9 +50838,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "8710",
@@ -50179,9 +50875,9 @@
                     "homeAway": "away",
                     "athlete": {
                       "guid": "de169e60-0a75-3e19-944b-9b685744b9ce",
-                      "displayName": "Alexandr Shevchenko",
+                      "displayName": "Aleksandr Shevchenko",
                       "shortName": "A. Shevchenko",
-                      "fullName": "Alexandr Shevchenko",
+                      "fullName": "Aleksandr Shevchenko",
                       "flag": {
                         "href": "https://a.espncdn.com/i/teamlogos/countries/500/kaz.png",
                         "alt": "Kazakhstan",
@@ -50197,7 +50893,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/8710/alexandr-shevchenko",
+                          "href": "https://www.espn.com/tennis/player/_/id/8710/aleksandr-shevchenko",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -50290,9 +50986,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3340",
@@ -50410,9 +51131,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "11745",
@@ -50533,9 +51279,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10126",
@@ -50656,9 +51427,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3716",
@@ -50776,9 +51572,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "296",
@@ -76537,9 +77358,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "14311",
@@ -76660,9 +77506,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "14877",
@@ -76783,9 +77654,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "7778",
@@ -76903,9 +77799,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "6488",
@@ -77026,9 +77947,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3417",
@@ -77149,9 +78095,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "5604",
@@ -77272,9 +78243,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3831",
@@ -77392,9 +78388,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2346",
@@ -77512,9 +78533,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "707",
@@ -77632,9 +78678,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3398",
@@ -77755,9 +78826,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2200",
@@ -77875,9 +78971,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10831",
@@ -77995,9 +79116,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "5775",
@@ -78118,9 +79264,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2789",
@@ -78241,9 +79412,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "8808",
@@ -78361,9 +79557,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "10830",
@@ -78481,9 +79702,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2191",
@@ -78601,9 +79847,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "5528",
@@ -78721,9 +79992,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "7804",
@@ -78841,9 +80137,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "16002",
@@ -78964,9 +80285,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3626",
@@ -79087,9 +80433,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2734",
@@ -79207,9 +80578,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2977",
@@ -79330,9 +80726,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3332",
@@ -79450,9 +80871,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3184",
@@ -79570,9 +81016,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "6368",
@@ -79693,9 +81164,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "13530",
@@ -79813,9 +81309,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "3000",
@@ -79936,9 +81457,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "2971",
@@ -80059,9 +81605,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "13135",
@@ -80179,9 +81750,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "9820",
@@ -80302,9 +81898,34 @@
                   }
                 },
                 "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
+                "geoBroadcasts": [
+                  {
+                    "type": {
+                      "id": "1",
+                      "shortName": "TV"
+                    },
+                    "market": {
+                      "id": "1",
+                      "type": "National"
+                    },
+                    "media": {
+                      "shortName": "ESPN Unlmtd",
+                      "logo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default.png",
+                      "darkLogo": "https://a.espncdn.com/guid/54bf758e-5371-31f9-bb3d-8059d58f785c/logos/default-dark.png"
+                    },
+                    "lang": "en",
+                    "region": "us"
+                  }
+                ],
+                "broadcasts": [
+                  {
+                    "market": "national",
+                    "names": [
+                      "ESPN Unlmtd"
+                    ]
+                  }
+                ],
+                "broadcast": "ESPN Unlmtd",
                 "competitors": [
                   {
                     "id": "6048",
