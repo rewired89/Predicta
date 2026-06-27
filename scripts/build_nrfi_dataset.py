@@ -292,23 +292,24 @@ def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
     print(f"  Loading pitcher stats for {season}…")
     df = None
 
-    # 1. pybaseball (works if installed version uses new FG API, not legacy scraper)
-    try:
-        df = pyb.pitching_stats(season, qual=MIN_IP)
-        if df is None or df.empty:
-            df = None
-        else:
-            print(f"  FanGraphs {season}: {len(df)} pitchers (pybaseball)")
-    except Exception as e:
-        print(f"  pybaseball pitching_stats failed: {e}")
+    # 1. FanGraphs direct API — browser headers, 30 s timeout; hits the new JSON
+    #    endpoint, NOT the legacy scraper that FanGraphs now blocks with 403.
+    df = _fg_api_fetch("pit", "36", season, MIN_IP)
+    if df is not None:
+        print(f"  FanGraphs {season}: {len(df)} pitchers (direct API type=36 — SIERA/xFIP/FIP/GB%/HR-FB)")
 
-    # 2. FanGraphs direct API (browser headers bypass legacy-scraper 403)
+    # 2. pybaseball — only tried if direct API fails; may hang on SSL with old versions
     if df is None:
-        df = _fg_api_fetch("pit", "36", season, MIN_IP)
-        if df is not None:
-            print(f"  FanGraphs {season}: {len(df)} pitchers (direct API type=36)")
+        try:
+            df = pyb.pitching_stats(season, qual=MIN_IP)
+            if df is None or df.empty:
+                df = None
+            else:
+                print(f"  FanGraphs {season}: {len(df)} pitchers (pybaseball)")
+        except Exception as e:
+            print(f"  pybaseball pitching_stats failed: {e}")
 
-    # 3. Baseball Reference fallback — has FIP, K%, BB% but no SIERA/xFIP/CSW%/O-Swing%
+    # 3. Baseball Reference — has FIP, K%, BB% but no SIERA/xFIP/CSW%/O-Swing%
     if df is None:
         try:
             df = pyb.pitching_stats_bref(season)
@@ -319,14 +320,14 @@ def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
                 if bf is not None:
                     df["K%"]  = df["SO"] / bf
                     df["BB%"] = df["BB"] / bf
-                print(f"  BRef {season}: {len(df)} pitchers (K%/BB%/FIP only, no SIERA/xFIP)")
+                print(f"  BRef {season}: {len(df)} pitchers (K%/BB%/FIP only — no SIERA/xFIP)")
         except Exception as e:
             print(f"  BRef fallback failed: {e}")
 
     if df is not None:
         df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
     else:
-        print(f"  WARNING: No pitcher stats for {season} — features will use league-average defaults")
+        print(f"  WARNING: No pitcher stats for {season} — all features → league-average defaults")
 
     _FG_CACHE[season] = df   # always cache (even None) to prevent retry spam
     return df
@@ -351,21 +352,21 @@ def _load_fg_batters_season(season: int) -> Optional["pd.DataFrame"]:
     print(f"  Loading batter stats for {season}…")
     df = None
 
-    # 1. pybaseball (FanGraphs batting dashboard — includes wRC+)
-    try:
-        df = pyb.batting_stats(season, qual=50)
-        if df is None or df.empty:
-            df = None
-        else:
-            print(f"  FanGraphs batting {season}: {len(df)} batters (pybaseball)")
-    except Exception as e:
-        print(f"  pybaseball batting_stats failed: {e}")
+    # 1. FanGraphs direct API (type=8 = batting dashboard, includes wRC+)
+    df = _fg_api_fetch("bat", "8", season, 50)
+    if df is not None:
+        print(f"  FanGraphs batting {season}: {len(df)} batters (direct API type=8 — wRC+)")
 
-    # 2. FanGraphs direct API (type=8 = batting dashboard, includes wRC+)
+    # 2. pybaseball — only tried if direct API fails
     if df is None:
-        df = _fg_api_fetch("bat", "8", season, 50)
-        if df is not None:
-            print(f"  FanGraphs batting {season}: {len(df)} batters (direct API type=8)")
+        try:
+            df = pyb.batting_stats(season, qual=50)
+            if df is None or df.empty:
+                df = None
+            else:
+                print(f"  FanGraphs batting {season}: {len(df)} batters (pybaseball)")
+        except Exception as e:
+            print(f"  pybaseball batting_stats failed: {e}")
 
     # 3. Baseball Reference fallback — OPS+ is a reasonable proxy for wRC+ (both ≈100 = avg)
     if df is None:
