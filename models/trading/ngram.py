@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Optional
 
 PATTERN_LENGTH = 3   # 3-bar context → 3^3 = 27 possible patterns (U/D/E each bar)
-_THRESHOLD_PCT = 0.55  # minimum directional frequency to call a signal
+_THRESHOLD_PCT = 0.52  # minimum directional frequency to call a signal
 _UP_THRESH = 1.0001    # >0.01% move = "Up"
 _DN_THRESH = 0.9999    # <-0.01% move = "Down"; otherwise "Equal"
 
@@ -133,7 +133,7 @@ def load_pattern_table(symbol: str, max_age_days: int = 7) -> Optional[dict]:
 def ngram_signal(
     symbol: str,
     recent_closes: list[float],
-    min_samples: int = 50,
+    min_samples: int = 30,
 ) -> dict:
     """
     Generate an n-gram pattern signal for the current bar context.

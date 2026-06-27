@@ -104,17 +104,26 @@ def _bollinger(closes: list[float], period: int = 20) -> dict:
 
 # ── Individual signals ────────────────────────────────────────────────────────
 
-def _sig_vwap(bars: list[dict], snapshot: dict) -> dict:
+def _sig_vwap(bars: list[dict], snapshot: dict, trend_label: str = "neutral") -> dict:
+    """
+    VWAP deviation signal. Regime-conditioned: in a strong uptrend, extreme
+    deviation above VWAP is momentum (not fade); in a strong downtrend, extreme
+    deviation below VWAP is momentum too.
+    """
     vwaps = _vwap(bars)
     if not vwaps:
         return {"value": 0, "label": "No data", "score": 0}
     vwap_now = vwaps[-1]
     price = snapshot.get("price", bars[-1]["c"] if bars else 0)
     dev_pct = (price - vwap_now) / vwap_now * 100 if vwap_now else 0
-    # Above VWAP = bullish, below = bearish
-    # Extreme deviation (>1%) suggests overextension — mean reversion risk
+    label_lower = trend_label.lower()
+    is_strong_up   = "strong uptrend" in label_lower
+    is_strong_down = "downtrend" in label_lower
     if dev_pct > 1.5:
-        score, label = -20, "Overextended above VWAP"
+        if is_strong_up:
+            score, label = 15, "Momentum: above VWAP in uptrend"
+        else:
+            score, label = -20, "Overextended above VWAP"
     elif dev_pct > 0.3:
         score, label = 15, "Above VWAP"
     elif dev_pct > -0.3:
@@ -122,12 +131,15 @@ def _sig_vwap(bars: list[dict], snapshot: dict) -> dict:
     elif dev_pct > -1.5:
         score, label = -15, "Below VWAP"
     else:
-        score, label = 20, "Oversold below VWAP"
+        if is_strong_down:
+            score, label = -15, "Momentum: below VWAP in downtrend"
+        else:
+            score, label = 20, "Oversold below VWAP"
     return {
-        "vwap": round(vwap_now, 4),
+        "vwap":          round(vwap_now, 4),
         "deviation_pct": round(dev_pct, 3),
-        "label": label,
-        "score": score,
+        "label":         label,
+        "score":         score,
     }
 
 
@@ -328,6 +340,70 @@ def _sig_volume_surge(bars: list[dict]) -> dict:
         "ratio": round(ratio, 2),
         "label": "Volume surge" if surge else "Normal",
         "score": score,
+    }
+
+
+def _sig_macd(daily_bars: list[dict]) -> dict:
+    """
+    MACD(12,26,9) computed from daily bars for intraday trend-momentum context.
+    Crossover fires ±20; sustained direction ±10. Needs ≥35 daily bars.
+    """
+    if len(daily_bars) < 35:
+        return {
+            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
+            "direction": "neutral", "score": 0,
+            "label": "Insufficient data",
+        }
+    closes = [float(b["c"]) for b in daily_bars]
+    k12, k26, k9 = 2 / 13, 2 / 27, 2 / 10
+
+    # Warm EMA12 from bar 12 through bar 25 before MACD line starts at bar 26
+    ema12 = sum(closes[:12]) / 12
+    for i in range(12, 26):
+        ema12 = closes[i] * k12 + ema12 * (1 - k12)
+    ema26 = sum(closes[:26]) / 26
+
+    macd_vals: list[float] = []
+    for i in range(26, len(closes)):
+        ema12 = closes[i] * k12 + ema12 * (1 - k12)
+        ema26 = closes[i] * k26 + ema26 * (1 - k26)
+        macd_vals.append(ema12 - ema26)
+
+    if len(macd_vals) < 10:
+        return {
+            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
+            "direction": "neutral", "score": 0,
+            "label": "Insufficient MACD history",
+        }
+
+    sig = sum(macd_vals[:9]) / 9
+    hists: list[float] = []
+    for v in macd_vals[9:]:
+        sig = v * k9 + sig * (1 - k9)
+        hists.append(v - sig)
+
+    hist_now  = hists[-1]
+    hist_prev = hists[-2] if len(hists) >= 2 else 0.0
+    direction = "bullish" if hist_now > 0 else "bearish" if hist_now < 0 else "neutral"
+
+    if hist_now > 0 and hist_prev <= 0:
+        score, label = 20, "Bullish MACD crossover"
+    elif hist_now < 0 and hist_prev >= 0:
+        score, label = -20, "Bearish MACD crossover"
+    elif hist_now > 0:
+        score, label = 10, "MACD bullish"
+    elif hist_now < 0:
+        score, label = -10, "MACD bearish"
+    else:
+        score, label = 0, "MACD neutral"
+
+    return {
+        "macd":        round(macd_vals[-1], 6),
+        "signal_line": round(sig, 6),
+        "histogram":   round(hist_now, 6),
+        "direction":   direction,
+        "score":       score,
+        "label":       label,
     }
 
 
@@ -586,16 +662,17 @@ def _trade_levels(
 
 # ── Ensemble scorer ────────────────────────────────────────────────────────────
 
-# Signal weights (sum to 100 conceptually, but we normalize)
+# Signal weights — 9 signals, sum to 1.00
 WEIGHTS = {
-    "vwap":     0.20,
-    "or":       0.15,
-    "rsi":      0.15,
-    "relvol":   0.10,
-    "gap":      0.10,
-    "trend":    0.15,
-    "bollinger":0.10,
-    "volsurge": 0.05,
+    "vwap":      0.20,
+    "or":        0.15,
+    "rsi":       0.15,
+    "relvol":    0.10,
+    "gap":       0.08,
+    "trend":     0.10,
+    "bollinger": 0.10,
+    "volsurge":  0.05,
+    "macd":      0.07,
 }
 
 SCORE_LABELS = [
@@ -609,21 +686,23 @@ SCORE_LABELS = [
 
 def _composite(signals: dict) -> dict:
     raw = (
-        signals["vwap"]["score"]     * WEIGHTS["vwap"] +
-        signals["or"]["score"]       * WEIGHTS["or"] +
-        signals["rsi"]["score"]      * WEIGHTS["rsi"] +
-        signals["relvol"]["score"]   * WEIGHTS["relvol"] +
-        signals["gap"]["score"]      * WEIGHTS["gap"] +
-        signals["trend"]["score"]    * WEIGHTS["trend"] +
-        signals["bollinger"]["score"]* WEIGHTS["bollinger"] +
-        signals["volsurge"]["score"] * WEIGHTS["volsurge"]
+        signals["vwap"]["score"]      * WEIGHTS["vwap"] +
+        signals["or"]["score"]        * WEIGHTS["or"] +
+        signals["rsi"]["score"]       * WEIGHTS["rsi"] +
+        signals["relvol"]["score"]    * WEIGHTS["relvol"] +
+        signals["gap"]["score"]       * WEIGHTS["gap"] +
+        signals["trend"]["score"]     * WEIGHTS["trend"] +
+        signals["bollinger"]["score"] * WEIGHTS["bollinger"] +
+        signals["volsurge"]["score"]  * WEIGHTS["volsurge"] +
+        signals["macd"]["score"]      * WEIGHTS["macd"]
     )
     # Normalize to -100..+100
     max_possible = sum(
         abs(s) * w for s, w in [
             (25, WEIGHTS["vwap"]), (25, WEIGHTS["or"]), (25, WEIGHTS["rsi"]),
             (20, WEIGHTS["relvol"]), (10, WEIGHTS["gap"]), (20, WEIGHTS["trend"]),
-            (20, WEIGHTS["bollinger"]), (10, WEIGHTS["volsurge"])
+            (20, WEIGHTS["bollinger"]), (10, WEIGHTS["volsurge"]),
+            (20, WEIGHTS["macd"]),
         ]
     )
     value = round(raw / max_possible * 100) if max_possible else 0
@@ -659,16 +738,19 @@ def compute_intraday_signals(
     # ── Liquidity filter ───────────────────────────────────────────────────────
     liquidity = _sig_liquidity(snapshot)
 
-    # ── Eight-signal ensemble ──────────────────────────────────────────────────
+    # ── Nine-signal ensemble ───────────────────────────────────────────────────
+    # trend_sig computed first so its label can regime-condition _sig_vwap
+    trend_sig = _sig_trend_bias(daily_bars)
     sigs = {
-        "vwap":     _sig_vwap(intraday_bars, snapshot),
-        "or":       _sig_opening_range(intraday_bars),
-        "rsi":      _sig_rsi(intraday_bars),
-        "relvol":   _sig_relative_volume(intraday_bars, daily_avg_volume),
-        "gap":      _sig_gap(snapshot),
-        "trend":    _sig_trend_bias(daily_bars),
-        "bollinger":_sig_bollinger(intraday_bars),
-        "volsurge": _sig_volume_surge(intraday_bars),
+        "vwap":      _sig_vwap(intraday_bars, snapshot, trend_sig.get("label", "neutral")),
+        "or":        _sig_opening_range(intraday_bars),
+        "rsi":       _sig_rsi(intraday_bars),
+        "relvol":    _sig_relative_volume(intraday_bars, daily_avg_volume),
+        "gap":       _sig_gap(snapshot),
+        "trend":     trend_sig,
+        "bollinger": _sig_bollinger(intraday_bars),
+        "volsurge":  _sig_volume_surge(intraday_bars),
+        "macd":      _sig_macd(daily_bars),
     }
 
     score     = _composite(sigs)

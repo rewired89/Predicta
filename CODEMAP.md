@@ -997,13 +997,25 @@ mutates: none
 ---
 
 ---
+name: _macd
+type: function
+file: models/trading/signals.py
+purpose: MACD(12,26,9) with correct EMA warm-up: EMA12 runs from bar 12 through bar 25 before MACD line starts at bar 26. Returns histogram direction and crossover label for composite scoring.
+inputs: closes: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9
+outputs: dict {macd, signal_line, histogram, direction, crossover}
+calls: np.ndarray.mean
+called_by: _momentum
+mutates: none
+---
+
+---
 name: _momentum
 type: function
 file: models/trading/signals.py
-purpose: Returns RSI(14), RSI signal label, and 5-day/20-day rate of change.
+purpose: Returns RSI(14), RSI signal label, 5-day/20-day rate of change, and MACD(12,26,9) dict.
 inputs: closes: np.ndarray
-outputs: dict {rsi, rsi_signal, roc_5d, roc_20d}
-calls: _rsi
+outputs: dict {rsi, rsi_signal, roc_5d, roc_20d, macd}
+calls: _rsi, _macd
 called_by: compute_signals
 mutates: none
 ---
@@ -1072,7 +1084,7 @@ mutates: none
 name: _composite_score
 type: function
 file: models/trading/signals.py
-purpose: Regime-adaptive composite score -100 to +100. Weights shift by HV: high-vol (>30%) favours mean-reversion (trend 20%, RSI 35%, ROC 25%, BB 20%); low-vol (<15%) favours trend (50/20/20/10); normal = 40/30/20/10. RSI uses non-linear dead-zone mapping (neutral 30–70, signal only at extremes). Bollinger %B is mean-reversion direction (lower band = oversold = bullish).
+purpose: Regime-adaptive composite score -100 to +100 across 5 signals (all weights sum to 1.0). High-vol (HV>30%): trend 15%, RSI 30%, ROC 20%, BB 15%, MACD 20%. Low-vol (<15%): trend 40%, RSI 15%, ROC 15%, BB 10%, MACD 20%. Normal: trend 30%, RSI 25%, ROC 15%, BB 10%, MACD 20%. MACD crossover fires ±100 raw; sustained direction ±50 raw.
 inputs: signals: dict (output of compute_signals)
 outputs: dict {value, label, color, reasons}
 calls: none
@@ -1128,7 +1140,7 @@ mutates: none
 name: WEIGHTS
 type: variable
 file: models/trading/intraday.py
-purpose: Signal weight dictionary mapping each intraday signal name to its ensemble contribution (sums to ~1.0).
+purpose: 9-signal weight dictionary for the intraday ensemble (sums to 1.00): vwap 0.20, or 0.15, rsi 0.15, relvol 0.10, gap 0.08, trend 0.10, bollinger 0.10, volsurge 0.05, macd 0.07.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -1212,8 +1224,8 @@ mutates: none
 name: _sig_vwap
 type: function
 file: models/trading/intraday.py
-purpose: Computes VWAP deviation signal — price above/below session VWAP and extent of overextension.
-inputs: bars: list[dict], snapshot: dict
+purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20.
+inputs: bars: list[dict], snapshot: dict, trend_label: str = "neutral"
 outputs: dict {vwap, deviation_pct, label, score}
 calls: _vwap
 called_by: compute_intraday_signals
@@ -1317,6 +1329,18 @@ mutates: none
 ---
 
 ---
+name: _sig_macd
+type: function
+file: models/trading/intraday.py
+purpose: MACD(12,26,9) computed from daily bars for intraday trend-momentum context. Bullish/bearish crossover scores ±20; sustained histogram direction scores ±10. Needs ≥35 daily bars.
+inputs: daily_bars: list[dict]
+outputs: dict {macd, signal_line, histogram, direction, score, label}
+calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
 name: _sig_liquidity
 type: function
 file: models/trading/intraday.py
@@ -1380,8 +1404,8 @@ mutates: none
 name: _composite
 type: function
 file: models/trading/intraday.py
-purpose: Combines all 8 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons.
-inputs: signals: dict (individual signal dicts)
+purpose: Combines all 9 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons (macd added as 9th signal).
+inputs: signals: dict (individual signal dicts, must include "macd" key)
 outputs: dict {value, label, reasons}
 calls: none
 called_by: compute_intraday_signals
@@ -1392,10 +1416,10 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 60; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
+purpose: Main entry point — pre-computes trend_sig to regime-condition _sig_vwap, runs all 9 signals (added _sig_macd) + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 60; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
 outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
-calls: _sig_liquidity, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_trend_bias, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
+calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _sig_macd, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
 called_by: intraday_analysis (app.py), _analyze_one (screener.py)
 mutates: none
 ---
@@ -1748,23 +1772,11 @@ mutates: none
 name: fetch_ticker
 type: function
 file: fetchers/market_data.py
-purpose: Fetches OHLCV history, current price snapshot, fundamentals, moving averages, and analyst recs for a ticker symbol via yfinance.
+purpose: Fetches OHLCV history, snapshot price, computed fundamentals (52w high/low, avg_volume), and moving averages for a ticker symbol via Alpaca Data API v2. Fundamentals requiring a paid data feed (PE, sector, beta) are returned as None.
 inputs: symbol: str, period: str = "3mo"
-outputs: dict {symbol, history, price, fundamentals, moving_averages, analyst, sources} or {error}
-calls: yf.Ticker, ticker.history, ticker.info, ticker.recommendations
+outputs: dict {symbol, history, price, fundamentals, moving_averages, sources} or {error}
+calls: get_daily_bars, get_snapshot
 called_by: run_trade_analysis
-mutates: none
----
-
----
-name: _detect_asset_type
-type: function
-file: fetchers/market_data.py
-purpose: Classifies a ticker as stock, etf, fund, crypto, forex, or futures based on yfinance quoteType and symbol format.
-inputs: info: dict, symbol: str
-outputs: str
-calls: none
-called_by: fetch_ticker
 mutates: none
 ---
 
@@ -1772,10 +1784,10 @@ mutates: none
 name: search_ticker
 type: function
 file: fetchers/market_data.py
-purpose: Searches yfinance for tickers matching a company name or partial symbol and returns top 5 matches.
+purpose: Best-effort ticker lookup via Alpaca snapshot — only exact/known symbols resolve (Alpaca has no search API). Returns a single-element list when symbol is valid, empty list otherwise.
 inputs: query: str
 outputs: list[dict {symbol, name, exchange, type}]
-calls: yf.Search
+calls: get_snapshot
 called_by: run_trade_analysis
 mutates: none
 ---
@@ -5747,8 +5759,8 @@ mutates: none
 name: ngram_signal
 type: function
 file: models/trading/ngram.py
-purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table. Returns UP (p_up>0.55, conf=(p-0.5)×200), DOWN (p_down>0.55), or NONE. Confidence is on 0–100 scale. Requires min_samples historical occurrences — avoids false edge from rare patterns. Never raises; returns NONE on any failure.
-inputs: symbol: str, recent_closes: list[float], min_samples: int = 50
+purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table. Returns UP (p_up>0.52, conf=(p-0.5)×200), DOWN (p_down>0.52), or NONE. Confidence is on 0–100 scale. Requires min_samples=30 historical occurrences (lowered from 50 to activate on more patterns).
+inputs: symbol: str, recent_closes: list[float], min_samples: int = 30
 outputs: dict {signal, confidence, historical_win_rate?, pattern?, n_historical?, expected_edge?, reason?}
 calls: encode_sequence, load_pattern_table
 called_by: compute_intraday_signals (intraday.py)

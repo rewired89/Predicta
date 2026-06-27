@@ -114,10 +114,64 @@ def _rsi(closes: np.ndarray, period: int = 14) -> float:
     return round(float(100 - 100 / (1 + rs)), 2)
 
 
+def _macd(closes: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
+    """MACD(12,26,9) with correct EMA warm-up from bar `fast` through bar `slow`."""
+    if len(closes) < slow + signal + 1:
+        return {
+            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
+            "direction": "neutral", "crossover": "none",
+        }
+    k_fast = 2 / (fast + 1)
+    k_slow = 2 / (slow + 1)
+    k_sig  = 2 / (signal + 1)
+
+    # Warm EMA12 from bar fast through bar slow-1 before MACD line starts
+    ema_f = float(closes[:fast].mean())
+    for v in closes[fast:slow]:
+        ema_f = float(v) * k_fast + ema_f * (1 - k_fast)
+    ema_s = float(closes[:slow].mean())
+
+    macd_vals: list[float] = []
+    for v in closes[slow:]:
+        ema_f = float(v) * k_fast + ema_f * (1 - k_fast)
+        ema_s = float(v) * k_slow + ema_s * (1 - k_slow)
+        macd_vals.append(ema_f - ema_s)
+
+    if len(macd_vals) < signal + 1:
+        return {
+            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
+            "direction": "neutral", "crossover": "none",
+        }
+
+    sig_line = sum(macd_vals[:signal]) / signal
+    hists: list[float] = []
+    for v in macd_vals[signal:]:
+        sig_line = v * k_sig + sig_line * (1 - k_sig)
+        hists.append(v - sig_line)
+
+    hist_now  = hists[-1]
+    hist_prev = hists[-2] if len(hists) >= 2 else 0.0
+    direction = "bullish" if hist_now > 0 else "bearish" if hist_now < 0 else "neutral"
+    if hist_now > 0 and hist_prev <= 0:
+        crossover = "bullish"
+    elif hist_now < 0 and hist_prev >= 0:
+        crossover = "bearish"
+    else:
+        crossover = "none"
+    return {
+        "macd":        round(macd_vals[-1], 6),
+        "signal_line": round(sig_line, 6),
+        "histogram":   round(hist_now, 6),
+        "direction":   direction,
+        "crossover":   crossover,
+    }
+
+
 def _momentum(closes: np.ndarray) -> dict:
-    rsi = _rsi(closes)
+    rsi   = _rsi(closes)
     roc5  = round((closes[-1] / closes[-6]  - 1) * 100, 2) if len(closes) >= 6  else None
     roc20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 else None
+    macd  = _macd(closes)
 
     if rsi >= 70:
         rsi_signal = "overbought"
@@ -135,6 +189,7 @@ def _momentum(closes: np.ndarray) -> dict:
         "rsi_signal": rsi_signal,
         "roc_5d":     roc5,
         "roc_20d":    roc20,
+        "macd":       macd,
     }
 
 
@@ -272,19 +327,19 @@ def _composite_score(signals: dict) -> dict:
     """
     reasons = []
 
-    # ── Volatility regime → adaptive weights ──────────────────────────────────
+    # ── Volatility regime → adaptive weights (all sum to 1.0) ────────────────
     hv = signals.get("volatility", {}).get("hv_annual")
     if hv is not None:
         if hv > 30:
-            w = {"trend": 0.20, "rsi": 0.35, "roc": 0.25, "bb": 0.20}
+            w = {"trend": 0.15, "rsi": 0.30, "roc": 0.20, "bb": 0.15, "macd": 0.20}
             reasons.append(f"High-vol regime (HV={hv:.0f}%): mean-reversion weights")
         elif hv < 15:
-            w = {"trend": 0.50, "rsi": 0.20, "roc": 0.20, "bb": 0.10}
+            w = {"trend": 0.40, "rsi": 0.15, "roc": 0.15, "bb": 0.10, "macd": 0.20}
             reasons.append(f"Low-vol regime (HV={hv:.0f}%): trend-following weights")
         else:
-            w = {"trend": 0.40, "rsi": 0.30, "roc": 0.20, "bb": 0.10}
+            w = {"trend": 0.30, "rsi": 0.25, "roc": 0.15, "bb": 0.10, "macd": 0.20}
     else:
-        w = {"trend": 0.40, "rsi": 0.30, "roc": 0.20, "bb": 0.10}
+        w = {"trend": 0.30, "rsi": 0.25, "roc": 0.15, "bb": 0.10, "macd": 0.20}
 
     score = 0.0
 
@@ -327,6 +382,26 @@ def _composite_score(signals: dict) -> dict:
     if pct_b is not None:
         bb_raw = -(pct_b - 50) / 50 * 100  # invert: lower band → +100, upper → -100
         score += bb_raw * w["bb"]
+
+    # ── MACD: crossover = ±100, sustained direction = ±50 ────────────────────
+    macd_data = signals.get("momentum", {}).get("macd", {})
+    crossover  = macd_data.get("crossover", "none")
+    macd_dir   = macd_data.get("direction", "neutral")
+    if crossover == "bullish":
+        macd_raw = 100.0
+        reasons.append("MACD bullish crossover")
+    elif crossover == "bearish":
+        macd_raw = -100.0
+        reasons.append("MACD bearish crossover")
+    elif macd_dir == "bullish":
+        macd_raw = 50.0
+        reasons.append("MACD bullish")
+    elif macd_dir == "bearish":
+        macd_raw = -50.0
+        reasons.append("MACD bearish")
+    else:
+        macd_raw = 0.0
+    score += macd_raw * w["macd"]
 
     score = round(max(-100.0, min(100.0, score)), 1)
 
