@@ -123,6 +123,16 @@ CSV_COLUMNS = [
 _session = requests.Session()
 _session.headers["User-Agent"] = "Predicta-NRFI-Dataset-Builder/1.0"
 
+# Browser-like headers for FanGraphs direct API (bypasses legacy-scraper block)
+_FG_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/120.0.0.0 Safari/537.36"),
+    "Referer":        "https://www.fangraphs.com/leaders/major-league",
+    "Accept":         "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
 
 def _mlb_get(path: str, params: dict | None = None) -> dict:
     url = f"{MLB_API}/{path}"
@@ -220,27 +230,106 @@ def get_starters(game_pk: int) -> Optional[dict]:
         return None
 
 
-# ── FanGraphs pitcher lookup ──────────────────────────────────────────────────
+# ── FanGraphs helpers ────────────────────────────────────────────────────────
 
 _FG_CACHE: dict[int, "pd.DataFrame"] = {}         # season → pitcher DataFrame
 _FG_BATTER_CACHE: dict[int, "pd.DataFrame"] = {}  # season → batter DataFrame
 
 
+def _safe_col(row, *names: str, default: float = float("nan")) -> float:
+    """Try column names in order; return first parseable non-NaN value."""
+    for n in names:
+        val = row.get(n)
+        if val is None:
+            continue
+        try:
+            f = float(val)
+            if f == f:   # not NaN
+                return f
+        except (TypeError, ValueError):
+            continue
+    return default
+
+
+def _fg_api_fetch(stats: str, type_id: str, season: int, qual: float) -> Optional["pd.DataFrame"]:
+    """
+    Direct GET from FanGraphs /api/leaders/major-league/data.
+    Used as fallback when pybaseball's legacy-scraper endpoint returns 403.
+    stats: 'pit' or 'bat'
+    type_id: '36' = pitcher dashboard (SIERA/xFIP/FIP/GB%/HR/FB)
+             '8'  = batter dashboard (wRC+/wOBA/ISO)
+    """
+    url = "https://www.fangraphs.com/api/leaders/major-league/data"
+    params = {
+        "pos": "all", "stats": stats, "lg": "all",
+        "qual": str(qual), "season": str(season), "season1": str(season),
+        "month": "0", "hand": "", "team": "0",
+        "pageitems": "2000000", "pagenum": "1",
+        "ind": "0", "rost": "0", "players": "", "type": type_id,
+    }
+    try:
+        r = _session.get(url, params=params, headers=_FG_HEADERS, timeout=30)
+        r.raise_for_status()
+        rows = r.json().get("data", [])
+        if not rows:
+            return None
+        df = pd.DataFrame(rows)
+        # FG new API uses 'playerName' instead of 'Name'
+        for alias in ("playerName", "name", "Name"):
+            if alias in df.columns:
+                df["Name"] = df[alias]
+                break
+        return df if "Name" in df.columns else None
+    except Exception as e:
+        print(f"    FG direct API ({stats}/type={type_id}): {e}")
+        return None
+
+
 def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
     if season in _FG_CACHE:
-        return _FG_CACHE[season]
-    print(f"  Loading FanGraphs pitcher stats for {season}…")
+        return _FG_CACHE[season]   # None cached on failure — no retry spam
+
+    print(f"  Loading pitcher stats for {season}…")
+    df = None
+
+    # 1. pybaseball (works if installed version uses new FG API, not legacy scraper)
     try:
         df = pyb.pitching_stats(season, qual=MIN_IP)
-        if df is not None and not df.empty:
-            # Normalise name for matching
-            df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
-            _FG_CACHE[season] = df
-            print(f"  FanGraphs {season}: {len(df)} pitchers loaded")
-            return df
+        if df is None or df.empty:
+            df = None
+        else:
+            print(f"  FanGraphs {season}: {len(df)} pitchers (pybaseball)")
     except Exception as e:
-        print(f"  FanGraphs {season} failed: {e}")
-    return None
+        print(f"  pybaseball pitching_stats failed: {e}")
+
+    # 2. FanGraphs direct API (browser headers bypass legacy-scraper 403)
+    if df is None:
+        df = _fg_api_fetch("pit", "36", season, MIN_IP)
+        if df is not None:
+            print(f"  FanGraphs {season}: {len(df)} pitchers (direct API type=36)")
+
+    # 3. Baseball Reference fallback — has FIP, K%, BB% but no SIERA/xFIP/CSW%/O-Swing%
+    if df is None:
+        try:
+            df = pyb.pitching_stats_bref(season)
+            if df is None or df.empty:
+                df = None
+            else:
+                bf = df["BF"].replace(0, float("nan")) if "BF" in df.columns else None
+                if bf is not None:
+                    df["K%"]  = df["SO"] / bf
+                    df["BB%"] = df["BB"] / bf
+                print(f"  BRef {season}: {len(df)} pitchers (K%/BB%/FIP only, no SIERA/xFIP)")
+        except Exception as e:
+            print(f"  BRef fallback failed: {e}")
+
+    if df is not None:
+        df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
+    else:
+        print(f"  WARNING: No pitcher stats for {season} — features will use league-average defaults")
+
+    _FG_CACHE[season] = df   # always cache (even None) to prevent retry spam
+    return df
 
 
 def _norm(name: str) -> str:
@@ -257,18 +346,47 @@ def _safe(val, default: float = float("nan")) -> float:
 
 def _load_fg_batters_season(season: int) -> Optional["pd.DataFrame"]:
     if season in _FG_BATTER_CACHE:
-        return _FG_BATTER_CACHE[season]
-    print(f"  Loading FanGraphs batting stats for {season}…")
+        return _FG_BATTER_CACHE[season]   # None cached on failure — no retry spam
+
+    print(f"  Loading batter stats for {season}…")
+    df = None
+
+    # 1. pybaseball (FanGraphs batting dashboard — includes wRC+)
     try:
-        df = pyb.batting_stats(season, qual=50)   # 50 PA minimum
-        if df is not None and not df.empty:
-            df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
-            _FG_BATTER_CACHE[season] = df
-            print(f"  FanGraphs batting {season}: {len(df)} batters loaded")
-            return df
+        df = pyb.batting_stats(season, qual=50)
+        if df is None or df.empty:
+            df = None
+        else:
+            print(f"  FanGraphs batting {season}: {len(df)} batters (pybaseball)")
     except Exception as e:
-        print(f"  FanGraphs batting {season} failed: {e}")
-    return None
+        print(f"  pybaseball batting_stats failed: {e}")
+
+    # 2. FanGraphs direct API (type=8 = batting dashboard, includes wRC+)
+    if df is None:
+        df = _fg_api_fetch("bat", "8", season, 50)
+        if df is not None:
+            print(f"  FanGraphs batting {season}: {len(df)} batters (direct API type=8)")
+
+    # 3. Baseball Reference fallback — OPS+ is a reasonable proxy for wRC+ (both ≈100 = avg)
+    if df is None:
+        try:
+            df = pyb.batting_stats_bref(season)
+            if df is None or df.empty:
+                df = None
+            else:
+                ops_col = next((c for c in ("OPS+", "ops_plus") if c in df.columns), None)
+                df["wRC+"] = df[ops_col] if ops_col else 100.0
+                print(f"  BRef batting {season}: {len(df)} batters (OPS+ as wRC+ proxy)")
+        except Exception as e:
+            print(f"  BRef batting fallback failed: {e}")
+
+    if df is not None:
+        df["_norm"] = df["Name"].str.lower().str.split().str.join(" ")
+    else:
+        print(f"  WARNING: No batter stats for {season} — top-3 wRC+ will use 100 (league avg)")
+
+    _FG_BATTER_CACHE[season] = df   # always cache (even None)
+    return df
 
 
 def lookup_top3_wrc(names: list, season: int) -> tuple:
@@ -300,7 +418,7 @@ def lookup_top3_wrc(names: list, season: int) -> tuple:
                     continue
                 idx = norm_names.index(close[0])
 
-        wrc = _safe(df.iloc[idx].get("wRC+"))
+        wrc = _safe_col(df.iloc[idx], "wRC+", "wrc_plus", "OPS+")
         if wrc == wrc:   # not NaN
             wrc_values.append(wrc)
 
@@ -341,15 +459,16 @@ def lookup_pitcher_fg(name: str, season: int) -> dict:
     return {
         "found":        True,
         "name_matched": fg_names[idx],
-        "siera":        _safe(row.get("SIERA")),
-        "xfip":         _safe(row.get("xFIP")),
-        "fip":          _safe(row.get("FIP")),
-        "csw_pct":      _safe(row.get("CSW%")),
-        "o_swing_pct":  _safe(row.get("O-Swing%")),
-        "k_pct":        _safe(row.get("K%")),
-        "bb_pct":       _safe(row.get("BB%")),
-        "gb_pct":       _safe(row.get("GB%")),
-        "hr_fb_pct":    _safe(row.get("HR/FB")),
+        # Multiple column name aliases handle pybaseball, FG direct API, and BRef
+        "siera":        _safe_col(row, "SIERA",     "siera"),
+        "xfip":         _safe_col(row, "xFIP",      "xfip"),
+        "fip":          _safe_col(row, "FIP",       "fip"),
+        "csw_pct":      _safe_col(row, "CSW%",      "csw_pct",    "CSW"),
+        "o_swing_pct":  _safe_col(row, "O-Swing%",  "o_swing_pct", "OSwing%"),
+        "k_pct":        _safe_col(row, "K%",        "k_pct"),
+        "bb_pct":       _safe_col(row, "BB%",       "bb_pct"),
+        "gb_pct":       _safe_col(row, "GB%",       "gb_pct"),
+        "hr_fb_pct":    _safe_col(row, "HR/FB",     "hr_fb_pct",  "HR_FB"),
     }
 
 
