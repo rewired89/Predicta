@@ -54,8 +54,8 @@ FEATURES = [
 
 # Fallback league-average values when a feature is missing
 FEATURE_DEFAULTS = {
-    "home_starter_fi_rate": 0.477,   # historical league avg: ~47.7% of starts allow ≥1 1st-inn run
-    "away_starter_fi_rate": 0.477,
+    "home_starter_fi_rate": 0.29,    # per-pitcher avg: ~29% of starts allow ≥1 1st-inn run
+    "away_starter_fi_rate": 0.29,   # (not the 47.7% YRFI rate, which counts either team scoring)
     "home_siera":        4.00,
     "home_xfip":         4.00,
     "home_fip":          4.00,

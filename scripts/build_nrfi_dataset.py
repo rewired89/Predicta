@@ -309,7 +309,7 @@ def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
         except Exception as e:
             print(f"  pybaseball pitching_stats failed: {e}")
 
-    # 3. Baseball Reference — has FIP, K%, BB% but no SIERA/xFIP/CSW%/O-Swing%
+    # 3. Baseball Reference — K%, BB%, FIP (computed from components if column absent)
     if df is None:
         try:
             df = pyb.pitching_stats_bref(season)
@@ -320,7 +320,23 @@ def _load_fg_season(season: int) -> Optional["pd.DataFrame"]:
                 if bf is not None:
                     df["K%"]  = df["SO"] / bf
                     df["BB%"] = df["BB"] / bf
-                print(f"  BRef {season}: {len(df)} pitchers (K%/BB%/FIP only — no SIERA/xFIP)")
+
+                # FIP isn't always in pybaseball's BRef columns — compute from components.
+                # Formula: FIP = (13*HR + 3*(BB+HBP) - 2*K) / IP + FIP_constant
+                # FIP_constant ≈ 3.15 (league ERA minus FIP numerator/IP, stable year-to-year)
+                if "FIP" not in df.columns:
+                    try:
+                        ip  = pd.to_numeric(df["IP"],  errors="coerce").replace(0, float("nan"))
+                        hr  = pd.to_numeric(df["HR"],  errors="coerce").fillna(0)
+                        bb  = pd.to_numeric(df["BB"],  errors="coerce").fillna(0)
+                        so  = pd.to_numeric(df["SO"],  errors="coerce").fillna(0)
+                        hbp = pd.to_numeric(df["HBP"], errors="coerce").fillna(0) if "HBP" in df.columns else 0
+                        df["FIP"] = (13 * hr + 3 * (bb + hbp) - 2 * so) / ip + 3.15
+                    except Exception as fip_err:
+                        print(f"    FIP computation failed: {fip_err}")
+
+                available = [c for c in ["K%", "BB%", "FIP"] if c in df.columns]
+                print(f"  BRef {season}: {len(df)} pitchers ({', '.join(available)} — no SIERA/xFIP)")
         except Exception as e:
             print(f"  BRef fallback failed: {e}")
 

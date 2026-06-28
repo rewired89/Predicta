@@ -33,9 +33,10 @@ except ImportError:
     print("ERROR: pandas not installed. Run: pip install pandas")
     sys.exit(1)
 
-CSV_PATH     = _REPO / "data" / "nrfi_dataset.csv"
-LEAGUE_AVG   = 0.477   # historical: ~47.7% of starts see ≥1 first-inning run allowed
-MIN_STARTS   = 5       # require this many prior starts before trusting the rolling rate
+CSV_PATH   = _REPO / "data" / "nrfi_dataset.csv"
+MIN_STARTS = 5   # require this many prior starts before trusting the rolling rate
+# LEAGUE_AVG is computed from the data at runtime — NOT hardcoded.
+# 0.477 (YRFI rate) was wrong; per-pitcher fi_rate averages ~0.27–0.30.
 
 
 def compute_fi_rates(csv_path: Path = CSV_PATH) -> None:
@@ -50,6 +51,16 @@ def compute_fi_rates(csv_path: Path = CSV_PATH) -> None:
     df["game_date"]     = pd.to_datetime(df["game_date"])
     df["home_1st_runs"] = pd.to_numeric(df["home_1st_runs"], errors="coerce").fillna(0).astype(int)
     df["away_1st_runs"] = pd.to_numeric(df["away_1st_runs"], errors="coerce").fillna(0).astype(int)
+
+    # League average fi_rate = P(pitcher allows ≥1 run in 1st inning).
+    # This is NOT the YRFI rate (0.477). YRFI = P(either team scores).
+    # Per-pitcher fi_rate = P(opposing team scores), which is roughly half.
+    # Compute from actual data so the default matches the real distribution.
+    league_avg_home = (df["away_1st_runs"] > 0).mean()   # home starter allowed run
+    league_avg_away = (df["home_1st_runs"] > 0).mean()   # away starter allowed run
+    LEAGUE_AVG = (league_avg_home + league_avg_away) / 2
+    print(f"League average fi_rate: {LEAGUE_AVG:.3f}  "
+          f"(home starters: {league_avg_home:.3f}, away starters: {league_avg_away:.3f})")
 
     # Sort chronologically so rolling look-back is always on past data only
     df = df.sort_values(["game_date", "game_pk"]).reset_index(drop=True)

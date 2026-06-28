@@ -6452,7 +6452,7 @@ key_functions: get_starters (extracts top-3 batters from battingOrder), _load_fg
 name: enrich_nrfi_fi_rates
 type: script
 file: scripts/enrich_nrfi_fi_rates.py
-purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling per-starter first-inning run rate from within the dataset (no API calls, ~5 sec). For each game, looks at prior starts by each pitcher and computes the fraction where they allowed ≥1 run in the 1st inning: home_starter_fi_rate (away_1st_runs>0 when home) and away_starter_fi_rate (home_1st_runs>0 when away). Defaults to league average (0.477) when fewer than MIN_STARTS=5 prior starts exist. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
+purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling per-starter first-inning run rate from within the dataset (no API calls, ~5 sec). For each game, looks at prior starts by each pitcher and computes the fraction where they allowed ≥1 run in the 1st inning: home_starter_fi_rate (away_1st_runs>0 when home) and away_starter_fi_rate (home_1st_runs>0 when away). Defaults to per-dataset league average (computed dynamically from away_1st_runs and home_1st_runs means — NOT the 0.477 YRFI rate) when fewer than MIN_STARTS=5 prior starts exist. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
 inputs: data/nrfi_dataset.csv
 outputs: data/nrfi_dataset.csv (adds home_starter_fi_rate, away_starter_fi_rate columns)
 calls: pandas
