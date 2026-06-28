@@ -40,7 +40,8 @@ FEATURES = [
     # Rolling first-inning run rate per starter (enrich_nrfi_fi_rates.py)
     "home_starter_fi_rate", "away_starter_fi_rate",
     # Savant Statcast quality metrics (enrich_nrfi_savant.py)
-    "home_xwoba_against",  "away_xwoba_against",    # expected wOBA allowed
+    # xwoba_against removed — statcast_pitcher_exitvelo_barrels does not return xwOBA;
+    # barrel_pct and hard_hit_pct cover the same contact-quality signal.
     "home_barrel_pct",     "away_barrel_pct",        # barrel rate allowed
     "home_hard_hit_pct",   "away_hard_hit_pct",      # hard-hit % allowed
     "home_whiff_pct",      "away_whiff_pct",          # swing-and-miss rate
@@ -61,8 +62,6 @@ FEATURES = [
 FEATURE_DEFAULTS = {
     "home_starter_fi_rate": 0.29,    # per-pitcher avg fi_rate (NOT the 0.477 YRFI rate)
     "away_starter_fi_rate": 0.29,
-    "home_xwoba_against":   0.315,   # MLB average xwOBA against
-    "away_xwoba_against":   0.315,
     "home_barrel_pct":      0.085,   # MLB average barrel rate against
     "away_barrel_pct":      0.085,
     "home_hard_hit_pct":    0.370,   # MLB average hard-hit % against
@@ -228,13 +227,16 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     """
     Train XGBoost on the historical dataset and save model + calibrator.
 
-    Train/val split:
-      Train: 2022
-      Val:   2023  (genuine holdout — disjoint from train)
-      Test:  2024  (held out — never seen during training)
+    Train/val split (dynamic — adapts as more seasons are added):
+      Train: all seasons except the two most recent
+      Val:   second-most-recent season  (genuine holdout — disjoint from train)
+      Test:  most-recent season         (held out — never seen during training)
+
+      e.g. with 2022-2024: train=2022, val=2023, test=2024
+           with 2022-2026: train=2022-2024, val=2025, test=2026
 
     Calibration:
-      Platt scaling on the 2023 val fold (skipped when val AUC ≤ 0.52 to
+      Platt scaling on the val fold (skipped when val AUC ≤ 0.52 to
       avoid amplifying noise into an inverted calibration curve).
     """
     try:
@@ -292,10 +294,18 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         else:
             df_clean[feat] = FEATURE_DEFAULTS.get(feat, 0.0)
 
-    # Split by season — train/val must be disjoint to avoid data leakage
-    train_df = df_clean[df_clean["season"] == 2022].copy()
-    val_df   = df_clean[df_clean["season"] == 2023].copy()   # genuine holdout
-    test_df  = df_clean[df_clean["season"] == 2024].copy()
+    # Dynamic season split — adapts as more seasons are added to the dataset.
+    # Always keeps the two most recent seasons out of training to prevent leakage.
+    all_seasons  = sorted(df_clean["season"].unique())
+    if len(all_seasons) < 3:
+        raise ValueError(f"Need ≥ 3 seasons to split train/val/test; found: {all_seasons}")
+    test_season  = int(all_seasons[-1])
+    val_season   = int(all_seasons[-2])
+    train_seasons = [int(s) for s in all_seasons[:-2]]
+
+    train_df = df_clean[df_clean["season"].isin(train_seasons)].copy()
+    val_df   = df_clean[df_clean["season"] == val_season].copy()
+    test_df  = df_clean[df_clean["season"] == test_season].copy()
 
     X_train = train_df[FEATURES].values.astype(np.float32)
     y_train = train_df["nrfi"].values.astype(int)
@@ -304,8 +314,10 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     X_test  = test_df[FEATURES].values.astype(np.float32)
     y_test  = test_df["nrfi"].values.astype(int)
 
-    print(f"\nTrain: {len(X_train)} games (2022)")
-    print(f"Test:  {len(X_test)} games (2024 held-out)")
+    train_label = f"{train_seasons[0]}–{train_seasons[-1]}" if len(train_seasons) > 1 else str(train_seasons[0])
+    print(f"\nTrain: {len(X_train)} games ({train_label})")
+    print(f"Val:   {len(X_val)} games ({val_season})")
+    print(f"Test:  {len(X_test)} games ({test_season} held-out)")
 
     # XGBoost — conservative hyperparams to avoid overfitting on small dataset
     model = xgb.XGBClassifier(
@@ -337,7 +349,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     if val_auc > 0.52:
         calibrator = LogisticRegression(C=1.0, solver="lbfgs")
         calibrator.fit(raw_val_probs.reshape(-1, 1), y_val)
-        print(f"\nPlatt scaling fitted on 2023 val fold  (val AUC: {val_auc:.4f})")
+        print(f"\nPlatt scaling fitted on {val_season} val fold  (val AUC: {val_auc:.4f})")
     else:
         calibrator = None
         print(f"\nSkipping Platt scaling — val AUC {val_auc:.4f} ≈ random; "
@@ -363,7 +375,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     acc_65    = (y_test[preds_65] == 1).mean() if n_65 > 0 else float("nan")
 
     print(f"\n{'='*50}")
-    print(f"2024 HOLD-OUT TEST RESULTS")
+    print(f"{test_season} HOLD-OUT TEST RESULTS")
     print(f"{'='*50}")
     print(f"  Brier score (raw):        {brier_raw:.4f}  (lower=better; 0.25=random)")
     print(f"  Brier score (calibrated): {brier_cal:.4f}")
@@ -371,7 +383,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     print(f"  Log-loss:                 {ll:.4f}")
     print(f"  Accuracy @ 50% threshold: {acc_50*100:.1f}%  (on {len(y_test)} games)")
     print(f"  Accuracy @ 65% threshold: {acc_65*100:.1f}%  (on {n_65} games tagged BET)")
-    print(f"  Base NRFI rate 2024:      {y_test.mean()*100:.1f}%")
+    print(f"  Base NRFI rate {test_season}:      {y_test.mean()*100:.1f}%")
     print(f"{'='*50}")
 
     if auc < 0.52:

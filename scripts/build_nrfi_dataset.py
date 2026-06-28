@@ -60,7 +60,7 @@ except ImportError:
 
 MLB_API       = "https://statsapi.mlb.com/api/v1"
 REQUEST_DELAY = 1.0        # seconds between MLB Stats API calls
-DEFAULT_SEASONS = [2022, 2023, 2024]
+DEFAULT_SEASONS = [2022, 2023, 2024, 2025, 2026]
 OUTPUT_PATH   = _REPO / "data" / "nrfi_dataset.csv"
 MIN_IP        = 5          # minimum innings pitched to include a pitcher in FG cache
 
