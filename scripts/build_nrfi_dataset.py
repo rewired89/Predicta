@@ -636,8 +636,15 @@ def main():
     nrfi_n = sum(1 for r in all_rows if int(r.get("nrfi", 0)) == 1)
     fg_both = sum(1 for r in all_rows
                   if int(r.get("home_fg_found", 0)) and int(r.get("away_fg_found", 0)))
+    def _safe_int(val) -> int:
+        try:
+            return int(val) if str(val).strip() else 0
+        except (ValueError, TypeError):
+            return 0
+
     t3_both = sum(1 for r in all_rows
-                  if int(r.get("home_top3_found", 0)) > 0 and int(r.get("away_top3_found", 0)) > 0)
+                  if _safe_int(r.get("home_top3_found", 0)) > 0
+                  and _safe_int(r.get("away_top3_found", 0)) > 0)
 
     print(f"\n{'='*60}")
     print(f"DONE")
