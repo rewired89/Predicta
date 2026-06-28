@@ -152,17 +152,25 @@ def _load_savant_season(season: int) -> dict[str, dict]:
     try:
         pa = pyb.statcast_pitcher_pitch_arsenal(season, minP=25)
         if pa is not None and not pa.empty:
+            print(f"    Pitch arsenal columns: {list(pa.columns)}")
             # Filter to fastballs only for average velocity
             fb_types = {"FF", "FT", "SI", "FA"}   # four-seam, two-seam, sinker, generic
-            fb = pa[pa.get("pitch_type", pd.Series()).isin(fb_types)] if "pitch_type" in pa.columns else pa
+            fb = pa[pa["pitch_type"].isin(fb_types)] if "pitch_type" in pa.columns else pa
+            if fb.empty:
+                fb = pa   # fallback: use all pitches
 
-            name_col = next((c for c in ("pitcher_name", "player_name", "name")
+            name_col = next((c for c in ("pitcher_name", "player_name", "name",
+                                          "last_name, first_name")
                              if c in fb.columns), None)
-            vel_col  = next((c for c in ("avg_speed", "release_speed", "velocity")
+            # Expand velocity column search — Savant arsenal uses "avg_speed" or "mph"
+            vel_col  = next((c for c in ("avg_speed", "mph", "release_speed",
+                                          "velocity", "mean_speed")
                              if c in fb.columns), None)
+            print(f"    Pitch arsenal: name_col={name_col!r}, vel_col={vel_col!r}")
 
             if name_col and vel_col:
                 grouped = fb.groupby(name_col)[vel_col].mean()
+                added = 0
                 for raw_name, avg_vel in grouped.items():
                     raw_name = str(raw_name)
                     if "," in raw_name:
@@ -171,12 +179,20 @@ def _load_savant_season(season: int) -> dict[str, dict]:
                     else:
                         full = raw_name
                     key = _norm(full)
-                    if key and key in lookup:
-                        try:
-                            lookup[key]["avg_velo"] = float(avg_vel)
-                        except (TypeError, ValueError):
-                            pass
-        print(f"    Pitch arsenal: velocity added for matching pitchers")
+                    if not key:
+                        continue
+                    if key not in lookup:
+                        lookup[key] = {}
+                    try:
+                        lookup[key]["avg_velo"] = float(avg_vel)
+                        added += 1
+                    except (TypeError, ValueError):
+                        pass
+                print(f"    Pitch arsenal: avg_velo added for {added} pitchers")
+            else:
+                print(f"    Pitch arsenal: could not find name/vel columns — skipping")
+        else:
+            print(f"    Pitch arsenal: empty result for {season}")
     except Exception as e:
         print(f"    statcast_pitcher_pitch_arsenal({season}) failed: {e}")
 
