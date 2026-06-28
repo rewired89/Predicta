@@ -49,6 +49,12 @@ def startup():
         pass
 
 
+@app.get("/ping")
+def ping():
+    """Lightweight health check for Railway (returns immediately, no DB call)."""
+    return {"ok": True}
+
+
 # ── Match endpoints ─────────────────────────────────────────────────────────
 
 class MatchCreate(BaseModel):
@@ -1531,6 +1537,423 @@ def paper_runner_stop():
     from fetchers.paper_runner import stop_runner
     stop_runner()
     return {"ok": True}
+
+
+@app.get("/trade/dashboard", response_class=HTMLResponse)
+def trade_dashboard():
+    """
+    Plain-English trading monitor. No jargon — just what the numbers mean
+    and whether you're ready to use real money. Auto-refreshes every 5 min.
+    """
+    # ── Pull raw data ──────────────────────────────────────────────────────
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT symbol, side, entry_time, exit_time, pnl_dollars,
+                   adjusted_pnl, pnl_r, exit_reason, time_of_day_label,
+                   entry_score, stop_price, target_price
+            FROM intraday_trades
+            WHERE is_hypothetical = 1 AND exit_time IS NOT NULL
+            AND entry_time >= datetime('now', '-60 days')
+            ORDER BY exit_time DESC
+            """
+        ).fetchall()
+        open_rows = conn.execute(
+            """
+            SELECT symbol, side, entry_time, entry_score, entry_price,
+                   stop_price, target_price
+            FROM intraday_trades
+            WHERE is_hypothetical = 1 AND exit_time IS NULL
+            ORDER BY entry_time DESC
+            """
+        ).fetchall()
+
+    trades  = [dict(r) for r in rows]
+    open_t  = [dict(r) for r in open_rows]
+    n_closed = len(trades)
+    n_open   = len(open_t)
+
+    # ── Compute stats ──────────────────────────────────────────────────────
+    win_rate = avg_pnl = avg_r = adj_pnl_total = None
+    if n_closed:
+        wins      = sum(1 for t in trades if (t.get("pnl_dollars") or 0) > 0)
+        win_rate  = round(wins / n_closed, 3)
+        avg_pnl   = round(sum(t.get("pnl_dollars") or 0 for t in trades) / n_closed, 2)
+        adj_pnl_total = round(sum(t.get("adjusted_pnl") or t.get("pnl_dollars") or 0 for t in trades), 2)
+        r_vals    = [t["pnl_r"] for t in trades if t.get("pnl_r") is not None]
+        if r_vals:
+            avg_r = round(sum(r_vals) / len(r_vals), 3)
+
+    # Time-of-day breakdown
+    tod_stats: dict = {}
+    for label in ("MORNING_TREND", "AFTERNOON_TREND", "CLOSE_REVERSAL"):
+        sub = [t for t in trades if t.get("time_of_day_label") == label]
+        if sub:
+            s_wins = sum(1 for t in sub if (t.get("pnl_dollars") or 0) > 0)
+            tod_stats[label] = {
+                "n": len(sub),
+                "win_rate": round(s_wins / len(sub), 3),
+            }
+
+    # Exit reason breakdown
+    exit_counts: dict = {}
+    for t in trades:
+        r = t.get("exit_reason") or "UNKNOWN"
+        exit_counts[r] = exit_counts.get(r, 0) + 1
+
+    # ── Phase + readiness ──────────────────────────────────────────────────
+    if n_closed < 10:
+        phase       = "WATCHING"
+        phase_color = "#f59e0b"
+        phase_label = "Watching"
+        phase_desc  = f"The model is logging signals. You need at least 10 closed trades to see patterns. You have {n_closed} so far."
+        need_more   = 10 - n_closed
+    elif n_closed < 30:
+        phase       = "COLLECTING"
+        phase_color = "#f59e0b"
+        phase_label = "Collecting Data"
+        phase_desc  = f"Good start. The model needs 30 closed trades to start adjusting its own weights. You have {n_closed}."
+        need_more   = 30 - n_closed
+    elif n_closed < 50:
+        phase       = "CALIBRATING"
+        phase_color = "#38bdf8"
+        phase_label = "Calibrating"
+        phase_desc  = f"The model is learning which signals work for your watchlist. At 50 trades, position sizing based on real performance unlocks."
+        need_more   = 50 - n_closed
+    else:
+        phase       = "SIZING"
+        phase_color = "#a78bfa"
+        phase_label = "Sized Paper Trading"
+        phase_desc  = "Enough data collected. Position sizes now reflect actual signal quality."
+        need_more   = 0
+
+    # Readiness verdict
+    is_ready    = False
+    verdict_msg = ""
+    if n_closed < 30:
+        verdict_color = "#f59e0b"
+        verdict_icon  = "🔴"
+        verdict_title = "Not ready for real money"
+        verdict_msg   = f"You need {30 - n_closed} more closed trades before the model has learned anything meaningful."
+    elif win_rate is not None and win_rate < 0.50:
+        verdict_color = "#ef4444"
+        verdict_icon  = "🔴"
+        verdict_title = "Not ready — win rate too low"
+        verdict_msg   = f"Win rate of {win_rate*100:.0f}% means the model is wrong more than it's right. This would lose money in real trading. Keep collecting data."
+    elif win_rate is not None and avg_r is not None and win_rate >= 0.54 and avg_r >= 0.5 and adj_pnl_total is not None and adj_pnl_total > 0:
+        is_ready      = True
+        verdict_color = "#22c55e"
+        verdict_icon  = "🟢"
+        verdict_title = "Consider graduating to real money"
+        verdict_msg   = f"Win rate {win_rate*100:.0f}%, avg {avg_r:.2f}R per trade, positive spread-adjusted P&L. These are good signals. Start with very small size — the real market is harder than paper."
+    elif win_rate is not None and win_rate >= 0.52:
+        verdict_color = "#38bdf8"
+        verdict_icon  = "🔵"
+        verdict_title = "Getting there"
+        verdict_msg   = f"Win rate {win_rate*100:.0f}% is a slight edge but not enough to be confident. Target is 54%+ with 0.5R+ average. Keep collecting."
+    else:
+        verdict_color = "#f59e0b"
+        verdict_icon  = "🟡"
+        verdict_title = "Too early to tell"
+        verdict_msg   = "Not enough closed trades or the numbers are mixed. Keep the runner going."
+
+    # ── Plain-English translations ─────────────────────────────────────────
+    def _wr_text(wr):
+        if wr is None:    return "No data yet."
+        p = wr * 100
+        if p < 40:   return "The model is losing more than it should. Something may be wrong."
+        if p < 48:   return "Below average. Could be bad luck — keep collecting data."
+        if p < 52:   return "Coin flip range. Not enough to make money yet."
+        if p < 57:   return "Slight edge. Promising — keep watching."
+        if p < 62:   return "Real edge. Worth serious attention."
+        return "Very strong. Rare — double-check the data."
+
+    def _r_text(r):
+        if r is None:  return "No data yet."
+        if r < 0:      return "Losing money on average."
+        if r < 0.25:   return "Tiny edge. Not worth real money yet."
+        if r < 0.5:    return "Developing edge. Getting closer."
+        if r < 1.0:    return "Solid edge. Real money territory."
+        return "Exceptional. Verify the numbers are correct."
+
+    def _exit_plain(reason):
+        m = {
+            "STOP_LOSS":       "Hit stop → loss",
+            "TARGET_1_HIT":    "Hit target 1 → partial win",
+            "TARGET_2_HIT":    "Hit full target → full win",
+            "TIME_STOP":       "Timed out — no strong move",
+            "FORCE_CLOSE_EOD": "Closed at end of day",
+        }
+        return m.get(reason, reason)
+
+    def _tod_plain(label):
+        m = {
+            "MORNING_TREND":   "Morning (9:35–11 AM)",
+            "AFTERNOON_TREND": "Afternoon (1–3 PM)",
+            "CLOSE_REVERSAL":  "Near Close (3–4 PM)",
+        }
+        return m.get(label, label)
+
+    def _pnl_color(pnl):
+        if pnl is None: return "#64748b"
+        return "#22c55e" if pnl >= 0 else "#ef4444"
+
+    def _pnl_sign(pnl):
+        if pnl is None: return "?"
+        return f"+${pnl:.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
+
+    # Runner status
+    try:
+        from fetchers.paper_runner import get_runner_status, _is_market_open
+        rs = get_runner_status()
+        runner_active = rs.get("active", False)
+        runner_open   = rs.get("open_positions", 0)
+        market_is_open = rs.get("market_open", False)
+    except Exception:
+        runner_active = False
+        runner_open   = 0
+        market_is_open = False
+
+    from datetime import datetime, timezone
+    try:
+        from fetchers.paper_runner import _et_now
+        now_str = _et_now().strftime("%I:%M %p ET, %b %d")
+    except Exception:
+        now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
+
+    # Progress bar for phase
+    phase_targets = {"WATCHING": 10, "COLLECTING": 30, "CALIBRATING": 50, "SIZING": 50}
+    phase_target  = phase_targets.get(phase, 50)
+    progress_pct  = min(100, int(n_closed / phase_target * 100))
+
+    # ── Build HTML ─────────────────────────────────────────────────────────
+    recent_html = ""
+    for t in trades[:8]:
+        pnl       = t.get("pnl_dollars")
+        icon      = "✅" if (pnl or 0) >= 0 else "❌"
+        sym       = t.get("symbol", "?")
+        side_lbl  = "BUY" if t.get("side") == "long" else "SELL"
+        reason    = _exit_plain(t.get("exit_reason") or "")
+        ex_time   = (t.get("exit_time") or "")[:16].replace("T", " ")
+        recent_html += f"""
+        <div class="trade-row">
+          <span class="trade-icon">{icon}</span>
+          <div class="trade-info">
+            <span class="trade-sym">{sym}</span>
+            <span class="trade-detail">{side_lbl} → {reason}</span>
+            <span class="trade-time">{ex_time}</span>
+          </div>
+          <span class="trade-pnl" style="color:{_pnl_color(pnl)}">{_pnl_sign(pnl)}</span>
+        </div>"""
+
+    open_html = ""
+    for t in open_t[:5]:
+        sym   = t.get("symbol", "?")
+        side  = "BUY" if t.get("side") == "long" else "SELL"
+        score = t.get("entry_score") or 0
+        entry_str = (t.get("entry_time") or "")[:16].replace("T", " ")
+        open_html += f"""
+        <div class="trade-row">
+          <span class="trade-icon">⏳</span>
+          <div class="trade-info">
+            <span class="trade-sym">{sym}</span>
+            <span class="trade-detail">{side} · score {score:.0f}</span>
+            <span class="trade-time">Entered {entry_str}</span>
+          </div>
+        </div>"""
+
+    tod_html = ""
+    for label, stats in tod_stats.items():
+        wr    = stats["win_rate"] * 100
+        color = "#22c55e" if wr >= 54 else "#f59e0b" if wr >= 48 else "#ef4444"
+        bar   = int(wr)
+        tod_html += f"""
+        <div class="tod-row">
+          <div class="tod-label">{_tod_plain(label)}</div>
+          <div class="tod-bar-wrap">
+            <div class="tod-bar" style="width:{bar}%;background:{color}"></div>
+          </div>
+          <div class="tod-pct" style="color:{color}">{wr:.0f}% win rate ({stats['n']} trades)</div>
+        </div>"""
+    if not tod_html:
+        tod_html = "<p class='muted-note'>No data yet — need at least a few closed trades per time slot.</p>"
+
+    exit_html = ""
+    for reason, count in sorted(exit_counts.items(), key=lambda x: -x[1]):
+        pct = count / n_closed * 100 if n_closed else 0
+        exit_html += f"<div class='exit-item'><span>{_exit_plain(reason)}</span><span class='exit-count'>{count}× ({pct:.0f}%)</span></div>"
+
+    wr_display  = f"{win_rate*100:.1f}%" if win_rate is not None else "—"
+    r_display   = f"{avg_r:.2f}R" if avg_r is not None else "—"
+    pnl_display = _pnl_sign(avg_pnl) if avg_pnl is not None else "—"
+    adj_display = _pnl_sign(adj_pnl_total) if adj_pnl_total is not None else "—"
+    adj_color   = _pnl_color(adj_pnl_total)
+    runner_dot  = "#22c55e" if runner_active else "#ef4444"
+    runner_lbl  = "Running" if runner_active else "Stopped"
+    market_lbl  = "Market open" if market_is_open else "Market closed"
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="300">
+<title>Predicta — Trading Monitor</title>
+<style>
+  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  :root {{
+    --bg: #0b1120; --surface: #131d30; --border: #1e2d47;
+    --blue: #38bdf8; --green: #22c55e; --amber: #f59e0b;
+    --red: #ef4444; --purple: #a78bfa; --text: #e2e8f0; --muted: #64748b;
+  }}
+  body {{ background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; padding-bottom: 60px; }}
+  header {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
+  .logo {{ font-size: 1.2rem; font-weight: 700; color: var(--blue); }}
+  .header-meta {{ margin-left: auto; font-size: .78rem; color: var(--muted); }}
+  .runner-dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: {runner_dot}; margin-right: 4px; vertical-align: middle; }}
+  main {{ max-width: 680px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }}
+  .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }}
+  .card-title {{ font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }}
+  .phase-banner {{ border-radius: 12px; padding: 20px; border: 2px solid {phase_color}; background: color-mix(in srgb, {phase_color} 8%, var(--surface)); }}
+  .phase-name {{ font-size: 1.4rem; font-weight: 800; color: {phase_color}; margin-bottom: 4px; }}
+  .phase-count {{ font-size: 2.8rem; font-weight: 900; color: {phase_color}; line-height: 1; margin-bottom: 8px; }}
+  .phase-sub {{ font-size: .8rem; color: var(--muted); margin-bottom: 14px; }}
+  .phase-desc {{ font-size: .9rem; line-height: 1.55; }}
+  .progress-wrap {{ background: var(--border); border-radius: 99px; height: 8px; margin-top: 16px; overflow: hidden; }}
+  .progress-bar {{ height: 100%; border-radius: 99px; background: {phase_color}; width: {progress_pct}%; transition: width .4s; }}
+  .progress-label {{ font-size: .72rem; color: var(--muted); margin-top: 6px; text-align: right; }}
+  .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  .stat-box {{ background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }}
+  .stat-value {{ font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 4px; }}
+  .stat-label {{ font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }}
+  .stat-meaning {{ font-size: .78rem; color: var(--text); line-height: 1.4; }}
+  .trade-row {{ display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }}
+  .trade-row:last-child {{ border-bottom: none; }}
+  .trade-icon {{ font-size: 1.1rem; flex-shrink: 0; width: 22px; text-align: center; }}
+  .trade-info {{ flex: 1; min-width: 0; }}
+  .trade-sym {{ font-weight: 700; font-size: .95rem; margin-right: 6px; }}
+  .trade-detail {{ font-size: .8rem; color: var(--muted); }}
+  .trade-time {{ display: block; font-size: .72rem; color: var(--muted); margin-top: 2px; }}
+  .trade-pnl {{ font-weight: 700; font-size: .9rem; flex-shrink: 0; }}
+  .tod-row {{ margin-bottom: 12px; }}
+  .tod-label {{ font-size: .82rem; color: var(--muted); margin-bottom: 4px; }}
+  .tod-bar-wrap {{ background: var(--bg); border-radius: 99px; height: 6px; overflow: hidden; margin-bottom: 4px; }}
+  .tod-bar {{ height: 100%; border-radius: 99px; }}
+  .tod-pct {{ font-size: .78rem; }}
+  .exit-item {{ display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }}
+  .exit-item:last-child {{ border-bottom: none; }}
+  .exit-count {{ color: var(--muted); }}
+  .verdict-card {{ border: 2px solid {verdict_color}; border-radius: 12px; padding: 20px; background: color-mix(in srgb, {verdict_color} 6%, var(--surface)); }}
+  .verdict-icon {{ font-size: 2rem; margin-bottom: 8px; }}
+  .verdict-title {{ font-size: 1.15rem; font-weight: 700; color: {verdict_color}; margin-bottom: 10px; }}
+  .verdict-body {{ font-size: .88rem; line-height: 1.6; }}
+  .muted-note {{ font-size: .82rem; color: var(--muted); font-style: italic; }}
+  .runner-card {{ display: flex; align-items: center; gap: 14px; }}
+  .runner-info {{ flex: 1; }}
+  .runner-status {{ font-size: 1rem; font-weight: 600; }}
+  .runner-detail {{ font-size: .8rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }}
+  footer {{ text-align: center; font-size: .75rem; color: var(--muted); padding: 20px; }}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Predicta · Trading Monitor</div>
+  <div class="header-meta">
+    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {market_lbl} &nbsp;·&nbsp; {now_str}
+  </div>
+</header>
+<main>
+
+  <!-- Phase banner -->
+  <div class="phase-banner">
+    <div class="card-title">Current Phase</div>
+    <div class="phase-name">{phase_label}</div>
+    <div class="phase-count">{n_closed} trades</div>
+    <div class="phase-sub">closed hypothetical trades collected</div>
+    <div class="phase-desc">{phase_desc}</div>
+    <div class="progress-wrap"><div class="progress-bar"></div></div>
+    <div class="progress-label">{n_closed} / {phase_target} trades · {progress_pct}%</div>
+  </div>
+
+  <!-- Accuracy stats -->
+  <div class="card">
+    <div class="card-title">Accuracy — last {n_closed} closed trades</div>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value" style="color:{'#22c55e' if win_rate and win_rate >= 0.54 else '#f59e0b' if win_rate and win_rate >= 0.5 else '#ef4444' if win_rate else '#64748b'}">{wr_display}</div>
+        <div class="stat-meaning">{_wr_text(win_rate)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Avg R per Trade</div>
+        <div class="stat-value" style="color:{'#22c55e' if avg_r and avg_r >= 0.5 else '#f59e0b' if avg_r and avg_r >= 0.25 else '#ef4444' if avg_r else '#64748b'}">{r_display}</div>
+        <div class="stat-meaning">{_r_text(avg_r)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Avg P&amp;L / Trade</div>
+        <div class="stat-value" style="color:{_pnl_color(avg_pnl)}">{pnl_display}</div>
+        <div class="stat-meaning">Raw paper fill (Alpaca price, before spread cost).</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Total Adj P&amp;L</div>
+        <div class="stat-value" style="color:{adj_color}">{adj_display}</div>
+        <div class="stat-meaning">After spread cost deducted — closer to what you'd actually make.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Best time of day -->
+  <div class="card">
+    <div class="card-title">Best Time of Day</div>
+    {tod_html}
+  </div>
+
+  <!-- Exit breakdown -->
+  <div class="card">
+    <div class="card-title">How Trades Are Closing</div>
+    {exit_html if exit_html else "<p class='muted-note'>No closed trades yet.</p>"}
+  </div>
+
+  <!-- Open positions -->
+  <div class="card">
+    <div class="card-title">Open Right Now ({n_open} positions)</div>
+    {open_html if open_html else "<p class='muted-note'>No open positions. The next scan runs at 9:35 AM ET on weekdays.</p>"}
+  </div>
+
+  <!-- Recent trades -->
+  <div class="card">
+    <div class="card-title">Recent Closed Trades</div>
+    {recent_html if recent_html else "<p class='muted-note'>No closed trades yet. Come back after a few market sessions.</p>"}
+  </div>
+
+  <!-- Runner status -->
+  <div class="card">
+    <div class="card-title">Automatic Scanner</div>
+    <div class="runner-card">
+      <span style="font-size:2rem">{'🟢' if runner_active else '🔴'}</span>
+      <div class="runner-info">
+        <div class="runner-status">{runner_lbl}</div>
+        <div class="runner-detail">
+          Scans AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA every morning at 9:35 AM ET.<br>
+          Checks open positions every 30 minutes. Force-closes at 3:50 PM ET.<br>
+          You do not need to do anything — it runs automatically.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Readiness verdict -->
+  <div class="verdict-card">
+    <div class="verdict-icon">{verdict_icon}</div>
+    <div class="verdict-title">{verdict_title}</div>
+    <div class="verdict-body">{verdict_msg}</div>
+  </div>
+
+</main>
+<footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/paper-data" style="color:var(--muted)">Raw data</a> &nbsp;·&nbsp; <a href="/trade/calibration" style="color:var(--muted)">Calibration</a></footer>
+</body>
+</html>"""
+    return html
 
 
 @app.get("/trade/paper-data")

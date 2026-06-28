@@ -26,7 +26,7 @@ mutates: none
 name: DB_PATH
 type: variable
 file: db/database.py
-purpose: Absolute path to the SQLite database file (predicta.db at project root).
+purpose: Path to the SQLite database file. Reads PREDICTA_DB_PATH env var first — set this on Railway to a volume path (e.g. /data/predicta.db) so data survives redeploys. Falls back to predicta.db at project root for local dev.
 inputs: none
 outputs: pathlib.Path
 calls: none
@@ -50,12 +50,12 @@ mutates: none
 name: init_db
 type: function
 file: db/database.py
-purpose: Create all database tables by executing schema.sql; safe to call repeatedly (CREATE IF NOT EXISTS).
+purpose: Initialize the SQLite database by executing schema.sql, running all idempotent migrations, and creating any missing indexes. Creates the parent directory first (supports Railway volume mounts). Called on every app startup.
 inputs: db_path: Path = DB_PATH
 outputs: none
-calls: sqlite3.connect, SCHEMA_PATH.read_text
-called_by: startup (app.py), run_analysis (analyze.py)
-mutates: predicta.db (creates tables)
+calls: SCHEMA_PATH, _migrate_sport_check, _migrate_intraday_trades, _migrate_new_tables
+called_by: startup (app.py)
+mutates: predicta.db (creates/migrates tables and indexes)
 ---
 
 ---
@@ -5621,6 +5621,30 @@ outputs: dict {ok: true}
 calls: stop_runner (paper_runner.py)
 called_by: POST /trade/paper-runner/stop
 mutates: _runner_active (paper_runner.py global)
+---
+
+---
+name: trade_dashboard
+type: function
+file: app.py
+purpose: GET /trade/dashboard — self-contained HTML page that translates paper trading data into plain English. Shows: current phase (Watching/Collecting/Calibrating/Sizing), win rate with interpretation text, avg R with interpretation text, total adjusted P&L, best time-of-day breakdown, how trades are closing (exit reasons), open positions, recent 8 trades, and a readiness verdict ("Ready for real money" / "Not yet — why"). Auto-refreshes every 5 minutes. Mobile-friendly.
+inputs: none
+outputs: HTMLResponse
+calls: db.database.get_db, get_runner_status (paper_runner.py), _et_now (paper_runner.py)
+called_by: GET /trade/dashboard
+mutates: none
+---
+
+---
+name: ping
+type: function
+file: app.py
+purpose: GET /ping — lightweight liveness check for Railway health monitoring. Returns immediately with no DB call.
+inputs: none
+outputs: dict {ok: true}
+calls: none
+called_by: Railway healthcheck, GET /ping
+mutates: none
 ---
 
 ---

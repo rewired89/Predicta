@@ -1,8 +1,11 @@
+import os
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
 
-DB_PATH = Path(__file__).parent.parent / "predicta.db"
+# PREDICTA_DB_PATH env var lets Railway (or any host) point the DB at a
+# persistent volume (e.g. /data/predicta.db) so data survives redeploys.
+DB_PATH = Path(os.environ.get("PREDICTA_DB_PATH", str(Path(__file__).parent.parent / "predicta.db")))
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
@@ -140,6 +143,7 @@ def _migrate_new_tables(conn: sqlite3.Connection) -> None:
 
 
 def init_db(db_path: Path = DB_PATH) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)  # ensure volume dir exists on Railway
     schema = SCHEMA_PATH.read_text()
     conn = sqlite3.connect(db_path)
     conn.executescript(schema)
