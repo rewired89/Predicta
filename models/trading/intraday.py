@@ -248,31 +248,40 @@ def _sig_relative_volume(bars: list[dict], daily_avg_volume: float) -> dict:
     }
 
 
-def _sig_gap(snapshot: dict) -> dict:
-    """Pre-market / open gap vs previous close."""
+def _sig_gap(snapshot: dict, trend_label: str = "neutral") -> dict:
+    """
+    Pre-market / open gap vs previous close, regime-conditioned.
+    Large gaps (>2%) are faded in all regimes — they fill ~65% of the time.
+    Small gaps (0.5–2%) follow the trend: gap-down in uptrend = buy the dip (+10),
+    gap-up in downtrend = dead-cat bounce to fade (-10).
+    """
     open_price = snapshot.get("open", 0)
     prev_close = snapshot.get("prev_close", 0)
     if not open_price or not prev_close:
         return {"gap_pct": 0, "direction": "none", "fill_prob": 0.5, "score": 0}
-    gap_pct = (open_price - prev_close) / prev_close * 100
-    # Gaps >2% fill ~65% of the time intraday (mean reversion)
-    # Gaps <0.5% are noise
-    fill_prob = 0.65 if abs(gap_pct) > 2 else 0.45 if abs(gap_pct) > 0.5 else 0.3
+    gap_pct    = (open_price - prev_close) / prev_close * 100
+    fill_prob  = 0.65 if abs(gap_pct) > 2 else 0.45 if abs(gap_pct) > 0.5 else 0.3
+    is_uptrend   = "uptrend" in trend_label.lower()
+    is_downtrend = "downtrend" in trend_label.lower()
     if gap_pct > 2:
-        score, direction = -10, "gap_up"   # fading gap up
+        score, direction = -10, "gap_up_large"       # fade large gap up always
     elif gap_pct > 0.5:
-        score, direction = 10, "gap_up"
+        # Small gap up: momentum in uptrend/neutral; dead-cat bounce in downtrend
+        score = -10 if is_downtrend else 10
+        direction = "gap_up_small"
     elif gap_pct < -2:
-        score, direction = 10, "gap_down"  # fading gap down
+        score, direction = 10, "gap_down_large"      # fade large gap down always
     elif gap_pct < -0.5:
-        score, direction = -10, "gap_down"
+        # Small gap down: buy-the-dip in uptrend; follow momentum otherwise
+        score = 10 if is_uptrend else -10
+        direction = "gap_down_small"
     else:
         score, direction = 0, "flat"
     return {
-        "gap_pct": round(gap_pct, 2),
+        "gap_pct":   round(gap_pct, 2),
         "direction": direction,
         "fill_prob": fill_prob,
-        "score": score,
+        "score":     score,
     }
 
 
@@ -340,70 +349,6 @@ def _sig_volume_surge(bars: list[dict]) -> dict:
         "ratio": round(ratio, 2),
         "label": "Volume surge" if surge else "Normal",
         "score": score,
-    }
-
-
-def _sig_macd(daily_bars: list[dict]) -> dict:
-    """
-    MACD(12,26,9) computed from daily bars for intraday trend-momentum context.
-    Crossover fires ±20; sustained direction ±10. Needs ≥35 daily bars.
-    """
-    if len(daily_bars) < 35:
-        return {
-            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
-            "direction": "neutral", "score": 0,
-            "label": "Insufficient data",
-        }
-    closes = [float(b["c"]) for b in daily_bars]
-    k12, k26, k9 = 2 / 13, 2 / 27, 2 / 10
-
-    # Warm EMA12 from bar 12 through bar 25 before MACD line starts at bar 26
-    ema12 = sum(closes[:12]) / 12
-    for i in range(12, 26):
-        ema12 = closes[i] * k12 + ema12 * (1 - k12)
-    ema26 = sum(closes[:26]) / 26
-
-    macd_vals: list[float] = []
-    for i in range(26, len(closes)):
-        ema12 = closes[i] * k12 + ema12 * (1 - k12)
-        ema26 = closes[i] * k26 + ema26 * (1 - k26)
-        macd_vals.append(ema12 - ema26)
-
-    if len(macd_vals) < 10:
-        return {
-            "macd": 0.0, "signal_line": 0.0, "histogram": 0.0,
-            "direction": "neutral", "score": 0,
-            "label": "Insufficient MACD history",
-        }
-
-    sig = sum(macd_vals[:9]) / 9
-    hists: list[float] = []
-    for v in macd_vals[9:]:
-        sig = v * k9 + sig * (1 - k9)
-        hists.append(v - sig)
-
-    hist_now  = hists[-1]
-    hist_prev = hists[-2] if len(hists) >= 2 else 0.0
-    direction = "bullish" if hist_now > 0 else "bearish" if hist_now < 0 else "neutral"
-
-    if hist_now > 0 and hist_prev <= 0:
-        score, label = 20, "Bullish MACD crossover"
-    elif hist_now < 0 and hist_prev >= 0:
-        score, label = -20, "Bearish MACD crossover"
-    elif hist_now > 0:
-        score, label = 10, "MACD bullish"
-    elif hist_now < 0:
-        score, label = -10, "MACD bearish"
-    else:
-        score, label = 0, "MACD neutral"
-
-    return {
-        "macd":        round(macd_vals[-1], 6),
-        "signal_line": round(sig, 6),
-        "histogram":   round(hist_now, 6),
-        "direction":   direction,
-        "score":       score,
-        "label":       label,
     }
 
 
@@ -662,17 +607,16 @@ def _trade_levels(
 
 # ── Ensemble scorer ────────────────────────────────────────────────────────────
 
-# Signal weights — 9 signals, sum to 1.00
+# Signal weights — 8 signals, sum to 1.00
 WEIGHTS = {
     "vwap":      0.20,
     "or":        0.15,
     "rsi":       0.15,
     "relvol":    0.10,
-    "gap":       0.08,
-    "trend":     0.10,
+    "gap":       0.10,
+    "trend":     0.15,
     "bollinger": 0.10,
     "volsurge":  0.05,
-    "macd":      0.07,
 }
 
 SCORE_LABELS = [
@@ -693,8 +637,7 @@ def _composite(signals: dict) -> dict:
         signals["gap"]["score"]       * WEIGHTS["gap"] +
         signals["trend"]["score"]     * WEIGHTS["trend"] +
         signals["bollinger"]["score"] * WEIGHTS["bollinger"] +
-        signals["volsurge"]["score"]  * WEIGHTS["volsurge"] +
-        signals["macd"]["score"]      * WEIGHTS["macd"]
+        signals["volsurge"]["score"]  * WEIGHTS["volsurge"]
     )
     # Normalize to -100..+100
     max_possible = sum(
@@ -702,7 +645,6 @@ def _composite(signals: dict) -> dict:
             (25, WEIGHTS["vwap"]), (25, WEIGHTS["or"]), (25, WEIGHTS["rsi"]),
             (20, WEIGHTS["relvol"]), (10, WEIGHTS["gap"]), (20, WEIGHTS["trend"]),
             (20, WEIGHTS["bollinger"]), (10, WEIGHTS["volsurge"]),
-            (20, WEIGHTS["macd"]),
         ]
     )
     value = round(raw / max_possible * 100) if max_possible else 0
@@ -738,19 +680,19 @@ def compute_intraday_signals(
     # ── Liquidity filter ───────────────────────────────────────────────────────
     liquidity = _sig_liquidity(snapshot)
 
-    # ── Nine-signal ensemble ───────────────────────────────────────────────────
-    # trend_sig computed first so its label can regime-condition _sig_vwap
-    trend_sig = _sig_trend_bias(daily_bars)
+    # ── Eight-signal ensemble ──────────────────────────────────────────────────
+    # trend_sig computed first so its label can regime-condition vwap and gap
+    trend_sig  = _sig_trend_bias(daily_bars)
+    trend_label = trend_sig.get("label", "neutral")
     sigs = {
-        "vwap":      _sig_vwap(intraday_bars, snapshot, trend_sig.get("label", "neutral")),
+        "vwap":      _sig_vwap(intraday_bars, snapshot, trend_label),
         "or":        _sig_opening_range(intraday_bars),
         "rsi":       _sig_rsi(intraday_bars),
         "relvol":    _sig_relative_volume(intraday_bars, daily_avg_volume),
-        "gap":       _sig_gap(snapshot),
+        "gap":       _sig_gap(snapshot, trend_label),
         "trend":     trend_sig,
         "bollinger": _sig_bollinger(intraday_bars),
         "volsurge":  _sig_volume_surge(intraday_bars),
-        "macd":      _sig_macd(daily_bars),
     }
 
     score     = _composite(sigs)
@@ -789,10 +731,10 @@ def compute_intraday_signals(
         score_val = round(score_val * time_mod, 1)
         score["reasons"] = [f"Time modifier ×{time_mod} ({time_info['label']})"] + score["reasons"]
         # Lunch hard zero: unless signal is conviction-level, suppress entirely
-        if time_info["label"] == "LUNCH_CHOP" and abs(score_val) < 60:
+        if time_info["label"] == "LUNCH_CHOP" and abs(score_val) < 40:
             score_val        = 0
             score["label"]   = "LUNCH_SUPPRESSED"
-            score["reasons"] = ["LUNCH_CHOP: score suppressed (< 60 threshold)"] + score["reasons"][1:]
+            score["reasons"] = ["LUNCH_CHOP: score suppressed (< 40 threshold)"] + score["reasons"][1:]
 
     # ── N-gram pattern blend (only when symbol provided + score is active) ─────
     ngram = {"signal": "NONE", "confidence": 0}
@@ -835,9 +777,8 @@ def compute_intraday_signals(
     score["time_modifier"] = time_mod
     score["time_label"]    = time_info["label"]
 
-    side        = "long" if score_val >= 0 else "short"
-    trend_label = sigs["trend"].get("label", "neutral")
-    levels      = _trade_levels(
+    side   = "long" if score_val >= 0 else "short"
+    levels = _trade_levels(
         intraday_bars, snapshot, side, trend_label,
         hold_bars=hold_bars,
         intraday_em=intraday_em,

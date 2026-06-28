@@ -1140,7 +1140,7 @@ mutates: none
 name: WEIGHTS
 type: variable
 file: models/trading/intraday.py
-purpose: 9-signal weight dictionary for the intraday ensemble (sums to 1.00): vwap 0.20, or 0.15, rsi 0.15, relvol 0.10, gap 0.08, trend 0.10, bollinger 0.10, volsurge 0.05, macd 0.07.
+purpose: 8-signal weight dictionary for the intraday ensemble (sums to 1.00): vwap 0.20, or 0.15, rsi 0.15, relvol 0.10, gap 0.10, trend 0.15, bollinger 0.10, volsurge 0.05.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -1224,10 +1224,22 @@ mutates: none
 name: _sig_vwap
 type: function
 file: models/trading/intraday.py
-purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20.
+purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20. trend_label sourced from _sig_trend_bias, pre-computed in compute_intraday_signals.
 inputs: bars: list[dict], snapshot: dict, trend_label: str = "neutral"
 outputs: dict {vwap, deviation_pct, label, score}
 calls: _vwap
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: _sig_gap
+type: function
+file: models/trading/intraday.py
+purpose: Regime-conditioned pre-market gap signal. Large gaps (>2%) are always faded. Small gaps (0.5–2%): gap-down in uptrend scores +10 (buy the dip); gap-up in downtrend scores -10 (fade the bounce). Neutral regime follows momentum direction.
+inputs: snapshot: dict, trend_label: str = "neutral"
+outputs: dict {gap_pct, direction, fill_prob, score}
+calls: none
 called_by: compute_intraday_signals
 mutates: none
 ---
@@ -1281,18 +1293,6 @@ mutates: none
 ---
 
 ---
-name: _sig_gap
-type: function
-file: models/trading/intraday.py
-purpose: Measures pre-market gap from previous close and scores its direction and fill probability (gaps >2% fill ~65% of the time).
-inputs: snapshot: dict
-outputs: dict {gap_pct, direction, fill_prob, score}
-calls: none
-called_by: compute_intraday_signals
-mutates: none
----
-
----
 name: _sig_trend_bias
 type: function
 file: models/trading/intraday.py
@@ -1323,18 +1323,6 @@ file: models/trading/intraday.py
 purpose: Detects whether the last 3 bars show a ≥2× volume spike vs the session average, confirming signal momentum.
 inputs: bars: list[dict]
 outputs: dict {surge, recent_avg_vol, session_avg_vol, ratio, label, score}
-calls: none
-called_by: compute_intraday_signals
-mutates: none
----
-
----
-name: _sig_macd
-type: function
-file: models/trading/intraday.py
-purpose: MACD(12,26,9) computed from daily bars for intraday trend-momentum context. Bullish/bearish crossover scores ±20; sustained histogram direction scores ±10. Needs ≥35 daily bars.
-inputs: daily_bars: list[dict]
-outputs: dict {macd, signal_line, histogram, direction, score, label}
 calls: none
 called_by: compute_intraday_signals
 mutates: none
@@ -1404,8 +1392,8 @@ mutates: none
 name: _composite
 type: function
 file: models/trading/intraday.py
-purpose: Combines all 9 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons (macd added as 9th signal).
-inputs: signals: dict (individual signal dicts, must include "macd" key)
+purpose: Combines all 8 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons.
+inputs: signals: dict (individual signal dicts)
 outputs: dict {value, label, reasons}
 calls: none
 called_by: compute_intraday_signals
@@ -1416,10 +1404,10 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — pre-computes trend_sig to regime-condition _sig_vwap, runs all 9 signals (added _sig_macd) + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 60; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
+purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap, runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
 outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
-calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _sig_macd, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
+calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
 called_by: intraday_analysis (app.py), _analyze_one (screener.py)
 mutates: none
 ---

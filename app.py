@@ -822,10 +822,10 @@ def smart_trade(body: SmartOrderRequest):
             "reason": "Market closed",
             "symbol": body.symbol,
         }
-    if tod_label == "LUNCH_CHOP" and abs(score_val) < 60:
+    if tod_label == "LUNCH_CHOP" and abs(score_val) < 40:
         return {
             "status":    "REJECTED",
-            "reason":    "Lunch chop — score suppressed below 60 conviction threshold",
+            "reason":    "Lunch chop — score below 40 conviction threshold",
             "score":     score,
             "symbol":    body.symbol,
         }
@@ -1056,8 +1056,8 @@ def signal_only(body: SmartOrderRequest):
         would_reject = f"Liquidity gate: {liq['label']} ({liq.get('spread_pct', 0):.3f}% spread)"
     elif tod_label == "MARKET_CLOSED":
         would_reject = "Market closed"
-    elif tod_label == "LUNCH_CHOP" and abs(score_val) < 60:
-        would_reject = "Lunch chop — score below 60 conviction threshold"
+    elif tod_label == "LUNCH_CHOP" and abs(score_val) < 40:
+        would_reject = "Lunch chop — score below 40 conviction threshold"
     elif abs(score_val) < body.min_score:
         would_reject = f"|score| {abs(score_val):.1f} < min_score {body.min_score}"
     elif not levels or not levels.get("stop"):
