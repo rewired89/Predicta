@@ -6449,6 +6449,18 @@ key_functions: get_starters (extracts top-3 batters from battingOrder), _load_fg
 ## scripts/enrich_nrfi_fi_rates.py
 
 ---
+name: enrich_nrfi_savant
+type: script
+file: scripts/enrich_nrfi_savant.py
+purpose: Post-processing enrichment for data/nrfi_dataset.csv using Baseball Savant Statcast data (accessible; no 403 block unlike FanGraphs). For each pitcher and season, looks up: xwoba_against (expected wOBA allowed), barrel_pct (barrel rate against), hard_hit_pct, whiff_pct, avg_velo. Uses statcast_pitcher_exitvelo_barrels, statcast_pitcher_percentile_ranks, statcast_pitcher_pitch_arsenal from pybaseball. Name matching: exact normalized → last-name exact → fuzzy (cutoff 0.82). Defaults to MLB averages when no match found. Run AFTER enrich_nrfi_fi_rates.py.
+inputs: data/nrfi_dataset.csv
+outputs: data/nrfi_dataset.csv (adds home/away_xwoba_against, barrel_pct, hard_hit_pct, whiff_pct, avg_velo columns)
+calls: pybaseball.statcast_pitcher_exitvelo_barrels, statcast_pitcher_percentile_ranks, statcast_pitcher_pitch_arsenal
+called_by: manual: python scripts/enrich_nrfi_savant.py
+mutates: data/nrfi_dataset.csv
+---
+
+---
 name: enrich_nrfi_fi_rates
 type: script
 file: scripts/enrich_nrfi_fi_rates.py
@@ -6468,7 +6480,7 @@ mutates: data/nrfi_dataset.csv
 name: nrfi_model
 type: module
 file: models/nrfi_model.py
-purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: rolling per-starter first-inning run rate (home_starter_fi_rate, away_starter_fi_rate — computed by enrich_nrfi_fi_rates.py), home/away starter SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%, top-3 lineup wRC+ (home_top3_wrc, away_top3_wrc), park_factor, is_dome. Trained on 2022-2023, tested on 2024 hold-out. Platt scaling (LogisticRegression) calibration applied on 2023 val fold. Auto-loads from models/nrfi_xgb.json on app startup; falls back silently to Poisson if model file absent.
+purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: rolling per-starter first-inning run rate (home/away_starter_fi_rate — from enrich_nrfi_fi_rates.py), Savant Statcast metrics (xwoba_against, barrel_pct, hard_hit_pct, whiff_pct, avg_velo — from enrich_nrfi_savant.py), BRef pitcher stats (K%/BB%/FIP), FanGraphs stats (SIERA/xFIP when available), top-3 lineup wRC+ (home/away_top3_wrc), park_factor, is_dome. Platt scaling is skipped when val AUC < 0.52 (would amplify noise rather than correct). Trained on 2022-2023, tested on 2024 hold-out.
 inputs: dataset: data/nrfi_dataset.csv (for training)
 outputs: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 calls: xgboost.XGBClassifier, sklearn.linear_model.LogisticRegression (Platt scaling)
@@ -6492,7 +6504,7 @@ mutates: none
 name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
-purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints feature coverage diagnostic, Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Quality filter uses home_fip/home_k_pct/away_fip/away_k_pct (columns available from BRef fallback). Key features include home/away_starter_fi_rate (from enrich_nrfi_fi_rates.py). Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints feature coverage diagnostic, Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Platt scaling (LogisticRegression) only applied when val AUC > 0.52 — skipped otherwise to prevent noise amplification causing inverted calibration curve. Quality filter uses home_fip/home_k_pct/away_fip/away_k_pct. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
 calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve

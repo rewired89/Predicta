@@ -37,9 +37,14 @@ DATASET_PATH   = _REPO / "data" / "nrfi_dataset.csv"
 
 # Features used at training AND prediction time — order must match
 FEATURES = [
-    # Rolling first-inning run rate per starter — most predictive signal
-    # Computed by scripts/enrich_nrfi_fi_rates.py from within the dataset
+    # Rolling first-inning run rate per starter (enrich_nrfi_fi_rates.py)
     "home_starter_fi_rate", "away_starter_fi_rate",
+    # Savant Statcast quality metrics (enrich_nrfi_savant.py)
+    "home_xwoba_against",  "away_xwoba_against",    # expected wOBA allowed
+    "home_barrel_pct",     "away_barrel_pct",        # barrel rate allowed
+    "home_hard_hit_pct",   "away_hard_hit_pct",      # hard-hit % allowed
+    "home_whiff_pct",      "away_whiff_pct",          # swing-and-miss rate
+    "home_avg_velo",       "away_avg_velo",           # fastball velocity
     # Pitcher season stats (FanGraphs when available, BRef fallback for FIP/K%/BB%)
     "home_siera",      "home_xfip",      "home_fip",
     "home_csw_pct",    "home_o_swing_pct", "home_k_pct",
@@ -52,10 +57,20 @@ FEATURES = [
     "park_factor",     "is_dome",
 ]
 
-# Fallback league-average values when a feature is missing
+# Fallback league-average values when a feature is missing at predict time
 FEATURE_DEFAULTS = {
-    "home_starter_fi_rate": 0.29,    # per-pitcher avg: ~29% of starts allow ≥1 1st-inn run
-    "away_starter_fi_rate": 0.29,   # (not the 47.7% YRFI rate, which counts either team scoring)
+    "home_starter_fi_rate": 0.29,    # per-pitcher avg fi_rate (NOT the 0.477 YRFI rate)
+    "away_starter_fi_rate": 0.29,
+    "home_xwoba_against":   0.315,   # MLB average xwOBA against
+    "away_xwoba_against":   0.315,
+    "home_barrel_pct":      0.085,   # MLB average barrel rate against
+    "away_barrel_pct":      0.085,
+    "home_hard_hit_pct":    0.370,   # MLB average hard-hit % against
+    "away_hard_hit_pct":    0.370,
+    "home_whiff_pct":       0.245,   # MLB average whiff %
+    "away_whiff_pct":       0.245,
+    "home_avg_velo":        93.5,    # MLB average fastball velocity
+    "away_avg_velo":        93.5,
     "home_siera":        4.00,
     "home_xfip":         4.00,
     "home_fip":          4.00,
@@ -74,7 +89,7 @@ FEATURE_DEFAULTS = {
     "away_bb_pct":       0.082,
     "away_gb_pct":       0.440,
     "away_hr_fb_pct":    0.115,
-    "home_top3_wrc":     100.0,   # league average wRC+ = 100 by definition
+    "home_top3_wrc":     100.0,
     "away_top3_wrc":     100.0,
     "park_factor":       1.0,
     "is_dome":           0,
@@ -245,9 +260,11 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     print("\nFeature coverage:")
     diag_cols = [
         ("home_starter_fi_rate", 90, "CRITICAL — run: python scripts/enrich_nrfi_fi_rates.py"),
-        ("away_starter_fi_rate", 90, "CRITICAL — run: python scripts/enrich_nrfi_fi_rates.py"),
+        ("home_xwoba_against",   70, "run: python scripts/enrich_nrfi_savant.py"),
+        ("home_barrel_pct",      70, "run: python scripts/enrich_nrfi_savant.py"),
+        ("home_whiff_pct",       70, "run: python scripts/enrich_nrfi_savant.py"),
         ("home_k_pct",           70, "BRef fallback"),
-        ("home_fip",             70, "BRef fallback"),
+        ("home_fip",             70, "BRef fallback (or rebuild dataset)"),
         ("home_siera",           50, "FanGraphs (blocked — will default)"),
         ("home_top3_wrc",        70, "BRef OPS+ proxy"),
     ]
@@ -310,16 +327,27 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         verbose=50,
     )
 
-    # Platt scaling (logistic regression) on the 2023 validation fold
-    # More robust than isotonic at <5000 samples; avoids staircase overfitting
+    # Platt scaling — only apply when val AUC shows real discrimination.
+    # When val AUC ≈ 0.50 (random), Platt fits a noise relationship on 2023
+    # and applies it in the wrong direction on 2024, producing the inverted
+    # calibration curve (predicted 14% → actual 55%).  Skip it in that case.
     raw_val_probs = model.predict_proba(X_val)[:, 1]
-    calibrator    = LogisticRegression(C=1.0, solver="lbfgs")
-    calibrator.fit(raw_val_probs.reshape(-1, 1), y_val)
-    print("\nPlatt scaling (logistic) fitted on 2023 val fold")
+    val_auc       = roc_auc_score(y_val, raw_val_probs)
+    if val_auc > 0.52:
+        calibrator = LogisticRegression(C=1.0, solver="lbfgs")
+        calibrator.fit(raw_val_probs.reshape(-1, 1), y_val)
+        print(f"\nPlatt scaling fitted on 2023 val fold  (val AUC: {val_auc:.4f})")
+    else:
+        calibrator = None
+        print(f"\nSkipping Platt scaling — val AUC {val_auc:.4f} ≈ random; "
+              f"Platt would amplify noise rather than correct it. Using raw XGBoost probs.")
 
     # Test-set evaluation (2024 — never seen)
     raw_test_probs = model.predict_proba(X_test)[:, 1]
-    cal_test_probs = calibrator.predict_proba(raw_test_probs.reshape(-1, 1))[:, 1]
+    if calibrator is not None:
+        cal_test_probs = calibrator.predict_proba(raw_test_probs.reshape(-1, 1))[:, 1]
+    else:
+        cal_test_probs = raw_test_probs
 
     brier_raw = brier_score_loss(y_test, raw_test_probs)
     brier_cal = brier_score_loss(y_test, cal_test_probs)
