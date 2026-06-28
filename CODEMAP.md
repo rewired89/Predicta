@@ -150,7 +150,7 @@ purpose: Updates an open trade record with exit data and computes: pnl_dollars (
 inputs: trade_id, exit_price, exit_reason, actual_hold_bars=None, slippage_exit=0.0, exit_time=None
 outputs: dict {trade_id, exit_price, exit_reason, pnl_dollars, pnl_pct, pnl_r, adjusted_pnl, slippage_cost}
 calls: db.database.get_db
-called_by: sync_trade_exits (app.py)
+called_by: sync_trade_exits (app.py), check_and_close_positions (paper_runner.py)
 mutates: intraday_trades table (UPDATE)
 ---
 
@@ -174,8 +174,228 @@ purpose: Logs what WOULD have happened without placing an order — signal-only 
 inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3"
 outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
-called_by: signal_only (app.py)
+called_by: signal_only (app.py), run_open_scan (paper_runner.py)
 mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols)
+---
+
+---
+
+## fetchers/paper_runner.py
+
+---
+name: RUNNER_SYMBOLS
+type: variable
+file: fetchers/paper_runner.py
+purpose: Default watchlist for the automated paper runner — single-tier large-cap liquid names (AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA) per Kimi's recommendation to avoid mixing volatility regimes in the first 30-40 calibration trades.
+inputs: none
+outputs: list[str]
+calls: none
+called_by: run_open_scan, _runner_loop, get_runner_status
+mutates: none
+---
+
+---
+name: RUNNER_MIN_SCORE
+type: variable
+file: fetchers/paper_runner.py
+purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40.
+inputs: none
+outputs: int
+calls: none
+called_by: run_open_scan, _runner_loop, get_runner_status
+mutates: none
+---
+
+---
+name: _HOLD_BARS
+type: variable
+file: fetchers/paper_runner.py
+purpose: Hold duration in 5-min bars per time-of-day label. MORNING_TREND/AFTERNOON_TREND=12 (60 min), CLOSE_REVERSAL/OPEN_NOISE/LUNCH_CHOP=6 (30 min).
+inputs: none
+outputs: dict[str, int]
+calls: none
+called_by: run_open_scan
+mutates: none
+---
+
+---
+name: _DEFAULT_HOLD_BARS
+type: variable
+file: fetchers/paper_runner.py
+purpose: Fallback hold duration (6 bars = 30 min) when time_label is not in _HOLD_BARS.
+inputs: none
+outputs: int
+calls: none
+called_by: run_open_scan, _check_exit
+mutates: none
+---
+
+---
+name: _et_now
+type: function
+file: fetchers/paper_runner.py
+purpose: Returns current datetime in US/Eastern timezone. Uses zoneinfo (DST-aware) when available; falls back to UTC-4/UTC-5 offset approximation based on month.
+inputs: none
+outputs: datetime (ET-aware)
+calls: none
+called_by: _in_scan_window, _near_close, _is_market_open, _et_minutes, run_open_scan, check_and_close_positions, get_runner_status, _runner_loop
+mutates: none
+---
+
+---
+name: _et_minutes
+type: function
+file: fetchers/paper_runner.py
+purpose: Current ET time expressed as minutes since midnight (for threshold comparisons like 9:30=570, 16:00=960).
+inputs: none
+outputs: int
+calls: _et_now
+called_by: _is_market_open, _in_scan_window, _near_close
+mutates: none
+---
+
+---
+name: _is_market_open
+type: function
+file: fetchers/paper_runner.py
+purpose: Returns True if current ET time is within NYSE regular session (Mon-Fri 09:30-16:00).
+inputs: none
+outputs: bool
+calls: _et_now, _et_minutes
+called_by: _runner_loop, get_runner_status
+mutates: none
+---
+
+---
+name: _in_scan_window
+type: function
+file: fetchers/paper_runner.py
+purpose: Returns True between 09:35-09:59 ET on weekdays — the morning scan window (5 min after open to let price discovery settle).
+inputs: none
+outputs: bool
+calls: _et_now, _et_minutes
+called_by: _runner_loop
+mutates: none
+---
+
+---
+name: _near_close
+type: function
+file: fetchers/paper_runner.py
+purpose: Returns True at or after 15:50 ET — triggers end-of-day force-close of all open positions.
+inputs: none
+outputs: bool
+calls: _et_minutes
+called_by: _runner_loop
+mutates: none
+---
+
+---
+name: _avg_daily_vol
+type: function
+file: fetchers/paper_runner.py
+purpose: Compute 20-day average daily volume from daily bars. Returns 1,000,000 if bars are empty (safe default for relative volume calculation).
+inputs: daily_bars: list[dict]
+outputs: float
+calls: none
+called_by: run_open_scan
+mutates: none
+---
+
+---
+name: run_open_scan
+type: function
+file: fetchers/paper_runner.py
+purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Returns list of trade_ids created.
+inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
+outputs: list[int] (trade_ids)
+calls: get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _et_now, _HOLD_BARS
+called_by: _runner_loop, paper_runner_scan_now (app.py)
+mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
+---
+
+---
+name: _load_open_positions
+type: function
+file: fetchers/paper_runner.py
+purpose: Query DB for all open hypothetical trades (is_hypothetical=1, exit_time IS NULL). Returns list of dicts with id, symbol, side, entry_price, entry_time, stop_price, target1_price, target_price, planned_hold_bars.
+inputs: none
+outputs: list[dict]
+calls: db.database.get_db
+called_by: check_and_close_positions, get_runner_status
+mutates: none
+---
+
+---
+name: _check_exit
+type: function
+file: fetchers/paper_runner.py
+purpose: Evaluate exit conditions for a single open position against recent 5-min bar data. Checks actual bar highs/lows so stop/target touches within a 30-min check interval are not missed. Priority: STOP_LOSS > TARGET_2_HIT > TARGET_1_HIT > TIME_STOP. Returns (reason, exit_price, elapsed_bars) or None if no exit.
+inputs: trade: dict, recent_bars: list[dict], current_price: float, now_utc: datetime
+outputs: Optional[tuple[str, float, int]]
+calls: none
+called_by: check_and_close_positions
+mutates: none
+---
+
+---
+name: check_and_close_positions
+type: function
+file: fetchers/paper_runner.py
+purpose: Check all open hypothetical positions and close any that hit stop, target, or time limit. Gets current snapshots + last 6 five-min bars per symbol; evaluates via _check_exit; calls log_trade_exit for each position that exits. force_close=True exits all at current price regardless of levels (used at 15:50 ET). Returns {"checked": N, "closed": M}.
+inputs: force_close: bool = False
+outputs: dict {checked, closed}
+calls: _load_open_positions, get_snapshots, get_bars, _check_exit, log_trade_exit, _et_now
+called_by: _runner_loop, paper_runner_scan_now (app.py indirectly)
+mutates: intraday_trades table (UPDATE via log_trade_exit), _run_log
+---
+
+---
+name: _runner_loop
+type: function
+file: fetchers/paper_runner.py
+purpose: Background thread body. Runs every 60s; on weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min, and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
+inputs: symbols: list[str], min_score: int
+outputs: none
+calls: _et_now, _is_market_open, _in_scan_window, _near_close, run_open_scan, check_and_close_positions
+called_by: start_runner (thread target)
+mutates: _runner_active (reads), today_scanned (local), _run_log (via calls)
+---
+
+---
+name: start_runner
+type: function
+file: fetchers/paper_runner.py
+purpose: Start the background paper runner thread (daemon). Returns True if started fresh, False if already running. Called from app.py startup event.
+inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
+outputs: bool
+calls: _runner_loop (thread target)
+called_by: startup (app.py), paper_runner_start (app.py)
+mutates: _runner_thread, _runner_active
+---
+
+---
+name: stop_runner
+type: function
+file: fetchers/paper_runner.py
+purpose: Signal the runner loop to stop on its next 60s tick by setting _runner_active=False.
+inputs: none
+outputs: none
+calls: none
+called_by: paper_runner_stop (app.py)
+mutates: _runner_active
+---
+
+---
+name: get_runner_status
+type: function
+file: fetchers/paper_runner.py
+purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, market_open status, ET time, count of open positions, their symbols, and last 20 _run_log events (newest first).
+inputs: none
+outputs: dict
+calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions
+called_by: paper_runner_status (app.py)
+mutates: none
 ---
 
 ---
@@ -2308,12 +2528,12 @@ mutates: none
 name: startup
 type: hook
 file: app.py
-purpose: FastAPI startup event handler that initializes the SQLite database on server start.
+purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runner (paper_runner.start_runner).
 inputs: none
 outputs: none
-calls: init_db
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (paper_runner.py)
 called_by: FastAPI on_event("startup")
-mutates: predicta.db
+mutates: predicta.db, _runner_thread/_runner_active (paper_runner.py globals)
 ---
 
 ---
@@ -5353,6 +5573,66 @@ outputs: dict {culled: list[dict], n_culled}
 calls: auto_cull_pairs (pairs.py)
 called_by: POST /trade/pairs-auto-cull
 mutates: suspended_pairs table (via auto_cull_pairs → suspend_pair)
+---
+
+---
+name: paper_runner_status
+type: function
+file: app.py
+purpose: GET /trade/paper-runner/status — returns current state of the automated paper trading runner: active flag, config, open position count, open symbols, market_open status, ET time, last 20 log events.
+inputs: none
+outputs: dict (from get_runner_status)
+calls: get_runner_status (paper_runner.py)
+called_by: GET /trade/paper-runner/status
+mutates: none
+---
+
+---
+name: paper_runner_scan_now
+type: function
+file: app.py
+purpose: POST /trade/paper-runner/scan-now — manually trigger a signal scan outside the scheduled window. Useful for afternoon session or ad-hoc testing.
+inputs: min_score: int = 20 (query)
+outputs: dict {logged, trade_ids}
+calls: run_open_scan (paper_runner.py)
+called_by: POST /trade/paper-runner/scan-now
+mutates: intraday_trades table (INSERT via run_open_scan)
+---
+
+---
+name: paper_runner_start
+type: function
+file: app.py
+purpose: POST /trade/paper-runner/start — start the background runner if not already running.
+inputs: none
+outputs: dict {started: bool}
+calls: start_runner (paper_runner.py)
+called_by: POST /trade/paper-runner/start
+mutates: _runner_thread, _runner_active (paper_runner.py globals)
+---
+
+---
+name: paper_runner_stop
+type: function
+file: app.py
+purpose: POST /trade/paper-runner/stop — signal background runner to stop on its next tick.
+inputs: none
+outputs: dict {ok: true}
+calls: stop_runner (paper_runner.py)
+called_by: POST /trade/paper-runner/stop
+mutates: _runner_active (paper_runner.py global)
+---
+
+---
+name: paper_data_export
+type: function
+file: app.py
+purpose: GET /trade/paper-data — export all hypothetical paper trade records for analysis. Returns closed trades by default (?include_open=true adds open positions). Includes summary stats (win_rate, avg_pnl, avg_r) + full trade rows with v4 signal scores for per-signal calibration analysis.
+inputs: days: int = 60 (query), include_open: bool = False (query)
+outputs: dict {period_days, total, closed, open, win_rate, avg_pnl, avg_r, trades: list[dict]}
+calls: db.database.get_db
+called_by: GET /trade/paper-data
+mutates: none
 ---
 
 ---

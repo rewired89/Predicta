@@ -29,9 +29,8 @@ app = FastAPI(title="Predicta", description="Multi-sport prediction & calibratio
 @app.on_event("startup")
 def startup():
     init_db()
-    # Kick off a background auto-resolve pass on startup so any results
-    # that came in while the server was down get picked up immediately.
     import threading
+
     def _bg_resolve():
         try:
             from tasks.auto_resolve import run_auto_resolve
@@ -39,6 +38,15 @@ def startup():
         except Exception:
             pass
     threading.Thread(target=_bg_resolve, daemon=True).start()
+
+    # Start automated hypothetical paper trading runner (Kimi phase-1 protocol).
+    # Runs Mon-Fri during market hours: morning scan at 9:35 ET, position checks
+    # every 30 min, force-close at 15:50 ET. No Alpaca orders placed.
+    try:
+        from fetchers.paper_runner import start_runner
+        start_runner()
+    except Exception:
+        pass
 
 
 # ── Match endpoints ─────────────────────────────────────────────────────────
@@ -1484,3 +1492,88 @@ def pairs_auto_cull(min_trades: int = 10, win_rate_floor: float = 0.40):
     from models.trading.pairs import auto_cull_pairs
     culled = auto_cull_pairs(min_trades=min_trades, win_rate_floor=win_rate_floor)
     return {"culled": culled, "n_culled": len(culled)}
+
+
+# ── Paper runner endpoints ────────────────────────────────────────────────────
+
+@app.get("/trade/paper-runner/status")
+def paper_runner_status():
+    """
+    Status of the automated paper trading runner.
+    Returns: active flag, config, open position count, last 20 log events.
+    """
+    from fetchers.paper_runner import get_runner_status
+    return get_runner_status()
+
+
+@app.post("/trade/paper-runner/scan-now")
+def paper_runner_scan_now(min_score: int = 20):
+    """
+    Manually trigger a signal scan outside the scheduled window.
+    Useful for testing or catching afternoon setups.
+    """
+    from fetchers.paper_runner import run_open_scan
+    ids = run_open_scan(min_score=min_score)
+    return {"logged": len(ids), "trade_ids": ids}
+
+
+@app.post("/trade/paper-runner/start")
+def paper_runner_start():
+    """Start the background runner if it is not already running."""
+    from fetchers.paper_runner import start_runner
+    started = start_runner()
+    return {"started": started}
+
+
+@app.post("/trade/paper-runner/stop")
+def paper_runner_stop():
+    """Signal the background runner to stop on its next tick."""
+    from fetchers.paper_runner import stop_runner
+    stop_runner()
+    return {"ok": True}
+
+
+@app.get("/trade/paper-data")
+def paper_data_export(days: int = 60, include_open: bool = False):
+    """
+    Export all hypothetical paper trade records for analysis.
+    Returns closed trades by default; include_open=true adds open positions.
+    Schema includes all v4 signal scores for per-signal calibration analysis.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM intraday_trades
+            WHERE is_hypothetical = 1
+              AND entry_time >= datetime('now', ? || ' days')
+              AND (? OR exit_time IS NOT NULL)
+            ORDER BY entry_time DESC
+            """,
+            (f"-{days}", 1 if include_open else 0),
+        ).fetchall()
+
+    trades = [dict(r) for r in rows]
+    closed = [t for t in trades if t.get("exit_time")]
+    open_t = [t for t in trades if not t.get("exit_time")]
+
+    win_rate = None
+    avg_pnl  = None
+    avg_r    = None
+    if closed:
+        wins     = sum(1 for t in closed if (t.get("pnl_dollars") or 0) > 0)
+        win_rate = round(wins / len(closed), 3)
+        avg_pnl  = round(sum(t.get("pnl_dollars") or 0 for t in closed) / len(closed), 2)
+        r_vals   = [t["pnl_r"] for t in closed if t.get("pnl_r") is not None]
+        if r_vals:
+            avg_r = round(sum(r_vals) / len(r_vals), 3)
+
+    return {
+        "period_days":  days,
+        "total":        len(trades),
+        "closed":       len(closed),
+        "open":         len(open_t),
+        "win_rate":     win_rate,
+        "avg_pnl":      avg_pnl,
+        "avg_r":        avg_r,
+        "trades":       trades,
+    }
