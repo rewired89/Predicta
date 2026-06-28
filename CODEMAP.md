@@ -6446,13 +6446,29 @@ key_functions: get_starters (extracts top-3 batters from battingOrder), _load_fg
 
 ---
 
+## scripts/enrich_nrfi_fi_rates.py
+
+---
+name: enrich_nrfi_fi_rates
+type: script
+file: scripts/enrich_nrfi_fi_rates.py
+purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling per-starter first-inning run rate from within the dataset (no API calls, ~5 sec). For each game, looks at prior starts by each pitcher and computes the fraction where they allowed ≥1 run in the 1st inning: home_starter_fi_rate (away_1st_runs>0 when home) and away_starter_fi_rate (home_1st_runs>0 when away). Defaults to league average (0.477) when fewer than MIN_STARTS=5 prior starts exist. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
+inputs: data/nrfi_dataset.csv
+outputs: data/nrfi_dataset.csv (adds home_starter_fi_rate, away_starter_fi_rate columns)
+calls: pandas
+called_by: manual: python scripts/enrich_nrfi_fi_rates.py
+mutates: data/nrfi_dataset.csv
+---
+
+---
+
 ## models/nrfi_model.py
 
 ---
 name: nrfi_model
 type: module
 file: models/nrfi_model.py
-purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: home/away starter SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%, top-3 lineup wRC+ (home_top3_wrc, away_top3_wrc), park_factor, is_dome. Trained on 2022-2023, tested on 2024 hold-out. Platt scaling (LogisticRegression) calibration applied on 2023 val fold. Auto-loads from models/nrfi_xgb.json on app startup; falls back silently to Poisson if model file absent.
+purpose: XGBoost-based NRFI probability model. Replaces the rough Poisson mu/9 approximation with a calibrated classifier trained on historical first-inning MLB outcomes. Features: rolling per-starter first-inning run rate (home_starter_fi_rate, away_starter_fi_rate — computed by enrich_nrfi_fi_rates.py), home/away starter SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%, top-3 lineup wRC+ (home_top3_wrc, away_top3_wrc), park_factor, is_dome. Trained on 2022-2023, tested on 2024 hold-out. Platt scaling (LogisticRegression) calibration applied on 2023 val fold. Auto-loads from models/nrfi_xgb.json on app startup; falls back silently to Poisson if model file absent.
 inputs: dataset: data/nrfi_dataset.csv (for training)
 outputs: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 calls: xgboost.XGBClassifier, sklearn.linear_model.LogisticRegression (Platt scaling)
@@ -6476,7 +6492,7 @@ mutates: none
 name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
-purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Quality filter uses home_fip/home_k_pct/away_fip/away_k_pct (columns available from BRef fallback) instead of SIERA/xFIP which are unavailable when FanGraphs is blocked. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints feature coverage diagnostic, Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Quality filter uses home_fip/home_k_pct/away_fip/away_k_pct (columns available from BRef fallback). Key features include home/away_starter_fi_rate (from enrich_nrfi_fi_rates.py). Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
 calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve

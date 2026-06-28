@@ -37,6 +37,10 @@ DATASET_PATH   = _REPO / "data" / "nrfi_dataset.csv"
 
 # Features used at training AND prediction time — order must match
 FEATURES = [
+    # Rolling first-inning run rate per starter — most predictive signal
+    # Computed by scripts/enrich_nrfi_fi_rates.py from within the dataset
+    "home_starter_fi_rate", "away_starter_fi_rate",
+    # Pitcher season stats (FanGraphs when available, BRef fallback for FIP/K%/BB%)
     "home_siera",      "home_xfip",      "home_fip",
     "home_csw_pct",    "home_o_swing_pct", "home_k_pct",
     "home_bb_pct",     "home_gb_pct",    "home_hr_fb_pct",
@@ -50,6 +54,8 @@ FEATURES = [
 
 # Fallback league-average values when a feature is missing
 FEATURE_DEFAULTS = {
+    "home_starter_fi_rate": 0.477,   # historical league avg: ~47.7% of starts allow ≥1 1st-inn run
+    "away_starter_fi_rate": 0.477,
     "home_siera":        4.00,
     "home_xfip":         4.00,
     "home_fip":          4.00,
@@ -235,16 +241,38 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     print(f"Seasons: {sorted(df['season'].unique())}")
     print(f"NRFI rate: {df['nrfi'].mean()*100:.1f}%")
 
+    # Coverage diagnostic — warn if key features are missing
+    print("\nFeature coverage:")
+    diag_cols = [
+        ("home_starter_fi_rate", 90, "CRITICAL — run: python scripts/enrich_nrfi_fi_rates.py"),
+        ("away_starter_fi_rate", 90, "CRITICAL — run: python scripts/enrich_nrfi_fi_rates.py"),
+        ("home_k_pct",           70, "BRef fallback"),
+        ("home_fip",             70, "BRef fallback"),
+        ("home_siera",           50, "FanGraphs (blocked — will default)"),
+        ("home_top3_wrc",        70, "BRef OPS+ proxy"),
+    ]
+    for col, warn_pct, note in diag_cols:
+        if col not in df.columns:
+            print(f"  ✗ {col:<28} MISSING — {note}")
+            continue
+        n   = df[col].notna().sum()
+        pct = n / len(df) * 100
+        sym = "✓" if pct >= warn_pct else ("~" if pct >= 40 else "✗")
+        print(f"  {sym} {col:<28} {n:>5}/{len(df)}  ({pct:.1f}%)  {note if pct < warn_pct else ''}")
+
     # Drop rows missing all pitcher quality signals — BRef provides fip/k_pct/bb_pct
     # but not siera/xfip, so filter on columns that are actually populated
     key_cols = ["home_fip", "home_k_pct", "away_fip", "away_k_pct"]
     df_clean = df.dropna(subset=key_cols, how="all")
-    print(f"After dropping rows missing all key pitcher cols: {len(df_clean)} rows")
+    print(f"\nAfter dropping rows missing all key pitcher cols: {len(df_clean)} rows")
 
     # Fill remaining NaN with league averages
+    df_clean = df_clean.copy()   # avoid SettingWithCopyWarning
     for feat in FEATURES:
         if feat in df_clean.columns:
             df_clean[feat] = df_clean[feat].fillna(FEATURE_DEFAULTS.get(feat, 0.0))
+        else:
+            df_clean[feat] = FEATURE_DEFAULTS.get(feat, 0.0)
 
     # Split by season
     train_df = df_clean[df_clean["season"].isin([2022, 2023])].copy()
@@ -274,7 +302,6 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         eval_metric       = "logloss",
         early_stopping_rounds = 30,
         random_state      = 42,
-        use_label_encoder = False,
     )
 
     model.fit(
