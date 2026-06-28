@@ -9,3 +9,6 @@ report.html
 *.egg-info/
 dist/
 build/
+# Generated NRFI training data — rebuild with scripts/build_nrfi_dataset.py
+data/nrfi_dataset.csv
+data/nrfi_checkpoint_*.csv
