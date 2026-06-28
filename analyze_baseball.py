@@ -209,12 +209,20 @@ def _bet_recommendations(
             if brl is not None and brl < 0.065:
                 elite.append(f"{name} barrel% {brl*100:.1f}% against (low, league avg 7.5%)")
 
-        if main_side == "NRFI" and p_nrfi >= 65.0 and elite:
+        # ML model max output is ~56% in a well-calibrated regime; 57% = top decile.
+        # Elite quality gate still applies for NRFI — requires at least one starter
+        # signal (CSW% > 30% or barrel% < 6.5%) as a secondary confirmation.
+        if main_side == "NRFI" and p_nrfi >= 57.0 and elite:
             verdict     = "BET"
-            confidence  = "HIGH" if (p_nrfi >= 70.0 and len(elite) >= 2) else "MEDIUM"
-            reasons     = [f"Model: {p_nrfi:.1f}% NRFI probability (threshold 65%)"] + elite
+            confidence  = "HIGH" if (p_nrfi >= 58.0 and len(elite) >= 2) else "MEDIUM"
+            reasons     = [f"Model: {p_nrfi:.1f}% NRFI probability (threshold 57%)"] + elite
             skip_reason = None
-        elif main_side == "YRFI" and p_yrfi >= 65.0:
+        elif main_side == "NRFI" and p_nrfi >= 57.0 and not elite:
+            verdict     = "LEAN"
+            confidence  = "LOW"
+            reasons     = [f"Model: {p_nrfi:.1f}% NRFI (threshold 57%) but no elite starter signal"]
+            skip_reason = None
+        elif main_side == "YRFI" and p_yrfi >= 57.0:
             verdict     = "BET"
             confidence  = "MEDIUM"
             reasons     = [f"Model: {p_yrfi:.1f}% YRFI — both starters expected to give up first-inning runs"]
@@ -224,8 +232,8 @@ def _bet_recommendations(
             confidence  = None
             reasons     = []
             parts: list[str] = []
-            if main_side == "NRFI" and p_nrfi < 65.0:
-                parts.append(f"NRFI {p_nrfi:.1f}% below 65% threshold")
+            if main_side == "NRFI" and p_nrfi < 57.0:
+                parts.append(f"NRFI {p_nrfi:.1f}% below 57% threshold")
             if main_side == "NRFI" and not elite:
                 parts.append("no elite starter signals (need CSW% > 30% or barrel% < 6.5%)")
             skip_reason = "; ".join(parts) or f"edge insufficient ({main_side} {main_prob:.1f}%)"
