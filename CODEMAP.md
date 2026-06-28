@@ -6476,7 +6476,7 @@ mutates: none
 name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
-purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+purpose: Trains XGBoost on data/nrfi_dataset.csv. Train/val: 2022-2023; held-out test: 2024. Prints Brier score, AUC-ROC, accuracy at 50% and 65% thresholds, top feature importances, and calibration curve (8-bin quantile, predicted% vs actual%). Calibration uses Platt scaling (LogisticRegression on raw val probs). Quality filter uses home_fip/home_k_pct/away_fip/away_k_pct (columns available from BRef fallback) instead of SIERA/xFIP which are unavailable when FanGraphs is blocked. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
 calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve

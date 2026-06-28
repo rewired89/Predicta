@@ -235,8 +235,9 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     print(f"Seasons: {sorted(df['season'].unique())}")
     print(f"NRFI rate: {df['nrfi'].mean()*100:.1f}%")
 
-    # Drop rows missing both starter quality signals
-    key_cols = ["home_siera", "home_xfip", "away_siera", "away_xfip"]
+    # Drop rows missing all pitcher quality signals — BRef provides fip/k_pct/bb_pct
+    # but not siera/xfip, so filter on columns that are actually populated
+    key_cols = ["home_fip", "home_k_pct", "away_fip", "away_k_pct"]
     df_clean = df.dropna(subset=key_cols, how="all")
     print(f"After dropping rows missing all key pitcher cols: {len(df_clean)} rows")
 
