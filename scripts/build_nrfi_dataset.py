@@ -481,7 +481,7 @@ def build_season(season: int, checkpoint_path: Path) -> list[dict]:
     rows: list[dict] = []
 
     if checkpoint_path.exists():
-        with checkpoint_path.open() as f:
+        with checkpoint_path.open(encoding="utf-8", errors="replace") as f:
             reader = csv.DictReader(f)
             for r in reader:
                 rows.append(r)
@@ -565,7 +565,7 @@ def build_season(season: int, checkpoint_path: Path) -> list[dict]:
 
         # Write checkpoint every 50 games
         if i % 50 == 0 or i == len(todo):
-            with checkpoint_path.open("w", newline="") as f:
+            with checkpoint_path.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
                 writer.writeheader()
                 writer.writerows(rows)
@@ -611,7 +611,7 @@ def main():
               f"NRFI {nrfi_n}/{len(rows)} ({nrfi_n/len(rows)*100:.1f}%)")
 
     # Write final merged CSV
-    with args.output.open("w", newline="") as f:
+    with args.output.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
         writer.writeheader()
         writer.writerows(all_rows)

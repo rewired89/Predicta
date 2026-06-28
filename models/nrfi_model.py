@@ -230,7 +230,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         print("Run: python scripts/build_nrfi_dataset.py")
         return
 
-    df = pd.read_csv(dataset_path)
+    df = pd.read_csv(dataset_path, encoding="latin-1")
     print(f"Loaded {len(df)} rows from {dataset_path}")
     print(f"Seasons: {sorted(df['season'].unique())}")
     print(f"NRFI rate: {df['nrfi'].mean()*100:.1f}%")
