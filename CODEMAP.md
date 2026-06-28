@@ -6461,6 +6461,18 @@ mutates: data/nrfi_dataset.csv
 ---
 
 ---
+name: enrich_nrfi_fip_bref
+type: script
+file: scripts/enrich_nrfi_fip_bref.py
+purpose: Backfills home_fip/away_fip (and home_k_pct/away_k_pct/home_bb_pct/away_bb_pct) in data/nrfi_dataset.csv using pybaseball.pitching_stats_bref() without requiring a full dataset rebuild. Only overwrites NaN cells — does not clobber existing FanGraphs values. Computes FIP from BRef components (HR/BB/HBP/SO/IP) when BRef doesn't return a pre-computed FIP column; FIP_CONSTANT=3.15. Name matching: exact normalized → last-name exact → fuzzy (cutoff 0.82). Run AFTER enrich_nrfi_savant.py and BEFORE nrfi_model.py --train.
+inputs: data/nrfi_dataset.csv
+outputs: data/nrfi_dataset.csv (fills NaN in home_fip, away_fip, home_k_pct, away_k_pct, home_bb_pct, away_bb_pct)
+calls: pybaseball.pitching_stats_bref
+called_by: manual: python scripts/enrich_nrfi_fip_bref.py
+mutates: data/nrfi_dataset.csv
+---
+
+---
 name: enrich_nrfi_fi_rates
 type: script
 file: scripts/enrich_nrfi_fi_rates.py

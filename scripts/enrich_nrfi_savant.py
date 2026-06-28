@@ -73,20 +73,29 @@ def _load_savant_season(season: int) -> dict[str, dict]:
     try:
         ev = pyb.statcast_pitcher_exitvelo_barrels(season)
         if ev is not None and not ev.empty:
-            # column names vary by pybaseball version
+            print(f"    Exit velo columns: {list(ev.columns)}")
             name_col = next((c for c in ("last_name, first_name", "player_name", "name")
                              if c in ev.columns), None)
+
+            # Savant column names shift across pybaseball versions — try all known variants
+            COL_MAP = [
+                # (list of candidate src names, dst feature name)
+                (["xwoba", "est_woba", "xwoba_against"],          "xwoba_against"),
+                (["brl_percent", "barrel_batted_rate", "brl_pa"], "barrel_pct"),
+                (["ev95percent", "hard_hit_percent",
+                  "hard_hit_pct", "ev95plus"],                     "hard_hit_pct"),
+            ]
+
+            written = 0
             for _, row in ev.iterrows():
                 if name_col:
                     raw_name = str(row.get(name_col, ""))
-                    # Savant format: "Last, First" → normalise to "first last"
                     if "," in raw_name:
                         parts = raw_name.split(",", 1)
                         full  = f"{parts[1].strip()} {parts[0].strip()}"
                     else:
                         full = raw_name
                 else:
-                    # fall back to separate first/last columns
                     first = str(row.get("first_name", "")).strip()
                     last  = str(row.get("last_name", "")).strip()
                     full  = f"{first} {last}"
@@ -97,19 +106,21 @@ def _load_savant_season(season: int) -> dict[str, dict]:
                 if key not in lookup:
                     lookup[key] = {}
 
-                for src, dst in [
-                    ("xwoba",            "xwoba_against"),
-                    ("barrel_batted_rate","barrel_pct"),
-                    ("hard_hit_percent",  "hard_hit_pct"),
-                ]:
-                    val = row.get(src)
-                    if val is not None:
-                        try:
-                            lookup[key][dst] = float(val)
-                        except (TypeError, ValueError):
-                            pass
+                row_wrote = False
+                for candidates, dst in COL_MAP:
+                    for src in candidates:
+                        val = row.get(src)
+                        if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                            try:
+                                lookup[key][dst] = float(val)
+                                row_wrote = True
+                                break
+                            except (TypeError, ValueError):
+                                pass
+                if row_wrote:
+                    written += 1
 
-            print(f"    Exit velo/barrels: {len(lookup)} pitchers")
+            print(f"    Exit velo/barrels: {len(lookup)} pitchers found, {written} with metrics written")
     except Exception as e:
         print(f"    statcast_pitcher_exitvelo_barrels({season}) failed: {e}")
 
@@ -159,19 +170,24 @@ def _load_savant_season(season: int) -> dict[str, dict]:
             if fb.empty:
                 fb = pa   # fallback: use all pitches
 
-            name_col = next((c for c in ("pitcher_name", "player_name", "name",
-                                          "last_name, first_name")
-                             if c in fb.columns), None)
-            # Expand velocity column search — Savant arsenal uses "avg_speed" or "mph"
-            vel_col  = next((c for c in ("avg_speed", "mph", "release_speed",
-                                          "velocity", "mean_speed")
-                             if c in fb.columns), None)
+            name_col = next((c for c in ("last_name, first_name", "pitcher_name",
+                                          "player_name", "name")
+                             if c in pa.columns), None)
+            # Savant arsenal returns per-pitch-type speed columns (ff_avg_speed, si_avg_speed…)
+            # Use ff_avg_speed (four-seam) as primary; fall back to si/fa/ft
+            VELO_CANDIDATES = ["ff_avg_speed", "si_avg_speed", "fa_avg_speed",
+                               "ft_avg_speed", "avg_speed", "mph", "release_speed"]
+            vel_col = next((c for c in VELO_CANDIDATES if c in pa.columns), None)
             print(f"    Pitch arsenal: name_col={name_col!r}, vel_col={vel_col!r}")
 
             if name_col and vel_col:
-                grouped = fb.groupby(name_col)[vel_col].mean()
+                # Work on the full pa dataframe (not fastball-filtered) since columns
+                # are already per-pitch-type — just take the fastball speed column
+                grouped = pa.groupby(name_col)[vel_col].mean()
                 added = 0
                 for raw_name, avg_vel in grouped.items():
+                    if pd.isna(avg_vel):
+                        continue
                     raw_name = str(raw_name)
                     if "," in raw_name:
                         parts = raw_name.split(",", 1)
