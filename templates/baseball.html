@@ -528,6 +528,7 @@ function renderMarkets(markets, teamA, teamB) {
     const card = document.createElement("div");
     card.className = "market-card";
     card.innerHTML = `<div class="market-title">Moneyline</div>
+      <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">Who wins the game?</div>
       <div class="market-body">${ml.options.map(marketOptionRow).join("")}</div>`;
     grid.appendChild(card);
   }
@@ -538,6 +539,7 @@ function renderMarkets(markets, teamA, teamB) {
     const card = document.createElement("div");
     card.className = "market-card";
     card.innerHTML = `<div class="market-title">First Inning (NRFI / YRFI)</div>
+      <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">Does anyone score in inning 1?</div>
       <div class="market-body">${nrfi.options.map(marketOptionRow).join("")}
       ${nrfi.note ? `<div class="market-note">${nrfi.note}</div>` : ""}</div>`;
     grid.appendChild(card);
@@ -549,6 +551,7 @@ function renderMarkets(markets, teamA, teamB) {
     const card = document.createElement("div");
     card.className = "market-card";
     card.innerHTML = `<div class="market-title">First 5 Innings</div>
+      <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">Who's winning after inning 5? (starter matchup only)</div>
       <div class="market-body">${ff.options.map(marketOptionRow).join("")}
       ${ff.note ? `<div class="market-note">${ff.note}</div>` : ""}</div>`;
     grid.appendChild(card);
@@ -566,6 +569,7 @@ function renderMarkets(markets, teamA, teamB) {
       <td>${l.p_away_covers}%</td>
     </tr>`).join("");
     card.innerHTML = `<div class="market-title">Run Line (Spread)</div>
+      <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">Does ${teamA} win by 2+ runs? (−1.5 = must win by 2, +1.5 = wins or loses by 1)</div>
       <div class="market-body" style="padding:8px 14px">
         <table class="spread-table">
           <thead><tr><th>Line</th><th>${teamA} covers</th><th>Push</th><th>${teamB} covers</th></tr></thead>
@@ -590,6 +594,7 @@ function renderMarkets(markets, teamA, teamB) {
       </tr>`;
     }).join("");
     card.innerHTML = `<div class="market-title">Total Runs O/U</div>
+      <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">Combined runs scored by both teams across all 9 innings</div>
       <div class="market-body" style="padding:8px 14px">
         <table class="spread-table">
           <thead><tr><th>Line</th><th>Over</th><th>Under</th></tr></thead>
@@ -612,6 +617,7 @@ function renderMarkets(markets, teamA, teamB) {
         <td>Over ${l.line}</td><td>${l.p_over}%</td><td>${l.p_under}%</td>
       </tr>`).join("");
       card.innerHTML = `<div class="market-title">${name} — Team Total</div>
+        <div class="market-note" style="padding:4px 14px 0;font-size:.7rem;color:var(--muted);font-style:italic">How many runs does ${name} score by themselves?</div>
         <div class="market-body" style="padding:8px 14px">
           <table class="spread-table">
             <thead><tr><th>Line</th><th>Over</th><th>Under</th></tr></thead>
