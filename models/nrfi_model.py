@@ -229,12 +229,13 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     Train XGBoost on the historical dataset and save model + calibrator.
 
     Train/val split:
-      Train: 2022, 2023
+      Train: 2022
+      Val:   2023  (genuine holdout — disjoint from train)
       Test:  2024  (held out — never seen during training)
 
     Calibration:
-      Isotonic regression on the 2023 validation fold to correct
-      probability over/under-confidence before testing on 2024.
+      Platt scaling on the 2023 val fold (skipped when val AUC ≤ 0.52 to
+      avoid amplifying noise into an inverted calibration curve).
     """
     try:
         import xgboost as xgb
@@ -291,9 +292,9 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
         else:
             df_clean[feat] = FEATURE_DEFAULTS.get(feat, 0.0)
 
-    # Split by season
-    train_df = df_clean[df_clean["season"].isin([2022, 2023])].copy()
-    val_df   = df_clean[df_clean["season"] == 2023].copy()   # calibration fold
+    # Split by season — train/val must be disjoint to avoid data leakage
+    train_df = df_clean[df_clean["season"] == 2022].copy()
+    val_df   = df_clean[df_clean["season"] == 2023].copy()   # genuine holdout
     test_df  = df_clean[df_clean["season"] == 2024].copy()
 
     X_train = train_df[FEATURES].values.astype(np.float32)
@@ -303,7 +304,7 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     X_test  = test_df[FEATURES].values.astype(np.float32)
     y_test  = test_df["nrfi"].values.astype(int)
 
-    print(f"\nTrain: {len(X_train)} games (2022–2023)")
+    print(f"\nTrain: {len(X_train)} games (2022)")
     print(f"Test:  {len(X_test)} games (2024 held-out)")
 
     # XGBoost — conservative hyperparams to avoid overfitting on small dataset

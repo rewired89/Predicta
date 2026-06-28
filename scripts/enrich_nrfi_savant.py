@@ -71,7 +71,7 @@ def _load_savant_season(season: int) -> dict[str, dict]:
 
     # ── Exit velo / barrels / xwOBA ──────────────────────────────────────────
     try:
-        ev = pyb.statcast_pitcher_exitvelo_barrels(season, minPA=25)
+        ev = pyb.statcast_pitcher_exitvelo_barrels(season)
         if ev is not None and not ev.empty:
             # column names vary by pybaseball version
             name_col = next((c for c in ("last_name, first_name", "player_name", "name")
