@@ -209,20 +209,20 @@ def _bet_recommendations(
             if brl is not None and brl < 0.065:
                 elite.append(f"{name} barrel% {brl*100:.1f}% against (low, league avg 7.5%)")
 
-        # ML model max output is ~56% in a well-calibrated regime; 57% = top decile.
+        # 55% threshold gives ~100-150 games/season volume to validate edge faster.
         # Elite quality gate still applies for NRFI — requires at least one starter
         # signal (CSW% > 30% or barrel% < 6.5%) as a secondary confirmation.
-        if main_side == "NRFI" and p_nrfi >= 57.0 and elite:
+        if main_side == "NRFI" and p_nrfi >= 55.0 and elite:
             verdict     = "BET"
-            confidence  = "HIGH" if (p_nrfi >= 58.0 and len(elite) >= 2) else "MEDIUM"
-            reasons     = [f"Model: {p_nrfi:.1f}% NRFI probability (threshold 57%)"] + elite
+            confidence  = "HIGH" if (p_nrfi >= 57.0 and len(elite) >= 2) else "MEDIUM"
+            reasons     = [f"Model: {p_nrfi:.1f}% NRFI probability (threshold 55%)"] + elite
             skip_reason = None
-        elif main_side == "NRFI" and p_nrfi >= 57.0 and not elite:
+        elif main_side == "NRFI" and p_nrfi >= 55.0 and not elite:
             verdict     = "LEAN"
             confidence  = "LOW"
-            reasons     = [f"Model: {p_nrfi:.1f}% NRFI (threshold 57%) but no elite starter signal"]
+            reasons     = [f"Model: {p_nrfi:.1f}% NRFI (threshold 55%) but no elite starter signal"]
             skip_reason = None
-        elif main_side == "YRFI" and p_yrfi >= 57.0:
+        elif main_side == "YRFI" and p_yrfi >= 55.0:
             verdict     = "BET"
             confidence  = "MEDIUM"
             reasons     = [f"Model: {p_yrfi:.1f}% YRFI — both starters expected to give up first-inning runs"]
@@ -232,8 +232,8 @@ def _bet_recommendations(
             confidence  = None
             reasons     = []
             parts: list[str] = []
-            if main_side == "NRFI" and p_nrfi < 57.0:
-                parts.append(f"NRFI {p_nrfi:.1f}% below 57% threshold")
+            if main_side == "NRFI" and p_nrfi < 55.0:
+                parts.append(f"NRFI {p_nrfi:.1f}% below 55% threshold")
             if main_side == "NRFI" and not elite:
                 parts.append("no elite starter signals (need CSW% > 30% or barrel% < 6.5%)")
             skip_reason = "; ".join(parts) or f"edge insufficient ({main_side} {main_prob:.1f}%)"
@@ -843,12 +843,25 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
 
     # ── NRFI model override (replaces mu/9 approximation when trained) ────────
     # predict_nrfi() returns None when models/nrfi_xgb.json doesn't exist yet.
-    # Once you run: python scripts/build_nrfi_dataset.py && python models/nrfi_model.py --train
-    # the trained model is used automatically on every restart.
-    # top-3 wRC+ not available in live pipeline — model uses league-average (100) as default
+    # Fetch today's confirmed top-3 lineup OPS from MLB Stats API; falls back
+    # to None (model uses league-average 100) if lineup not yet posted.
+    _home_t3_wrc: float | None = None
+    _away_t3_wrc: float | None = None
+    _lineup_note = ""
+    try:
+        from fetchers.nrfi_lineup import get_nrfi_lineup_wrc
+        _home_t3_wrc, _away_t3_wrc = get_nrfi_lineup_wrc(
+            home_team=team_home, away_team=team_away, game_date=game_date,
+        )
+        if _home_t3_wrc is not None and _away_t3_wrc is not None:
+            _lineup_note = (f" | Lineup wRC+ (approx): home top-3 {_home_t3_wrc:.0f}, "
+                            f"away top-3 {_away_t3_wrc:.0f}")
+    except Exception:
+        pass
+
     _nrfi_ml_prob = predict_nrfi(
         home_starter, away_starter, home_team, park_factor,
-        home_top3_wrc=None, away_top3_wrc=None,
+        home_top3_wrc=_home_t3_wrc, away_top3_wrc=_away_t3_wrc,
     )
     if _nrfi_ml_prob is not None and "nrfi" in formatted_markets:
         _p_nrfi_ml = round(_nrfi_ml_prob * 100, 1)
@@ -861,11 +874,12 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 {"label": "YRFI (Yes Run First Inning)", "prob": _p_yrfi_ml,
                  "best": _p_yrfi_ml > _p_nrfi_ml},
             ],
-            "note": "XGBoost model trained on 2022–2024 MLB first-inning outcomes",
+            "note": f"XGBoost model trained on 2022–2025 MLB first-inning outcomes{_lineup_note}",
             "model": "xgb_calibrated",
         }
         steps.append({"step": "nrfi_model", "status": "ok",
-                      "p_nrfi": _p_nrfi_ml, "source": "xgboost"})
+                      "p_nrfi": _p_nrfi_ml, "source": "xgboost",
+                      "home_top3_wrc": _home_t3_wrc, "away_top3_wrc": _away_t3_wrc})
     else:
         # Poisson mu/9 approximation — unvalidated, label it clearly
         if "nrfi" in formatted_markets:

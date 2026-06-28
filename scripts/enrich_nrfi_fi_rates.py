@@ -6,12 +6,15 @@ Computes rolling per-starter first-inning run rate from within the dataset
 itself — no API calls, runs in ~5 seconds.
 
 Features added:
-  home_starter_fi_rate  — fraction of prior starts where this pitcher allowed
-                          ≥1 run in the 1st inning (away_1st_runs > 0 when home)
-  away_starter_fi_rate  — same for the away starter (home_1st_runs > 0 when away)
+  home_starter_fi_rate  — pitcher's fi_rate specifically in HOME starts
+                          (venue-split: a pitcher who suppresses runs at home
+                          but struggles on the road gets separate rates)
+  away_starter_fi_rate  — pitcher's fi_rate specifically in AWAY (road) starts
 
-Defaults to league average (0.477) when fewer than MIN_STARTS prior appearances
-exist in the dataset.
+Fallback cascade when insufficient venue-specific data:
+  1. Venue-specific rate  (if ≥ MIN_STARTS_VENUE prior venue-split starts)
+  2. Overall rate         (if ≥ MIN_STARTS prior starts of any venue)
+  3. League average       (computed from data — NOT hardcoded 0.477 YRFI rate)
 
 Run AFTER build_nrfi_dataset.py:
   python scripts/enrich_nrfi_fi_rates.py
@@ -33,10 +36,9 @@ except ImportError:
     print("ERROR: pandas not installed. Run: pip install pandas")
     sys.exit(1)
 
-CSV_PATH   = _REPO / "data" / "nrfi_dataset.csv"
-MIN_STARTS = 5   # require this many prior starts before trusting the rolling rate
-# LEAGUE_AVG is computed from the data at runtime — NOT hardcoded.
-# 0.477 (YRFI rate) was wrong; per-pitcher fi_rate averages ~0.27–0.30.
+CSV_PATH        = _REPO / "data" / "nrfi_dataset.csv"
+MIN_STARTS      = 5   # minimum overall starts before trusting any rolling rate
+MIN_STARTS_VENUE = 3  # minimum venue-specific starts for venue-split rate
 
 
 def compute_fi_rates(csv_path: Path = CSV_PATH) -> None:
@@ -53,21 +55,22 @@ def compute_fi_rates(csv_path: Path = CSV_PATH) -> None:
     df["away_1st_runs"] = pd.to_numeric(df["away_1st_runs"], errors="coerce").fillna(0).astype(int)
 
     # League average fi_rate = P(pitcher allows ≥1 run in 1st inning).
-    # This is NOT the YRFI rate (0.477). YRFI = P(either team scores).
-    # Per-pitcher fi_rate = P(opposing team scores), which is roughly half.
-    # Compute from actual data so the default matches the real distribution.
-    league_avg_home = (df["away_1st_runs"] > 0).mean()   # home starter allowed run
-    league_avg_away = (df["home_1st_runs"] > 0).mean()   # away starter allowed run
+    # NOT the YRFI rate (0.477). Per-pitcher fi_rate ≈ half of YRFI rate.
+    league_avg_home = (df["away_1st_runs"] > 0).mean()
+    league_avg_away = (df["home_1st_runs"] > 0).mean()
     LEAGUE_AVG = (league_avg_home + league_avg_away) / 2
     print(f"League average fi_rate: {LEAGUE_AVG:.3f}  "
           f"(home starters: {league_avg_home:.3f}, away starters: {league_avg_away:.3f})")
 
-    # Sort chronologically so rolling look-back is always on past data only
     df = df.sort_values(["game_date", "game_pk"]).reset_index(drop=True)
 
-    # pitcher_name → list of (date, allowed_run: bool)
-    # allowed_run = did this pitcher give up ≥1 run in the 1st inning of that start?
-    history: dict[str, list] = defaultdict(list)
+    # Separate histories: venue-split (home starts vs road starts) + overall
+    # history_home[name] = list of (date, allowed_run) when pitcher was HOME starter
+    # history_away[name] = list of (date, allowed_run) when pitcher was AWAY starter
+    # history_all[name]  = combined regardless of venue
+    history_home: dict[str, list] = defaultdict(list)
+    history_away: dict[str, list] = defaultdict(list)
+    history_all:  dict[str, list] = defaultdict(list)
 
     h_rates: list[float] = []
     a_rates: list[float] = []
@@ -79,41 +82,44 @@ def compute_fi_rates(csv_path: Path = CSV_PATH) -> None:
         h1   = int(row["home_1st_runs"])
         a1   = int(row["away_1st_runs"])
 
-        def _rate(name: str) -> float:
+        def _rate(name: str, venue_hist: dict, overall_hist: dict) -> float:
             if not name:
                 return LEAGUE_AVG
-            prior = [(d, r) for d, r in history[name] if d < date]
-            if len(prior) < MIN_STARTS:
-                return LEAGUE_AVG
-            return sum(r for _, r in prior) / len(prior)
+            venue_prior   = [(d, r) for d, r in venue_hist[name]   if d < date]
+            overall_prior = [(d, r) for d, r in overall_hist[name] if d < date]
+            if len(venue_prior) >= MIN_STARTS_VENUE:
+                return sum(r for _, r in venue_prior) / len(venue_prior)
+            if len(overall_prior) >= MIN_STARTS:
+                return sum(r for _, r in overall_prior) / len(overall_prior)
+            return LEAGUE_AVG
 
-        h_rates.append(_rate(h))
-        a_rates.append(_rate(a))
+        # home starter → use their HOME-start rate (they're pitching at home)
+        h_rates.append(_rate(h, history_home, history_all))
+        # away starter → use their AWAY-start rate (they're pitching on the road)
+        a_rates.append(_rate(a, history_away, history_all))
 
-        # Update history AFTER reading — no look-ahead bias
-        # Home starter "allowed" if the away team scored (away bats vs home starter in 1st)
+        # Update AFTER reading — no look-ahead bias
+        # Home starter allowed run if away team scored (away bats vs home starter)
         if h:
-            history[h].append((date, int(a1 > 0)))
-        # Away starter "allowed" if the home team scored (home bats vs away starter in 1st)
+            history_home[h].append((date, int(a1 > 0)))
+            history_all[h].append((date, int(a1 > 0)))
+        # Away starter allowed run if home team scored (home bats vs away starter)
         if a:
-            history[a].append((date, int(h1 > 0)))
+            history_away[a].append((date, int(h1 > 0)))
+            history_all[a].append((date, int(h1 > 0)))
 
     df["home_starter_fi_rate"] = h_rates
     df["away_starter_fi_rate"] = a_rates
 
-    # Summary statistics
-    fi = df["home_starter_fi_rate"]
-    print(f"\nhome_starter_fi_rate  mean={fi.mean():.3f}  std={fi.std():.3f}  "
-          f"min={fi.min():.3f}  max={fi.max():.3f}")
-    fi = df["away_starter_fi_rate"]
-    print(f"away_starter_fi_rate  mean={fi.mean():.3f}  std={fi.std():.3f}  "
-          f"min={fi.min():.3f}  max={fi.max():.3f}")
+    # Summary
+    for col in ["home_starter_fi_rate", "away_starter_fi_rate"]:
+        fi = df[col]
+        print(f"{col:28s}  mean={fi.mean():.3f}  std={fi.std():.3f}  "
+              f"min={fi.min():.3f}  max={fi.max():.3f}")
 
-    # How many rows have real rolling data vs. league-average defaults?
     n_real = (df["home_starter_fi_rate"] != LEAGUE_AVG).sum()
     print(f"\nRows with real rolling fi_rate (home): {n_real}/{len(df)} ({n_real/len(df)*100:.1f}%)")
 
-    # Write enriched CSV (keep original date format)
     df["game_date"] = df["game_date"].dt.strftime("%Y-%m-%d")
     df.to_csv(csv_path, index=False, encoding="utf-8")
     print(f"\nSaved enriched dataset → {csv_path}")

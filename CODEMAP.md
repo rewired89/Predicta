@@ -3625,6 +3625,22 @@ mutates: none
 
 ---
 
+## fetchers/nrfi_lineup.py
+
+---
+name: get_nrfi_lineup_wrc
+type: function
+file: fetchers/nrfi_lineup.py
+purpose: Fetches today's confirmed top-3 batting lineup from MLB Stats API and returns approximate wRC+ for home and away teams. Uses MLB Schedule API to find game_pk by team abbreviation match, then boxscore API to extract batting order slots 100/200/300 (positions 1-3). Calls people/{id}/stats for each player to get season OBP+SLG (OPS), converts OPS to wRC+ via wrc≈(ops/0.710)*100. Returns (None, None) on any failure so predict_nrfi() gracefully falls back to league-average default (100). Called by analyze_baseball.py before predict_nrfi() each game query.
+inputs: home_team: str (ESPN abbr), away_team: str, game_date: str|None (YYYY-MM-DD)
+outputs: tuple[float|None, float|None] — (home_top3_wrc_approx, away_top3_wrc_approx)
+calls: MLB Stats API /schedule, /game/{pk}/boxscore, /people/{id}/stats
+called_by: run_baseball_analysis (analyze_baseball.py)
+mutates: none
+---
+
+---
+
 ## fetchers/weather.py
 
 ---
@@ -6780,7 +6796,7 @@ mutates: data/nrfi_dataset.csv
 name: enrich_nrfi_fi_rates
 type: script
 file: scripts/enrich_nrfi_fi_rates.py
-purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling per-starter first-inning run rate from within the dataset (no API calls, ~5 sec). For each game, looks at prior starts by each pitcher and computes the fraction where they allowed ≥1 run in the 1st inning: home_starter_fi_rate (away_1st_runs>0 when home) and away_starter_fi_rate (home_1st_runs>0 when away). Defaults to per-dataset league average (computed dynamically from away_1st_runs and home_1st_runs means — NOT the 0.477 YRFI rate) when fewer than MIN_STARTS=5 prior starts exist. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
+purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling venue-split per-starter first-inning run rate (no API calls, ~5 sec). home_starter_fi_rate = pitcher's rate specifically in HOME starts; away_starter_fi_rate = rate specifically in AWAY (road) starts. Fallback cascade: venue-specific (≥MIN_STARTS_VENUE=3) → overall (≥MIN_STARTS=5) → dynamic league average (computed from data; NOT the 0.477 YRFI rate). Three separate history dicts: history_home, history_away, history_all. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
 inputs: data/nrfi_dataset.csv
 outputs: data/nrfi_dataset.csv (adds home_starter_fi_rate, away_starter_fi_rate columns)
 calls: pandas
@@ -6820,7 +6836,7 @@ mutates: none
 name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
-purpose: Trains XGBoost on data/nrfi_dataset.csv. Dynamic train/val/test split: train=all seasons except two most recent, val=second-most-recent, test=most-recent. With 2022-2026: train=2022-2024, val=2025, test=2026. xwoba_against removed from FEATURES and diag_cols (statcast_pitcher_exitvelo_barrels does not return xwOBA). BET_THRESH=0.57 (lowered from 0.65 — model max output is ~56% in a well-calibrated regime). Calibration curve header uses actual test_season variable. Platt scaling only applied when val AUC > 0.52. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+purpose: Trains XGBoost on data/nrfi_dataset.csv. Dynamic train/val/test split: train=all seasons except two most recent, val=second-most-recent, test=most-recent. With 2022-2026: train=2022-2024, val=2025, test=2026. xwoba_against removed from FEATURES and diag_cols (statcast_pitcher_exitvelo_barrels does not return xwOBA). BET_THRESH=0.55 (lowered from 0.57 → 55% gives ~100-150 tagged games/season for faster edge validation; 57% gave only 20 games). Calibration curve header uses actual test_season variable. Platt scaling only applied when val AUC > 0.52. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
 calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve
@@ -6836,7 +6852,7 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 name: _bet_recommendations
 type: function
 file: analyze_baseball.py
-purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 57% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET; prob >= 57% without elite signal → LEAN; YRFI prob >= 57% → BET. Threshold lowered from 65% to 57% to match ML model calibrated output range (max ~56%). F5: leading side >= 60% + SIERA/FIP gap >= 1.0. Full Game: leading side >= 62%. Returns list of dicts with market, verdict, bet, model_prob, threshold, confidence, reasons, skip_reason.
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET (HIGH if >=57% with 2+ signals); prob >= 55% without elite signal → LEAN; YRFI prob >= 55% → BET. Threshold lowered from 57% to 55% to increase volume to ~100-150 games/season for faster edge validation. F5: leading side >= 60% + SIERA/FIP gap >= 1.0. Full Game: leading side >= 62%. Returns list of dicts with market, verdict, bet, model_prob, threshold, confidence, reasons, skip_reason.
 inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str
 outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
 calls: none

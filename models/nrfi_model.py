@@ -366,10 +366,10 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     auc       = roc_auc_score(y_test, cal_test_probs)
     ll        = log_loss(y_test, cal_test_probs)
 
-    # Accuracy at 0.5 threshold and at calibrated "BET" threshold (57%)
-    # 65% was too high for a well-calibrated model with realistic max ~56%;
-    # 57% captures the top decile of confident NRFI predictions.
-    BET_THRESH = 0.57
+    # Accuracy at 0.5 threshold and at calibrated "BET" threshold (55%)
+    # 65% was too high; 57% produced only ~20 tagged games (too thin to validate).
+    # 55% captures top ~10% of predictions, giving ~100-150 games/season volume.
+    BET_THRESH = 0.55
     preds_50  = (cal_test_probs >= 0.5).astype(int)
     preds_bet = cal_test_probs >= BET_THRESH
     acc_50    = (preds_50 == y_test).mean()
