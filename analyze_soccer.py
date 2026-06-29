@@ -48,14 +48,34 @@ def _current_season() -> int:
 
 def _aerial_index(aerials_won_pct: Optional[float]) -> float:
     """
-    Convert aerial-duel % to a multiplier on set-piece μ.
-    League average ~50%. ±5pp → ±10% set-piece scoring; capped [0.85, 1.20].
+    Convert aerial-duel % to a directional index used downstream.
+    1.0 = league avg (50%). Returned in [0.90, 1.10] — the consumer
+    (_set_piece_aerial_mult) halves this swing further to ±5% effective.
+
+    Kimi #5: previously this returned [0.85, 1.20] and the set-piece mult was
+    `2.0 - aerial_idx_opp`, compounding into a 22% set-piece μ swing at extremes.
+    Tighter cap here + lower coefficient downstream limits compounding to ±7.5%.
     """
     if aerials_won_pct is None:
         return 1.0
     delta = (aerials_won_pct - 50.0) / 50.0
-    mult = 1.0 + delta * 1.0  # 1pp swing = 2% mult swing
-    return max(0.85, min(1.20, mult))
+    mult = 1.0 + delta * 0.5   # 1pp swing = 1% mult swing (half of before)
+    return max(0.90, min(1.10, mult))
+
+
+def _set_piece_aerial_mult(opp_aerial_idx: float) -> float:
+    """
+    Convert the opponent's aerial index into a multiplier on our set-piece μ.
+    Replaces the old `2.0 - opp_aerial_idx` formulation (Kimi #5).
+
+      mult = 1 + (1 - opp_aerial_idx) × 0.5,  clamped [0.90, 1.15]
+
+    Weak opponent in the air (aerial_idx < 1.0) amplifies our set-piece μ;
+    strong opponent suppresses it. Max swing ±5% — set-piece goals matter but
+    are noisy, so we don't let this single signal dominate.
+    """
+    raw = 1.0 + (1.0 - opp_aerial_idx) * 0.5
+    return max(0.90, min(1.15, raw))
 
 
 def _set_piece_share(team_sit: dict, league: Optional[str]) -> float:
@@ -191,30 +211,35 @@ def _bet_recommendations(
             "skip_reason": skip,
         })
     else:
+        # Threshold language clarified (Kimi #h). The 62% number is the
+        # *conditional* P(team wins | decisive result), not the outright
+        # win probability. A 62% conditional ≈ 55-58% outright depending on
+        # how big the draw probability is.
         if leader_no_draw >= 0.62:
             verdict = "BET"
             confidence = "high" if leader_no_draw >= 0.70 else "medium"
-            reasons = [f"{leader_team} {leader_no_draw*100:.1f}% in winner-push-if-tied"]
+            reasons = [f"{leader_team} {leader_no_draw*100:.1f}% conditional-on-decisive (DNB fair value)"]
             skip = ""
         elif leader_no_draw >= 0.55:
             verdict = "LEAN"
             confidence = "low"
-            reasons = [f"{leader_team} marginal favorite ({leader_no_draw*100:.1f}%)"]
+            reasons = [f"{leader_team} marginal favorite, {leader_no_draw*100:.1f}% conditional"]
             skip = ""
         else:
             verdict = "PASS"
             confidence = None
             reasons = []
-            skip = f"Coin-flip range — {leader_team} only {leader_no_draw*100:.1f}%"
+            skip = f"Coin-flip range — {leader_team} only {leader_no_draw*100:.1f}% conditional"
         recs.append({
-            "market":      "Winner (push if draw)",
-            "verdict":     verdict,
-            "bet":         f"{leader_team}" if verdict in ("BET", "LEAN") else "",
-            "model_prob":  round(leader_no_draw * 100, 1),
-            "threshold":   62.0,
-            "confidence":  confidence,
-            "reasons":     reasons,
-            "skip_reason": skip,
+            "market":         "Win (Draw No Bet)",
+            "verdict":        verdict,
+            "bet":            f"{leader_team} DNB" if verdict in ("BET", "LEAN") else "",
+            "model_prob_pct": round(leader_no_draw * 100, 1),
+            "prob_note":      "Conditional P(team | decisive result) — DNB fair value",
+            "threshold":      62.0,
+            "confidence":     confidence,
+            "reasons":        reasons,
+            "skip_reason":    skip,
         })
     return recs
 
@@ -320,8 +345,7 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     has_odds = (odds_home is not None and odds_away is not None)
 
     # ── 2. Understat enrichment ─────────────────────────────────────────────
-    enriched: dict = {"home": {}, "away": {}, "league_avg_goals": None}
-    ai_fallback = False
+    enriched: dict = {"home": {}, "away": {}, "league_avg_goals": None, "league_avg_xg": None}
     if league:
         try:
             enriched = enrich_soccer_teams(home_team, away_team, league, int(season))
@@ -343,32 +367,36 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             steps.append({"step": "understat_enrich", "status": "error", "error": str(exc)})
 
     if not enriched["home"] and not enriched["away"]:
-        ai_fallback = True
-        try:
-            from ai_agent_soccer import interpret_soccer_signals_fallback
-            ai_sigs = interpret_soccer_signals_fallback(home_team, away_team, notes)
-            steps.append({"step": "ai_fallback_signals", "status": "ok"})
-            enriched = {
-                "home": {
-                    "xg_per_game":         ai_sigs.get("home", {}).get("season_xg_for"),
-                    "xga_per_game":        ai_sigs.get("home", {}).get("season_xg_against"),
-                    "recent_xg_per_game":  ai_sigs.get("home", {}).get("recent_xg_for"),
-                    "recent_xga_per_game": ai_sigs.get("home", {}).get("recent_xg_against"),
-                    "goal_overperform":    ai_sigs.get("home", {}).get("goal_overperform") or 1.0,
-                    "matches":             19,
-                },
-                "away": {
-                    "xg_per_game":         ai_sigs.get("away", {}).get("season_xg_for"),
-                    "xga_per_game":        ai_sigs.get("away", {}).get("season_xg_against"),
-                    "recent_xg_per_game":  ai_sigs.get("away", {}).get("recent_xg_for"),
-                    "recent_xga_per_game": ai_sigs.get("away", {}).get("recent_xg_against"),
-                    "goal_overperform":    ai_sigs.get("away", {}).get("goal_overperform") or 1.0,
-                    "matches":             19,
-                },
-                "league_avg_goals": ai_sigs.get("league_avg_goals"),
-            }
-        except Exception as exc:
-            steps.append({"step": "ai_fallback_signals", "status": "error", "error": str(exc)})
+        # Kimi #1: do NOT hallucinate xG from Claude's training data for betting
+        # recommendations. Return an insufficient_data response so the caller
+        # can show a clear "no recommendation" UI instead of fake numbers.
+        steps.append({
+            "step": "insufficient_data",
+            "status": "halt",
+            "reason": ("No live xG data reachable for either team. "
+                       "Understat / FBref both empty; refusing to estimate "
+                       "from AI training knowledge for betting use."),
+        })
+        return {
+            "status":           "insufficient_data",
+            "sport":            "soccer",
+            "home_team":        home_team,
+            "away_team":        away_team,
+            "league":           league,
+            "season":           season,
+            "date":             match_date,
+            "available_signals": [],
+            "recommendation":   "PASS",
+            "narrative": (
+                f"No data available for {home_team} vs {away_team}"
+                + (f" ({league} {season})" if league else "")
+                + ". Recommended action: PASS. We do not generate predictions "
+                "from training-data hallucinations because they cannot be "
+                "verified against current form, injuries, or squad changes."
+            ),
+            "data_confidence": "none",
+            "steps":            steps,
+        }
 
     # ── 3. FBref enrichment ──────────────────────────────────────────────────
     fbref: dict = {"home": {}, "away": {}}
@@ -385,9 +413,18 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             steps.append({"step": "fbref_enrich", "status": "error", "error": str(exc)})
 
     # ── 4. Determine league average + home advantage ────────────────────────
-    league_avg_goals = enriched.get("league_avg_goals") or leagues.league_avg_goals(league)
-    if league_avg_goals <= 0:
-        league_avg_goals = 1.40
+    # Anchor on league xG (Kimi #6) — goals systematically under-anchor by ~5%
+    # because xG > goals (finishing variance). Falls back to live goals avg,
+    # then to the static league constant if Understat is unavailable.
+    league_avg_anchor = (
+        enriched.get("league_avg_xg")
+        or leagues.league_avg_xg(league)
+        or enriched.get("league_avg_goals")
+        or leagues.league_avg_goals(league)
+    )
+    if not league_avg_anchor or league_avg_anchor <= 0:
+        league_avg_anchor = leagues.DEFAULT_LEAGUE_AVG_XG
+    league_avg_goals = league_avg_anchor  # name kept for downstream readability
     league_ha = 1.0 if neutral else leagues.home_advantage(league)
 
     # ── 5. Build attack/defense strengths ───────────────────────────────────
@@ -408,10 +445,11 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     set_share_a = _set_piece_share(enriched["away"], league)
     aerial_h = _aerial_index(fbref["home"].get("aerials_won_pct"))
     aerial_a = _aerial_index(fbref["away"].get("aerials_won_pct"))
-    # Home's set-piece μ is amplified if AWAY's aerial defense is weak (i.e. low aerial%)
-    # Use inverse: weaker opp aerial → higher set-piece μ
-    set_mult_h = 2.0 - aerial_a   # if opp wins 50%, mult=1.0; 40% → 1.20; 60% → 0.85
-    set_mult_a = 2.0 - aerial_h
+    # Home's set-piece μ is amplified when away's aerial defense is weak (Kimi #5).
+    # _set_piece_aerial_mult halves the swing and clamps to ±5%, replacing the
+    # earlier `2.0 - aerial_idx_opp` which compounded into ±20% at extremes.
+    set_mult_h = _set_piece_aerial_mult(aerial_a)
+    set_mult_a = _set_piece_aerial_mult(aerial_h)
     keeper_h = fbref["home"].get("psxg_ga_per_90")
     keeper_a = fbref["away"].get("psxg_ga_per_90")
 
@@ -539,7 +577,7 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             v = _safe_float(val)
             if v is not None:
                 log_signal(match_id, name, team, signal_value=v,
-                           source=("ai" if ai_fallback else "understat_fbref"))
+                           source="understat_fbref")
 
         explanation = _build_explanation(
             home_team, away_team, dc, str_h, str_a, league_avg_goals,
@@ -567,8 +605,9 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         explanation = "Persist failure — model output below."
 
     # ── 11. Narrative ───────────────────────────────────────────────────────
-    confidence = "high" if not ai_fallback and (fbref["home"] or fbref["away"]) \
-        else "medium" if not ai_fallback else "low"
+    # Confidence reflects depth of live data. We never reach here with empty
+    # Understat (that path returns insufficient_data above).
+    confidence = "high" if (fbref["home"] or fbref["away"]) else "medium"
     try:
         from ai_agent_soccer import generate_soccer_narrative
         narrative = generate_soccer_narrative(
@@ -601,7 +640,7 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "mu_away_set":  round(dc["mu_away_set"],  3),
         "data_confidence": confidence,
         "data_sources": [
-            "understat" if not ai_fallback else "ai_fallback",
+            "understat",
             "fbref" if (fbref["home"] or fbref["away"]) else None,
             "elo",
         ],

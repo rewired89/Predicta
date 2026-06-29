@@ -802,7 +802,7 @@ mutates: none
 name: strengths_from_xg
 type: function
 file: models/dixon_coles.py
-purpose: Build attack/defense multipliers from npxG-style inputs. Layers: (1) season vs recent-5 blend (60/40), (2) venue-specific vs overall (45/55, scaled by venue sample size), (3) Bayesian shrinkage to league mean, (4) damping for goal_overperform >1.15 (lucky → -3%) or <0.85 (unlucky → +3%). Returns attack/defense clamped to [0.3, 2.5] plus a components dict for explanation.
+purpose: Build attack/defense multipliers from npxG-style inputs. Layers: (1) season vs recent xG blend (60/40, recent component is now time-decayed via Kimi #2), (2) venue-specific vs overall blend scaled by venue sample size with a 6-match ramp (Kimi #g; was 8), (3) Bayesian shrinkage to league mean, (4) continuous damping by goal_overperform (Kimi #8): damp = 1 + clamp((1 - overperform) × 0.15, -0.05, +0.05) — smooth gradient replacing the binary 0.85/1.15 step. Returns attack/defense clamped to [0.3, 2.5] plus a components dict.
 inputs: season_xg_for, season_xg_against, recent_xg_for, recent_xg_against, venue_xg_for, venue_xg_against (all Optional[float]); league_avg_goals: float = 1.40; matches_played: int = 19; venue_matches: int = 9; goal_overperform: float = 1.0; is_home: bool = True; recent_weight: float = 0.6; venue_weight: float = 0.45
 outputs: dict {attack: float, defense: float, components: dict}
 calls: _blend, _shrink
@@ -814,7 +814,7 @@ mutates: none
 name: predict_xg
 type: function
 file: models/dixon_coles.py
-purpose: npxG-aware Dixon-Coles predictor that decomposes μ into open-play + set-piece components, applies opposing-keeper PSxG-GA adjustment (±14% per +1 per-90, clamped ±15%), and computes the score matrix with low-score correction. Returns prob_home/draw/away plus mu_home/mu_away and their open/set decomposition. Used by analyze_soccer.py.
+purpose: npxG-aware Dixon-Coles predictor that decomposes μ into open-play + set-piece components, applies a TIERED opposing-keeper PSxG-GA adjustment (Kimi #f: open-play μ ±12% clamped [0.88, 1.15]; set-piece μ ±6% clamped [0.94, 1.08], reflecting that GKs influence shots from build-up more than close-range set-piece finishes), and computes the score matrix with low-score correction. Returns prob_home/draw/away plus mu_home/mu_away and their open/set decomposition (open/set values returned are POST-keeper adjustment).
 inputs: home_attack: float, home_defense: float, away_attack: float, away_defense: float, league_avg_goals: float = 1.40, home_advantage: float = HOME_ADVANTAGE, neutral: bool = False, keeper_adj_home: float = 0.0, keeper_adj_away: float = 0.0, set_piece_share_home: float = 0.22, set_piece_share_away: float = 0.22, set_piece_aerial_mult_home: float = 1.0, set_piece_aerial_mult_away: float = 1.0, max_goals: int = MAX_GOALS, tau: float = TAU
 outputs: dict {prob_home, prob_draw, prob_away, mu_home, mu_away, mu_home_open, mu_home_set, mu_away_open, mu_away_set, score_matrix}
 calls: poisson.pmf, _dc_adjustment, np.zeros, np.tril, np.triu, np.trace
@@ -878,7 +878,19 @@ mutates: none
 name: league_avg_goals
 type: function
 file: models/soccer_leagues.py
-purpose: Lookup goals-per-team-per-game for a league slug; falls back to DEFAULT_LEAGUE_AVG_GOALS. Used by analyze_soccer.py when Understat's live league average is unreachable.
+purpose: Lookup goals-per-team-per-game for a league slug; falls back to DEFAULT_LEAGUE_AVG_GOALS. Kept as a secondary fallback only — the preferred anchor is league_avg_xg (Kimi #6).
+inputs: league: Optional[str]
+outputs: float
+calls: _LEAGUES
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: league_avg_xg
+type: function
+file: models/soccer_leagues.py
+purpose: Lookup xG-per-team-per-game for a league slug; falls back to DEFAULT_LEAGUE_AVG_XG (1.47). Preferred anchor over league_avg_goals because the model produces xG (Kimi #6). EPL 1.51, La Liga 1.38, Bundesliga 1.62, Serie A 1.45, Ligue 1 1.36, RFPL 1.37 — each ~5% higher than the goals counterpart to reflect finishing variance.
 inputs: league: Optional[str]
 outputs: float
 calls: _LEAGUES
@@ -6497,11 +6509,35 @@ mutates: none
 name: enrich_soccer_teams
 type: function
 file: fetchers/understat.py
-purpose: Enrich both home and away soccer teams with Understat xG, npxG, venue splits, and situation splits. Returns {"home": {season + per-game + recent + shot-quality + venue + situation fields}, "away": {same}, "league_avg_goals": float|None}. Computes npxg_per_game / npxga_per_game from season totals. Now wired into analyze_soccer.py (was previously unused — biggest single accuracy improvement when wired).
+purpose: Enrich both home and away soccer teams with Understat xG, npxG, venue splits, and situation splits. Returns {"home", "away", "league_avg_goals", "league_avg_xg"}. Computes npxg_per_game / npxga_per_game. Prefers fetch_team_decayed_xg (exponential 90-day half-life) over fetch_team_recent_xg for the recent component; falls back if datesData parse fails. Now also includes live league_avg_xg (Kimi #6).
 inputs: home_name: str, away_name: str, league: str, season: int
-outputs: dict {"home": dict, "away": dict, "league_avg_goals": Optional[float]}
-calls: fetch_team_xg, fetch_team_recent_xg, fetch_team_shot_quality, fetch_team_venue_splits, fetch_team_situation_split, fetch_league_avg_goals
+outputs: dict {"home": dict, "away": dict, "league_avg_goals": Optional[float], "league_avg_xg": Optional[float]}
+calls: fetch_team_xg, fetch_team_decayed_xg, fetch_team_recent_xg, fetch_team_shot_quality, fetch_team_venue_splits, fetch_team_situation_split, fetch_league_avg_goals, fetch_league_avg_xg
 called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: fetch_team_decayed_xg
+type: function
+file: fetchers/understat.py
+purpose: Time-decayed xG/xGA over the full available season history (Kimi #2). Each match weight = 0.5 ** (days_ago / half_life_days). A 90-day half-life means a 3-month-old match counts half as much as a recent one. Smooth recency curve handling winter breaks and international gaps; replaces the noisy fixed last-5 window. Returns xg_per_game, xga_per_game (weighted), goals_per_game, ga_per_game, matches_used, effective_n (sum of weights). Empty dict on failure.
+inputs: team_name: str, league: str, season: int, half_life_days: float = 90.0
+outputs: dict
+calls: _get, _extract_json_var, _ESPN_TO_UNDERSTAT
+called_by: enrich_soccer_teams
+mutates: none
+---
+
+---
+name: fetch_league_avg_xg
+type: function
+file: fetchers/understat.py
+purpose: League-wide avg xG per team per game from Understat (Kimi #6). Preferred over fetch_league_avg_goals as a model anchor because the model produces expected goals, not finished goals — and xG is ~5% higher than goals due to finishing variance. Returns None on failure so callers can fall back to models.soccer_leagues.league_avg_xg constants.
+inputs: league: str, season: int
+outputs: Optional[float]
+calls: fetch_league_xg
+called_by: enrich_soccer_teams, run_soccer_analysis
 mutates: none
 ---
 
@@ -7446,8 +7482,20 @@ mutates: none
 name: _aerial_index
 type: function
 file: analyze_soccer.py
-purpose: Convert FBref aerials_won_pct to a multiplier on set-piece μ. League average ~50% maps to 1.0. ±5pp swing → ±10% set-piece scoring; clamped [0.85, 1.20]. Used so a team strong in the air gets a set-piece scoring boost when its opponent is weak in the air.
+purpose: Convert FBref aerials_won_pct to a directional aerial-strength index. 50% maps to 1.0. Returned in [0.90, 1.10] — feed into _set_piece_aerial_mult which halves the swing further. Kimi #5: previously returned [0.85, 1.20] and the consumer used `2.0 - idx_opp`, compounding into ±22% set-piece μ at extremes; new pair caps compounding at ±5%.
 inputs: aerials_won_pct: Optional[float]
+outputs: float
+calls: none
+called_by: _set_piece_aerial_mult, run_soccer_analysis
+mutates: none
+---
+
+---
+name: _set_piece_aerial_mult
+type: function
+file: analyze_soccer.py
+purpose: Convert the opponent's aerial index into a multiplier on our set-piece μ (Kimi #5). Formula: mult = 1 + (1 - opp_aerial_idx) × 0.5, clamped [0.90, 1.15]. Weak opponent in the air (idx < 1.0) amplifies our set-piece μ; strong opponent suppresses it. Max swing ±5% — set-piece goals matter but are noisy, so we don't let this single signal dominate. Replaces the older `2.0 - opp_aerial_idx` formulation.
+inputs: opp_aerial_idx: float
 outputs: float
 calls: none
 called_by: run_soccer_analysis
@@ -7518,10 +7566,10 @@ mutates: none
 name: run_soccer_analysis
 type: function
 file: analyze_soccer.py
-purpose: Full soccer pipeline entry point. (1) Parse query via Claude. (2) Enrich both teams via Understat (xG/npxG + venue + situation), with season-1 fallback. (3) Enrich via FBref (PSxG, PPDA, possession, aerials). (4) Build attack/defense strengths via strengths_from_xg with blend+shrinkage+overperform damping. (5) Run predict_xg with open-play+set-piece decomposition, GK adjustment, and aerial-multiplied set μ. (6) Blend with Elo 65/35 (DC supplies full draw probability). (7) Compute markets via compute_all_markets and bet recs (market-comparison when odds supplied). (8) Persist match + 28 signals + prediction. (9) Narrate via Claude. Returns full dict ready for the frontend.
+purpose: Full soccer pipeline entry point. (1) Parse query via Claude. (2) Enrich both teams via Understat (xG/npxG + time-decayed recent + venue + situation), season-1 fallback. (3) Enrich via FBref (PSxG, PPDA, possession, aerials). (4) If BOTH teams have no Understat data → return {"status": "insufficient_data", "recommendation": "PASS"} immediately rather than hallucinate signals from Claude training data (Kimi #1 — critical for betting safety). (5) Anchor on league xG (Kimi #6) — falls back to live goals avg → static xG constant. (6) Build strengths via strengths_from_xg with time-decayed recent, venue blend, shrinkage, continuous overperform damping. (7) Run predict_xg with open-play+set-piece decomposition, tiered GK adjustment, and tightened aerial multiplier. (8) Blend with Elo 65/35 (DC keeps full draw probability). (9) Markets + bet recs labeled as "Win (Draw No Bet)" with explicit conditional-on-decisive note. (10) Persist + narrate. Returns full dict or insufficient_data response.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict
-calls: init_db, parse_soccer_query, enrich_soccer_teams, enrich_soccer_advanced, interpret_soccer_signals_fallback, _build_strengths, _set_piece_share, _aerial_index, dc.predict_xg, EloModel.win_probability, compute_all_markets, market_edge_summary, _bet_recommendations, kelly_stake, log_signal, get_db, _build_explanation, generate_soccer_narrative, _format_markets, leagues.league_avg_goals, leagues.home_advantage, american_to_decimal
+outputs: dict (success: full prediction dict; failure mode: {"status": "insufficient_data", "recommendation": "PASS", ...})
+calls: init_db, parse_soccer_query, enrich_soccer_teams, enrich_soccer_advanced, _build_strengths, _set_piece_share, _aerial_index, _set_piece_aerial_mult, dc.predict_xg, EloModel.win_probability, compute_all_markets, market_edge_summary, _bet_recommendations, kelly_stake, log_signal, get_db, _build_explanation, generate_soccer_narrative, _format_markets, leagues.league_avg_xg, leagues.league_avg_goals, leagues.home_advantage, american_to_decimal
 called_by: analyze_soccer_endpoint (app.py)
 mutates: predicta.db (matches, signals, predictions)
 ---

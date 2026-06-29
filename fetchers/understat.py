@@ -260,6 +260,94 @@ def fetch_team_recent_xg(
     }
 
 
+def fetch_team_decayed_xg(
+    team_name: str,
+    league: str,
+    season: int,
+    half_life_days: float = 90.0,
+) -> dict:
+    """
+    Time-decayed xG/xGA over the full available season history.
+
+    Each match weight = 0.5 ** (days_ago / half_life_days). A 90-day half-life
+    means a 3-month-old match counts half as much as one played today; a
+    6-month-old match counts a quarter. Replaces the brittle "last 5" recency
+    window with a smooth recency curve that handles winter breaks and
+    international gaps without throwing away signal.
+
+    Returns:
+      xg_per_game, xga_per_game (weighted), goals_per_game, ga_per_game,
+      matches_used (raw count), effective_n (sum of weights — a sample-size proxy).
+    Empty dict on failure.
+    """
+    from datetime import datetime as _dt
+    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
+    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
+    html = _get(url)
+    if not html:
+        return {}
+
+    history = _extract_json_var(html, "datesData")
+    if not history or not isinstance(history, list):
+        return {}
+
+    completed = [g for g in history if g.get("isResult") and g.get("xG") is not None]
+    if not completed:
+        return {}
+
+    today = _dt.utcnow()
+    total_w = 0.0
+    sum_xg = 0.0
+    sum_xga = 0.0
+    sum_g = 0.0
+    sum_ga = 0.0
+    for g in completed:
+        try:
+            d = _dt.strptime(str(g.get("date", "")).split(" ")[0], "%Y-%m-%d")
+            days_ago = max(0.0, (today - d).total_seconds() / 86400.0)
+        except Exception:
+            days_ago = 0.0
+        w = 0.5 ** (days_ago / max(1.0, half_life_days))
+        total_w += w
+        sum_xg  += w * float(g.get("xG",  0) or 0)
+        sum_xga += w * float(g.get("xGA", 0) or 0)
+        sum_g   += w * float(g.get("scored", 0) or 0)
+        sum_ga  += w * float(g.get("missed", 0) or 0)
+    if total_w <= 0:
+        return {}
+
+    return {
+        "xg_per_game":     round(sum_xg  / total_w, 3),
+        "xga_per_game":    round(sum_xga / total_w, 3),
+        "goals_per_game":  round(sum_g   / total_w, 3),
+        "ga_per_game":     round(sum_ga  / total_w, 3),
+        "matches_used":    len(completed),
+        "effective_n":     round(total_w, 2),
+        "half_life_days":  half_life_days,
+        "source":          f"understat/{league}/{season} decayed (HL={half_life_days:.0f}d)",
+    }
+
+
+def fetch_league_avg_xg(league: str, season: int) -> Optional[float]:
+    """
+    League-wide avg expected goals per team per game from the Understat table.
+
+    Goals (the existing fetch_league_avg_goals) under-anchor the model because
+    xG is ~5% higher than goals (finishing variance). Using xG as the anchor
+    makes attack/defense multipliers correctly scaled — was Kimi's #6 fix.
+
+    Returns None on failure so callers can fall back to a constant.
+    """
+    rows = fetch_league_xg(league, season)
+    if not rows:
+        return None
+    total_xg = sum(float(r.get("xg", 0) or 0) for r in rows)
+    total_games = sum(int(r.get("matches", 0) or 0) for r in rows)
+    if total_games <= 0:
+        return None
+    return round(total_xg / total_games, 3)
+
+
 def fetch_team_venue_splits(
     team_name: str,
     league: str,
@@ -530,8 +618,12 @@ def enrich_soccer_teams(
     """
     home = fetch_team_xg(home_name, league, season)
     away = fetch_team_xg(away_name, league, season)
-    home_recent = fetch_team_recent_xg(home_name, league, season)
-    away_recent = fetch_team_recent_xg(away_name, league, season)
+    # Prefer exponentially time-decayed xG (Kimi #2). Falls back to fixed last-5
+    # if the decayed fetcher fails (no datesData, parse error, etc.).
+    home_recent = fetch_team_decayed_xg(home_name, league, season) \
+                  or fetch_team_recent_xg(home_name, league, season)
+    away_recent = fetch_team_decayed_xg(away_name, league, season) \
+                  or fetch_team_recent_xg(away_name, league, season)
     home_shots  = fetch_team_shot_quality(home_name, league, season)
     away_shots  = fetch_team_shot_quality(away_name, league, season)
     home_venue  = fetch_team_venue_splits(home_name, league, season)
@@ -575,9 +667,15 @@ def enrich_soccer_teams(
         if away_sit.get(k) is not None:
             away[k] = away_sit[k]
 
-    league_avg = fetch_league_avg_goals(league, season)
+    league_avg_goals_live = fetch_league_avg_goals(league, season)
+    league_avg_xg_live    = fetch_league_avg_xg(league, season)
 
-    return {"home": home, "away": away, "league_avg_goals": league_avg}
+    return {
+        "home": home,
+        "away": away,
+        "league_avg_goals": league_avg_goals_live,
+        "league_avg_xg":    league_avg_xg_live,
+    }
 
 
 # ── Name matching ─────────────────────────────────────────────────────────────

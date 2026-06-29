@@ -143,7 +143,7 @@ def strengths_from_xg(
     league_avg_goals: float          = 1.40,
     matches_played: int              = 19,
     venue_matches: int               = 9,
-    goal_overperform: float          = 1.0,     # G/xG ratio: >1.15 lucky, <0.85 unlucky
+    goal_overperform: float          = 1.0,     # G/xG ratio
     is_home: bool                    = True,
     recent_weight: float             = DEFAULT_RECENT_WEIGHT,
     venue_weight: float              = 0.45,
@@ -152,15 +152,17 @@ def strengths_from_xg(
     Attack/defense multipliers built from npxG-style inputs.
 
     Layering (each step is optional — falls back when input is None):
-      1. Blend season vs recent-5 xG (60/40 default by recent weight).
-      2. Blend venue-specific (home or away) vs overall, weighted 45/55 by default.
+      1. Blend season vs recent (time-decayed) xG (60/40 default).
+      2. Blend venue-specific (home or away) vs overall, scaled by sample size
+         using a 6-match ramp (was 8 — Kimi #g).
       3. Apply Bayesian shrinkage to league mean using sample sizes.
-      4. Damp by goal_overperform (regression signal): teams overperforming xG
-         by >15% get a -3% attack damping (and vice versa).
+      4. Damp continuously by goal_overperform (Kimi #8):
+            damp = 1 + clamp((1 - overperform) × 0.15, -0.05, +0.05)
+         At overperform=1.33 → 0.95; at 0.67 → 1.05; at 1.0 → 1.0. Replaces
+         the previous binary step at 0.85 / 1.15 — no discontinuities.
 
     Returns {"attack", "defense", "components"} where attack/defense are >1.0 for
-    above-average performance. Components dict carries the intermediate values
-    for the explanation string.
+    above-average performance.
     """
     base = league_avg_goals if league_avg_goals > 0 else 1.40
 
@@ -168,15 +170,14 @@ def strengths_from_xg(
     xg_for_blend = _blend(season_xg_for, recent_xg_for, recent_weight)
     xg_ag_blend  = _blend(season_xg_against, recent_xg_against, recent_weight)
 
-    # Step 2: venue blend
+    # Step 2: venue blend — 6-match ramp instead of 8 (Kimi #g)
     def _venue_blend(overall: Optional[float], venue: Optional[float],
                      venue_n: int, total_n: int) -> Optional[float]:
         if venue is None:
             return overall
         if overall is None:
             return venue
-        # Scale venue_weight down if venue sample is tiny
-        eff_w = venue_weight * min(1.0, venue_n / 8.0)
+        eff_w = venue_weight * min(1.0, venue_n / 6.0)
         return eff_w * venue + (1 - eff_w) * overall
 
     xg_for_final = _venue_blend(xg_for_blend, venue_xg_for, venue_matches, matches_played)
@@ -190,12 +191,9 @@ def strengths_from_xg(
     xg_for_final = _shrink(xg_for_final, base, matches_played)
     xg_ag_final  = _shrink(xg_ag_final,  base, matches_played)
 
-    # Step 4: overperformance damping (luck regression)
-    damp = 1.0
-    if goal_overperform > 1.15:
-        damp = 0.97  # lucky → expect attack to cool
-    elif goal_overperform < 0.85:
-        damp = 1.03  # unlucky → expect attack to warm
+    # Step 4: continuous overperformance damping (Kimi #8)
+    raw_damp = (1.0 - goal_overperform) * 0.15
+    damp = 1.0 + max(-0.05, min(0.05, raw_damp))
 
     attack  = max(0.3, min(2.5, (xg_for_final * damp) / base))
     defense = max(0.3, min(2.5, xg_ag_final / base))
@@ -209,7 +207,7 @@ def strengths_from_xg(
             "xg_for_final":  round(xg_for_final, 3),
             "xg_ag_final":   round(xg_ag_final, 3),
             "league_avg":    base,
-            "damping":       damp,
+            "damping":       round(damp, 4),
             "is_home":       is_home,
         },
     }
@@ -255,14 +253,26 @@ def predict_xg(
     mu_a_open = mu_a_raw * (1 - set_piece_share_away)
     mu_a_set  = mu_a_raw * set_piece_share_away * set_piece_aerial_mult_away
 
-    # Keeper adjustment: clamp at ±12% to avoid extreme single-stat domination
-    def _gk_mult(adj: float) -> float:
-        # +1 PSxG-GA per 90 = ~14% reduction in opposing μ
-        m = 1.0 - 0.14 * adj
-        return max(0.85, min(1.18, m))
+    # Tiered keeper adjustment (Kimi #f): GK quality matters more for open-play
+    # shots than for set-piece goals, which are often headed in from close range
+    # past a planted keeper.
+    def _gk_mult_open(adj: float) -> float:
+        return max(0.88, min(1.15, 1.0 - 0.12 * adj))
 
-    mu_h_total = (mu_h_open + mu_h_set) * _gk_mult(keeper_adj_away)
-    mu_a_total = (mu_a_open + mu_a_set) * _gk_mult(keeper_adj_home)
+    def _gk_mult_set(adj: float) -> float:
+        return max(0.94, min(1.08, 1.0 - 0.06 * adj))
+
+    # Home's μ is suppressed by AWAY's keeper, and vice versa.
+    mu_h_open_adj = mu_h_open * _gk_mult_open(keeper_adj_away)
+    mu_h_set_adj  = mu_h_set  * _gk_mult_set(keeper_adj_away)
+    mu_a_open_adj = mu_a_open * _gk_mult_open(keeper_adj_home)
+    mu_a_set_adj  = mu_a_set  * _gk_mult_set(keeper_adj_home)
+
+    mu_h_total = mu_h_open_adj + mu_h_set_adj
+    mu_a_total = mu_a_open_adj + mu_a_set_adj
+    # Preserve adjusted open/set for the return dict
+    mu_h_open, mu_h_set = mu_h_open_adj, mu_h_set_adj
+    mu_a_open, mu_a_set = mu_a_open_adj, mu_a_set_adj
 
     matrix = np.zeros((max_goals + 1, max_goals + 1))
     for g_h in range(max_goals + 1):
