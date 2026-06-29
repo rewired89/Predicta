@@ -260,6 +260,161 @@ def fetch_team_recent_xg(
     }
 
 
+def fetch_team_venue_splits(
+    team_name: str,
+    league: str,
+    season: int,
+) -> dict:
+    """
+    Home/away xG splits derived from the team's per-game datesData.
+
+    Returns:
+      home_xg_per_game, home_xga_per_game, home_npxg_per_game, home_npxga_per_game,
+      away_xg_per_game, away_xga_per_game, away_npxg_per_game, away_npxga_per_game,
+      home_matches, away_matches.
+
+    Empty dict on failure. Critical for proper Dixon-Coles — home advantage is
+    not a single multiplier; teams differ wildly in venue-specific xG.
+    """
+    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
+    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
+    html = _get(url)
+    if not html:
+        return {}
+
+    history = _extract_json_var(html, "datesData")
+    if not history or not isinstance(history, list):
+        return {}
+
+    home_games = [g for g in history if g.get("isResult") and g.get("h_a") == "h"]
+    away_games = [g for g in history if g.get("isResult") and g.get("h_a") == "a"]
+
+    def _avg(games: list, key: str) -> Optional[float]:
+        if not games:
+            return None
+        try:
+            return sum(float(g.get(key, 0) or 0) for g in games) / len(games)
+        except Exception:
+            return None
+
+    out: dict = {
+        "home_xg_per_game":     _avg(home_games, "xG"),
+        "home_xga_per_game":    _avg(home_games, "xGA"),
+        "home_npxg_per_game":   _avg(home_games, "npxG"),
+        "home_npxga_per_game":  _avg(home_games, "npxGA"),
+        "away_xg_per_game":     _avg(away_games, "xG"),
+        "away_xga_per_game":    _avg(away_games, "xGA"),
+        "away_npxg_per_game":   _avg(away_games, "npxG"),
+        "away_npxga_per_game":  _avg(away_games, "npxGA"),
+        "home_matches":         len(home_games),
+        "away_matches":         len(away_games),
+        "source":               f"understat/{league}/{season} venue splits",
+    }
+    # Drop None entries so downstream `.get(... , default)` works cleanly
+    return {k: v for k, v in out.items() if v is not None or k in ("home_matches", "away_matches")}
+
+
+def fetch_team_situation_split(
+    team_name: str,
+    league: str,
+    season: int,
+) -> dict:
+    """
+    Split team's offensive xG by Understat shot `situation` field.
+
+    Understat tags every shot with one of:
+      OpenPlay, FromCorner, SetPiece, DirectFreekick, Penalty.
+
+    Open-play xG is materially more predictive of future scoring than the
+    full season figure because set pieces and penalties are noisy and
+    over-represent good or bad luck on dead-ball routines / referee decisions.
+
+    Returns:
+      open_play_xg_share, set_piece_xg_share, corner_xg_share,
+      direct_fk_xg_share, penalty_xg_share, total_shots,
+      open_play_xg_per_shot — quality of build-up chances.
+
+    Empty dict on failure.
+    """
+    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
+    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
+    html = _get(url)
+    if not html:
+        return {}
+
+    shots = _extract_json_var(html, "shotsData")
+    if not shots:
+        return {}
+
+    try:
+        all_shots: list = []
+        if isinstance(shots, dict):
+            all_shots = list(shots.get("h", [])) + list(shots.get("a", []))
+        elif isinstance(shots, list):
+            all_shots = list(shots)
+
+        # Filter to this team's OWN shots
+        own_shots = [
+            s for s in all_shots
+            if (_norm(s.get("h_team", "")) == _norm(canonical) and s.get("h_a") == "h")
+            or (_norm(s.get("a_team", "")) == _norm(canonical) and s.get("h_a") == "a")
+        ]
+        if not own_shots:
+            return {}
+
+        buckets: dict[str, float] = {
+            "OpenPlay":       0.0,
+            "FromCorner":     0.0,
+            "SetPiece":       0.0,
+            "DirectFreekick": 0.0,
+            "Penalty":        0.0,
+        }
+        open_play_shots = 0
+        for s in own_shots:
+            sit = s.get("situation", "")
+            xg  = float(s.get("xG", 0) or 0)
+            if sit in buckets:
+                buckets[sit] += xg
+            if sit == "OpenPlay":
+                open_play_shots += 1
+
+        total_xg = sum(buckets.values())
+        if total_xg <= 0:
+            return {}
+
+        return {
+            "open_play_xg_share":   round(buckets["OpenPlay"]       / total_xg, 4),
+            "corner_xg_share":      round(buckets["FromCorner"]     / total_xg, 4),
+            "set_piece_xg_share":   round((buckets["SetPiece"] + buckets["FromCorner"] + buckets["DirectFreekick"]) / total_xg, 4),
+            "direct_fk_xg_share":   round(buckets["DirectFreekick"] / total_xg, 4),
+            "penalty_xg_share":     round(buckets["Penalty"]        / total_xg, 4),
+            "total_shots":          len(own_shots),
+            "open_play_xg_per_shot": round(buckets["OpenPlay"] / open_play_shots, 4) if open_play_shots else None,
+            "source":               f"understat/{league}/{season} situation split",
+        }
+    except Exception:
+        return {}
+
+
+def fetch_league_avg_goals(league: str, season: int) -> Optional[float]:
+    """
+    Compute league-wide avg goals per team per game from the league table.
+
+    Critical because hardcoded 1.35 over-fits EPL/La Liga and badly mis-scales
+    Bundesliga (~1.55) and Ligue 1 (~1.20). Returns None on failure so callers
+    can fall back to a sport-wide constant.
+    """
+    rows = fetch_league_xg(league, season)
+    if not rows:
+        return None
+    total_goals = sum(int(r.get("goals", 0)) for r in rows)
+    total_games = sum(int(r.get("matches", 0)) for r in rows)
+    if total_games <= 0:
+        return None
+    # Each match contributes 2 team-games to the matches counter
+    return round(total_goals / total_games, 3)
+
+
 def fetch_team_shot_quality(
     team_name: str,
     league: str,
@@ -350,20 +505,28 @@ def enrich_soccer_teams(
     season: int,
 ) -> dict:
     """
-    Enrich both teams with Understat xG + shot quality data.
+    Enrich both teams with Understat xG + shot quality + venue + situation splits.
 
     Returns {
-        "home": {xg, xga, xg_per_game, xga_per_game, recent_xg, recent_xga,
-                 xg_per_shot, sot_pct, goal_overperform, ...},
-        "away": {...},
+        "home": {... see fields below ...},
+        "away": {... same ...},
+        "league_avg_goals": float | None,
     }
-    Both values are empty dicts on failure — soccer pipeline falls back to ESPN.
+    Both team dicts are empty on failure — caller should fall back to AI signals.
 
-    Key signals for Dixon-Coles model:
-      recent_xg_per_game  — last-5 attack form (more predictive than season avg)
-      recent_xga_per_game — last-5 defense form
-      goal_overperform    — regression signal: >1.15 likely to regress down
-      xg_per_shot         — shot quality; high xg teams hit fewer big chances
+    Fields per team (when fetch succeeds):
+      Season:        xg, xga, npxg, npxga, xg_per_game, xga_per_game,
+                     goals, goals_against, matches, position
+      Per-game derived: npxg_per_game, npxga_per_game
+      Recent (last 5): recent_xg_per_game, recent_xga_per_game
+      Shot quality:  xg_per_shot, xga_per_shot, sot_pct, goal_overperform
+      Venue splits:  home_xg_per_game / home_xga_per_game / away_xg_per_game /
+                     away_xga_per_game (+ npxg variants), home_matches, away_matches
+      Situation:     open_play_xg_share, set_piece_xg_share, corner_xg_share,
+                     penalty_xg_share, open_play_xg_per_shot
+
+    league_avg_goals reflects the actual scoring environment for this league/season
+    (e.g. Bundesliga ~1.55, Ligue 1 ~1.25) — feeds Dixon-Coles directly.
     """
     home = fetch_team_xg(home_name, league, season)
     away = fetch_team_xg(away_name, league, season)
@@ -371,6 +534,18 @@ def enrich_soccer_teams(
     away_recent = fetch_team_recent_xg(away_name, league, season)
     home_shots  = fetch_team_shot_quality(home_name, league, season)
     away_shots  = fetch_team_shot_quality(away_name, league, season)
+    home_venue  = fetch_team_venue_splits(home_name, league, season)
+    away_venue  = fetch_team_venue_splits(away_name, league, season)
+    home_sit    = fetch_team_situation_split(home_name, league, season)
+    away_sit    = fetch_team_situation_split(away_name, league, season)
+
+    # Per-game npxG (penalty-stripped — sportsbook standard input)
+    if home and home.get("matches"):
+        home["npxg_per_game"]  = round(home.get("npxg", 0)  / home["matches"], 3)
+        home["npxga_per_game"] = round(home.get("npxga", 0) / home["matches"], 3)
+    if away and away.get("matches"):
+        away["npxg_per_game"]  = round(away.get("npxg", 0)  / away["matches"], 3)
+        away["npxga_per_game"] = round(away.get("npxga", 0) / away["matches"], 3)
 
     if home_recent:
         home["recent_xg_per_game"]  = home_recent.get("xg_per_game")
@@ -379,14 +554,30 @@ def enrich_soccer_teams(
         away["recent_xg_per_game"]  = away_recent.get("xg_per_game")
         away["recent_xga_per_game"] = away_recent.get("xga_per_game")
 
-    # Merge shot quality into main team dict
     for k in ("xg_per_shot", "xga_per_shot", "sot_pct", "goal_overperform"):
         if home_shots.get(k) is not None:
             home[k] = home_shots[k]
         if away_shots.get(k) is not None:
             away[k] = away_shots[k]
 
-    return {"home": home, "away": away}
+    for k, v in home_venue.items():
+        if v is not None and k != "source":
+            home[k] = v
+    for k, v in away_venue.items():
+        if v is not None and k != "source":
+            away[k] = v
+
+    for k in ("open_play_xg_share", "set_piece_xg_share", "corner_xg_share",
+              "direct_fk_xg_share", "penalty_xg_share", "open_play_xg_per_shot",
+              "total_shots"):
+        if home_sit.get(k) is not None:
+            home[k] = home_sit[k]
+        if away_sit.get(k) is not None:
+            away[k] = away_sit[k]
+
+    league_avg = fetch_league_avg_goals(league, season)
+
+    return {"home": home, "away": away, "league_avg_goals": league_avg}
 
 
 # ── Name matching ─────────────────────────────────────────────────────────────

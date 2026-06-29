@@ -2,6 +2,10 @@
 Dixon-Coles Poisson model for soccer match outcomes.
 Estimates attack/defense strengths from recent xG data and applies
 the DC low-score correlation correction.
+
+Two entry points:
+  predict() — legacy single-strength input; used by engine.py for backward compat.
+  predict_xg() — npxG + venue-split aware; used by analyze_soccer.py.
 """
 from __future__ import annotations
 import math
@@ -11,8 +15,17 @@ import numpy as np
 
 
 TAU = 0.1  # Dixon-Coles rho parameter (low-score correction strength)
-HOME_ADVANTAGE = 1.15  # multiplicative factor on home attack
+HOME_ADVANTAGE = 1.15  # multiplicative factor on home attack (legacy default)
 MAX_GOALS = 7  # score matrix dimension
+
+# Recent vs season-long blend — last-5 carries 60% weight by default. Mark Dixon's
+# original 1997 paper used exponential decay with ~2yr half-life; for in-season
+# prediction a fixed last-5 weight tracks form changes well without over-fitting.
+DEFAULT_RECENT_WEIGHT = 0.6
+
+# Shrinkage strength when matches_played is small — pulls attack/defense toward
+# league average. λ = matches / (matches + SHRINKAGE_K). At 10 games, ~50% raw.
+SHRINKAGE_K = 10.0
 
 
 def _dc_adjustment(goals_home: int, goals_away: int, mu_h: float, mu_a: float, tau: float) -> float:
@@ -91,3 +104,187 @@ def explain(result: dict, team_home: str, team_away: str) -> str:
         f"Draw: {result['prob_draw']*100:.1f}%, "
         f"{team_away}: {result['prob_away']*100:.1f}%."
     )
+
+
+# ── npxG-aware strengths (preferred path; used by analyze_soccer.py) ─────────
+
+def _blend(season_val: Optional[float], recent_val: Optional[float],
+           recent_weight: float = DEFAULT_RECENT_WEIGHT) -> Optional[float]:
+    """Weighted average of season and recent values; falls back to whichever exists."""
+    if season_val is None and recent_val is None:
+        return None
+    if recent_val is None:
+        return season_val
+    if season_val is None:
+        return recent_val
+    return recent_weight * recent_val + (1 - recent_weight) * season_val
+
+
+def _shrink(value: float, league_mean: float, matches: int) -> float:
+    """
+    Bayesian-style shrinkage toward league mean. Early in season the raw rate
+    is noisy; we pull it toward the prior with weight inversely proportional
+    to matches played. At 38 matches, ~79% raw; at 5 matches, ~33% raw.
+    """
+    if matches <= 0:
+        return league_mean
+    w = matches / (matches + SHRINKAGE_K)
+    return w * value + (1 - w) * league_mean
+
+
+def strengths_from_xg(
+    *,
+    season_xg_for: Optional[float]  = None,
+    season_xg_against: Optional[float] = None,
+    recent_xg_for: Optional[float]   = None,
+    recent_xg_against: Optional[float] = None,
+    venue_xg_for: Optional[float]    = None,    # home_* if is_home else away_*
+    venue_xg_against: Optional[float] = None,
+    league_avg_goals: float          = 1.40,
+    matches_played: int              = 19,
+    venue_matches: int               = 9,
+    goal_overperform: float          = 1.0,     # G/xG ratio: >1.15 lucky, <0.85 unlucky
+    is_home: bool                    = True,
+    recent_weight: float             = DEFAULT_RECENT_WEIGHT,
+    venue_weight: float              = 0.45,
+) -> dict:
+    """
+    Attack/defense multipliers built from npxG-style inputs.
+
+    Layering (each step is optional — falls back when input is None):
+      1. Blend season vs recent-5 xG (60/40 default by recent weight).
+      2. Blend venue-specific (home or away) vs overall, weighted 45/55 by default.
+      3. Apply Bayesian shrinkage to league mean using sample sizes.
+      4. Damp by goal_overperform (regression signal): teams overperforming xG
+         by >15% get a -3% attack damping (and vice versa).
+
+    Returns {"attack", "defense", "components"} where attack/defense are >1.0 for
+    above-average performance. Components dict carries the intermediate values
+    for the explanation string.
+    """
+    base = league_avg_goals if league_avg_goals > 0 else 1.40
+
+    # Step 1: time blend
+    xg_for_blend = _blend(season_xg_for, recent_xg_for, recent_weight)
+    xg_ag_blend  = _blend(season_xg_against, recent_xg_against, recent_weight)
+
+    # Step 2: venue blend
+    def _venue_blend(overall: Optional[float], venue: Optional[float],
+                     venue_n: int, total_n: int) -> Optional[float]:
+        if venue is None:
+            return overall
+        if overall is None:
+            return venue
+        # Scale venue_weight down if venue sample is tiny
+        eff_w = venue_weight * min(1.0, venue_n / 8.0)
+        return eff_w * venue + (1 - eff_w) * overall
+
+    xg_for_final = _venue_blend(xg_for_blend, venue_xg_for, venue_matches, matches_played)
+    xg_ag_final  = _venue_blend(xg_ag_blend,  venue_xg_against, venue_matches, matches_played)
+
+    # Step 3: shrinkage to league mean
+    if xg_for_final is None:
+        xg_for_final = base
+    if xg_ag_final is None:
+        xg_ag_final = base
+    xg_for_final = _shrink(xg_for_final, base, matches_played)
+    xg_ag_final  = _shrink(xg_ag_final,  base, matches_played)
+
+    # Step 4: overperformance damping (luck regression)
+    damp = 1.0
+    if goal_overperform > 1.15:
+        damp = 0.97  # lucky → expect attack to cool
+    elif goal_overperform < 0.85:
+        damp = 1.03  # unlucky → expect attack to warm
+
+    attack  = max(0.3, min(2.5, (xg_for_final * damp) / base))
+    defense = max(0.3, min(2.5, xg_ag_final / base))
+
+    return {
+        "attack":  attack,
+        "defense": defense,
+        "components": {
+            "xg_for_blend":  xg_for_blend,
+            "xg_ag_blend":   xg_ag_blend,
+            "xg_for_final":  round(xg_for_final, 3),
+            "xg_ag_final":   round(xg_ag_final, 3),
+            "league_avg":    base,
+            "damping":       damp,
+            "is_home":       is_home,
+        },
+    }
+
+
+def predict_xg(
+    *,
+    home_attack: float,
+    home_defense: float,
+    away_attack: float,
+    away_defense: float,
+    league_avg_goals: float = 1.40,
+    home_advantage: float   = HOME_ADVANTAGE,
+    neutral: bool           = False,
+    keeper_adj_home: float  = 0.0,   # PSxG-GA per 90; positive = good GK → suppress opp μ
+    keeper_adj_away: float  = 0.0,
+    set_piece_share_home: float = 0.22,
+    set_piece_share_away: float = 0.22,
+    set_piece_aerial_mult_home: float = 1.0,  # away aerial advantage → home concedes more set pieces
+    set_piece_aerial_mult_away: float = 1.0,
+    max_goals: int          = MAX_GOALS,
+    tau: float              = TAU,
+) -> dict:
+    """
+    Goal-expectation model splitting μ into open-play and set-piece terms,
+    then Poisson-summing back into a score matrix.
+
+      μ_home = μ_open_h + μ_set_h
+      μ_open_h = league_avg * home_attack * away_defense * (1 - set_piece_share_home) * ha
+      μ_set_h  = league_avg * home_attack * away_defense * set_piece_share_home * aerial_mult * ha
+      keeper adjustment: opposing GK PSxG-GA reduces μ by ~7% per (+0.5 per-90).
+
+    Returns same keys as predict() plus mu_open / mu_set decomposition.
+    """
+    ha = 1.0 if neutral else home_advantage
+
+    mu_h_raw = league_avg_goals * home_attack * away_defense * ha
+    mu_a_raw = league_avg_goals * away_attack * home_defense
+
+    # Split into open-play vs set-piece
+    mu_h_open = mu_h_raw * (1 - set_piece_share_home)
+    mu_h_set  = mu_h_raw * set_piece_share_home * set_piece_aerial_mult_home
+    mu_a_open = mu_a_raw * (1 - set_piece_share_away)
+    mu_a_set  = mu_a_raw * set_piece_share_away * set_piece_aerial_mult_away
+
+    # Keeper adjustment: clamp at ±12% to avoid extreme single-stat domination
+    def _gk_mult(adj: float) -> float:
+        # +1 PSxG-GA per 90 = ~14% reduction in opposing μ
+        m = 1.0 - 0.14 * adj
+        return max(0.85, min(1.18, m))
+
+    mu_h_total = (mu_h_open + mu_h_set) * _gk_mult(keeper_adj_away)
+    mu_a_total = (mu_a_open + mu_a_set) * _gk_mult(keeper_adj_home)
+
+    matrix = np.zeros((max_goals + 1, max_goals + 1))
+    for g_h in range(max_goals + 1):
+        for g_a in range(max_goals + 1):
+            p = poisson.pmf(g_h, mu_h_total) * poisson.pmf(g_a, mu_a_total)
+            adj = _dc_adjustment(g_h, g_a, mu_h_total, mu_a_total, tau)
+            matrix[g_h, g_a] = p * adj
+    matrix /= matrix.sum()
+
+    prob_home = float(np.tril(matrix, -1).sum())
+    prob_draw = float(np.trace(matrix))
+    prob_away = float(np.triu(matrix, 1).sum())
+
+    return {
+        "prob_home":  prob_home,
+        "prob_draw":  prob_draw,
+        "prob_away":  prob_away,
+        "mu_home":    mu_h_total,
+        "mu_away":    mu_a_total,
+        "mu_home_open": mu_h_open,
+        "mu_home_set":  mu_h_set,
+        "mu_away_open": mu_a_open,
+        "mu_away_set":  mu_a_set,
+        "score_matrix": matrix,
+    }

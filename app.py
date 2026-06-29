@@ -770,6 +770,28 @@ def analyze(body: AnalyzeRequest):
     return result
 
 
+class SoccerRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-soccer")
+def analyze_soccer_endpoint(body: SoccerRequest):
+    """
+    Soccer-specific pipeline. Live Understat + FBref enrichment, npxG-based
+    Dixon-Coles with open-play/set-piece split, GK adjustment, and Elo blend.
+    Falls back to AI signal estimation when xG sources are unreachable.
+    The legacy /analyze endpoint stays available for the old behaviour.
+    """
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_soccer import run_soccer_analysis
+    result = run_soccer_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("home_team"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
 class BaseballRequest(BaseModel):
     query: str
     bankroll: float = 1000.0

@@ -718,7 +718,7 @@ mutates: none
 name: predict
 type: function
 file: models/dixon_coles.py
-purpose: Computes home/draw/away win probabilities and expected goals using a Dixon-Coles Poisson model from attack/defense strength values.
+purpose: Legacy single-strength Dixon-Coles predictor. Computes home/draw/away win probabilities and expected goals from attack/defense values. Used by engine.py for backward compatibility with the original /analyze endpoint. New soccer pipeline uses predict_xg().
 inputs: attack_home: float, defense_home: float, attack_away: float, defense_away: float, league_avg_goals: float = 1.35, neutral: bool = False
 outputs: dict {prob_home, prob_draw, prob_away, mu_home, mu_away}
 calls: poisson.pmf, _dc_adjustment, np.zeros, np.tril, np.triu, np.trace
@@ -730,7 +730,7 @@ mutates: none
 name: strengths_from_signals
 type: function
 file: models/dixon_coles.py
-purpose: Converts xG signal values from the signals dict into attack/defense multipliers relative to league average (1.0 = average).
+purpose: Legacy strengths builder. Converts xg_for_avg5 / xg_against_avg5 from the signals dict into attack/defense multipliers relative to a hardcoded 1.35 league average. Used by engine.py soccer path. New pipeline uses strengths_from_xg() which supports npxG, venue splits, recent/season blend, and shrinkage.
 inputs: signals: dict
 outputs: dict {attack: float, defense: float}
 calls: none
@@ -746,6 +746,178 @@ purpose: Returns a human-readable string summarizing the Dixon-Coles model outpu
 inputs: result: dict, team_home: str, team_away: str
 outputs: str
 calls: none
+called_by: none (utility)
+mutates: none
+---
+
+---
+name: DEFAULT_RECENT_WEIGHT
+type: variable
+file: models/dixon_coles.py
+purpose: Weight (0.6) given to last-5 recent xG vs season-long xG when blending in strengths_from_xg. Fixed weight tracks form changes without over-fitting; replaces Mark Dixon's exponential decay for in-season use.
+inputs: none
+outputs: float
+calls: none
+called_by: strengths_from_xg
+mutates: none
+---
+
+---
+name: SHRINKAGE_K
+type: variable
+file: models/dixon_coles.py
+purpose: Shrinkage strength constant (10.0). When matches_played is small, raw xG is pulled toward league average with weight matches / (matches + K). At 10 games ≈ 50% raw, at 38 games ≈ 79% raw.
+inputs: none
+outputs: float
+calls: none
+called_by: _shrink
+mutates: none
+---
+
+---
+name: _blend
+type: function
+file: models/dixon_coles.py
+purpose: Weighted average of season and recent xG values; falls back to whichever exists if one is None. Used by strengths_from_xg to combine season totals with recent form.
+inputs: season_val: Optional[float], recent_val: Optional[float], recent_weight: float = DEFAULT_RECENT_WEIGHT
+outputs: Optional[float]
+calls: none
+called_by: strengths_from_xg
+mutates: none
+---
+
+---
+name: _shrink
+type: function
+file: models/dixon_coles.py
+purpose: Bayesian-style shrinkage toward league mean using w = matches / (matches + SHRINKAGE_K). Pulls noisy small-sample xG toward the league prior.
+inputs: value: float, league_mean: float, matches: int
+outputs: float
+calls: SHRINKAGE_K
+called_by: strengths_from_xg
+mutates: none
+---
+
+---
+name: strengths_from_xg
+type: function
+file: models/dixon_coles.py
+purpose: Build attack/defense multipliers from npxG-style inputs. Layers: (1) season vs recent-5 blend (60/40), (2) venue-specific vs overall (45/55, scaled by venue sample size), (3) Bayesian shrinkage to league mean, (4) damping for goal_overperform >1.15 (lucky → -3%) or <0.85 (unlucky → +3%). Returns attack/defense clamped to [0.3, 2.5] plus a components dict for explanation.
+inputs: season_xg_for, season_xg_against, recent_xg_for, recent_xg_against, venue_xg_for, venue_xg_against (all Optional[float]); league_avg_goals: float = 1.40; matches_played: int = 19; venue_matches: int = 9; goal_overperform: float = 1.0; is_home: bool = True; recent_weight: float = 0.6; venue_weight: float = 0.45
+outputs: dict {attack: float, defense: float, components: dict}
+calls: _blend, _shrink
+called_by: _build_strengths (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: predict_xg
+type: function
+file: models/dixon_coles.py
+purpose: npxG-aware Dixon-Coles predictor that decomposes μ into open-play + set-piece components, applies opposing-keeper PSxG-GA adjustment (±14% per +1 per-90, clamped ±15%), and computes the score matrix with low-score correction. Returns prob_home/draw/away plus mu_home/mu_away and their open/set decomposition. Used by analyze_soccer.py.
+inputs: home_attack: float, home_defense: float, away_attack: float, away_defense: float, league_avg_goals: float = 1.40, home_advantage: float = HOME_ADVANTAGE, neutral: bool = False, keeper_adj_home: float = 0.0, keeper_adj_away: float = 0.0, set_piece_share_home: float = 0.22, set_piece_share_away: float = 0.22, set_piece_aerial_mult_home: float = 1.0, set_piece_aerial_mult_away: float = 1.0, max_goals: int = MAX_GOALS, tau: float = TAU
+outputs: dict {prob_home, prob_draw, prob_away, mu_home, mu_away, mu_home_open, mu_home_set, mu_away_open, mu_away_set, score_matrix}
+calls: poisson.pmf, _dc_adjustment, np.zeros, np.tril, np.triu, np.trace
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+
+## models/soccer_leagues.py
+
+---
+name: DEFAULT_LEAGUE_AVG_GOALS
+type: variable
+file: models/soccer_leagues.py
+purpose: Sport-wide fallback for goals-per-team-per-game (1.40) when the league is unknown or Understat lookup fails.
+inputs: none
+outputs: float
+calls: none
+called_by: league_avg_goals
+mutates: none
+---
+
+---
+name: DEFAULT_HOME_ADVANTAGE
+type: variable
+file: models/soccer_leagues.py
+purpose: Sport-wide fallback multiplicative home advantage (1.15) when league is unknown.
+inputs: none
+outputs: float
+calls: none
+called_by: home_advantage
+mutates: none
+---
+
+---
+name: DEFAULT_OPEN_PLAY_SHARE
+type: variable
+file: models/soccer_leagues.py
+purpose: Sport-wide fallback open-play xG share (0.78) when league is unknown. Set-piece share = 1 - open_play_share.
+inputs: none
+outputs: float
+calls: none
+called_by: open_play_share
+mutates: none
+---
+
+---
+name: _LEAGUES
+type: variable
+file: models/soccer_leagues.py
+purpose: Per-league constants table covering EPL (1.43, ha 1.13), La_liga (1.31, 1.18), Bundesliga (1.55, 1.10), Serie_A (1.38, 1.16), Ligue_1 (1.28, 1.17), RFPL (1.30, 1.20). Each entry has goals_per_team_per_game, home_advantage, open_play_xg_share. 5-season averages from public FBref totals; calibrate against live Understat league_avg_goals when available.
+inputs: none
+outputs: dict[str, dict[str, float]]
+calls: none
+called_by: league_avg_goals, home_advantage, open_play_share, known_leagues
+mutates: none
+---
+
+---
+name: league_avg_goals
+type: function
+file: models/soccer_leagues.py
+purpose: Lookup goals-per-team-per-game for a league slug; falls back to DEFAULT_LEAGUE_AVG_GOALS. Used by analyze_soccer.py when Understat's live league average is unreachable.
+inputs: league: Optional[str]
+outputs: float
+calls: _LEAGUES
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: home_advantage
+type: function
+file: models/soccer_leagues.py
+purpose: League-specific home advantage multiplier. EPL 1.13, La Liga 1.18, Bundesliga 1.10 — replaces the hardcoded 1.15 in the legacy Dixon-Coles path.
+inputs: league: Optional[str]
+outputs: float
+calls: _LEAGUES
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: open_play_share
+type: function
+file: models/soccer_leagues.py
+purpose: Fraction of league xG from open play (rest is set pieces + penalties). Fallback when team-level Understat situation split is unavailable.
+inputs: league: Optional[str]
+outputs: float
+calls: _LEAGUES
+called_by: _set_piece_share (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: known_leagues
+type: function
+file: models/soccer_leagues.py
+purpose: Return list of league slugs with hardcoded constants. Used for UI dropdowns / validation.
+inputs: none
+outputs: list[str]
+calls: _LEAGUES
 called_by: none (utility)
 mutates: none
 ---
@@ -6325,11 +6497,47 @@ mutates: none
 name: enrich_soccer_teams
 type: function
 file: fetchers/understat.py
-purpose: Enrich both home and away soccer teams with Understat xG data. Returns {"home": {...}, "away": {...}} with season xG totals and rolling-5 recent form. Both dicts are empty on failure — soccer pipeline falls back to ESPN. Ready to wire into analyze_soccer.py.
+purpose: Enrich both home and away soccer teams with Understat xG, npxG, venue splits, and situation splits. Returns {"home": {season + per-game + recent + shot-quality + venue + situation fields}, "away": {same}, "league_avg_goals": float|None}. Computes npxg_per_game / npxga_per_game from season totals. Now wired into analyze_soccer.py (was previously unused — biggest single accuracy improvement when wired).
 inputs: home_name: str, away_name: str, league: str, season: int
-outputs: dict {"home": dict, "away": dict}
-calls: fetch_team_xg, fetch_team_recent_xg
-called_by: (ready for analyze_soccer.py integration)
+outputs: dict {"home": dict, "away": dict, "league_avg_goals": Optional[float]}
+calls: fetch_team_xg, fetch_team_recent_xg, fetch_team_shot_quality, fetch_team_venue_splits, fetch_team_situation_split, fetch_league_avg_goals
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: fetch_team_venue_splits
+type: function
+file: fetchers/understat.py
+purpose: Compute home/away xG splits from a team's per-game Understat datesData. Filters on h_a field. Returns home_xg_per_game, home_xga_per_game, home_npxg_per_game, home_npxga_per_game and the away_* counterparts, plus home_matches / away_matches counts. Critical for proper Dixon-Coles — teams differ substantially in venue-specific scoring beyond a single home advantage multiplier.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _get, _extract_json_var
+called_by: enrich_soccer_teams
+mutates: none
+---
+
+---
+name: fetch_team_situation_split
+type: function
+file: fetchers/understat.py
+purpose: Split a team's offensive xG by Understat shot situation field (OpenPlay, FromCorner, SetPiece, DirectFreekick, Penalty). Open-play xG is materially more predictive of future scoring than season total because set pieces and penalties are noisy. Returns open_play_xg_share, set_piece_xg_share (combined corners+set+freekick), corner_xg_share, direct_fk_xg_share, penalty_xg_share, total_shots, open_play_xg_per_shot.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _get, _extract_json_var, _norm
+called_by: enrich_soccer_teams
+mutates: none
+---
+
+---
+name: fetch_league_avg_goals
+type: function
+file: fetchers/understat.py
+purpose: Compute league-wide avg goals per team per game from the Understat league table. Critical because hardcoded 1.35 over-fits EPL/La Liga and badly mis-scales Bundesliga (~1.55) and Ligue 1 (~1.25). Returns None on failure so callers fall back to models.soccer_leagues constants.
+inputs: league: str, season: int
+outputs: Optional[float]
+calls: fetch_league_xg
+called_by: enrich_soccer_teams, run_soccer_analysis
 mutates: none
 ---
 
@@ -6957,3 +7165,391 @@ called_by: init_db
 mutates: predicta.db schema (matches table DDL)
 ---
 
+
+---
+
+## fetchers/fbref.py
+
+---
+name: FBREF_BASE
+type: variable
+file: fetchers/fbref.py
+purpose: Base URL for FBref scraping (https://fbref.com). Sports Reference site publishing free squad-level tables with PSxG, possession, defense, and aerial duel data — process metrics Understat doesn't expose.
+inputs: none
+outputs: str
+calls: none
+called_by: _fetch_table
+mutates: none
+---
+
+---
+name: _LEAGUE_TO_FBREF
+type: variable
+file: fetchers/fbref.py
+purpose: Map Understat league slug → (FBref competition id, slug-name). Covers EPL (9), La_liga (12), Bundesliga (20), Serie_A (11), Ligue_1 (13). RFPL is excluded — FBref does not publish detailed Russian Premier League advanced tables.
+inputs: none
+outputs: dict[str, tuple[int, str]]
+calls: none
+called_by: _fetch_table, enrich_soccer_advanced
+mutates: none
+---
+
+---
+name: _TEAM_ALIASES
+type: variable
+file: fetchers/fbref.py
+purpose: Common-name → FBref canonical name mapping for fuzzy team resolution. Differs from Understat's mapping (FBref uses "Manchester Utd" not "Manchester United", "Nott'ham Forest" with apostrophe, etc.).
+inputs: none
+outputs: dict[str, str]
+calls: none
+called_by: _resolve_team
+mutates: none
+---
+
+---
+name: _FBREF_CACHE
+type: variable
+file: fetchers/fbref.py
+purpose: Module-level cache keyed by (league, season, table_kind) → pandas DataFrame. Avoids re-hitting FBref for the same table within a single analysis session. Cleared on process restart.
+inputs: none
+outputs: dict[tuple, pd.DataFrame]
+calls: none
+called_by: _fetch_table
+mutates: filled by _fetch_table
+---
+
+---
+name: _strip_comments
+type: function
+file: fetchers/fbref.py
+purpose: Strip HTML comment markers from FBref pages. FBref wraps several tables (advanced keepers, defense, possession) inside <!-- ... --> to slow simple scrapers; pandas.read_html needs them visible.
+inputs: html: str
+outputs: str
+calls: re.sub
+called_by: _fetch_table
+mutates: none
+---
+
+---
+name: _fetch_table
+type: function
+file: fetchers/fbref.py
+purpose: Generic FBref squad-table fetcher. Builds URL from (league, season, kind) where kind is one of 'standard' / 'keepers_adv' / 'defense' / 'misc' / 'possession'. Strips comments, calls pandas.read_html, flattens multi-index columns, caches the result. Returns None on any failure.
+inputs: league: str, season: int, kind: str
+outputs: Optional[pd.DataFrame]
+calls: _LEAGUE_TO_FBREF, _get, _strip_comments, pd.read_html, _FBREF_CACHE
+called_by: fetch_team_gk, fetch_team_pressing, fetch_team_possession, fetch_team_aerials
+mutates: _FBREF_CACHE
+---
+
+---
+name: _resolve_team
+type: function
+file: fetchers/fbref.py
+purpose: Resolve a user-supplied team name to the canonical FBref Squad value, via _TEAM_ALIASES then fuzzy matching against the table's squad list.
+inputs: team_name: str, table: pd.DataFrame
+outputs: Optional[str]
+calls: _TEAM_ALIASES, _fuzzy_match
+called_by: fetch_team_gk, fetch_team_pressing, fetch_team_possession, fetch_team_aerials
+mutates: none
+---
+
+---
+name: fetch_team_gk
+type: function
+file: fetchers/fbref.py
+purpose: Goalkeeper quality from FBref keepersadv squad table. Returns psxg, psxg_minus_ga (sign-aware: positive = saves above expected = better keeper), psxg_ga_per_90, ga, saves_pct. PSxG-GA per 90 is the best publicly available GK metric — Pinnacle uses an internal version.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _fetch_table, _resolve_team, _safe_float
+called_by: enrich_soccer_advanced
+mutates: none
+---
+
+---
+name: fetch_team_pressing
+type: function
+file: fetchers/fbref.py
+purpose: Pressing intensity proxy from FBref defense table. PPDA is the standard pressing metric but FBref doesn't publish it directly — we approximate as 370 / (tkl+int per 90 × 0.55), where 370 ≈ league opponent passes/game and 0.55 ≈ share of defensive actions occurring in opponent half. Lower = more pressing (top pressers ~7-9, low blocks ~15-18). Also returns tkl_int_per_90 and challenge_pct.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _fetch_table, _resolve_team, _safe_float
+called_by: enrich_soccer_advanced
+mutates: none
+---
+
+---
+name: fetch_team_possession
+type: function
+file: fetchers/fbref.py
+purpose: Field tilt + possession metrics from FBref possession table. Returns att_3rd_touch_pct (top teams 32-38%, bottom 22-27%), def_3rd_touch_pct, possession_pct, progressive_passes per 90. Field tilt approximation is touches_att_3rd / total_touches.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _fetch_table, _resolve_team, _safe_float
+called_by: enrich_soccer_advanced
+mutates: none
+---
+
+---
+name: fetch_team_aerials
+type: function
+file: fetchers/fbref.py
+purpose: Aerial duel win % + disciplinary stats from FBref misc table. Feeds the set-piece model — aerial dominance amplifies set-piece μ via _aerial_index in analyze_soccer.py. Returns aerials_won_pct (league avg ~50%), fouls_per_90, yellow_per_90.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _fetch_table, _resolve_team, _safe_float
+called_by: enrich_soccer_advanced
+mutates: none
+---
+
+---
+name: enrich_soccer_advanced
+type: function
+file: fetchers/fbref.py
+purpose: Combined FBref enrichment — calls fetch_team_gk, _pressing, _possession, _aerials for both teams and merges into {"home": dict, "away": dict}. Designed to layer on top of enrich_soccer_teams() (Understat) in analyze_soccer.py: Understat provides xG and shot-level data, FBref provides process metrics (PSxG, PPDA, field tilt, aerial). Returns empty dicts when league is unsupported or all fetches fail.
+inputs: home_name: str, away_name: str, league: str, season: int
+outputs: dict {"home": dict, "away": dict}
+calls: fetch_team_gk, fetch_team_pressing, fetch_team_possession, fetch_team_aerials, _LEAGUE_TO_FBREF
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+
+## ai_agent_soccer.py
+
+---
+name: MODEL
+type: variable
+file: ai_agent_soccer.py
+purpose: Claude model identifier used for soccer query parsing and narrative generation (claude-haiku-4-5-20251001). Haiku is sufficient for structured extraction and short narratives; saves tokens vs Sonnet for high-throughput scenarios.
+inputs: none
+outputs: str
+calls: none
+called_by: parse_soccer_query, interpret_soccer_signals_fallback, generate_soccer_narrative
+mutates: none
+---
+
+---
+name: _client
+type: function
+file: ai_agent_soccer.py
+purpose: Anthropic client factory wrapping ai_client.get_client. Shared across parse / fallback / narrative calls.
+inputs: none
+outputs: anthropic.Anthropic
+calls: get_client
+called_by: parse_soccer_query, interpret_soccer_signals_fallback, generate_soccer_narrative
+mutates: none
+---
+
+---
+name: PARSE_SYSTEM
+type: variable
+file: ai_agent_soccer.py
+purpose: System prompt for parse_soccer_query. Extracts home_team, away_team, league slug (EPL/La_liga/Bundesliga/Serie_A/Ligue_1/RFPL), season year, date, neutral flag, decimal+American odds for home/draw/away, and notes. Strict JSON-only output, no markdown.
+inputs: none
+outputs: str
+calls: none
+called_by: parse_soccer_query
+mutates: none
+---
+
+---
+name: parse_soccer_query
+type: function
+file: ai_agent_soccer.py
+purpose: Parse a free-form soccer query into structured JSON via Claude Haiku. Returns home_team, away_team, league, season, date, neutral, odds_home/draw/away (decimal + American), notes. Used as step 1 of run_soccer_analysis.
+inputs: user_text: str
+outputs: dict
+calls: _client, PARSE_SYSTEM, anthropic.messages.create, json.loads
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: FALLBACK_SYSTEM
+type: variable
+file: ai_agent_soccer.py
+purpose: System prompt for interpret_soccer_signals_fallback. Used only when Understat enrichment fails entirely. Asks Claude to estimate season + recent xG, goal_overperform, and Elo ratings from training knowledge with confidence='low'.
+inputs: none
+outputs: str
+calls: none
+called_by: interpret_soccer_signals_fallback
+mutates: none
+---
+
+---
+name: interpret_soccer_signals_fallback
+type: function
+file: ai_agent_soccer.py
+purpose: Last-resort signal estimation when Understat and FBref are both unreachable. Returns {"home": {season_xg_for, season_xg_against, recent_xg_for, recent_xg_against, goal_overperform, elo_rating}, "away": {same}, "league_avg_goals", "confidence": "low"}.
+inputs: home_name: str, away_name: str, notes: str = ""
+outputs: dict
+calls: _client, FALLBACK_SYSTEM, anthropic.messages.create, json.loads
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: NARRATIVE_SYSTEM
+type: variable
+file: ai_agent_soccer.py
+purpose: System prompt for generate_soccer_narrative. Asks Claude to produce a 2-3 sentence prediction summary naming the favourite, the decisive driver (xG edge / GK / form / set-piece), the verdict if supplied, and a confidence caveat. Under 90 words, no emojis.
+inputs: none
+outputs: str
+calls: none
+called_by: generate_soccer_narrative
+mutates: none
+---
+
+---
+name: generate_soccer_narrative
+type: function
+file: ai_agent_soccer.py
+purpose: Generate the final narrative string shown to the user via Claude Haiku. Takes model probabilities, the engine explanation, the bet verdict, and confidence. Returns plain text under 90 words.
+inputs: home_team: str, away_team: str, prob_home: float, prob_draw: float, prob_away: float, explanation: str, verdict: str = "", confidence: str = "medium"
+outputs: str
+calls: _client, NARRATIVE_SYSTEM, anthropic.messages.create
+called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+
+## analyze_soccer.py
+
+---
+name: _safe_float
+type: function
+file: analyze_soccer.py
+purpose: Cast a value to float, returning default on None / TypeError / ValueError. Used when logging signals so noisy Understat/FBref values don't break the SQL insert.
+inputs: val, default=None
+outputs: Optional[float]
+calls: none
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _current_season
+type: function
+file: analyze_soccer.py
+purpose: Determine the active Understat season number (start year). June-July rolls forward: July 1 onward returns current year, before returns previous year.
+inputs: none
+outputs: int
+calls: datetime.now
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _aerial_index
+type: function
+file: analyze_soccer.py
+purpose: Convert FBref aerials_won_pct to a multiplier on set-piece μ. League average ~50% maps to 1.0. ±5pp swing → ±10% set-piece scoring; clamped [0.85, 1.20]. Used so a team strong in the air gets a set-piece scoring boost when its opponent is weak in the air.
+inputs: aerials_won_pct: Optional[float]
+outputs: float
+calls: none
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _set_piece_share
+type: function
+file: analyze_soccer.py
+purpose: Determine the fraction of expected goals coming from set pieces (corners + indirect freekicks + set play; penalties excluded). Uses team-level Understat situation split if available, otherwise league default from models.soccer_leagues. Clamped to [0.05, 0.45].
+inputs: team_sit: dict, league: Optional[str]
+outputs: float
+calls: leagues.open_play_share
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _build_strengths
+type: function
+file: analyze_soccer.py
+purpose: Convert an Understat enriched team dict into Dixon-Coles attack/defense multipliers via strengths_from_xg. Picks npxG (penalty-stripped) when available, falls back to xG. Selects venue-specific (home_* or away_*) xG when is_home indicates, applies recent/season blend + shrinkage.
+inputs: team_data: dict, opp_data: dict, league_avg_goals: float, is_home: bool
+outputs: dict {attack: float, defense: float, components: dict}
+calls: dc.strengths_from_xg
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _build_explanation
+type: function
+file: analyze_soccer.py
+purpose: Build the multi-line plain-English explanation string for the prediction. Surfaces split Poisson μ_open + μ_set decomposition, attack/defense strengths, GK PSxG-GA per 90 when available, PPDA pressing proxy, and Elo win-prob blend.
+inputs: home_team, away_team, dc: dict, str_h: dict, str_a: dict, league_avg: float, keeper_h, keeper_a, ppda_h, ppda_a, elo_h: float, elo_a: float
+outputs: str
+calls: none
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _bet_recommendations
+type: function
+file: analyze_soccer.py
+purpose: Translate model probabilities (+ optional market edge) into one structured bet recommendation. When odds are supplied, uses market_edge_summary thresholds (BET ≥+3pp, LEAN ≥+0.5pp, else PASS). Without odds, uses winner-push-if-tied threshold (BET ≥62%, LEAN ≥55%, else PASS). Returns list of dicts with market / verdict / bet / confidence / reasons / skip_reason.
+inputs: prob_home: float, prob_draw: float, prob_away: float, home_team: str, away_team: str, edge_summary: Optional[dict]
+outputs: list[dict]
+calls: none
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: _format_markets
+type: function
+file: analyze_soccer.py
+purpose: Reshape compute_all_markets output for the frontend — adds team-name labels and rounds probabilities. Covers match_result_2up, correct_score (top 6), spread (Asian handicap), winner_push_if_tied (Draw No Bet).
+inputs: raw: dict, home: str, away: str
+outputs: dict
+calls: none
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
+name: run_soccer_analysis
+type: function
+file: analyze_soccer.py
+purpose: Full soccer pipeline entry point. (1) Parse query via Claude. (2) Enrich both teams via Understat (xG/npxG + venue + situation), with season-1 fallback. (3) Enrich via FBref (PSxG, PPDA, possession, aerials). (4) Build attack/defense strengths via strengths_from_xg with blend+shrinkage+overperform damping. (5) Run predict_xg with open-play+set-piece decomposition, GK adjustment, and aerial-multiplied set μ. (6) Blend with Elo 65/35 (DC supplies full draw probability). (7) Compute markets via compute_all_markets and bet recs (market-comparison when odds supplied). (8) Persist match + 28 signals + prediction. (9) Narrate via Claude. Returns full dict ready for the frontend.
+inputs: user_query: str, bankroll: float = 1000.0
+outputs: dict
+calls: init_db, parse_soccer_query, enrich_soccer_teams, enrich_soccer_advanced, interpret_soccer_signals_fallback, _build_strengths, _set_piece_share, _aerial_index, dc.predict_xg, EloModel.win_probability, compute_all_markets, market_edge_summary, _bet_recommendations, kelly_stake, log_signal, get_db, _build_explanation, generate_soccer_narrative, _format_markets, leagues.league_avg_goals, leagues.home_advantage, american_to_decimal
+called_by: analyze_soccer_endpoint (app.py)
+mutates: predicta.db (matches, signals, predictions)
+---
+
+---
+
+## app.py (soccer endpoint)
+
+---
+name: SoccerRequest
+type: class
+file: app.py
+purpose: Pydantic body model for POST /analyze-soccer. Holds the free-form query string and an optional bankroll for Kelly staking. Odds and league info are parsed out of the query text by ai_agent_soccer.parse_soccer_query rather than passed as fields.
+inputs: query: str, bankroll: float = 1000.0
+outputs: SoccerRequest instance
+calls: none
+called_by: analyze_soccer_endpoint
+mutates: none
+---
+
+---
+name: analyze_soccer_endpoint
+type: function
+file: app.py
+purpose: POST /analyze-soccer FastAPI route. Validates the query, runs run_soccer_analysis, and returns the full result dict. The legacy POST /analyze stays in place and routes to the older analyze.py pipeline for backward compatibility with the existing UI.
+inputs: body: SoccerRequest
+outputs: dict
+calls: run_soccer_analysis
+called_by: FastAPI (HTTP request)
+mutates: predicta.db indirectly via run_soccer_analysis
+---
