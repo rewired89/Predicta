@@ -7527,13 +7527,37 @@ mutates: none
 ---
 
 ---
+name: PROMOTED_TEAM_ATTACK_PRIOR
+type: variable
+file: analyze_soccer.py
+purpose: Default attack multiplier (0.90) used when a team has no live xG data at all (Round 4 #3). Teams with zero signal in top-flight context are typically promoted sides and below average — using 1.0/1.0 (league average) was systematically overrating unknown opponents.
+inputs: none
+outputs: float
+calls: none
+called_by: _build_strengths
+mutates: none
+---
+
+---
+name: PROMOTED_TEAM_DEFENSE_PRIOR
+type: variable
+file: analyze_soccer.py
+purpose: Default defense multiplier (1.10) paired with PROMOTED_TEAM_ATTACK_PRIOR. Higher number = weaker defense in DC convention.
+inputs: none
+outputs: float
+calls: none
+called_by: _build_strengths
+mutates: none
+---
+
+---
 name: _build_strengths
 type: function
 file: analyze_soccer.py
-purpose: Convert an Understat enriched team dict into Dixon-Coles attack/defense multipliers via strengths_from_xg. Picks npxG (penalty-stripped) when available, falls back to xG. Selects venue-specific (home_* or away_*) xG when is_home indicates, applies recent/season blend + shrinkage.
+purpose: Convert an Understat enriched team dict into Dixon-Coles attack/defense multipliers via strengths_from_xg. Picks npxG (penalty-stripped) when available, falls back to xG. Selects venue-specific xG when is_home indicates, applies recent/season blend + shrinkage. Round 4 #3 — if no xG signal exists in any column (data_completeness="minimal"), bypasses strengths_from_xg and returns PROMOTED_TEAM_ATTACK_PRIOR / PROMOTED_TEAM_DEFENSE_PRIOR (0.90/1.10) directly, replacing the previous 1.0/1.0 league-average default.
 inputs: team_data: dict, opp_data: dict, league_avg_goals: float, is_home: bool
 outputs: dict {attack: float, defense: float, components: dict}
-calls: dc.strengths_from_xg
+calls: dc.strengths_from_xg, PROMOTED_TEAM_ATTACK_PRIOR, PROMOTED_TEAM_DEFENSE_PRIOR
 called_by: run_soccer_analysis
 mutates: none
 ---
@@ -7554,8 +7578,8 @@ mutates: none
 name: _bet_recommendations
 type: function
 file: analyze_soccer.py
-purpose: Translate model probabilities (+ optional market edge) into one structured bet recommendation. When odds are supplied, uses market_edge_summary thresholds (BET ≥+3pp, LEAN ≥+0.5pp, else PASS). Without odds, uses winner-push-if-tied threshold (BET ≥62%, LEAN ≥55%, else PASS). Returns list of dicts with market / verdict / bet / confidence / reasons / skip_reason.
-inputs: prob_home: float, prob_draw: float, prob_away: float, home_team: str, away_team: str, edge_summary: Optional[dict]
+purpose: Translate model probabilities (+ optional market edge) into one structured bet recommendation. Round 4 #2 — partial-data threshold lift: when partial_data=True, edges-with-odds thresholds become BET ≥ +5pp / LEAN ≥ +1.5pp (from 3.0/0.5); no-odds DNB thresholds become BET ≥ 65% / LEAN ≥ 58% (from 62/55). Higher bars when either team has incomplete data because parameter uncertainty raises edge-estimate variance. Returns one dict containing market label, verdict (BET/LEAN/PASS), bet string, threshold info, partial_data flag, confidence, reasons, skip_reason.
+inputs: prob_home: float, prob_draw: float, prob_away: float, home_team: str, away_team: str, edge_summary: Optional[dict], partial_data: bool = False
 outputs: list[dict]
 calls: none
 called_by: run_soccer_analysis

@@ -93,6 +93,10 @@ def _set_piece_share(team_sit: dict, league: Optional[str]) -> float:
     return max(0.05, min(0.45, float(s)))
 
 
+PROMOTED_TEAM_ATTACK_PRIOR  = 0.90
+PROMOTED_TEAM_DEFENSE_PRIOR = 1.10
+
+
 def _build_strengths(
     team_data: dict,
     opp_data: dict,
@@ -102,10 +106,17 @@ def _build_strengths(
     """
     Convert Understat enriched dict → Dixon-Coles attack/defense.
 
-    Uses venue split when available (home_xg_per_game / home_xga_per_game etc.),
-    falls back to overall xG. Picks npxG when present (penalty-stripped).
-    Passes Kish effective_n from time-decayed enrichment so shrinkage gets the
-    right denominator (Kimi #2).
+    Uses venue split when available, falls back to overall xG, picks npxG
+    when present. Passes Kish effective_n so shrinkage gets the right
+    denominator.
+
+    Round 4 #3 — Promoted-team prior: when team_data has no xG data at all
+    (`data_completeness="minimal"` case), don't fall through to the
+    strengths_from_xg defaults (which return 1.0/1.0 — league average). Teams
+    we know nothing about in a top-flight context are typically promoted
+    sides and below average. Use attack=0.90, defense=1.10 instead. This
+    means partial-data BETs against unknown teams need less aggressive
+    filtering downstream.
     """
     season_for     = team_data.get("npxg_per_game") or team_data.get("xg_per_game")
     season_against = team_data.get("npxga_per_game") or team_data.get("xga_per_game")
@@ -120,6 +131,20 @@ def _build_strengths(
         venue_for     = team_data.get("away_npxg_per_game")  or team_data.get("away_xg_per_game")
         venue_against = team_data.get("away_npxga_per_game") or team_data.get("away_xga_per_game")
         venue_matches = team_data.get("away_matches", 0)
+
+    # Round 4 #3: if no xG signal in any column, use the promoted-team prior.
+    if (season_for is None and recent_for is None and venue_for is None
+        and season_against is None and recent_against is None and venue_against is None):
+        return {
+            "attack":  PROMOTED_TEAM_ATTACK_PRIOR,
+            "defense": PROMOTED_TEAM_DEFENSE_PRIOR,
+            "components": {
+                "prior_used":   "promoted_team",
+                "league_avg":   league_avg_goals,
+                "is_home":      is_home,
+                "note":         "No live xG — using below-average prior, not league average",
+            },
+        }
 
     return strengths_from_xg(
         season_xg_for      = season_for,
@@ -190,13 +215,20 @@ def _bet_recommendations(
     prob_home: float, prob_draw: float, prob_away: float,
     home_team: str, away_team: str,
     edge_summary: Optional[dict],
+    partial_data: bool = False,
 ) -> list[dict]:
     """
     Translate model probs (+ optional market edge) into actionable advice.
 
-    Two-way "winner / no draw" verdict: if a clear side has ≥58% conditional
-    win probability AND a positive edge against the market (when odds are
-    supplied) we surface a BET. Otherwise PASS.
+    Round 4 #2 — Partial-data threshold lift:
+      Normal     : BET ≥ +3.0pp edge, LEAN ≥ +0.5pp
+      Partial    : BET ≥ +5.0pp edge, LEAN ≥ +1.5pp
+      No-odds normal : BET ≥ 62% conditional, LEAN ≥ 55%
+      No-odds partial: BET ≥ 65% conditional, LEAN ≥ 58%
+
+    Higher thresholds when either team has incomplete data because parameter
+    uncertainty raises the variance on our edge estimate — Kelly assumes
+    known probabilities.
     """
     decisive = prob_home + prob_away
     p_home_no_draw = prob_home / decisive if decisive else 0.5
@@ -204,18 +236,26 @@ def _bet_recommendations(
     leader_no_draw = max(p_home_no_draw, p_away_no_draw)
     leader_team    = home_team if p_home_no_draw >= p_away_no_draw else away_team
 
+    # Threshold ladder
+    edge_bet   = 0.05  if partial_data else 0.03
+    edge_lean  = 0.015 if partial_data else 0.005
+    no_odds_bet  = 0.65 if partial_data else 0.62
+    no_odds_lean = 0.58 if partial_data else 0.55
+
     recs: list[dict] = []
     if edge_summary and edge_summary.get("has_real_odds"):
         edge_h = edge_summary["edge_a"]
         edge_a = edge_summary["edge_b"]
         best_edge = max(edge_h, edge_a)
         best_side = home_team if edge_h >= edge_a else away_team
-        if best_edge >= 0.03:
+        if best_edge >= edge_bet:
             verdict = "BET"
-            confidence = "high" if best_edge >= 0.06 else "medium"
+            confidence = "high" if best_edge >= edge_bet + 0.03 else "medium"
             reasons = [f"+{best_edge*100:.1f}pp edge vs market on {best_side}"]
+            if partial_data:
+                reasons.append("partial-data threshold applied (+5pp BET)")
             skip = ""
-        elif best_edge >= 0.005:
+        elif best_edge >= edge_lean:
             verdict = "LEAN"
             confidence = "low"
             reasons = [f"+{best_edge*100:.1f}pp slight edge on {best_side}"]
@@ -224,27 +264,29 @@ def _bet_recommendations(
             verdict = "PASS"
             confidence = None
             reasons = []
-            skip = f"No 3pp edge vs market (best {best_edge*100:.1f}pp on {best_side})"
+            need = f"{edge_bet*100:.1f}pp"
+            skip = f"No {need} edge vs market (best {best_edge*100:.1f}pp on {best_side})"
         recs.append({
             "market":      "Match Winner (vs market)",
             "verdict":     verdict,
             "bet":         f"{best_side} moneyline" if verdict in ("BET", "LEAN") else "",
             "edge_pp":     round(best_edge * 100, 2),
+            "threshold_pp": edge_bet * 100,
+            "partial_data": partial_data,
             "confidence":  confidence,
             "reasons":     reasons,
             "skip_reason": skip,
         })
     else:
-        # Threshold language clarified (Kimi #h). The 62% number is the
-        # *conditional* P(team wins | decisive result), not the outright
-        # win probability. A 62% conditional ≈ 55-58% outright depending on
-        # how big the draw probability is.
-        if leader_no_draw >= 0.62:
+        # No-odds DNB recommendation. Thresholds bumped for partial data.
+        if leader_no_draw >= no_odds_bet:
             verdict = "BET"
-            confidence = "high" if leader_no_draw >= 0.70 else "medium"
+            confidence = "high" if leader_no_draw >= no_odds_bet + 0.08 else "medium"
             reasons = [f"{leader_team} {leader_no_draw*100:.1f}% conditional-on-decisive (DNB fair value)"]
+            if partial_data:
+                reasons.append("partial-data threshold applied (≥65%)")
             skip = ""
-        elif leader_no_draw >= 0.55:
+        elif leader_no_draw >= no_odds_lean:
             verdict = "LEAN"
             confidence = "low"
             reasons = [f"{leader_team} marginal favorite, {leader_no_draw*100:.1f}% conditional"]
@@ -253,14 +295,16 @@ def _bet_recommendations(
             verdict = "PASS"
             confidence = None
             reasons = []
-            skip = f"Coin-flip range — {leader_team} only {leader_no_draw*100:.1f}% conditional"
+            need = f"{no_odds_bet*100:.0f}%"
+            skip = f"Coin-flip range — {leader_team} only {leader_no_draw*100:.1f}% conditional (need {need})"
         recs.append({
             "market":         "Win (Draw No Bet)",
             "verdict":        verdict,
             "bet":            f"{leader_team} DNB" if verdict in ("BET", "LEAN") else "",
             "model_prob_pct": round(leader_no_draw * 100, 1),
             "prob_note":      "Conditional P(team | decisive result) — DNB fair value",
-            "threshold":      62.0,
+            "threshold_pct":  no_odds_bet * 100,
+            "partial_data":   partial_data,
             "confidence":     confidence,
             "reasons":        reasons,
             "skip_reason":    skip,
@@ -436,6 +480,16 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         except Exception as exc:
             steps.append({"step": "fbref_enrich", "status": "error", "error": str(exc)})
 
+    # ── 3.5. Data completeness flags (computed early so bet recs can use it) ──
+    home_complete = _classify_completeness(enriched["home"], fbref["home"])
+    away_complete = _classify_completeness(enriched["away"], fbref["away"])
+    data_completeness = {
+        "home":  home_complete,
+        "away":  away_complete,
+        "either_partial": (home_complete != "full" or away_complete != "full"),
+    }
+    steps.append({"step": "completeness", "status": "ok", **data_completeness})
+
     # ── 4. Determine league average + home advantage ────────────────────────
     # Anchor on league xG. Preference order (Kimi #7 round 3):
     #   1. Live Understat league xG (best — current season, actual data)
@@ -503,29 +557,29 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         set_piece_aerial_mult_away = set_mult_a,
     )
 
-    # ── 8. Elo blend (65/35; DC keeps draw probability intact) ──────────────
-    # Elo no-rating guard (round 3 follow-up): when both teams have no DB
-    # entry, EloModel returns 0.5/0.5, which dilutes a strong DC signal with
-    # pure noise. In that case skip the Elo blend entirely — DC is doing the
-    # work. We detect "both default" by checking raw ratings against
-    # DEFAULT_RATING rather than checking the prob (a 1500-vs-1500 match
-    # legitimately maps to 50/50, but here it carries no signal).
+    # ── 8. Elo blend with smooth weight by rating delta (Round 4 #1) ────────
+    # Replaces the previous binary "skip if both at default" guard. Elo's
+    # information content scales with the rating gap: at delta=0 Elo is pure
+    # noise (50/50 by construction), at delta≥50 it's a meaningful signal.
+    # Linear ramp keeps the 35% max weight but degrades smoothly toward 0.
+    #
+    #   weight = 0.35 × min(1.0, |Δrating| / 50)
+    #
+    # Naturally covers the "both at default 1500" edge case (delta=0 → weight=0)
+    # without a separate guard.
     elo = EloModel()
-    from models.elo import DEFAULT_RATING
     ra_raw = elo.get_rating(home_team)
     rb_raw = elo.get_rating(away_team)
     elo_home, elo_away = elo.win_probability(home_team, away_team)
 
-    elo_skipped = (ra_raw == DEFAULT_RATING and rb_raw == DEFAULT_RATING)
+    rating_delta  = abs(ra_raw - rb_raw)
+    elo_weight    = 0.35 * min(1.0, rating_delta / 50.0)
+    dc_weight     = 1.0 - elo_weight
+
     p_decisive  = 1.0 - dc["prob_draw"]
     dc_home_ratio = dc["prob_home"] / (dc["prob_home"] + dc["prob_away"]) \
         if (dc["prob_home"] + dc["prob_away"]) > 0 else 0.5
-    if elo_skipped:
-        blended_ratio = dc_home_ratio       # 100% DC
-        blend_label = "100% DC (Elo guard: both teams at default 1500)"
-    else:
-        blended_ratio = 0.65 * dc_home_ratio + 0.35 * elo_home
-        blend_label   = "65% DC / 35% Elo"
+    blended_ratio = dc_weight * dc_home_ratio + elo_weight * elo_home
     prob_home = p_decisive * blended_ratio
     prob_away = 1.0 - prob_home - dc["prob_draw"]
     prob_draw = dc["prob_draw"]
@@ -533,13 +587,15 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     steps.append({
         "step": "elo_blend",
         "status": "ok",
-        "elo_home": round(elo_home, 3),
-        "elo_away": round(elo_away, 3),
-        "ra_raw":   ra_raw,
-        "rb_raw":   rb_raw,
+        "elo_home":      round(elo_home, 3),
+        "elo_away":      round(elo_away, 3),
+        "ra_raw":        ra_raw,
+        "rb_raw":        rb_raw,
+        "rating_delta":  rating_delta,
+        "elo_weight":    round(elo_weight, 4),
+        "dc_weight":     round(dc_weight,  4),
         "dc_home_ratio": round(dc_home_ratio, 3),
-        "blend_weights": blend_label,
-        "elo_skipped":   elo_skipped,
+        "blend_weights": f"{dc_weight*100:.0f}% DC / {elo_weight*100:.0f}% Elo (Δrating={rating_delta:.0f})",
     })
 
     # ── 9. Markets + market comparison ──────────────────────────────────────
@@ -564,7 +620,8 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         })
 
     recs = _bet_recommendations(prob_home, prob_draw, prob_away,
-                                home_team, away_team, edge_summary)
+                                home_team, away_team, edge_summary,
+                                partial_data=data_completeness["either_partial"])
     kelly = None
     if has_odds:
         # Stake the side the recs flag, only if BET/LEAN
@@ -596,6 +653,12 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             match_id = cur.lastrowid
 
         sigs_to_log = [
+            # Round 4 #5: log effective_n + half_life per team so future backtest
+            # can stratify by sample depth and recency budget used.
+            ("effective_n",         home_team, enriched["home"].get("effective_n")),
+            ("half_life_days_used", home_team, enriched["home"].get("half_life_days_used")),
+            ("effective_n",         away_team, enriched["away"].get("effective_n")),
+            ("half_life_days_used", away_team, enriched["away"].get("half_life_days_used")),
             ("xg_for_avg5",         home_team, enriched["home"].get("recent_xg_per_game")),
             ("xg_against_avg5",     home_team, enriched["home"].get("recent_xga_per_game")),
             ("npxg_per_game",       home_team, enriched["home"].get("npxg_per_game")),
@@ -657,18 +720,8 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         explanation = "Persist failure — model output below."
 
     # ── 11. Narrative ───────────────────────────────────────────────────────
-    # Data completeness per team — surfaces to caller so partial-data BETs
-    # can be tracked separately (Kimi #1 round 3).
-    home_complete = _classify_completeness(enriched["home"], fbref["home"])
-    away_complete = _classify_completeness(enriched["away"], fbref["away"])
-    data_completeness = {
-        "home":  home_complete,
-        "away":  away_complete,
-        "either_partial": (home_complete != "full" or away_complete != "full"),
-    }
-
     # Confidence reflects depth of live data. We never reach here with empty
-    # Understat (that path returns insufficient_data above).
+    # Understat for both teams (that path returns insufficient_data above).
     if home_complete == "full" and away_complete == "full":
         confidence = "high"
     elif home_complete in ("full", "understat") and away_complete in ("full", "understat"):
@@ -712,7 +765,7 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "data_sources": [
             "understat",
             "fbref" if (fbref["home"] or fbref["away"]) else None,
-            "elo" if not elo_skipped else None,
+            "elo" if elo_weight > 0 else None,
         ],
         "model_explanation": explanation,
         "bet_recommendations": recs,
