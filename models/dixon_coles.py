@@ -120,11 +120,14 @@ def _blend(season_val: Optional[float], recent_val: Optional[float],
     return recent_weight * recent_val + (1 - recent_weight) * season_val
 
 
-def _shrink(value: float, league_mean: float, matches: int) -> float:
+def _shrink(value: float, league_mean: float, matches: float) -> float:
     """
     Bayesian-style shrinkage toward league mean. Early in season the raw rate
     is noisy; we pull it toward the prior with weight inversely proportional
     to matches played. At 38 matches, ~79% raw; at 5 matches, ~33% raw.
+
+    Accepts float matches (Kish effective_n) so callers using time-decayed
+    inputs can pass the right denominator for the variance estimate.
     """
     if matches <= 0:
         return league_mean
@@ -143,6 +146,7 @@ def strengths_from_xg(
     league_avg_goals: float          = 1.40,
     matches_played: int              = 19,
     venue_matches: int               = 9,
+    effective_n: Optional[float]     = None,    # Kish n_eff from time-decay
     goal_overperform: float          = 1.0,     # G/xG ratio
     is_home: bool                    = True,
     recent_weight: float             = DEFAULT_RECENT_WEIGHT,
@@ -183,13 +187,15 @@ def strengths_from_xg(
     xg_for_final = _venue_blend(xg_for_blend, venue_xg_for, venue_matches, matches_played)
     xg_ag_final  = _venue_blend(xg_ag_blend,  venue_xg_against, venue_matches, matches_played)
 
-    # Step 3: shrinkage to league mean
+    # Step 3: shrinkage to league mean — uses Kish effective_n when callers
+    # supply time-decayed inputs (Kimi #2). Falls back to integer match count.
     if xg_for_final is None:
         xg_for_final = base
     if xg_ag_final is None:
         xg_ag_final = base
-    xg_for_final = _shrink(xg_for_final, base, matches_played)
-    xg_ag_final  = _shrink(xg_ag_final,  base, matches_played)
+    shrink_n = effective_n if (effective_n is not None and effective_n > 0) else float(matches_played)
+    xg_for_final = _shrink(xg_for_final, base, shrink_n)
+    xg_ag_final  = _shrink(xg_ag_final,  base, shrink_n)
 
     # Step 4: continuous overperformance damping (Kimi #8)
     raw_damp = (1.0 - goal_overperform) * 0.15

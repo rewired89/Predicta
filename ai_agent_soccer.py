@@ -61,61 +61,13 @@ def parse_soccer_query(user_text: str) -> dict:
     return json.loads(raw)
 
 
-# ── 2. Fallback signal interpretation when live data is empty ────────────────
+# ── 2. Narrative ──────────────────────────────────────────────────────────────
+# NOTE: The previous Claude-based xG fallback (interpret_soccer_signals_fallback)
+# was removed in Round 3 — for betting use, hallucinating signals from training
+# data is unsafe. The pipeline now returns {"status": "insufficient_data"} when
+# both Understat and FBref are unreachable. Reintroduce only as a separate
+# explicit /research-mode endpoint if needed in the future.
 
-FALLBACK_SYSTEM = """You estimate soccer team strength signals when live API data
-is unavailable. Use ONLY your training knowledge about teams' typical recent xG,
-defensive solidity, and approximate Elo level.
-
-Return ONLY valid JSON with this exact schema:
-{
-  "home": {
-    "season_xg_for":     <float|null>,
-    "season_xg_against": <float|null>,
-    "recent_xg_for":     <float|null>,
-    "recent_xg_against": <float|null>,
-    "goal_overperform":  <float|null>,
-    "elo_rating":        <float|null>
-  },
-  "away": { <same keys> },
-  "league_avg_goals": <float|null>,
-  "confidence": "low"
-}
-
-Typical values to anchor on:
-  Top club home xG/game (Man City, Bayern, PSG):  1.9 - 2.3
-  Mid-table xG/game:                                1.2 - 1.5
-  Bottom-half xG/game:                              0.9 - 1.2
-  Strong defenses (xG against): 0.9 - 1.1
-  Weak defenses:                1.6 - 2.0
-  Elite Elo: 2000+, Strong: 1800-2000, Mid: 1500-1700, Weak: 1300-1450
-
-No markdown, raw JSON only."""
-
-
-def interpret_soccer_signals_fallback(home_name: str, away_name: str, notes: str = "") -> dict:
-    client = _client()
-    prompt = f"""
-Match: {home_name} (home) vs {away_name} (away)
-Notes: {notes or "none"}
-
-Estimate the signals using training knowledge."""
-    msg = client.messages.create(
-        model=MODEL,
-        max_tokens=600,
-        system=FALLBACK_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text.strip()
-    raw = re.sub(r"^```[a-z]*\n?", "", raw)
-    raw = re.sub(r"\n?```$", "", raw)
-    try:
-        return json.loads(raw)
-    except Exception:
-        return {"home": {}, "away": {}, "confidence": "low"}
-
-
-# ── 3. Narrative ──────────────────────────────────────────────────────────────
 
 NARRATIVE_SYSTEM = """You are a soccer prediction analyst. Write a clear, confident
 2-3 sentence prediction summary based on the model's outputs.

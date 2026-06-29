@@ -260,27 +260,74 @@ def fetch_team_recent_xg(
     }
 
 
+def _decayed_xg_from_history(completed: list, half_life_days: float) -> dict:
+    """
+    Inner: given a list of completed match dicts, compute time-decayed averages.
+
+    Kimi #1 correction: effective_n now uses Kish's effective-sample-size
+    formula  n_eff = (Σw)² / Σ(w²)  instead of plain Σw. The Σw form
+    over-counts when weights are dispersed; Kish n_eff equals raw n at equal
+    weights and shrinks as weights spread out — the right quantity for
+    Bayesian shrinkage and variance bounds.
+    """
+    from datetime import datetime as _dt
+    today = _dt.utcnow()
+    sum_w = 0.0
+    sum_w2 = 0.0
+    sum_xg = 0.0
+    sum_xga = 0.0
+    sum_g = 0.0
+    sum_ga = 0.0
+    for g in completed:
+        try:
+            d = _dt.strptime(str(g.get("date", "")).split(" ")[0], "%Y-%m-%d")
+            days_ago = max(0.0, (today - d).total_seconds() / 86400.0)
+        except Exception:
+            days_ago = 0.0
+        w = 0.5 ** (days_ago / max(1.0, half_life_days))
+        sum_w  += w
+        sum_w2 += w * w
+        sum_xg  += w * float(g.get("xG",  0) or 0)
+        sum_xga += w * float(g.get("xGA", 0) or 0)
+        sum_g   += w * float(g.get("scored", 0) or 0)
+        sum_ga  += w * float(g.get("missed", 0) or 0)
+    if sum_w <= 0 or sum_w2 <= 0:
+        return {}
+    effective_n_kish = (sum_w * sum_w) / sum_w2
+    return {
+        "xg_per_game":    sum_xg  / sum_w,
+        "xga_per_game":   sum_xga / sum_w,
+        "goals_per_game": sum_g   / sum_w,
+        "ga_per_game":    sum_ga  / sum_w,
+        "matches_used":   len(completed),
+        "effective_n":    round(effective_n_kish, 2),
+        "sum_weights":    round(sum_w, 3),
+        "half_life_days": half_life_days,
+    }
+
+
 def fetch_team_decayed_xg(
     team_name: str,
     league: str,
     season: int,
     half_life_days: float = 90.0,
+    adaptive: bool = True,
 ) -> dict:
     """
     Time-decayed xG/xGA over the full available season history.
 
-    Each match weight = 0.5 ** (days_ago / half_life_days). A 90-day half-life
-    means a 3-month-old match counts half as much as one played today; a
-    6-month-old match counts a quarter. Replaces the brittle "last 5" recency
-    window with a smooth recency curve that handles winter breaks and
-    international gaps without throwing away signal.
+    Each match weight = 0.5 ** (days_ago / half_life_days). 90-day half-life:
+    a 3-month-old match counts half a recent match, 6-month half is a quarter.
 
-    Returns:
-      xg_per_game, xga_per_game (weighted), goals_per_game, ga_per_game,
-      matches_used (raw count), effective_n (sum of weights — a sample-size proxy).
-    Empty dict on failure.
+    adaptive=True (Kimi #4 + own elaboration): if Kish effective_n < 12 at the
+    requested half-life, retry at 150 days to lengthen the window for sparse
+    data (early season / mid-season for promoted teams). If effective_n stays
+    < 8 even at 150d, fall back to 240d. Never goes below the input half-life.
+
+    Returns: xg_per_game, xga_per_game, goals_per_game, ga_per_game,
+             matches_used, effective_n (Kish formula), sum_weights,
+             half_life_days_used, source. Empty dict on failure.
     """
-    from datetime import datetime as _dt
     canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
     url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
     html = _get(url)
@@ -295,36 +342,31 @@ def fetch_team_decayed_xg(
     if not completed:
         return {}
 
-    today = _dt.utcnow()
-    total_w = 0.0
-    sum_xg = 0.0
-    sum_xga = 0.0
-    sum_g = 0.0
-    sum_ga = 0.0
-    for g in completed:
-        try:
-            d = _dt.strptime(str(g.get("date", "")).split(" ")[0], "%Y-%m-%d")
-            days_ago = max(0.0, (today - d).total_seconds() / 86400.0)
-        except Exception:
-            days_ago = 0.0
-        w = 0.5 ** (days_ago / max(1.0, half_life_days))
-        total_w += w
-        sum_xg  += w * float(g.get("xG",  0) or 0)
-        sum_xga += w * float(g.get("xGA", 0) or 0)
-        sum_g   += w * float(g.get("scored", 0) or 0)
-        sum_ga  += w * float(g.get("missed", 0) or 0)
-    if total_w <= 0:
+    hl_candidates = [half_life_days] if not adaptive else [half_life_days, 150.0, 240.0]
+    best = None
+    for hl in hl_candidates:
+        if hl < half_life_days:
+            continue
+        r = _decayed_xg_from_history(completed, hl)
+        if not r:
+            continue
+        best = r
+        if r["effective_n"] >= 12:
+            break
+
+    if best is None:
         return {}
 
     return {
-        "xg_per_game":     round(sum_xg  / total_w, 3),
-        "xga_per_game":    round(sum_xga / total_w, 3),
-        "goals_per_game":  round(sum_g   / total_w, 3),
-        "ga_per_game":     round(sum_ga  / total_w, 3),
-        "matches_used":    len(completed),
-        "effective_n":     round(total_w, 2),
-        "half_life_days":  half_life_days,
-        "source":          f"understat/{league}/{season} decayed (HL={half_life_days:.0f}d)",
+        "xg_per_game":          round(best["xg_per_game"],    3),
+        "xga_per_game":         round(best["xga_per_game"],   3),
+        "goals_per_game":       round(best["goals_per_game"], 3),
+        "ga_per_game":          round(best["ga_per_game"],    3),
+        "matches_used":         best["matches_used"],
+        "effective_n":          best["effective_n"],
+        "sum_weights":          best["sum_weights"],
+        "half_life_days_used":  best["half_life_days"],
+        "source":               f"understat/{league}/{season} decayed (HL={best['half_life_days']:.0f}d, n_eff={best['effective_n']:.1f})",
     }
 
 
@@ -642,9 +684,17 @@ def enrich_soccer_teams(
     if home_recent:
         home["recent_xg_per_game"]  = home_recent.get("xg_per_game")
         home["recent_xga_per_game"] = home_recent.get("xga_per_game")
+        # Propagate Kish effective_n + chosen half-life from the time-decayed
+        # fetcher so downstream shrinkage uses the right denominator.
+        if home_recent.get("effective_n") is not None:
+            home["effective_n"]         = home_recent["effective_n"]
+            home["half_life_days_used"] = home_recent.get("half_life_days_used")
     if away_recent:
         away["recent_xg_per_game"]  = away_recent.get("xg_per_game")
         away["recent_xga_per_game"] = away_recent.get("xga_per_game")
+        if away_recent.get("effective_n") is not None:
+            away["effective_n"]         = away_recent["effective_n"]
+            away["half_life_days_used"] = away_recent.get("half_life_days_used")
 
     for k in ("xg_per_shot", "xga_per_shot", "sot_pct", "goal_overperform"):
         if home_shots.get(k) is not None:

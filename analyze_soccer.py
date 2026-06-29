@@ -104,6 +104,8 @@ def _build_strengths(
 
     Uses venue split when available (home_xg_per_game / home_xga_per_game etc.),
     falls back to overall xG. Picks npxG when present (penalty-stripped).
+    Passes Kish effective_n from time-decayed enrichment so shrinkage gets the
+    right denominator (Kimi #2).
     """
     season_for     = team_data.get("npxg_per_game") or team_data.get("xg_per_game")
     season_against = team_data.get("npxga_per_game") or team_data.get("xga_per_game")
@@ -129,9 +131,31 @@ def _build_strengths(
         league_avg_goals   = league_avg_goals,
         matches_played     = team_data.get("matches", 0),
         venue_matches      = venue_matches,
+        effective_n        = team_data.get("effective_n"),
         goal_overperform   = team_data.get("goal_overperform") or 1.0,
         is_home            = is_home,
     )
+
+
+def _classify_completeness(team_xg: dict, team_fbref: dict) -> str:
+    """
+    Per-team data completeness label (Kimi #3 round 3):
+      'full'         — both Understat (xG) and FBref (PSxG/PPDA) data present
+      'understat'    — xG present, FBref missing (still solid for prediction)
+      'fbref_only'   — process metrics only (very rare; conservative)
+      'minimal'      — neither source — caller should already have returned PASS
+    """
+    has_xg = bool(team_xg) and (team_xg.get("xg_per_game") is not None
+                                or team_xg.get("npxg_per_game") is not None)
+    has_fb = bool(team_fbref) and (team_fbref.get("psxg_ga_per_90") is not None
+                                   or team_fbref.get("ppda_proxy") is not None)
+    if has_xg and has_fb:
+        return "full"
+    if has_xg:
+        return "understat"
+    if has_fb:
+        return "fbref_only"
+    return "minimal"
 
 
 def _build_explanation(
@@ -413,19 +437,28 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             steps.append({"step": "fbref_enrich", "status": "error", "error": str(exc)})
 
     # ── 4. Determine league average + home advantage ────────────────────────
-    # Anchor on league xG (Kimi #6) — goals systematically under-anchor by ~5%
-    # because xG > goals (finishing variance). Falls back to live goals avg,
-    # then to the static league constant if Understat is unavailable.
-    league_avg_anchor = (
-        enriched.get("league_avg_xg")
-        or leagues.league_avg_xg(league)
-        or enriched.get("league_avg_goals")
-        or leagues.league_avg_goals(league)
-    )
+    # Anchor on league xG. Preference order (Kimi #7 round 3):
+    #   1. Live Understat league xG (best — current season, actual data)
+    #   2. Live Understat league goals × league-specific goals→xG ratio
+    #   3. Static league xG constant (per-league hardcode)
+    #   4. Sport-wide default
+    league_avg_anchor = enriched.get("league_avg_xg")
+    anchor_source = "live_xg"
+    if not league_avg_anchor:
+        live_goals = enriched.get("league_avg_goals")
+        if live_goals:
+            league_avg_anchor = live_goals * leagues.goals_to_xg_ratio(league)
+            anchor_source = "live_goals_x_ratio"
+        else:
+            league_avg_anchor = leagues.league_avg_xg(league)
+            anchor_source = "static_xg"
     if not league_avg_anchor or league_avg_anchor <= 0:
         league_avg_anchor = leagues.DEFAULT_LEAGUE_AVG_XG
+        anchor_source = "default"
     league_avg_goals = league_avg_anchor  # name kept for downstream readability
     league_ha = 1.0 if neutral else leagues.home_advantage(league)
+    steps.append({"step": "anchor", "status": "ok",
+                  "value": round(league_avg_anchor, 3), "source": anchor_source})
 
     # ── 5. Build attack/defense strengths ───────────────────────────────────
     str_h = _build_strengths(enriched["home"], enriched["away"], league_avg_goals, is_home=True)
@@ -471,12 +504,28 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     )
 
     # ── 8. Elo blend (65/35; DC keeps draw probability intact) ──────────────
+    # Elo no-rating guard (round 3 follow-up): when both teams have no DB
+    # entry, EloModel returns 0.5/0.5, which dilutes a strong DC signal with
+    # pure noise. In that case skip the Elo blend entirely — DC is doing the
+    # work. We detect "both default" by checking raw ratings against
+    # DEFAULT_RATING rather than checking the prob (a 1500-vs-1500 match
+    # legitimately maps to 50/50, but here it carries no signal).
     elo = EloModel()
+    from models.elo import DEFAULT_RATING
+    ra_raw = elo.get_rating(home_team)
+    rb_raw = elo.get_rating(away_team)
     elo_home, elo_away = elo.win_probability(home_team, away_team)
+
+    elo_skipped = (ra_raw == DEFAULT_RATING and rb_raw == DEFAULT_RATING)
     p_decisive  = 1.0 - dc["prob_draw"]
     dc_home_ratio = dc["prob_home"] / (dc["prob_home"] + dc["prob_away"]) \
         if (dc["prob_home"] + dc["prob_away"]) > 0 else 0.5
-    blended_ratio = 0.65 * dc_home_ratio + 0.35 * elo_home
+    if elo_skipped:
+        blended_ratio = dc_home_ratio       # 100% DC
+        blend_label = "100% DC (Elo guard: both teams at default 1500)"
+    else:
+        blended_ratio = 0.65 * dc_home_ratio + 0.35 * elo_home
+        blend_label   = "65% DC / 35% Elo"
     prob_home = p_decisive * blended_ratio
     prob_away = 1.0 - prob_home - dc["prob_draw"]
     prob_draw = dc["prob_draw"]
@@ -486,8 +535,11 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "status": "ok",
         "elo_home": round(elo_home, 3),
         "elo_away": round(elo_away, 3),
+        "ra_raw":   ra_raw,
+        "rb_raw":   rb_raw,
         "dc_home_ratio": round(dc_home_ratio, 3),
-        "blend_weights": "65% DC / 35% Elo",
+        "blend_weights": blend_label,
+        "elo_skipped":   elo_skipped,
     })
 
     # ── 9. Markets + market comparison ──────────────────────────────────────
@@ -605,9 +657,24 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         explanation = "Persist failure — model output below."
 
     # ── 11. Narrative ───────────────────────────────────────────────────────
+    # Data completeness per team — surfaces to caller so partial-data BETs
+    # can be tracked separately (Kimi #1 round 3).
+    home_complete = _classify_completeness(enriched["home"], fbref["home"])
+    away_complete = _classify_completeness(enriched["away"], fbref["away"])
+    data_completeness = {
+        "home":  home_complete,
+        "away":  away_complete,
+        "either_partial": (home_complete != "full" or away_complete != "full"),
+    }
+
     # Confidence reflects depth of live data. We never reach here with empty
     # Understat (that path returns insufficient_data above).
-    confidence = "high" if (fbref["home"] or fbref["away"]) else "medium"
+    if home_complete == "full" and away_complete == "full":
+        confidence = "high"
+    elif home_complete in ("full", "understat") and away_complete in ("full", "understat"):
+        confidence = "medium"
+    else:
+        confidence = "low"
     try:
         from ai_agent_soccer import generate_soccer_narrative
         narrative = generate_soccer_narrative(
@@ -638,11 +705,14 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "mu_home_set":  round(dc["mu_home_set"],  3),
         "mu_away_open": round(dc["mu_away_open"], 3),
         "mu_away_set":  round(dc["mu_away_set"],  3),
-        "data_confidence": confidence,
+        "data_confidence":   confidence,
+        "data_completeness": data_completeness,
+        "anchor_source":     anchor_source,
+        "anchor_value":      round(league_avg_anchor, 3),
         "data_sources": [
             "understat",
             "fbref" if (fbref["home"] or fbref["away"]) else None,
-            "elo",
+            "elo" if not elo_skipped else None,
         ],
         "model_explanation": explanation,
         "bet_recommendations": recs,

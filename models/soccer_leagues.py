@@ -92,6 +92,25 @@ def league_avg_xg(league: Optional[str]) -> float:
     )
 
 
+def goals_to_xg_ratio(league: Optional[str]) -> float:
+    """
+    League-specific multiplier to convert a goals-anchor into an xG-anchor
+    (Kimi #7 — dynamic ratio replacing the blanket 1.05).
+
+    Computed from _LEAGUES table: xg_per_team_per_game / goals_per_team_per_game.
+    Falls back to the global average (~1.05) for unknown leagues. Used when
+    Understat returns live league_avg_goals but not live league_avg_xg.
+    """
+    if not league:
+        return DEFAULT_LEAGUE_AVG_XG / DEFAULT_LEAGUE_AVG_GOALS
+    entry = _LEAGUES.get(league, {})
+    g = entry.get("goals_per_team_per_game")
+    x = entry.get("xg_per_team_per_game")
+    if g and x and g > 0:
+        return x / g
+    return DEFAULT_LEAGUE_AVG_XG / DEFAULT_LEAGUE_AVG_GOALS
+
+
 def home_advantage(league: Optional[str]) -> float:
     """Return league-specific home-attack multiplier."""
     if not league:

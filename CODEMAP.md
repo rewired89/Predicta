@@ -790,8 +790,8 @@ mutates: none
 name: _shrink
 type: function
 file: models/dixon_coles.py
-purpose: Bayesian-style shrinkage toward league mean using w = matches / (matches + SHRINKAGE_K). Pulls noisy small-sample xG toward the league prior.
-inputs: value: float, league_mean: float, matches: int
+purpose: Bayesian-style shrinkage toward league mean using w = matches / (matches + SHRINKAGE_K). Pulls noisy small-sample xG toward the league prior. Accepts float matches (Round 3 #1) so callers using time-decayed inputs can pass Kish effective_n as the right variance denominator.
+inputs: value: float, league_mean: float, matches: float
 outputs: float
 calls: SHRINKAGE_K
 called_by: strengths_from_xg
@@ -6518,13 +6518,25 @@ mutates: none
 ---
 
 ---
+name: _decayed_xg_from_history
+type: function
+file: fetchers/understat.py
+purpose: Inner helper for fetch_team_decayed_xg. Given a list of completed match dicts and a half-life, computes time-decayed averages for xG/xGA/goals/ga with Kish effective sample size  n_eff = (Σw)² / Σ(w²)  (Round 3 #1 — sum_w over-counts when weights are dispersed; Kish equals n at equal weights and shrinks with dispersion, which is the correct quantity for Bayesian shrinkage and variance bounds).
+inputs: completed: list[dict], half_life_days: float
+outputs: dict {xg_per_game, xga_per_game, goals_per_game, ga_per_game, matches_used, effective_n, sum_weights, half_life_days}
+calls: datetime parsing
+called_by: fetch_team_decayed_xg
+mutates: none
+---
+
+---
 name: fetch_team_decayed_xg
 type: function
 file: fetchers/understat.py
-purpose: Time-decayed xG/xGA over the full available season history (Kimi #2). Each match weight = 0.5 ** (days_ago / half_life_days). A 90-day half-life means a 3-month-old match counts half as much as a recent one. Smooth recency curve handling winter breaks and international gaps; replaces the noisy fixed last-5 window. Returns xg_per_game, xga_per_game (weighted), goals_per_game, ga_per_game, matches_used, effective_n (sum of weights). Empty dict on failure.
-inputs: team_name: str, league: str, season: int, half_life_days: float = 90.0
+purpose: Time-decayed xG/xGA over the full available season history (Kimi #2). Each match weight = 0.5 ** (days_ago / half_life_days). 90d default: 3-month-old match = 0.5x, 6 months = 0.25x. Smooth recency curve replacing the noisy fixed last-5 window. adaptive=True (Round 3 #4): if Kish effective_n < 12 at the requested half-life, retries at 150d then 240d to lengthen the window for sparse data (early season, promoted teams). Returns xg_per_game, xga_per_game (weighted), goals_per_game, ga_per_game, matches_used, effective_n (Kish), sum_weights, half_life_days_used. Empty dict on failure.
+inputs: team_name: str, league: str, season: int, half_life_days: float = 90.0, adaptive: bool = True
 outputs: dict
-calls: _get, _extract_json_var, _ESPN_TO_UNDERSTAT
+calls: _get, _extract_json_var, _ESPN_TO_UNDERSTAT, _decayed_xg_from_history
 called_by: enrich_soccer_teams
 mutates: none
 ---
