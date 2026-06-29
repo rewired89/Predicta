@@ -6824,8 +6824,8 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl (training only)
 name: predict_nrfi
 type: function
 file: models/nrfi_model.py
-purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Accepts home_starter/away_starter dicts with any subset of model features; missing fields default to league-average values. Optional home_top3_wrc/away_top3_wrc params for live lineup data (defaults to 100 when not available). Lazy-loads model on first call.
-inputs: home_starter: dict, away_starter: dict, home_team: str, park_factor: Optional[float], home_top3_wrc: Optional[float], away_top3_wrc: Optional[float]
+purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Builds 32-feature vector in exact FEATURES list order; maps starter dict keys to training column names (barrel_pct_against→home_barrel_pct, hard_hit_pct_against→home_hard_hit_pct, avg_fb_velo→home_avg_velo). Optional home_fi_rate/away_fi_rate for rolling fi_rate (defaults to 0.29). Optional home_top3_wrc/away_top3_wrc for live lineup data (defaults to 100). Includes assertion to catch future FEATURES/fv length mismatches.
+inputs: home_starter: dict, away_starter: dict, home_team: str, park_factor: Optional[float], home_top3_wrc: Optional[float], away_top3_wrc: Optional[float], home_fi_rate: Optional[float], away_fi_rate: Optional[float]
 outputs: Optional[float] — calibrated probability of NRFI
 calls: xgboost.XGBClassifier.predict_proba, LogisticRegression.predict_proba
 called_by: run_baseball_analysis (analyze_baseball.py)
@@ -6908,7 +6908,7 @@ mutates: none
 name: nrfi_resolve
 type: route
 file: app.py
-purpose: POST /nrfi-resolve — marks a logged NRFI bet as resolved after the game is played. Accepts {id, home_1st_runs, away_1st_runs} or {game_date, home_team, away_team, home_1st_runs, away_1st_runs}. Auto-computes outcome (1=NRFI/0=YRFI), won (1/0), pnl_units (+0.909 win / -1.0 loss at -110).
+purpose: POST /nrfi-resolve — marks a logged NRFI bet as resolved after the game is played. Accepts {id, home_1st_runs, away_1st_runs} or {game_date, home_team, away_team, home_1st_runs, away_1st_runs}. Team lookup uses exact match first then LIKE fallback so abbreviations (DET) resolve against full names (Detroit Tigers) in DB. Auto-computes outcome (1=NRFI/0=YRFI), won (1/0), pnl_units (+0.909 win / -1.0 loss at -110).
 inputs: body: dict
 outputs: {id, outcome, won, pnl_units}
 calls: get_db

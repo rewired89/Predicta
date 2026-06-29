@@ -932,8 +932,10 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         pass
 
     _nrfi_ml_prob = predict_nrfi(
-        home_starter, away_starter, home_team, park_factor,
+        home_starter, away_starter, team_home, park_factor,
         home_top3_wrc=_home_t3_wrc, away_top3_wrc=_away_t3_wrc,
+        home_fi_rate=home_starter.get("fi_rate"),
+        away_fi_rate=away_starter.get("fi_rate"),
     )
     if _nrfi_ml_prob is not None and "nrfi" in formatted_markets:
         _p_nrfi_ml = round(_nrfi_ml_prob * 100, 1)

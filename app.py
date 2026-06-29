@@ -640,10 +640,23 @@ def nrfi_resolve(body: dict):
         if "id" in body:
             row = db.execute("SELECT * FROM nrfi_bets WHERE id=?", (body["id"],)).fetchone()
         else:
+            gd  = body.get("game_date")
+            ht  = body.get("home_team", "")
+            at  = body.get("away_team", "")
+            # Try exact match first, then LIKE (handles full name vs abbreviation)
             row = db.execute(
                 "SELECT * FROM nrfi_bets WHERE game_date=? AND home_team=? AND away_team=? LIMIT 1",
-                (body.get("game_date"), body.get("home_team"), body.get("away_team")),
+                (gd, ht, at),
             ).fetchone()
+            if not row:
+                row = db.execute(
+                    """SELECT * FROM nrfi_bets
+                       WHERE game_date=?
+                         AND (home_team LIKE ? OR home_team=?)
+                         AND (away_team LIKE ? OR away_team=?)
+                       ORDER BY logged_at DESC LIMIT 1""",
+                    (gd, f"%{ht}%", ht, f"%{at}%", at),
+                ).fetchone()
 
         if not row:
             raise HTTPException(404, "NRFI bet not found")
