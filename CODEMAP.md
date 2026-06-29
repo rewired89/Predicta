@@ -6860,12 +6860,81 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 name: _bet_recommendations
 type: function
 file: analyze_baseball.py
-purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET (HIGH if >=57% with 2+ signals); prob >= 55% without elite signal → LEAN; YRFI prob >= 55% → BET. Threshold lowered from 57% to 55% to increase volume to ~100-150 games/season for faster edge validation. F5: leading side >= 60% + SIERA/FIP gap >= 1.0. Full Game: leading side >= 62%. Returns list of dicts with market, verdict, bet, model_prob, threshold, confidence, reasons, skip_reason.
-inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET (HIGH if >=57% with 2+ signals); prob >= 55% without elite signal → LEAN; YRFI prob >= 55% → BET. Now accepts bankroll param and attaches kelly dict (full_kelly_pct, half_kelly_pct, recommended_stake, edge_pct, breakeven_pct) to BET/LEAN recommendations.
+inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float
 outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
-calls: none
+calls: _nrfi_kelly
 called_by: run_baseball_analysis
 mutates: none
+---
+
+---
+name: _nrfi_kelly
+type: function
+file: analyze_baseball.py
+purpose: Computes Kelly staking for an NRFI bet at given American odds. Returns full_kelly_pct, half_kelly_pct (recommended), recommended_stake (half-Kelly × bankroll), breakeven_pct, edge_pct. Standard odds default = -110 (juice).
+inputs: p_nrfi_pct: float (0-100), bankroll: float, american_odds: float
+outputs: dict with full_kelly_pct, half_kelly_pct, recommended_stake, breakeven_pct, edge_pct
+calls: american_to_decimal (models/kelly.py)
+called_by: _bet_recommendations
+mutates: none
+---
+
+---
+name: _log_nrfi_prediction
+type: function
+file: analyze_baseball.py
+purpose: Persists every NRFI prediction to nrfi_bets table after run_baseball_analysis completes. Logs p_nrfi, verdict, confidence, Kelly staking fields (kelly_full_pct, kelly_half_pct, recommended_stake), bankroll, home/away starters. Silently skips on any error so it never breaks the main prediction flow. Called at end of run_baseball_analysis on every baseball query.
+inputs: result: dict, game_date: str, home_team: str, away_team: str, home_starter: dict, away_starter: dict, bankroll: float
+outputs: none
+calls: get_db
+called_by: run_baseball_analysis
+mutates: nrfi_bets (INSERT)
+---
+
+---
+name: nrfi_performance
+type: route
+file: app.py
+purpose: GET /nrfi-performance — live performance dashboard for NRFI model. Reads nrfi_bets table, computes win rate + ROI + 95% CI + p-value at 55% and 57% thresholds, returns verdict (EDGE PROVEN / EDGE EXISTS / TOO EARLY / NO EDGE DETECTED). Requires scipy for p-value. Returns full bet history as all_bets list.
+inputs: none (reads DB)
+outputs: JSON — verdict, note, n_total, n_resolved, n_pending, threshold_55, threshold_57, all_bets
+calls: get_db, scipy.stats.norm
+called_by: GET /nrfi-performance
+mutates: none
+---
+
+---
+name: nrfi_resolve
+type: route
+file: app.py
+purpose: POST /nrfi-resolve — marks a logged NRFI bet as resolved after the game is played. Accepts {id, home_1st_runs, away_1st_runs} or {game_date, home_team, away_team, home_1st_runs, away_1st_runs}. Auto-computes outcome (1=NRFI/0=YRFI), won (1/0), pnl_units (+0.909 win / -1.0 loss at -110).
+inputs: body: dict
+outputs: {id, outcome, won, pnl_units}
+calls: get_db
+called_by: POST /nrfi-resolve
+mutates: nrfi_bets (UPDATE)
+---
+
+---
+name: api_nrfi
+type: route
+file: app.py
+purpose: GET /api/nrfi?home=HOU&away=DET&date=2026-06-29&bankroll=500 — clean JSON endpoint for programmatic NRFI probability consumption by syndicates or automated bettors. Returns home/away starter names, p_nrfi, p_yrfi, verdict, confidence, kelly dict, and reasons. Thin wrapper around run_baseball_analysis.
+inputs: home: str, away: str, date: str|None, bankroll: float
+outputs: JSON with probability, verdict, kelly staking, reasons
+calls: run_baseball_analysis
+called_by: GET /api/nrfi
+mutates: nrfi_bets (via run_baseball_analysis logging)
+---
+
+---
+name: nrfi_bets
+type: table
+file: db/schema.sql
+purpose: Tracks every NRFI prediction for live performance measurement. One row per game queried. Columns: game_date, home/away team + starter, p_nrfi, verdict, confidence, kelly_full_pct, kelly_half_pct, recommended_stake, bankroll, market_odds, outcome (1=NRFI/0=YRFI/NULL=pending), home/away_1st_runs, won, pnl_units, logged_at, resolved_at. Outcome filled via POST /nrfi-resolve.
+inputs: populated by _log_nrfi_prediction (analyze_baseball.py)
+outputs: read by GET /nrfi-performance
 ---
 
 ## nav link updates (Audit in all sport pages)

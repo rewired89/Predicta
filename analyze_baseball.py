@@ -24,6 +24,50 @@ from models.kelly import kelly_stake, american_to_decimal, market_edge_summary
 from models.nrfi_model import predict_nrfi, model_available as nrfi_model_available
 
 
+def _log_nrfi_prediction(result: dict, game_date: str, home_team: str,
+                          away_team: str, home_starter: dict,
+                          away_starter: dict, bankroll: float) -> None:
+    """
+    Persist every NRFI bet recommendation to the nrfi_bets table so we can
+    track live performance and compute win rate / ROI over time.
+    Only logs when the NRFI market is available (XGBoost model loaded).
+    """
+    try:
+        bet_recs = result.get("bet_recommendations", [])
+        nrfi_rec = next((r for r in bet_recs if r.get("market") == "NRFI"), None)
+        if nrfi_rec is None:
+            return
+        nrfi_market = result.get("markets", {}).get("nrfi", {})
+        opts = nrfi_market.get("options", [])
+        if not opts:
+            return
+        p_nrfi = opts[0].get("prob", 50.0)
+        kelly_d = nrfi_rec.get("kelly") or {}
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO nrfi_bets
+                  (game_date, home_team, away_team, home_starter, away_starter,
+                   p_nrfi, verdict, confidence,
+                   kelly_full_pct, kelly_half_pct, recommended_stake, bankroll)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    game_date, home_team, away_team,
+                    home_starter.get("name"), away_starter.get("name"),
+                    round(p_nrfi, 2),
+                    nrfi_rec.get("verdict", "SKIP"),
+                    nrfi_rec.get("confidence"),
+                    kelly_d.get("full_kelly_pct"),
+                    kelly_d.get("half_kelly_pct"),
+                    kelly_d.get("recommended_stake"),
+                    bankroll,
+                ),
+            )
+    except Exception:
+        pass   # never let logging break the main prediction flow
+
+
 def _elo_from_winpct(win_pct: float) -> float:
     """Seed Elo from current-season win% so the blend uses real team strength."""
     wp = max(0.01, min(0.99, win_pct))
@@ -171,12 +215,38 @@ def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> d
     return result
 
 
+def _nrfi_kelly(p_nrfi_pct: float, bankroll: float = 1000.0,
+                american_odds: float = -110.0) -> dict:
+    """
+    Kelly staking for an NRFI bet.
+
+    Returns full_kelly_pct, half_kelly_pct, recommended_stake (half-Kelly),
+    and breakeven probability for the given odds.
+    """
+    dec   = american_to_decimal(american_odds)
+    b     = dec - 1.0              # profit per unit staked
+    p     = p_nrfi_pct / 100.0
+    q     = 1.0 - p
+    full_k = max((b * p - q) / b, 0.0)
+    half_k = full_k / 2.0
+    breakeven = 1.0 / dec
+    return {
+        "full_kelly_pct":    round(full_k * 100, 2),
+        "half_kelly_pct":    round(half_k * 100, 2),
+        "recommended_stake": round(bankroll * half_k, 2),
+        "breakeven_pct":     round(breakeven * 100, 1),
+        "edge_pct":          round((p - breakeven) * 100, 1),
+        "american_odds":     american_odds,
+    }
+
+
 def _bet_recommendations(
     formatted_markets: dict,
     home_starter: dict,
     away_starter: dict,
     team_home: str,
     team_away: str,
+    bankroll: float = 1000.0,
 ) -> list[dict]:
     """
     Explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline.
@@ -238,15 +308,17 @@ def _bet_recommendations(
                 parts.append("no elite starter signals (need CSW% > 30% or barrel% < 6.5%)")
             skip_reason = "; ".join(parts) or f"edge insufficient ({main_side} {main_prob:.1f}%)"
 
+        nrfi_k = _nrfi_kelly(main_prob, bankroll) if verdict in ("BET", "LEAN") else None
         recs.append({
             "market":      "NRFI",
             "verdict":     verdict,
             "bet":         "NRFI Yes (No Run 1st Inning)" if main_side == "NRFI" else "YRFI Yes (Run 1st Inning)",
             "model_prob":  round(main_prob, 1),
-            "threshold":   65.0,
+            "threshold":   55.0,
             "confidence":  confidence,
             "reasons":     reasons,
             "skip_reason": skip_reason,
+            "kelly":       nrfi_k,
         })
 
     # ── F5 ───────────────────────────────────────────────────────────────────
@@ -975,7 +1047,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         if weather_factor != 1.0:
             _add("—", "Weather factor", round(weather_factor, 3), _wsrc)
 
-    return {
+    result = {
         "match_id":   match_id,
         "team_a":     team_a,
         "team_b":     team_b,
@@ -1077,10 +1149,16 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "kelly_note":        kelly.get("note", ""),
         "markets":           formatted_markets,
         "bet_recommendations": _bet_recommendations(
-            formatted_markets, home_starter, away_starter, team_home, team_away
+            formatted_markets, home_starter, away_starter, team_home, team_away,
+            bankroll=bankroll,
         ),
         "ai_signals":        ai_signals,
         "market_comparison": market_comparison,
         "raw_sources":       context.get("sources", []),
         "steps":             steps,
     }
+
+    # ── Log NRFI prediction to DB for performance tracking ────────────────────
+    _log_nrfi_prediction(result, game_date, team_home, team_away,
+                         home_starter, away_starter, bankroll)
+    return result

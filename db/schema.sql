@@ -163,3 +163,30 @@ CREATE TABLE IF NOT EXISTS suspended_pairs (
     UNIQUE(sym1, sym2)
 );
 CREATE INDEX IF NOT EXISTS idx_suspended_pairs ON suspended_pairs(sym1, sym2);
+
+CREATE TABLE IF NOT EXISTS nrfi_bets (
+    id               INTEGER PRIMARY KEY,
+    game_date        TEXT    NOT NULL,
+    home_team        TEXT    NOT NULL,
+    away_team        TEXT    NOT NULL,
+    home_starter     TEXT,
+    away_starter     TEXT,
+    p_nrfi           REAL    NOT NULL,   -- model probability 0-100
+    verdict          TEXT    NOT NULL,   -- BET / LEAN / SKIP
+    confidence       TEXT,               -- HIGH / MEDIUM / LOW
+    kelly_full_pct   REAL,               -- full Kelly stake %
+    kelly_half_pct   REAL,               -- half Kelly (recommended)
+    recommended_stake REAL,              -- dollar amount at supplied bankroll
+    bankroll         REAL,
+    market_odds      TEXT,               -- American odds string if supplied ("−110")
+    -- filled in after game resolves --
+    outcome          INTEGER,            -- 1=NRFI, 0=YRFI, NULL=pending
+    home_1st_runs    INTEGER,
+    away_1st_runs    INTEGER,
+    won              INTEGER,            -- 1=bet won, 0=lost, NULL=pending
+    pnl_units        REAL,               -- +0.909 won / −1.0 lost (at −110)
+    logged_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+    resolved_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_nrfi_bets_date    ON nrfi_bets(game_date);
+CREATE INDEX IF NOT EXISTS idx_nrfi_bets_verdict ON nrfi_bets(verdict, game_date);

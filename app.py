@@ -497,6 +497,212 @@ def tt_performance():
     }
 
 
+# ── NRFI Performance & API ───────────────────────────────────────────────────
+
+@app.get("/nrfi-performance")
+def nrfi_performance():
+    """
+    NRFI model live performance dashboard.
+
+    Reads nrfi_bets table and computes:
+      - Win rate at each threshold (55%, 56%, 57%)
+      - ROI in units (at -110 juice: +0.909 per win, -1.0 per loss)
+      - Kelly-adjusted profit
+      - Verdict: EDGE PROVEN / EDGE EXISTS / NOT ENOUGH DATA / NO EDGE
+
+    Outcome column is filled by POST /nrfi-resolve after each game.
+    """
+    from db.database import get_db
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM nrfi_bets ORDER BY game_date DESC"
+        ).fetchall()
+
+    total    = len(rows)
+    resolved = [r for r in rows if r["outcome"] is not None]
+    pending  = total - len(resolved)
+
+    if len(resolved) < 10:
+        return {
+            "verdict":       "NOT ENOUGH DATA",
+            "n_total":       total,
+            "n_resolved":    len(resolved),
+            "n_pending":     pending,
+            "needed":        20,
+            "message":       (
+                f"{len(resolved)} resolved predictions. Need 20+ to compute meaningful metrics. "
+                "Query more games and resolve outcomes via POST /nrfi-resolve."
+            ),
+        }
+
+    JUICE = -110.0
+    WIN_PAYOUT = 100 / 110   # 0.9090 units per win at -110
+
+    def _thresh_stats(thresh: float) -> dict:
+        bets = [r for r in resolved if r["verdict"] in ("BET", "LEAN")
+                and r["p_nrfi"] >= thresh]
+        if not bets:
+            return {"n": 0}
+        wins = sum(1 for b in bets if b["won"] == 1)
+        wr   = wins / len(bets)
+        pnl  = wins * WIN_PAYOUT - (len(bets) - wins) * 1.0
+        roi  = pnl / len(bets) * 100
+        import math
+        se   = math.sqrt(wr * (1 - wr) / len(bets)) if len(bets) > 1 else 0
+        ci_lo = max(0, wr - 1.96 * se) * 100
+        ci_hi = min(1, wr + 1.96 * se) * 100
+        z    = (wr - 0.524) / math.sqrt(0.524 * 0.476 / len(bets)) if len(bets) > 1 else 0
+        import scipy.stats as _st
+        p_val = float(1 - _st.norm.cdf(z))
+        return {
+            "n": len(bets), "wins": wins,
+            "win_rate_pct": round(wr * 100, 1),
+            "roi_pct": round(roi, 2),
+            "pnl_units": round(pnl, 3),
+            "ci_95": [round(ci_lo, 1), round(ci_hi, 1)],
+            "p_value": round(p_val, 4),
+            "significant": p_val < 0.05,
+        }
+
+    bets_only  = [r for r in resolved if r["verdict"] == "BET"]
+    wins_total = sum(1 for r in bets_only if r["won"] == 1)
+    wr_overall = wins_total / len(bets_only) if bets_only else 0
+
+    stats_55 = _thresh_stats(55.0)
+    stats_57 = _thresh_stats(57.0)
+
+    if stats_55.get("significant") and stats_55.get("roi_pct", 0) > 3:
+        verdict = "EDGE PROVEN"
+        note    = (f"Win rate {stats_55['win_rate_pct']}% on {stats_55['n']} BET games, "
+                   f"ROI +{stats_55['roi_pct']}%, p={stats_55['p_value']} — statistically significant.")
+    elif stats_55.get("n", 0) > 0 and stats_55.get("win_rate_pct", 0) > 52.4:
+        verdict = "EDGE EXISTS"
+        note    = (f"Win rate {stats_55.get('win_rate_pct')}% — above breakeven but not yet "
+                   f"statistically significant (n={stats_55.get('n')}). Keep logging.")
+    elif len(resolved) < 50:
+        verdict = "TOO EARLY"
+        note    = f"Only {len(resolved)} resolved. Need 50+ to distinguish skill from variance."
+    else:
+        verdict = "NO EDGE DETECTED"
+        note    = "Win rate at or below breakeven (52.4%) — model is not outperforming at this threshold."
+
+    all_bets_rows = [
+        {
+            "id":           r["id"],
+            "game_date":    r["game_date"],
+            "matchup":      f"{r['home_team']} vs {r['away_team']}",
+            "home_starter": r["home_starter"],
+            "away_starter": r["away_starter"],
+            "p_nrfi":       r["p_nrfi"],
+            "verdict":      r["verdict"],
+            "confidence":   r["confidence"],
+            "kelly_half":   r["kelly_half_pct"],
+            "stake":        r["recommended_stake"],
+            "outcome":      "NRFI" if r["outcome"] == 1 else ("YRFI" if r["outcome"] == 0 else "pending"),
+            "won":          r["won"],
+            "pnl_units":    r["pnl_units"],
+        }
+        for r in rows
+    ]
+
+    return {
+        "verdict":        verdict,
+        "note":           note,
+        "n_total":        total,
+        "n_resolved":     len(resolved),
+        "n_pending":      pending,
+        "breakeven_pct":  52.4,
+        "threshold_55":   stats_55,
+        "threshold_57":   stats_57,
+        "all_bets":       all_bets_rows,
+    }
+
+
+@app.post("/nrfi-resolve")
+def nrfi_resolve(body: dict):
+    """
+    Mark an NRFI bet as resolved after the game is played.
+
+    Body: { "id": 42, "home_1st_runs": 0, "away_1st_runs": 0 }
+    OR:   { "game_date": "2026-06-29", "home_team": "HOU", "away_team": "DET",
+             "home_1st_runs": 1, "away_1st_runs": 0 }
+
+    Automatically computes: outcome (1=NRFI/0=YRFI), won, pnl_units.
+    """
+    from db.database import get_db
+    from datetime import datetime, timezone
+
+    h1 = int(body.get("home_1st_runs", 0))
+    a1 = int(body.get("away_1st_runs", 0))
+    outcome = 1 if (h1 == 0 and a1 == 0) else 0
+
+    with get_db() as db:
+        if "id" in body:
+            row = db.execute("SELECT * FROM nrfi_bets WHERE id=?", (body["id"],)).fetchone()
+        else:
+            row = db.execute(
+                "SELECT * FROM nrfi_bets WHERE game_date=? AND home_team=? AND away_team=? LIMIT 1",
+                (body.get("game_date"), body.get("home_team"), body.get("away_team")),
+            ).fetchone()
+
+        if not row:
+            raise HTTPException(404, "NRFI bet not found")
+
+        bet_side = "NRFI" if row["p_nrfi"] >= 50 else "YRFI"
+        won = 1 if (bet_side == "NRFI" and outcome == 1) or (bet_side == "YRFI" and outcome == 0) else 0
+        pnl = round(100 / 110, 4) if won else -1.0
+
+        db.execute(
+            """UPDATE nrfi_bets SET outcome=?, home_1st_runs=?, away_1st_runs=?,
+               won=?, pnl_units=?, resolved_at=? WHERE id=?""",
+            (outcome, h1, a1, won, pnl, datetime.now(timezone.utc).isoformat(), row["id"]),
+        )
+
+    return {"id": row["id"], "outcome": "NRFI" if outcome else "YRFI",
+            "won": bool(won), "pnl_units": pnl}
+
+
+@app.get("/api/nrfi")
+def api_nrfi(home: str, away: str, date: Optional[str] = None, bankroll: float = 1000.0):
+    """
+    Clean JSON API for programmatic NRFI probability consumption.
+
+    GET /api/nrfi?home=HOU&away=DET&date=2026-06-29&bankroll=500
+
+    Returns: probability, verdict, Kelly stake, and breakeven info.
+    Designed for syndicates / automated bettors who want raw output.
+    """
+    from analyze_baseball import run_baseball_analysis
+    query = f"{home} vs {away}"
+    if date:
+        query += f" {date}"
+    result = run_baseball_analysis(query, bankroll=bankroll)
+
+    nrfi_market = result.get("markets", {}).get("nrfi", {})
+    opts = nrfi_market.get("options", [])
+    p_nrfi = opts[0].get("prob") if opts else None
+    p_yrfi = opts[1].get("prob") if len(opts) > 1 else None
+
+    bet_recs = result.get("bet_recommendations", [])
+    nrfi_rec = next((r for r in bet_recs if r.get("market") == "NRFI"), {})
+
+    return {
+        "home_team":      result.get("team_home"),
+        "away_team":      result.get("team_away"),
+        "home_starter":   result.get("starters", {}).get("home", {}).get("name"),
+        "away_starter":   result.get("starters", {}).get("away", {}).get("name"),
+        "game_date":      result.get("date"),
+        "model":          nrfi_market.get("model", "unknown"),
+        "p_nrfi":         p_nrfi,
+        "p_yrfi":         p_yrfi,
+        "verdict":        nrfi_rec.get("verdict", "SKIP"),
+        "confidence":     nrfi_rec.get("confidence"),
+        "kelly":          nrfi_rec.get("kelly"),
+        "reasons":        nrfi_rec.get("reasons", []),
+        "note":           nrfi_market.get("note", ""),
+    }
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 @app.get("/report")

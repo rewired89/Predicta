@@ -139,6 +139,39 @@ def _migrate_new_tables(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_suspended_pairs ON suspended_pairs(sym1, sym2)"
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS nrfi_bets (
+            id               INTEGER PRIMARY KEY,
+            game_date        TEXT    NOT NULL,
+            home_team        TEXT    NOT NULL,
+            away_team        TEXT    NOT NULL,
+            home_starter     TEXT,
+            away_starter     TEXT,
+            p_nrfi           REAL    NOT NULL,
+            verdict          TEXT    NOT NULL,
+            confidence       TEXT,
+            kelly_full_pct   REAL,
+            kelly_half_pct   REAL,
+            recommended_stake REAL,
+            bankroll         REAL,
+            market_odds      TEXT,
+            outcome          INTEGER,
+            home_1st_runs    INTEGER,
+            away_1st_runs    INTEGER,
+            won              INTEGER,
+            pnl_units        REAL,
+            logged_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at      TEXT
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_nrfi_bets_date ON nrfi_bets(game_date)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_nrfi_bets_verdict ON nrfi_bets(verdict, game_date)"
+    )
     conn.commit()
 
 
