@@ -6837,6 +6837,14 @@ name: train (nrfi_model)
 type: function
 file: models/nrfi_model.py
 purpose: Trains XGBoost on data/nrfi_dataset.csv. Dynamic train/val/test split: train=all seasons except two most recent, val=second-most-recent, test=most-recent. With 2022-2026: train=2022-2024, val=2025, test=2026. xwoba_against removed from FEATURES and diag_cols (statcast_pitcher_exitvelo_barrels does not return xwOBA). BET_THRESH=0.55 (lowered from 0.57 → 55% gives ~100-150 tagged games/season for faster edge validation; 57% gave only 20 games). Calibration curve header uses actual test_season variable. Platt scaling only applied when val AUC > 0.52. Saves models/nrfi_xgb.json and models/nrfi_calibrator.pkl. Run via: python models/nrfi_model.py --train
+
+---
+
+---
+name: validate (nrfi_model)
+type: function
+file: models/nrfi_model.py
+purpose: Walk-forward (expanding-window) validation across all seasons. For each season s except the first, trains on all prior seasons and predicts season s — no future data leaks. With 2022-2026 produces 4 folds: train 2022→predict 2023, train 2022-2023→predict 2024, etc. Combines all out-of-sample predictions (~8000+ games) and prints threshold analysis at 52-58% with win rate, edge over breakeven (-110 = 52.4%), 95% CI, and p-value (one-tailed z-test). Answers "is the edge real across all years, not just 2026?" Run via: python models/nrfi_model.py --validate
 inputs: dataset_path: Path (default data/nrfi_dataset.csv)
 outputs: none (side effect: saves model files)
 calls: xgboost.XGBClassifier, LogisticRegression, sklearn metrics, calibration_curve

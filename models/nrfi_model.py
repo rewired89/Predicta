@@ -447,14 +447,149 @@ def train(dataset_path: Path = DATASET_PATH) -> None:
     print("  The NRFI model auto-loads on next app restart.")
 
 
+def validate(dataset_path: Path = DATASET_PATH) -> None:
+    """
+    Walk-forward (expanding-window) validation across all available seasons.
+
+    For each season s (except the first), trains on all prior seasons and
+    predicts season s — no future data ever leaks into the prediction.
+
+    With 2022-2026 this produces 4 folds:
+      Train: 2022          → Predict: 2023
+      Train: 2022-2023     → Predict: 2024
+      Train: 2022-2024     → Predict: 2025
+      Train: 2022-2025     → Predict: 2026
+
+    Combines all out-of-sample predictions (~8,000+ games) to give a
+    statistically meaningful accuracy estimate at each betting threshold.
+    """
+    try:
+        import xgboost as xgb
+        from sklearn.metrics import roc_auc_score
+        import pandas as pd
+        import scipy.stats as stats
+    except ImportError as e:
+        print(f"ERROR: {e}\nInstall: pip install xgboost scikit-learn pandas scipy")
+        return
+
+    if not dataset_path.exists():
+        print(f"Dataset not found: {dataset_path}")
+        print("Run: python scripts/build_nrfi_dataset.py")
+        return
+
+    df = pd.read_csv(dataset_path, encoding="latin-1")
+    print(f"Loaded {len(df)} rows")
+
+    key_cols = ["home_fip", "home_k_pct", "away_fip", "away_k_pct"]
+    df_clean = df.dropna(subset=key_cols, how="all").copy()
+    for feat in FEATURES:
+        if feat in df_clean.columns:
+            df_clean[feat] = df_clean[feat].fillna(FEATURE_DEFAULTS.get(feat, 0.0))
+        else:
+            df_clean[feat] = FEATURE_DEFAULTS.get(feat, 0.0)
+
+    all_seasons = sorted(df_clean["season"].unique())
+    if len(all_seasons) < 2:
+        print("Need ≥ 2 seasons for walk-forward validation.")
+        return
+
+    print(f"\n{'='*60}")
+    print(f"WALK-FORWARD VALIDATION  ({int(all_seasons[0])}–{int(all_seasons[-1])})")
+    print(f"{'='*60}")
+    print(f"  {'Fold':<4}  {'Train':>14}  {'Test':>6}  {'Games':>6}  "
+          f"{'Base%':>6}  {'@55%':>5}  {'Acc%':>5}")
+    print(f"  {'-'*60}")
+
+    all_probs:   list[float] = []
+    all_labels:  list[int]   = []
+
+    for i, test_season in enumerate(all_seasons[1:], start=1):
+        train_seasons = [s for s in all_seasons if s < test_season]
+        train_df = df_clean[df_clean["season"].isin(train_seasons)]
+        test_df  = df_clean[df_clean["season"] == test_season]
+
+        X_tr = train_df[FEATURES].values.astype(np.float32)
+        y_tr = train_df["nrfi"].values.astype(int)
+        X_te = test_df[FEATURES].values.astype(np.float32)
+        y_te = test_df["nrfi"].values.astype(int)
+
+        # Use last training season as val for early stopping
+        last_train = train_seasons[-1]
+        val_mask = train_df["season"] == last_train
+        X_val_es = train_df[val_mask][FEATURES].values.astype(np.float32)
+        y_val_es = train_df[val_mask]["nrfi"].values.astype(int)
+
+        model = xgb.XGBClassifier(
+            n_estimators=400, max_depth=4, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.7, min_child_weight=10,
+            gamma=1.0,
+            scale_pos_weight=(y_tr == 0).sum() / max(1, (y_tr == 1).sum()),
+            eval_metric="logloss", early_stopping_rounds=30,
+            random_state=42,
+        )
+        model.fit(X_tr, y_tr, eval_set=[(X_val_es, y_val_es)], verbose=False)
+
+        probs = model.predict_proba(X_te)[:, 1]
+        all_probs.extend(probs.tolist())
+        all_labels.extend(y_te.tolist())
+
+        n_bet = (probs >= 0.55).sum()
+        acc_bet = y_te[probs >= 0.55].mean() * 100 if n_bet > 0 else float("nan")
+        train_label = (f"{int(train_seasons[0])}–{int(train_seasons[-1])}"
+                       if len(train_seasons) > 1 else str(int(train_seasons[0])))
+        print(f"  {i:<4}  {train_label:>14}  {int(test_season):>6}  "
+              f"{len(y_te):>6}  {y_te.mean()*100:>5.1f}%  "
+              f"{n_bet:>5}  {acc_bet:>4.1f}%")
+
+    all_probs  = np.array(all_probs)
+    all_labels = np.array(all_labels)
+
+    print(f"\n  Overall AUC (all folds): {roc_auc_score(all_labels, all_probs):.4f}")
+
+    print(f"\n{'='*60}")
+    print(f"THRESHOLD ANALYSIS  (combined out-of-sample)")
+    print(f"{'='*60}")
+    print(f"  {'Thresh':>7}  {'Games':>6}  {'%Total':>7}  {'WinRate':>8}  "
+          f"{'Edge':>6}  {'95% CI':>16}  {'p-val':>7}")
+    print(f"  {'-'*60}")
+
+    BREAKEVEN = 0.524  # -110 juice
+    for thresh in [0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58]:
+        mask = all_probs >= thresh
+        n = mask.sum()
+        if n < 10:
+            continue
+        wr = all_labels[mask].mean()
+        edge = wr - BREAKEVEN
+        se = np.sqrt(wr * (1 - wr) / n)
+        ci_lo = wr - 1.96 * se
+        ci_hi = wr + 1.96 * se
+        # one-tailed z-test: H0 = win rate ≤ breakeven
+        z = (wr - BREAKEVEN) / np.sqrt(BREAKEVEN * (1 - BREAKEVEN) / n)
+        p = 1 - stats.norm.cdf(z)
+        sig = "✓ sig" if p < 0.05 else ("~ marginal" if p < 0.15 else "")
+        pct_total = n / len(all_labels) * 100
+        print(f"  {thresh*100:>6.0f}%  {n:>6}  {pct_total:>6.1f}%  "
+              f"{wr*100:>7.1f}%  {edge*100:>+5.1f}pp  "
+              f"[{ci_lo*100:.1f}%–{ci_hi*100:.1f}%]  {p:>6.4f}  {sig}")
+
+    print(f"\n  Total out-of-sample games: {len(all_labels)}")
+    print(f"  Base NRFI rate: {all_labels.mean()*100:.1f}%")
+    print(f"  Breakeven at -110: {BREAKEVEN*100:.1f}%")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train",   action="store_true", help="Train the model")
-    parser.add_argument("--dataset", type=Path, default=DATASET_PATH,
+    parser.add_argument("--train",    action="store_true", help="Train the production model")
+    parser.add_argument("--validate", action="store_true",
+                        help="Walk-forward validation across all seasons — shows real edge at each threshold")
+    parser.add_argument("--dataset",  type=Path, default=DATASET_PATH,
                         help="Path to the CSV from build_nrfi_dataset.py")
     args = parser.parse_args()
 
     if args.train:
         train(args.dataset)
+    elif args.validate:
+        validate(args.dataset)
     else:
         parser.print_help()
