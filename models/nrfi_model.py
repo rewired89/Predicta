@@ -151,15 +151,19 @@ def predict_nrfi(
     park_factor: Optional[float] = None,
     home_top3_wrc: Optional[float] = None,
     away_top3_wrc: Optional[float] = None,
+    home_fi_rate: Optional[float] = None,
+    away_fi_rate: Optional[float] = None,
 ) -> Optional[float]:
     """
     Return calibrated NRFI probability (0–1) using the trained XGBoost model.
     Returns None if the model is not trained yet (falls back to Poisson in caller).
 
-    home_starter / away_starter dicts accept any keys from the analysis pipeline:
-      siera, xfip, fip, csw_pct, o_swing_pct, k_pct, bb_pct, gb_pct, hr_fb_pct
+    home_starter / away_starter dicts accept keys from the live analysis pipeline:
+      Savant: barrel_pct_against, hard_hit_pct_against, whiff_pct, avg_fb_velo
+      Season: siera, xfip, fip, csw_pct, o_swing_pct, k_pct, bb_pct, gb_pct, hr_fb_pct
+    home_fi_rate / away_fi_rate: rolling first-inning run rate (defaults to league avg 0.29)
     home_top3_wrc / away_top3_wrc: avg wRC+ for lineup spots 1-3 (default: 100)
-    Missing keys default to league-average values.
+    Missing values default to league-average constants.
     """
     if not _load_model() or _xgb_model is None:
         return None
@@ -167,48 +171,64 @@ def predict_nrfi(
     pf      = park_factor or _PARK_FACTORS.get(home_team.upper(), 1.0)
     is_dome = 1 if home_team.upper() in _DOME_TEAMS else 0
 
-    def _get(d: dict, key: str, default_key: Optional[str] = None) -> float:
-        val = d.get(key)
-        if val is None or (isinstance(val, float) and val != val):  # NaN
-            val = d.get(default_key) if default_key else None
-        if val is None or (isinstance(val, float) and val != val):
-            return FEATURE_DEFAULTS.get(key, 0.0)
-        try:
-            return float(val)
-        except (TypeError, ValueError):
-            return FEATURE_DEFAULTS.get(key, 0.0)
+    def _get(d: dict, *keys: str, default: float = 0.0) -> float:
+        """Return first non-None/non-NaN value from dict using any of the given keys."""
+        for k in keys:
+            val = d.get(k)
+            if val is not None and not (isinstance(val, float) and val != val):
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    continue
+        return default
 
     def _scalar(val: Optional[float], default: float) -> float:
         if val is None or (isinstance(val, float) and val != val):
             return default
         return float(val)
 
-    # Build feature vector — order must match FEATURES list
+    D = FEATURE_DEFAULTS
+    # Build feature vector in FEATURES list order (must stay in sync)
     fv = [
-        _get(home_starter, "siera"),
-        _get(home_starter, "xfip"),
-        _get(home_starter, "fip"),
-        _get(home_starter, "csw_pct"),
-        _get(home_starter, "o_swing_pct"),
-        _get(home_starter, "k_pct",  "k_pct"),
-        _get(home_starter, "bb_pct", "bb_pct"),
-        _get(home_starter, "gb_pct", "gb_pct"),
-        _get(home_starter, "hr_fb_pct"),
-        _get(away_starter, "siera"),
-        _get(away_starter, "xfip"),
-        _get(away_starter, "fip"),
-        _get(away_starter, "csw_pct"),
-        _get(away_starter, "o_swing_pct"),
-        _get(away_starter, "k_pct",  "k_pct"),
-        _get(away_starter, "bb_pct", "bb_pct"),
-        _get(away_starter, "gb_pct", "gb_pct"),
-        _get(away_starter, "hr_fb_pct"),
-        _scalar(home_top3_wrc, FEATURE_DEFAULTS["home_top3_wrc"]),
-        _scalar(away_top3_wrc, FEATURE_DEFAULTS["away_top3_wrc"]),
+        # Rolling first-inning run rate per starter (enrich_nrfi_fi_rates.py)
+        _scalar(home_fi_rate, D["home_starter_fi_rate"]),
+        _scalar(away_fi_rate, D["away_starter_fi_rate"]),
+        # Savant Statcast — starter dict uses _against / _pct_against suffixes
+        _get(home_starter, "barrel_pct_against", "barrel_pct",      default=D["home_barrel_pct"]),
+        _get(away_starter, "barrel_pct_against", "barrel_pct",      default=D["away_barrel_pct"]),
+        _get(home_starter, "hard_hit_pct_against", "hard_hit_pct",  default=D["home_hard_hit_pct"]),
+        _get(away_starter, "hard_hit_pct_against", "hard_hit_pct",  default=D["away_hard_hit_pct"]),
+        _get(home_starter, "whiff_pct",                             default=D["home_whiff_pct"]),
+        _get(away_starter, "whiff_pct",                             default=D["away_whiff_pct"]),
+        _get(home_starter, "avg_fb_velo", "avg_velo",               default=D["home_avg_velo"]),
+        _get(away_starter, "avg_fb_velo", "avg_velo",               default=D["away_avg_velo"]),
+        # Pitcher season stats
+        _get(home_starter, "siera",       default=D["home_siera"]),
+        _get(home_starter, "xfip",        default=D["home_xfip"]),
+        _get(home_starter, "fip",         default=D["home_fip"]),
+        _get(home_starter, "csw_pct",     default=D["home_csw_pct"]),
+        _get(home_starter, "o_swing_pct", default=D["home_o_swing_pct"]),
+        _get(home_starter, "k_pct",       default=D["home_k_pct"]),
+        _get(home_starter, "bb_pct",      default=D["home_bb_pct"]),
+        _get(home_starter, "gb_pct",      default=D["home_gb_pct"]),
+        _get(home_starter, "hr_fb_pct",   default=D["home_hr_fb_pct"]),
+        _get(away_starter, "siera",       default=D["away_siera"]),
+        _get(away_starter, "xfip",        default=D["away_xfip"]),
+        _get(away_starter, "fip",         default=D["away_fip"]),
+        _get(away_starter, "csw_pct",     default=D["away_csw_pct"]),
+        _get(away_starter, "o_swing_pct", default=D["away_o_swing_pct"]),
+        _get(away_starter, "k_pct",       default=D["away_k_pct"]),
+        _get(away_starter, "bb_pct",      default=D["away_bb_pct"]),
+        _get(away_starter, "gb_pct",      default=D["away_gb_pct"]),
+        _get(away_starter, "hr_fb_pct",   default=D["away_hr_fb_pct"]),
+        # Lineup and park
+        _scalar(home_top3_wrc, D["home_top3_wrc"]),
+        _scalar(away_top3_wrc, D["away_top3_wrc"]),
         pf,
         float(is_dome),
     ]
 
+    assert len(fv) == len(FEATURES), f"fv length {len(fv)} != FEATURES length {len(FEATURES)}"
     X = np.array([fv], dtype=np.float32)
 
     try:
