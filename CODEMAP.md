@@ -6509,11 +6509,59 @@ mutates: none
 name: enrich_soccer_teams
 type: function
 file: fetchers/understat.py
-purpose: Enrich both home and away soccer teams with Understat xG, npxG, venue splits, and situation splits. Returns {"home", "away", "league_avg_goals", "league_avg_xg"}. Computes npxg_per_game / npxga_per_game. Prefers fetch_team_decayed_xg (exponential 90-day half-life) over fetch_team_recent_xg for the recent component; falls back if datesData parse fails. Now also includes live league_avg_xg (Kimi #6).
+purpose: Enrich both home and away soccer teams with Understat xG, npxG, venue splits, situation splits, and NATIVE PPDA (Round 5 — new JSON endpoint includes ppda, ppda_allowed, deep, deep_allowed, xpts per match). Returns {"home", "away", "league_avg_goals", "league_avg_xg"}.
 inputs: home_name: str, away_name: str, league: str, season: int
 outputs: dict {"home": dict, "away": dict, "league_avg_goals": Optional[float], "league_avg_xg": Optional[float]}
-calls: fetch_team_xg, fetch_team_decayed_xg, fetch_team_recent_xg, fetch_team_shot_quality, fetch_team_venue_splits, fetch_team_situation_split, fetch_league_avg_goals, fetch_league_avg_xg
+calls: fetch_team_xg, fetch_team_decayed_xg, fetch_team_recent_xg, fetch_team_shot_quality, fetch_team_venue_splits, fetch_team_situation_split, fetch_team_ppda, fetch_league_avg_goals, fetch_league_avg_xg
 called_by: run_soccer_analysis (analyze_soccer.py)
+mutates: none
+---
+
+---
+name: _LEAGUE_JSON_CACHE
+type: variable
+file: fetchers/understat.py
+purpose: Module-level cache keyed by (league, season) → raw API response dict {teams, players, dates}. Set by _fetch_league_json on first hit, read by every team-level function. One call per (league, season) per process; downstream functions consume cached JSON instead of re-fetching individual team HTML pages.
+inputs: none
+outputs: dict[tuple, dict]
+calls: none
+called_by: _fetch_league_json
+mutates: filled by _fetch_league_json
+---
+
+---
+name: _fetch_league_json
+type: function
+file: fetchers/understat.py
+purpose: Fetch the modern Understat AJAX endpoint /getLeagueData/<league>/<season>. Round 5 — Understat moved from embedded `var teamsData = JSON.parse(...)` in league HTML to a clean JSON AJAX endpoint around Nov 2025. Returns the raw response dict {teams: {id → {title, history[]}}, players, dates}. Requires X-Requested-With: XMLHttpRequest and Referer headers. Single ~500KB call provides every team's per-match xG/xGA/npxG/npxGA/PPDA/deep/xpts.
+inputs: league: str, season: int
+outputs: dict (empty on any failure)
+calls: httpx.Client, _LEAGUE_JSON_CACHE
+called_by: fetch_league_xg, _find_team_in_league
+mutates: _LEAGUE_JSON_CACHE
+---
+
+---
+name: _find_team_in_league
+type: function
+file: fetchers/understat.py
+purpose: Find a single team's record {id, title, history[]} in the cached league JSON. Matches via _ESPN_TO_UNDERSTAT canonical map + fuzzy fallback against the live title list. Returns the team object or None.
+inputs: team_name: str, league: str, season: int
+outputs: Optional[dict]
+calls: _fetch_league_json, _ESPN_TO_UNDERSTAT, _fuzzy_match
+called_by: fetch_team_recent_xg, fetch_team_decayed_xg, fetch_team_venue_splits, fetch_team_ppda
+mutates: none
+---
+
+---
+name: fetch_team_ppda
+type: function
+file: fetchers/understat.py
+purpose: Native Understat PPDA (passes per defensive action) — new in Round 5 from the JSON endpoint. Replaces fetchers.fbref.fetch_team_pressing's approximate proxy with real per-match values. Returns ppda (own pressing pressure, lower=more), ppda_allowed (opponent pressure on this team), deep (passes/crosses into the box per game), deep_allowed (same conceded), xpts_per_game.
+inputs: team_name: str, league: str, season: int
+outputs: dict
+calls: _find_team_in_league
+called_by: enrich_soccer_teams
 mutates: none
 ---
 

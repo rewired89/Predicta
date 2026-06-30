@@ -41,8 +41,9 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-# Module-level cache keyed by (league, season)
-_LEAGUE_CACHE: dict[tuple, list] = {}
+# Module-level caches keyed by (league, season)
+_LEAGUE_CACHE: dict[tuple, list] = {}     # rows-of-team-totals (legacy shape)
+_LEAGUE_JSON_CACHE: dict[tuple, dict] = {} # raw API response {teams, players, dates}
 
 # ESPN/common name → Understat team name (where they differ)
 _ESPN_TO_UNDERSTAT: dict[str, str] = {
@@ -102,6 +103,62 @@ def _get(url: str) -> Optional[str]:
         return None
 
 
+def _fetch_league_json(league: str, season: int) -> dict:
+    """
+    Fetch the modern Understat AJAX endpoint /getLeagueData/<league>/<season>.
+
+    Returns the raw response dict: {"teams": {id → {title, history[]}},
+    "players": {...}, "dates": {...}}. Empty dict on any failure.
+
+    Understat moved away from embedding `var teamsData = JSON.parse(...)` in
+    the league HTML around Nov 2025. The page is now a thin shell loaded
+    client-side via league.min.js which calls this AJAX endpoint with
+    X-Requested-With: XMLHttpRequest. Returning a single endpoint per league
+    is both more efficient (one call vs N team-page fetches) and exposes
+    fields not previously available — ppda/ppda_allowed, deep/deep_allowed,
+    xpts, npxGD per match.
+    """
+    if not _HAS_HTTPX:
+        return {}
+    cache_key = (league, season)
+    if cache_key in _LEAGUE_JSON_CACHE:
+        return _LEAGUE_JSON_CACHE[cache_key]
+    url = f"{UNDERSTAT_BASE}/getLeagueData/{league}/{season}"
+    headers = dict(_HEADERS)
+    headers["X-Requested-With"] = "XMLHttpRequest"
+    headers["Referer"]          = f"{UNDERSTAT_BASE}/league/{league}/{season}"
+    headers["Accept"]           = "application/json, text/javascript, */*; q=0.01"
+    try:
+        with httpx.Client(timeout=20.0, headers=headers, follow_redirects=True) as c:
+            r = c.get(url)
+            r.raise_for_status()
+            data = r.json()
+        if not isinstance(data, dict) or "teams" not in data:
+            return {}
+        _LEAGUE_JSON_CACHE[cache_key] = data
+        return data
+    except Exception:
+        return {}
+
+
+def _find_team_in_league(team_name: str, league: str, season: int) -> Optional[dict]:
+    """
+    Find a single team's record in the league JSON response.
+
+    Returns the team object {id, title, history[]} or None. Matches via
+    canonical map + fuzzy fallback against the live title list.
+    """
+    data = _fetch_league_json(league, season)
+    teams_dict = data.get("teams", {}) if isinstance(data, dict) else {}
+    if not teams_dict:
+        return None
+    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
+    title_to_obj = {t.get("title", ""): t for t in teams_dict.values() if isinstance(t, dict)}
+    titles = list(title_to_obj.keys())
+    matched = _fuzzy_match(canonical, titles) or _fuzzy_match(team_name, titles)
+    return title_to_obj.get(matched) if matched else None
+
+
 def _extract_json_var(html: str, var_name: str) -> Optional[list | dict]:
     """Extract a JSON variable embedded in Understat HTML via regex."""
     pattern = rf"var\s+{re.escape(var_name)}\s*=\s*JSON\.parse\('(.+?)'\)"
@@ -133,51 +190,50 @@ def fetch_league_xg(
     """
     Fetch all teams' xG table for a league/season from Understat.
 
-    Returns list of dicts with: team, xG, xGA, npxG, npxGA, matches, goals,
+    Uses the modern AJAX endpoint /getLeagueData/<league>/<season> (a single
+    call provides every team's per-match history in one ~500KB payload).
+
+    Returns list of dicts with: team, xg, xga, npxg, npxga, matches, goals,
     goals_against, pts, position. Empty list on failure.
 
     league: one of EPL | La_liga | Bundesliga | Serie_A | Ligue_1 | RFPL
-    season: year the season started (e.g. 2023 for 2023/24)
+    season: year the season started (e.g. 2024 for 2024/25)
     """
     cache_key = (league, season)
     if cache_key in _LEAGUE_CACHE:
         return _LEAGUE_CACHE[cache_key]
 
-    html = _get(f"{UNDERSTAT_BASE}/league/{league}/{season}")
-    if not html:
-        return []
-
-    data = _extract_json_var(html, "teamsData")
-    if not data:
+    data = _fetch_league_json(league, season)
+    teams_dict = data.get("teams", {}) if isinstance(data, dict) else {}
+    if not teams_dict:
         return []
 
     rows: list[dict] = []
     try:
-        for team_id, team_obj in (data.items() if isinstance(data, dict) else []):
-            info = team_obj if isinstance(team_obj, dict) else {}
+        for team_id, info in teams_dict.items():
+            if not isinstance(info, dict):
+                continue
             title = info.get("title", "")
             history = info.get("history", [])
             if not history:
                 continue
-            # Aggregate season totals from per-game history
             totals = {
-                "xg":          sum(float(g.get("xG", 0)) for g in history),
-                "xga":         sum(float(g.get("xGA", 0)) for g in history),
-                "npxg":        sum(float(g.get("npxG", 0)) for g in history),
-                "npxga":       sum(float(g.get("npxGA", 0)) for g in history),
-                "goals":       sum(int(g.get("scored", 0)) for g in history),
-                "goals_against": sum(int(g.get("missed", 0)) for g in history),
+                "xg":          sum(float(g.get("xG", 0)    or 0) for g in history),
+                "xga":         sum(float(g.get("xGA", 0)   or 0) for g in history),
+                "npxg":        sum(float(g.get("npxG", 0)  or 0) for g in history),
+                "npxga":       sum(float(g.get("npxGA", 0) or 0) for g in history),
+                "goals":       sum(int(g.get("scored", 0)  or 0) for g in history),
+                "goals_against": sum(int(g.get("missed", 0) or 0) for g in history),
                 "matches":     len(history),
-                "pts":         sum(int(g.get("pts", 0)) for g in history),
+                "pts":         sum(int(g.get("pts", 0)     or 0) for g in history),
             }
             totals["team"] = title
-            totals["xg_per_game"]  = totals["xg"] / totals["matches"] if totals["matches"] else 0
+            totals["xg_per_game"]  = totals["xg"]  / totals["matches"] if totals["matches"] else 0
             totals["xga_per_game"] = totals["xga"] / totals["matches"] if totals["matches"] else 0
             rows.append(totals)
     except Exception:
         return []
 
-    # Sort by pts desc to approximate league table position
     rows.sort(key=lambda r: r.get("pts", 0), reverse=True)
     for i, r in enumerate(rows, 1):
         r["position"] = i
@@ -231,30 +287,25 @@ def fetch_team_recent_xg(
     Returns: xg_per_game, xga_per_game, goals_per_game, ga_per_game, matches_used.
     Empty dict on failure.
     """
-    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
-    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
-    html = _get(url)
-    if not html:
+    team_obj = _find_team_in_league(team_name, league, season)
+    if not team_obj:
         return {}
-
-    history = _extract_json_var(html, "datesData")
-    if not history or not isinstance(history, list):
-        return {}
-
-    # Filter to completed home/away matches and take last N
-    completed = [
-        g for g in history
-        if g.get("isResult") and g.get("xG") is not None
-    ][-last_n:]
+    history = team_obj.get("history", [])
+    # The new endpoint only includes completed matches in history (no isResult
+    # filter needed). Sort by date and take the last N.
+    completed = sorted(
+        [g for g in history if g.get("xG") is not None],
+        key=lambda g: str(g.get("date", "")),
+    )[-last_n:]
     if not completed:
         return {}
 
     n = len(completed)
     return {
-        "xg_per_game":    sum(float(g.get("xG", 0)) for g in completed) / n,
-        "xga_per_game":   sum(float(g.get("xGA", 0)) for g in completed) / n,
-        "goals_per_game": sum(int(g.get("scored", 0)) for g in completed) / n,
-        "ga_per_game":    sum(int(g.get("missed", 0)) for g in completed) / n,
+        "xg_per_game":    sum(float(g.get("xG",  0) or 0) for g in completed) / n,
+        "xga_per_game":   sum(float(g.get("xGA", 0) or 0) for g in completed) / n,
+        "goals_per_game": sum(int(g.get("scored", 0) or 0) for g in completed) / n,
+        "ga_per_game":    sum(int(g.get("missed", 0) or 0) for g in completed) / n,
         "matches_used":   n,
         "source":         f"understat/{league}/{season} last {n}",
     }
@@ -328,17 +379,11 @@ def fetch_team_decayed_xg(
              matches_used, effective_n (Kish formula), sum_weights,
              half_life_days_used, source. Empty dict on failure.
     """
-    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
-    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
-    html = _get(url)
-    if not html:
+    team_obj = _find_team_in_league(team_name, league, season)
+    if not team_obj:
         return {}
-
-    history = _extract_json_var(html, "datesData")
-    if not history or not isinstance(history, list):
-        return {}
-
-    completed = [g for g in history if g.get("isResult") and g.get("xG") is not None]
+    history = team_obj.get("history", [])
+    completed = [g for g in history if g.get("xG") is not None]
     if not completed:
         return {}
 
@@ -406,18 +451,12 @@ def fetch_team_venue_splits(
     Empty dict on failure. Critical for proper Dixon-Coles — home advantage is
     not a single multiplier; teams differ wildly in venue-specific xG.
     """
-    canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
-    url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
-    html = _get(url)
-    if not html:
+    team_obj = _find_team_in_league(team_name, league, season)
+    if not team_obj:
         return {}
-
-    history = _extract_json_var(html, "datesData")
-    if not history or not isinstance(history, list):
-        return {}
-
-    home_games = [g for g in history if g.get("isResult") and g.get("h_a") == "h"]
-    away_games = [g for g in history if g.get("isResult") and g.get("h_a") == "a"]
+    history = team_obj.get("history", [])
+    home_games = [g for g in history if g.get("h_a") == "h" and g.get("xG") is not None]
+    away_games = [g for g in history if g.get("h_a") == "a" and g.get("xG") is not None]
 
     def _avg(games: list, key: str) -> Optional[float]:
         if not games:
@@ -444,6 +483,53 @@ def fetch_team_venue_splits(
     return {k: v for k, v in out.items() if v is not None or k in ("home_matches", "away_matches")}
 
 
+def fetch_team_ppda(
+    team_name: str,
+    league: str,
+    season: int,
+) -> dict:
+    """
+    Native Understat PPDA (passes per defensive action) for a team.
+
+    The new /getLeagueData endpoint includes per-match `ppda` (the team's
+    pressing on opponents) and `ppda_allowed` (how much pressing the team is
+    subjected to). PPDA is the standard pressing metric — lower = more
+    pressing. Top pressers ~7-9, low blocks ~15-18.
+
+    Returns:
+      ppda          — season-average pressing pressure exerted (lower=more)
+      ppda_allowed  — pressure opponents apply to this team
+      deep          — passes/crosses into the box per game
+      deep_allowed  — same conceded
+      xpts_per_game — average expected points per game
+
+    Replaces fetchers.fbref.fetch_team_pressing's approximate proxy with
+    real per-match values. Empty dict on failure.
+    """
+    team_obj = _find_team_in_league(team_name, league, season)
+    if not team_obj:
+        return {}
+    history = team_obj.get("history", [])
+    if not history:
+        return {}
+
+    def _avg_ppda(rows: list, key: str) -> Optional[float]:
+        # PPDA in API is {"att": passes_allowed, "def": defensive_actions}
+        att = sum(int((g.get(key) or {}).get("att", 0) or 0) for g in rows)
+        df  = sum(int((g.get(key) or {}).get("def", 0) or 0) for g in rows)
+        return round(att / df, 2) if df > 0 else None
+
+    return {
+        "ppda":           _avg_ppda(history, "ppda"),
+        "ppda_allowed":   _avg_ppda(history, "ppda_allowed"),
+        "deep":           round(sum(int(g.get("deep", 0) or 0)         for g in history) / len(history), 2),
+        "deep_allowed":   round(sum(int(g.get("deep_allowed", 0) or 0) for g in history) / len(history), 2),
+        "xpts_per_game":  round(sum(float(g.get("xpts", 0) or 0)        for g in history) / len(history), 3),
+        "matches":        len(history),
+        "source":         f"understat/{league}/{season} ppda (native)",
+    }
+
+
 def fetch_team_situation_split(
     team_name: str,
     league: str,
@@ -452,19 +538,12 @@ def fetch_team_situation_split(
     """
     Split team's offensive xG by Understat shot `situation` field.
 
-    Understat tags every shot with one of:
-      OpenPlay, FromCorner, SetPiece, DirectFreekick, Penalty.
+    Used to depend on the per-team HTML page `shotsData` JS variable, which
+    Understat removed in Nov 2025. The /getLeagueData endpoint doesn't
+    include per-shot data either. Returns empty dict; callers fall back to
+    models.soccer_leagues.open_play_share() for the league average.
 
-    Open-play xG is materially more predictive of future scoring than the
-    full season figure because set pieces and penalties are noisy and
-    over-represent good or bad luck on dead-ball routines / referee decisions.
-
-    Returns:
-      open_play_xg_share, set_piece_xg_share, corner_xg_share,
-      direct_fk_xg_share, penalty_xg_share, total_shots,
-      open_play_xg_per_shot — quality of build-up chances.
-
-    Empty dict on failure.
+    Reintroduce when/if we find a working per-shot endpoint.
     """
     canonical = _ESPN_TO_UNDERSTAT.get(team_name, team_name)
     url = f"{UNDERSTAT_BASE}/team/{canonical.replace(' ', '_')}/{season}"
@@ -672,6 +751,8 @@ def enrich_soccer_teams(
     away_venue  = fetch_team_venue_splits(away_name, league, season)
     home_sit    = fetch_team_situation_split(home_name, league, season)
     away_sit    = fetch_team_situation_split(away_name, league, season)
+    home_ppda   = fetch_team_ppda(home_name, league, season)
+    away_ppda   = fetch_team_ppda(away_name, league, season)
 
     # Per-game npxG (penalty-stripped — sportsbook standard input)
     if home and home.get("matches"):
@@ -716,6 +797,14 @@ def enrich_soccer_teams(
             home[k] = home_sit[k]
         if away_sit.get(k) is not None:
             away[k] = away_sit[k]
+
+    # Native Understat PPDA (Nov 2025 endpoint upgrade) — replaces the
+    # FBref-based approximation in fetchers/fbref.fetch_team_pressing.
+    for k in ("ppda", "ppda_allowed", "deep", "deep_allowed", "xpts_per_game"):
+        if home_ppda.get(k) is not None:
+            home[k] = home_ppda[k]
+        if away_ppda.get(k) is not None:
+            away[k] = away_ppda[k]
 
     league_avg_goals_live = fetch_league_avg_goals(league, season)
     league_avg_xg_live    = fetch_league_avg_xg(league, season)
