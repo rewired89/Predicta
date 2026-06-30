@@ -363,6 +363,71 @@ def _format_markets(raw: dict, home: str, away: str) -> dict:
     return out
 
 
+def _build_plain_summary(
+    home_team: str, away_team: str,
+    prob_home: float, prob_draw: float, prob_away: float,
+    mu_home: float, mu_away: float,
+) -> str:
+    """
+    Plain-English bet recommendation: tells the user who is gonna win at what
+    accuracy and which markets are live, in the user's preferred phrasing.
+
+    Format:
+      "<favourite> is gonna win vs <opponent> (XX% accuracy). Bet on: goals (BTTS),
+       1st half <team> to score, 2nd half <team> to score."
+
+    Markets are gated by Poisson half-score probabilities so we only list a
+    market when the model actually likes it (≥55% for BTTS, ≥55% for half-scoring).
+    """
+    if prob_home >= prob_away:
+        winner, loser, win_prob = home_team, away_team, prob_home
+        mu_win, mu_lose = mu_home, mu_away
+    else:
+        winner, loser, win_prob = away_team, home_team, prob_away
+        mu_win, mu_lose = mu_away, mu_home
+
+    # Poisson probabilities for half-scoring. League-typical 1H goal share ≈ 0.45,
+    # 2H share ≈ 0.55 (2H slightly heavier — fatigue + tactical opening up).
+    def _p_scores(mu_half: float) -> float:
+        return 1.0 - math.exp(-max(0.0, mu_half))
+
+    p_home_1h = _p_scores(0.45 * mu_home)
+    p_away_1h = _p_scores(0.45 * mu_away)
+    p_home_2h = _p_scores(0.55 * mu_home)
+    p_away_2h = _p_scores(0.55 * mu_away)
+    p_btts    = (1.0 - math.exp(-mu_home)) * (1.0 - math.exp(-mu_away))
+
+    bets: list[str] = []
+    if p_btts >= 0.55:
+        bets.append(f"goals (both teams to score, {p_btts*100:.0f}%)")
+
+    # 1st half: who is most likely to score first half
+    if p_home_1h >= 0.55 and p_home_1h >= p_away_1h:
+        bets.append(f"1st half {home_team} to score ({p_home_1h*100:.0f}%)")
+    elif p_away_1h >= 0.55 and p_away_1h > p_home_1h:
+        bets.append(f"1st half {away_team} to score ({p_away_1h*100:.0f}%)")
+
+    # 2nd half: opposite side to balance, or whichever has higher prob
+    if p_home_2h >= 0.60 and p_home_2h >= p_away_2h:
+        bets.append(f"2nd half {home_team} to score ({p_home_2h*100:.0f}%)")
+    elif p_away_2h >= 0.60:
+        bets.append(f"2nd half {away_team} to score ({p_away_2h*100:.0f}%)")
+
+    # Decisive favourite tag
+    accuracy = win_prob * 100
+    if accuracy >= 60:
+        headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy)."
+    elif accuracy >= 45:
+        headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% accuracy — tight match)."
+    else:
+        headline = (f"{home_team} vs {away_team}: too close to call "
+                    f"(draw {prob_draw*100:.0f}%, no clear winner).")
+
+    if bets:
+        return headline + " Bet on: " + ", ".join(bets) + "."
+    return headline + " No clear secondary market — stick to the moneyline."
+
+
 # ── Main entry point ─────────────────────────────────────────────────────────
 
 def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
@@ -739,6 +804,11 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     except Exception:
         narrative = explanation
 
+    plain_summary = _build_plain_summary(
+        home_team, away_team, prob_home, prob_draw, prob_away,
+        dc["mu_home"], dc["mu_away"],
+    )
+
     return {
         "match_id":  match_id,
         "sport":     "soccer",
@@ -748,6 +818,7 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "season":    season,
         "date":      match_date,
         "neutral":   neutral,
+        "plain_summary": plain_summary,
         "narrative": narrative,
         "prob_home": round(prob_home * 100, 1),
         "prob_draw": round(prob_draw * 100, 1),

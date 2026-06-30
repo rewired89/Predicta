@@ -419,6 +419,69 @@ def _bet_recommendations(
     return recs
 
 
+def _build_plain_summary(
+    team_home: str, team_away: str,
+    prob_home: float, prob_away: float,
+    mu_home: float, mu_away: float,
+    mu_home_f5: float, mu_away_f5: float,
+) -> str:
+    """
+    Plain-English bet recommendation in the user's preferred phrasing.
+
+    Format:
+      "<favourite> is gonna win vs <opponent> (XX% accuracy). Bet on: runs (over/under N.5),
+       1st 5 innings <team>, NRFI."
+
+    Markets are gated by Poisson run probabilities so we only list a market
+    when the model actually likes it.
+    """
+    if prob_home >= prob_away:
+        winner, loser, win_prob = team_home, team_away, prob_home
+    else:
+        winner, loser, win_prob = team_away, team_home, prob_away
+
+    total_runs = mu_home + mu_away
+    total_runs_f5 = mu_home_f5 + mu_away_f5
+
+    # NRFI = no run in the 1st inning. Per-inning μ ≈ μ_total/9.
+    inning_mu_home = mu_home / 9.0
+    inning_mu_away = mu_away / 9.0
+    p_nrfi = math.exp(-inning_mu_home) * math.exp(-inning_mu_away)
+
+    bets: list[str] = []
+
+    # Runs total — most sportsbooks line at 8.5
+    common_line = 8.5
+    if total_runs >= common_line + 0.7:
+        bets.append(f"runs OVER {common_line} (model {total_runs:.1f})")
+    elif total_runs <= common_line - 0.7:
+        bets.append(f"runs UNDER {common_line} (model {total_runs:.1f})")
+
+    # 1st 5 innings — who's the F5 favourite
+    if mu_home_f5 - mu_away_f5 >= 0.4:
+        bets.append(f"1st 5 innings {team_home} (F5 μ {mu_home_f5:.1f} vs {mu_away_f5:.1f})")
+    elif mu_away_f5 - mu_home_f5 >= 0.4:
+        bets.append(f"1st 5 innings {team_away} (F5 μ {mu_away_f5:.1f} vs {mu_home_f5:.1f})")
+
+    # NRFI / YRFI
+    if p_nrfi >= 0.58:
+        bets.append(f"NRFI — no run 1st inning ({p_nrfi*100:.0f}%)")
+    elif p_nrfi <= 0.42:
+        bets.append(f"YRFI — run scored 1st inning ({(1-p_nrfi)*100:.0f}%)")
+
+    accuracy = win_prob * 100
+    if accuracy >= 58:
+        headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy)."
+    elif accuracy >= 52:
+        headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% accuracy — tight match)."
+    else:
+        headline = f"{team_home} vs {team_away}: coin-flip ({accuracy:.0f}% lean, no clear winner)."
+
+    if bets:
+        return headline + " Bet on: " + ", ".join(bets) + "."
+    return headline + " No clear secondary market — moneyline only."
+
+
 def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                           odds_a: float = 1.909, odds_b: float = 1.909) -> dict:
     """
@@ -1059,6 +1122,12 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "date":       game_date,
         "venue":      context["game"].get("venue", ""),
         "park_factor": park_factor,
+        "plain_summary": _build_plain_summary(
+            team_home, team_away,
+            (prob_a if team_a == team_home else prob_b),
+            (prob_b if team_a == team_home else prob_a),
+            mu_home, mu_away, mu_home_f5, mu_away_f5,
+        ),
         "narrative":  narrative,
         "prob_a":     round(prob_a * 100, 1),
         "prob_b":     round(prob_b * 100, 1),

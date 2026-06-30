@@ -3784,13 +3784,25 @@ mutates: none
 ---
 
 ---
+name: _build_plain_summary
+type: function
+file: analyze_baseball.py
+purpose: Plain-English bet recommendation in the user's preferred phrasing — "Team A is gonna win vs Team B (XX% accuracy). Bet on: runs OVER/UNDER 8.5, 1st 5 innings X, NRFI/YRFI." Derives runs over/under by comparing full-game μ_total to the 8.5 baseline (≥+0.7 → OVER, ≤−0.7 → UNDER); F5 side by μ_home_f5 vs μ_away_f5 (≥0.4 gap); NRFI/YRFI by Poisson on per-inning μ (≥58% NRFI / ≤42% NRFI → YRFI). Headline: "gonna win" (≥58%), "slight favourite" (52-58%), or "coin-flip" (<52%).
+inputs: team_home: str, team_away: str, prob_home: float, prob_away: float, mu_home: float, mu_away: float, mu_home_f5: float, mu_away_f5: float
+outputs: str
+calls: math.exp
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → result dict.
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
-outputs: dict {match_id, team_a, team_b, team_home, team_away, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets
+outputs: dict {match_id, team_a, team_b, team_home, team_away, plain_summary, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
+calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets, _build_plain_summary
 called_by: analyze_baseball (app.py)
 mutates: matches, signals (incl. weather + savant signals), predictions tables
 ---
@@ -7647,13 +7659,25 @@ mutates: none
 ---
 
 ---
+name: _build_plain_summary
+type: function
+file: analyze_soccer.py
+purpose: Plain-English bet recommendation in the user's preferred phrasing — "Team A is gonna win vs Team B (XX% accuracy). Bet on: goals (BTTS), 1st half X to score, 2nd half Y to score." Derives BTTS prob via Poisson independence on full-match μ_home/μ_away; derives 1H/2H scoring probs by splitting μ 45/55 across halves. Markets are gated (BTTS ≥55%, 1H scoring ≥55%, 2H scoring ≥60%) so only model-favoured legs appear. Headline switches between "gonna win" (≥60%), "slight favourite" (45-60%), and "too close to call" (<45%, draw-led).
+inputs: home_team: str, away_team: str, prob_home: float, prob_draw: float, prob_away: float, mu_home: float, mu_away: float
+outputs: str
+calls: math.exp
+called_by: run_soccer_analysis
+mutates: none
+---
+
+---
 name: run_soccer_analysis
 type: function
 file: analyze_soccer.py
-purpose: Full soccer pipeline entry point. (1) Parse query via Claude. (2) Enrich both teams via Understat (xG/npxG + time-decayed recent + venue + situation), season-1 fallback. (3) Enrich via FBref (PSxG, PPDA, possession, aerials). (4) If BOTH teams have no Understat data → return {"status": "insufficient_data", "recommendation": "PASS"} immediately rather than hallucinate signals from Claude training data (Kimi #1 — critical for betting safety). (5) Anchor on league xG (Kimi #6) — falls back to live goals avg → static xG constant. (6) Build strengths via strengths_from_xg with time-decayed recent, venue blend, shrinkage, continuous overperform damping. (7) Run predict_xg with open-play+set-piece decomposition, tiered GK adjustment, and tightened aerial multiplier. (8) Blend with Elo 65/35 (DC keeps full draw probability). (9) Markets + bet recs labeled as "Win (Draw No Bet)" with explicit conditional-on-decisive note. (10) Persist + narrate. Returns full dict or insufficient_data response.
+purpose: Full soccer pipeline entry point. (1) Parse query via Claude. (2) Enrich both teams via Understat (xG/npxG + time-decayed recent + venue + situation), season-1 fallback. (3) Enrich via FBref (PSxG, PPDA, possession, aerials). (4) If BOTH teams have no Understat data → return {"status": "insufficient_data", "recommendation": "PASS"} immediately rather than hallucinate signals from Claude training data (Kimi #1 — critical for betting safety). (5) Anchor on league xG (Kimi #6) — falls back to live goals avg → static xG constant. (6) Build strengths via strengths_from_xg with time-decayed recent, venue blend, shrinkage, continuous overperform damping. (7) Run predict_xg with open-play+set-piece decomposition, tiered GK adjustment, and tightened aerial multiplier. (8) Blend with Elo 65/35 (DC keeps full draw probability). (9) Markets + bet recs labeled as "Win (Draw No Bet)" with explicit conditional-on-decisive note. (10) Build plain_summary in user-preferred phrasing. (11) Persist + narrate. Returns full dict or insufficient_data response.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict (success: full prediction dict; failure mode: {"status": "insufficient_data", "recommendation": "PASS", ...})
-calls: init_db, parse_soccer_query, enrich_soccer_teams, enrich_soccer_advanced, _build_strengths, _set_piece_share, _aerial_index, _set_piece_aerial_mult, dc.predict_xg, EloModel.win_probability, compute_all_markets, market_edge_summary, _bet_recommendations, kelly_stake, log_signal, get_db, _build_explanation, generate_soccer_narrative, _format_markets, leagues.league_avg_xg, leagues.league_avg_goals, leagues.home_advantage, american_to_decimal
+outputs: dict (success: full prediction dict including `plain_summary`; failure mode: {"status": "insufficient_data", "recommendation": "PASS", ...})
+calls: init_db, parse_soccer_query, enrich_soccer_teams, enrich_soccer_advanced, _build_strengths, _set_piece_share, _aerial_index, _set_piece_aerial_mult, dc.predict_xg, EloModel.win_probability, compute_all_markets, market_edge_summary, _bet_recommendations, kelly_stake, log_signal, get_db, _build_explanation, _build_plain_summary, generate_soccer_narrative, _format_markets, leagues.league_avg_xg, leagues.league_avg_goals, leagues.home_advantage, american_to_decimal
 called_by: analyze_soccer_endpoint (app.py)
 mutates: predicta.db (matches, signals, predictions)
 ---
