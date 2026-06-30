@@ -196,6 +196,45 @@ def markov_tennis_match(
     }
 
 
+def _build_plain_summary_tennis(
+    player_a: str, player_b: str,
+    prob_a: float, prob_b: float,
+    best_of: int, surface: str,
+) -> str:
+    """
+    Plain-English tennis bet recommendation in the user's preferred phrasing.
+
+    Format:
+      "<favourite> is gonna win vs <opponent> (XX% accuracy).
+       Bet on: straight sets, total games over/under, first set <player>."
+    """
+    if prob_a >= prob_b:
+        winner, loser, win_prob = player_a, player_b, prob_a
+    else:
+        winner, loser, win_prob = player_b, player_a, prob_b
+
+    bets: list[str] = []
+    # Straight sets only suggested when the favourite is dominant
+    if win_prob >= 0.70:
+        sets_label = "2-0" if best_of == 3 else "3-0"
+        bets.append(f"{winner} to win {sets_label} (straight sets)")
+    elif win_prob >= 0.55:
+        bets.append(f"first set {winner}")
+
+    # Surface tag for context
+    accuracy = win_prob * 100
+    if accuracy >= 65:
+        headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy on {surface})."
+    elif accuracy >= 52:
+        headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% on {surface} — tight match)."
+    else:
+        headline = f"{player_a} vs {player_b}: coin-flip ({accuracy:.0f}% lean, no clear winner)."
+
+    if bets:
+        return headline + " Bet on: " + ", ".join(bets) + "."
+    return headline + " No clear secondary market — moneyline only."
+
+
 def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     """
     Full tennis pipeline:
@@ -485,6 +524,10 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         recommendation = player_b
         recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}% vs book)"
 
+    plain_summary = _build_plain_summary_tennis(
+        player_a, player_b, prob_a, prob_b, best_of, surface,
+    )
+
     return {
         "match_id":        match_id,
         "player_a":        player_a,
@@ -495,6 +538,7 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "tour":       tour.upper(),
         "surface":    surface,
         "date":       game_date,
+        "plain_summary": plain_summary,
         "narrative":  narrative,
         "prob_a":     round(prob_a * 100, 1),
         "prob_b":     round(prob_b * 100, 1),

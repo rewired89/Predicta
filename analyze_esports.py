@@ -38,6 +38,48 @@ def _h2h_adjustment(prob: float, wins_a: int, wins_b: int) -> float:
     return max(0.05, min(0.95, prob + nudge))
 
 
+def _build_plain_summary_esports(
+    team_a: str, team_b: str,
+    prob_a: float, prob_b: float,
+    game: str, fmt: str,
+) -> str:
+    """
+    Plain-English e-sports bet recommendation in the user's preferred phrasing.
+
+    Format:
+      "<favourite> is gonna win vs <opponent> (XX% accuracy on <game>).
+       Bet on: 2-0 map score, handicap -1.5 maps."
+    """
+    if prob_a >= prob_b:
+        winner, loser, win_prob = team_a, team_b, prob_a
+    else:
+        winner, loser, win_prob = team_b, team_a, prob_b
+
+    bets: list[str] = []
+    fmt_upper = (fmt or "Bo3").upper()
+    if win_prob >= 0.70:
+        if "5" in fmt_upper:
+            bets.append(f"{winner} 3-0 map sweep")
+        else:
+            bets.append(f"{winner} 2-0 map sweep")
+        bets.append(f"{winner} -1.5 maps handicap")
+    elif win_prob >= 0.58:
+        bets.append(f"{winner} first map")
+
+    accuracy = win_prob * 100
+    game_label = (game or "").upper() or "esports"
+    if accuracy >= 60:
+        headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy on {game_label})."
+    elif accuracy >= 52:
+        headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% on {game_label} — tight match)."
+    else:
+        headline = f"{team_a} vs {team_b}: coin-flip ({accuracy:.0f}% lean, no clear winner)."
+
+    if bets:
+        return headline + " Bet on: " + ", ".join(bets) + "."
+    return headline + " No clear secondary market — moneyline only."
+
+
 def run_esports_analysis(
     user_query: str,
     bankroll: float = 1000.0,
@@ -212,6 +254,8 @@ def run_esports_analysis(
         steps.append({"step": "narrative", "status": "warn", "data": str(exc)})
         narrative = f"{team_a} vs {team_b} — {team_a} {prob_a*100:.1f}% / {team_b} {prob_b*100:.1f}%. Recommendation: {recommendation}."
 
+    plain_summary = _build_plain_summary_esports(team_a, team_b, prob_a, prob_b, game, fmt)
+
     return {
         "match_id":             match_id,
         "team_a":               team_a,
@@ -221,6 +265,7 @@ def run_esports_analysis(
         "date":                 game_date,
         "recommendation":       recommendation,
         "recommendation_reason": recommendation_reason,
+        "plain_summary":        plain_summary,
         "prob_a":               round(prob_a * 100, 1),
         "prob_b":               round(prob_b * 100, 1),
         "team_stats": {

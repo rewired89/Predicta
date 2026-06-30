@@ -309,6 +309,41 @@ def _first_time_premium(h2h_wins_a: int, h2h_wins_b: int,
     return 0.0
 
 
+def _build_plain_summary_tt(
+    player_a: str, player_b: str,
+    prob_a: float, prob_b: float,
+) -> str:
+    """
+    Plain-English table tennis bet recommendation in the user's preferred phrasing.
+
+    Format:
+      "<favourite> is gonna win vs <opponent> (XX% accuracy).
+       Bet on: 4-0 sweep, total games over/under."
+    """
+    if prob_a >= prob_b:
+        winner, loser, win_prob = player_a, player_b, prob_a
+    else:
+        winner, loser, win_prob = player_b, player_a, prob_b
+
+    bets: list[str] = []
+    if win_prob >= 0.75:
+        bets.append(f"{winner} to win 4-0 (sweep)")
+    elif win_prob >= 0.60:
+        bets.append(f"{winner} -1.5 sets handicap")
+
+    accuracy = win_prob * 100
+    if accuracy >= 60:
+        headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy)."
+    elif accuracy >= 52:
+        headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% — tight match)."
+    else:
+        headline = f"{player_a} vs {player_b}: coin-flip ({accuracy:.0f}% lean, no clear winner)."
+
+    if bets:
+        return headline + " Bet on: " + ", ".join(bets) + "."
+    return headline + " No clear secondary market — moneyline only."
+
+
 def run_table_tennis_analysis(
     user_query: str,
     bankroll: float = 1000.0,
@@ -793,6 +828,8 @@ def run_table_tennis_analysis(
         recommendation = player_b
         recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}%) — add odds for value check"
 
+    plain_summary = _build_plain_summary_tt(player_a, player_b, prob_a, prob_b)
+
     return {
         "match_id":        match_id,
         "player_a":        player_a,
@@ -802,6 +839,7 @@ def run_table_tennis_analysis(
         "sport":           "table_tennis",
         "tour":       tour.upper(),
         "date":       game_date,
+        "plain_summary": plain_summary,
         "narrative":  narrative,
         "prob_a":     round(prob_a * 100, 1),
         "prob_b":     round(prob_b * 100, 1),

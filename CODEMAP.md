@@ -4336,13 +4336,25 @@ mutates: none
 ---
 
 ---
+name: _build_plain_summary_tennis
+type: function
+file: analyze_tennis.py
+purpose: Plain-English tennis bet recommendation in user-preferred phrasing — "<favourite> is gonna win vs <opponent> (XX% accuracy on <surface>). Bet on: straight sets, first set <player>." Gated: straight-sets only when win_prob >=0.70 (with set label adapting to best_of 3 vs 5); first-set bet when 0.55-0.70. Headlines: "gonna win" (>=65%), "slight favourite" (52-65%), "coin-flip" (<52%).
+inputs: player_a: str, player_b: str, prob_a: float, prob_b: float, best_of: int, surface: str
+outputs: str
+calls: none
+called_by: run_tennis_analysis
+mutates: none
+---
+
+---
 name: run_tennis_analysis
 type: function
 file: analyze_tennis.py
-purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → persist to DB → Kelly sizing → AI narrative → Market Efficiency Model recommendation.
+purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → persist to DB → Kelly sizing → AI narrative → plain_summary in user-preferred phrasing → Market Efficiency Model recommendation.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, prob_a, prob_b, data_confidence, markov_sim, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
-calls: parse_tennis_query, fetch_tennis_context, _compute_point_probs, markov_tennis_match, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative
+outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, plain_summary, prob_a, prob_b, data_confidence, markov_sim, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
+calls: parse_tennis_query, fetch_tennis_context, _compute_point_probs, markov_tennis_match, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative, _build_plain_summary_tennis
 called_by: analyze_tennis (app.py)
 mutates: matches, signals, predictions tables
 ---
@@ -4454,14 +4466,26 @@ mutates: none
 ## analyze_table_tennis.py
 
 ---
+name: _build_plain_summary_tt
+type: function
+file: analyze_table_tennis.py
+purpose: Plain-English table-tennis bet recommendation in user-preferred phrasing — "<favourite> is gonna win vs <opponent> (XX% accuracy). Bet on: 4-0 sweep, -1.5 sets handicap." Gated: 4-0 sweep only when win_prob >=0.75; handicap when 0.60-0.75. Headlines: "gonna win" (>=60%), "slight favourite" (52-60%), "coin-flip" (<52%).
+inputs: player_a: str, player_b: str, prob_a: float, prob_b: float
+outputs: str
+calls: none
+called_by: run_table_tennis_analysis
+mutates: none
+---
+
+---
 name: run_table_tennis_analysis
 type: function
 file: analyze_table_tennis.py
-purpose: Full TT pipeline: parse → ITTF/WTT/Setka/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → Bayesian prior shrinkage → market efficiency model → persist → Kelly → narrative.
+purpose: Full TT pipeline: parse → ITTF/WTT/Setka/TSDB fetch → AQI/RQI → Markov Chain sim → handedness → first-time premium → form → fatigue → line_movement → Glicko-2 → Bayesian prior shrinkage → market efficiency model → persist → Kelly → narrative → plain_summary in user-preferred phrasing.
 inputs: user_query: str, bankroll: float, open_odds_a/b: float?, curr_odds_a/b: float?, matches_today_a/b: int
-outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, market_comparison, kelly_edge, steps
+outputs: dict with match_id, player_a/b, recommendation, recommendation_reason, plain_summary, prob_a/b, data_confidence, player_stats, h2h, markov_sim, narrative, market_comparison, kelly_edge, steps
 notes: Kelly now uses real odds (curr > open > 1.909 default); recommendation uses 5pp value gate when real odds provided (PASS if no edge); market_comparison same shape as baseball
-calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, american_to_decimal, market_edge_summary, generate_table_tennis_narrative, log_signal, get_db
+calls: parse_table_tennis_query, fetch_table_tennis_context, interpret_table_tennis_signals, markov_match_prob, Glicko2Model, kelly_stake, american_to_decimal, market_edge_summary, generate_table_tennis_narrative, log_signal, get_db, _build_plain_summary_tt
 called_by: analyze_table_tennis endpoint (app.py)
 mutates: matches, signals, predictions tables
 ---
@@ -6898,13 +6922,25 @@ mutates: none
 ---
 
 ---
+name: _build_plain_summary_esports
+type: function
+file: analyze_esports.py
+purpose: Plain-English e-sports bet recommendation in user-preferred phrasing — "<favourite> is gonna win vs <opponent> (XX% accuracy on <game>). Bet on: 2-0 (or 3-0) map sweep, -1.5 maps handicap, first map." Gated: sweep + -1.5 handicap when win_prob >=0.70 (map count adapts to Bo3 vs Bo5); first map when 0.58-0.70. Headlines: "gonna win" (>=60%), "slight favourite" (52-60%), "coin-flip" (<52%).
+inputs: team_a: str, team_b: str, prob_a: float, prob_b: float, game: str, fmt: str
+outputs: str
+calls: none
+called_by: run_esports_analysis
+mutates: none
+---
+
+---
 name: run_esports_analysis
 type: function
 file: analyze_esports.py
-purpose: Full e-sports pipeline: parse query → fetch PandaScore/Claude context → Elo from ranking → 60% Elo + 40% form blend → H2H adjustment → market comparison → Kelly → persist DB → AI narrative.
+purpose: Full e-sports pipeline: parse query → fetch PandaScore/Claude context → Elo from ranking → 60% Elo + 40% form blend → H2H adjustment → market comparison → Kelly → persist DB → AI narrative → plain_summary in user-preferred phrasing.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a_american: Optional[float], odds_b_american: Optional[float]
-outputs: dict {match_id, team_a, team_b, game, format, date, recommendation, recommendation_reason, prob_a, prob_b, team_stats, h2h, market_comparison, kelly, kelly_note, kelly_edge, narrative, data_confidence, raw_sources, steps}
-calls: parse_esports_query, fetch_esports_context, american_to_decimal, market_edge_summary, kelly_stake, get_db, log_signal, generate_esports_narrative
+outputs: dict {match_id, team_a, team_b, game, format, date, recommendation, recommendation_reason, plain_summary, prob_a, prob_b, team_stats, h2h, market_comparison, kelly, kelly_note, kelly_edge, narrative, data_confidence, raw_sources, steps}
+calls: parse_esports_query, fetch_esports_context, american_to_decimal, market_edge_summary, kelly_stake, get_db, log_signal, generate_esports_narrative, _build_plain_summary_esports
 called_by: analyze_esports (app.py POST /analyze-esports)
 mutates: matches, predictions, signals tables
 ---
