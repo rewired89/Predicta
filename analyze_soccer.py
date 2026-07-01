@@ -675,13 +675,25 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
 
     edge_summary = None
     if has_odds:
-        edge_summary = market_edge_summary(prob_home, prob_away, odds_home, odds_away)
+        # Round 5 patch A: pass draw odds when available so market_edge_summary
+        # does proper 3-way devig instead of a broken 2-way approximation that
+        # under-counted the vig by the draw's ~30% implied share.
+        edge_summary = market_edge_summary(
+            model_prob_a     = prob_home,
+            model_prob_b     = prob_away,
+            decimal_a        = odds_home,
+            decimal_b        = odds_away,
+            decimal_draw     = odds_draw,        # None → falls back to 2-way
+            model_prob_draw  = prob_draw if odds_draw is not None else None,
+        )
         steps.append({
-            "step": "market_compare",
-            "status": "ok",
-            "edge_home_pp": round(edge_summary["edge_a"] * 100, 2),
-            "edge_away_pp": round(edge_summary["edge_b"] * 100, 2),
-            "vig":          edge_summary["vig"],
+            "step":          "market_compare",
+            "status":        "ok",
+            "market_type":   edge_summary.get("market_type", "2way"),
+            "edge_home_pp":  round(edge_summary["edge_a"] * 100, 2),
+            "edge_away_pp":  round(edge_summary["edge_b"] * 100, 2),
+            "edge_draw_pp":  round(edge_summary.get("edge_draw", 0) * 100, 2) if edge_summary.get("edge_draw") is not None else None,
+            "vig":           edge_summary["vig"],
         })
 
     recs = _bet_recommendations(prob_home, prob_draw, prob_away,

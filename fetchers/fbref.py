@@ -35,6 +35,17 @@ try:
 except ImportError:
     _HAS_DEPS = False
 
+# FBref sits behind Cloudflare's JS challenge — plain httpx returns HTTP 403
+# "Just a moment..." pages. cloudscraper mimics a browser well enough to solve
+# the challenge on ~70% of requests. When cloudscraper isn't installed we fall
+# back to httpx and the fetcher degrades gracefully (returns empty dicts,
+# pipeline continues with Understat-only enrichment).
+try:
+    import cloudscraper
+    _HAS_CLOUDSCRAPER = True
+except ImportError:
+    _HAS_CLOUDSCRAPER = False
+
 FBREF_BASE = "https://fbref.com"
 
 _HEADERS = {
@@ -44,6 +55,25 @@ _HEADERS = {
     ),
     "Accept-Language": "en-US,en;q=0.9",
 }
+
+# Module-level cloudscraper session — reused across requests so the Cloudflare
+# challenge cookie persists.
+_SCRAPER = None
+
+
+def _make_scraper():
+    global _SCRAPER
+    if _SCRAPER is not None:
+        return _SCRAPER
+    if _HAS_CLOUDSCRAPER:
+        try:
+            _SCRAPER = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows", "mobile": False}
+            )
+            _SCRAPER.headers.update(_HEADERS)
+        except Exception:
+            _SCRAPER = None
+    return _SCRAPER
 
 # Module cache keyed by (league, season, table_type) → DataFrame
 _FBREF_CACHE: dict[tuple, "pd.DataFrame"] = {}
@@ -102,12 +132,29 @@ def _fuzzy_match(target: str, names: list[str], cutoff: float = 0.78) -> Optiona
 
 
 def _get(url: str) -> Optional[str]:
+    """
+    Fetch FBref HTML. Uses cloudscraper if installed (bypasses Cloudflare's
+    JS challenge), falls back to httpx otherwise. Returns None on any failure —
+    fetchers/fbref callers already handle empty results silently.
+    """
     if not _HAS_DEPS:
         return None
+    scraper = _make_scraper()
+    if scraper is not None:
+        try:
+            r = scraper.get(url, timeout=25.0)
+            if r.status_code == 200 and "just a moment" not in r.text.lower()[:400]:
+                return r.text
+        except Exception:
+            pass
+    # Fallback to plain httpx (usually returns 403 from Cloudflare but leaves
+    # the door open for public / uncached endpoints).
     try:
         with httpx.Client(timeout=20.0, headers=_HEADERS, follow_redirects=True) as c:
             r = c.get(url)
             r.raise_for_status()
+            if "just a moment" in r.text.lower()[:400]:
+                return None
             return r.text
     except Exception:
         return None

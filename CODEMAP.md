@@ -1099,14 +1099,26 @@ mutates: none
 ---
 
 ---
+name: vig_removed_prob_three_way
+type: function
+file: models/kelly.py
+purpose: Proportional (multiplicative) devig for 3-way markets (soccer 1X2). Returns (fair_a, fair_draw, fair_b) summing to 1.0. Round 5 patch A — soccer market_edge_summary was applying 2-way devig on 3-way inputs, producing negative vig and garbage breakevens. This function fixes it.
+inputs: decimal_a: float, decimal_draw: float, decimal_b: float
+outputs: tuple[float, float, float]
+calls: none
+called_by: market_edge_summary (when decimal_draw is not None)
+mutates: none
+---
+
+---
 name: market_edge_summary
 type: function
 file: models/kelly.py
-purpose: Compare model probabilities to market odds — computes edge_a/b, vig, breakeven, verdict (VALUE/SLIGHT EDGE/FAIR/AVOID). Only meaningful when real sportsbook odds are provided.
-inputs: model_prob_a: float, model_prob_b: float, decimal_a: float, decimal_b: float
-outputs: dict {has_real_odds, market_implied_a/b, breakeven_a/b, edge_a/b, vig, verdict_a/b}
-calls: vig_removed_prob
-called_by: run_baseball_analysis
+purpose: Compare model probabilities to market odds — computes edge_a/b, vig, breakeven, verdict (VALUE/SLIGHT EDGE/FAIR/AVOID). Handles both 2-way markets (baseball / TT / DNB) and 3-way markets (soccer 1X2 — pass decimal_draw to activate). In 3-way mode, edge is measured against the vig-free fair prob because the draw absorbs implied probability. In 2-way mode edge is measured against raw 1/decimal (unchanged legacy behavior). Adds market_type: "2way"|"3way" and, when draw odds supplied, market_implied_draw / breakeven_draw / edge_draw / verdict_draw to the output.
+inputs: model_prob_a: float, model_prob_b: float, decimal_a: float, decimal_b: float, decimal_draw: float | None = None, model_prob_draw: float | None = None
+outputs: dict {has_real_odds, market_type, market_implied_a/b [/draw], breakeven_a/b [/draw], edge_a/b [/draw], vig, verdict_a/b [/draw]}
+calls: vig_removed_prob, vig_removed_prob_three_way
+called_by: run_baseball_analysis, run_soccer_analysis
 mutates: none
 ---
 
@@ -7315,6 +7327,42 @@ mutates: predicta.db schema (matches table DDL)
 ## fetchers/fbref.py
 
 ---
+name: _HAS_CLOUDSCRAPER
+type: variable
+file: fetchers/fbref.py
+purpose: True when the optional `cloudscraper` package is installed. FBref sits behind Cloudflare's JS challenge; cloudscraper mimics a browser well enough to solve it on ~70% of requests. When absent, _get falls back to plain httpx (usually returns HTTP 403 "Just a moment..." and the pipeline degrades to Understat-only enrichment).
+inputs: none
+outputs: bool
+calls: none
+called_by: _make_scraper, _get
+mutates: none
+---
+
+---
+name: _SCRAPER
+type: variable
+file: fetchers/fbref.py
+purpose: Cached module-level cloudscraper session, created lazily by _make_scraper. Reusing one session lets the Cloudflare challenge cookie persist across requests within a process.
+inputs: none
+outputs: Optional[cloudscraper.CloudScraper]
+calls: none
+called_by: _make_scraper
+mutates: assigned by _make_scraper
+---
+
+---
+name: _make_scraper
+type: function
+file: fetchers/fbref.py
+purpose: Lazily create a cloudscraper session with Chrome/Windows fingerprint. Returns None if cloudscraper isn't installed or session creation fails. Called by _get before every request.
+inputs: none
+outputs: Optional[cloudscraper.CloudScraper]
+calls: cloudscraper.create_scraper
+called_by: _get
+mutates: _SCRAPER
+---
+
+---
 name: FBREF_BASE
 type: variable
 file: fetchers/fbref.py
@@ -7370,6 +7418,18 @@ purpose: Strip HTML comment markers from FBref pages. FBref wraps several tables
 inputs: html: str
 outputs: str
 calls: re.sub
+called_by: _fetch_table
+mutates: none
+---
+
+---
+name: _get (fbref.py)
+type: function
+file: fetchers/fbref.py
+purpose: Fetch FBref HTML. Prefers cloudscraper session (bypasses Cloudflare's JS challenge on ~70% of requests) then falls back to plain httpx. Detects Cloudflare "Just a moment..." interstitial in first 400 chars and treats it as failure. Returns None on any failure — every fetch_team_* function already handles empty results silently.
+inputs: url: str
+outputs: Optional[str]
+calls: _make_scraper, httpx.Client
 called_by: _fetch_table
 mutates: none
 ---

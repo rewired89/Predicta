@@ -33,27 +33,102 @@ def vig_removed_prob(decimal_a: float, decimal_b: float) -> tuple[float, float]:
     return round(impl_a / total, 4), round(impl_b / total, 4)
 
 
+def vig_removed_prob_three_way(
+    decimal_a: float, decimal_draw: float, decimal_b: float,
+) -> tuple[float, float, float]:
+    """
+    Strip vig from a 3-way market (soccer 1X2). Returns (fair_a, fair_draw, fair_b)
+    summing to 1.0. Applies proportional (multiplicative) devig — the standard
+    sportsbook method, equivalent to normalising raw implieds.
+
+    For power/Shin devig methods there are more academic alternatives, but
+    proportional is what Pinnacle/Betfair converge to at low margins and is
+    the sensible default when we don't know the book's specific weighting.
+    """
+    impl_a = 1.0 / decimal_a
+    impl_d = 1.0 / decimal_draw
+    impl_b = 1.0 / decimal_b
+    total  = impl_a + impl_d + impl_b
+    return (
+        round(impl_a / total, 4),
+        round(impl_d / total, 4),
+        round(impl_b / total, 4),
+    )
+
+
 def market_edge_summary(
     model_prob_a: float,
     model_prob_b: float,
     decimal_a: float,
     decimal_b: float,
+    decimal_draw: float | None = None,
+    model_prob_draw: float | None = None,
 ) -> dict:
     """
-    Compare model probabilities to market odds.
+    Compare model probabilities to market odds. Handles both 2-way markets
+    (baseball / TT / DNB) and 3-way markets (soccer 1X2).
 
-    edge_a = model_prob_a - (1/decimal_a)   ← raw: beats the price you pay
-    Positive edge means the model thinks this team wins more often than
-    the market price requires to be profitable.
+    3-way mode (decimal_draw provided):
+      vig = 1/decimal_a + 1/decimal_draw + 1/decimal_b - 1     (always ≥ 0)
+      market_implied_a/draw/b = proportional-devig fair probs
+      edge_a = model_prob_a - fair_a           (model vs vig-free market)
+      edge_b = model_prob_b - fair_b
+      edge_draw = model_prob_draw - fair_draw  (when model draw supplied)
 
-    Returns:
-      has_real_odds        — True (caller should set False when using defaults)
-      market_implied_a/b   — vig-free implied probabilities
-      breakeven_a/b        — raw implied (must exceed to profit)
-      edge_a/b             — model minus breakeven (pp)
-      vig                  — total overround (e.g. 0.045 = 4.5%)
-      verdict_a/b          — "VALUE" / "SLIGHT EDGE" / "FAIR" / "AVOID"
+    2-way mode (no draw odds): unchanged legacy behaviour for baseball / TT.
+
+    Round 5 fix: previously we did 2-way devig on 3-way soccer inputs, which
+    computed vig from just home+away (missing the ~30% draw implied) and
+    produced negative vig + garbage breakevens. Every soccer BET recommendation
+    with sportsbook odds was mis-scored.
+
+    Returns dict with has_real_odds, market_type ("2way"/"3way"), market_implied_*,
+    breakeven_*, edge_*, vig, verdict_*.
     """
+    def _verdict(edge: float) -> str:
+        if edge >= EDGE_VALUE_THRESHOLD:  return "VALUE"
+        if edge >= EDGE_SLIGHT_THRESHOLD: return "SLIGHT EDGE"
+        if edge >= -EDGE_VALUE_THRESHOLD: return "FAIR"
+        return "AVOID"
+
+    if decimal_draw is not None:
+        # 3-way (soccer)
+        impl_a_raw = 1.0 / decimal_a
+        impl_d_raw = 1.0 / decimal_draw
+        impl_b_raw = 1.0 / decimal_b
+        vig        = round(impl_a_raw + impl_d_raw + impl_b_raw - 1.0, 4)
+        impl_a_nv, impl_d_nv, impl_b_nv = vig_removed_prob_three_way(
+            decimal_a, decimal_draw, decimal_b
+        )
+
+        # Edge is measured against the vig-FREE fair prob, not the raw price.
+        # (In 2-way mode below we compare against 1/decimal because there's
+        # only one non-outcome to redistribute against.)
+        edge_a = model_prob_a - impl_a_nv
+        edge_b = model_prob_b - impl_b_nv
+        edge_d = (model_prob_draw - impl_d_nv) if model_prob_draw is not None else None
+
+        result = {
+            "has_real_odds":       True,
+            "market_type":         "3way",
+            "market_implied_a":    impl_a_nv,
+            "market_implied_draw": impl_d_nv,
+            "market_implied_b":    impl_b_nv,
+            "breakeven_a":         round(impl_a_raw, 4),
+            "breakeven_draw":      round(impl_d_raw, 4),
+            "breakeven_b":         round(impl_b_raw, 4),
+            "edge_a":              round(edge_a, 4),
+            "edge_b":              round(edge_b, 4),
+            "vig":                 vig,
+            "verdict_a":           _verdict(edge_a),
+            "verdict_b":           _verdict(edge_b),
+        }
+        if edge_d is not None:
+            result["edge_draw"]    = round(edge_d, 4)
+            result["verdict_draw"] = _verdict(edge_d)
+        return result
+
+    # ── 2-way (baseball / TT / DNB) — unchanged legacy path ─────────────────
     impl_a_raw = 1.0 / decimal_a
     impl_b_raw = 1.0 / decimal_b
     vig        = round(impl_a_raw + impl_b_raw - 1.0, 4)
@@ -62,14 +137,9 @@ def market_edge_summary(
     edge_a = model_prob_a - impl_a_raw
     edge_b = model_prob_b - impl_b_raw
 
-    def _verdict(edge: float) -> str:
-        if edge >= EDGE_VALUE_THRESHOLD:  return "VALUE"
-        if edge >= EDGE_SLIGHT_THRESHOLD: return "SLIGHT EDGE"
-        if edge >= -EDGE_VALUE_THRESHOLD: return "FAIR"
-        return "AVOID"
-
     return {
         "has_real_odds":       True,
+        "market_type":         "2way",
         "market_implied_a":    impl_a_nv,
         "market_implied_b":    impl_b_nv,
         "breakeven_a":         round(impl_a_raw, 4),
