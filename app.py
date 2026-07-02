@@ -3,6 +3,7 @@ FastAPI local API layer for Predicta.
 Run with: uvicorn app:app --reload
 """
 from __future__ import annotations
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -47,6 +48,18 @@ def startup():
         start_runner()
     except Exception:
         pass
+
+    # Start the soccer auto-collection loop:
+    #   scan_fixtures every 4 h, resolve_finished every 2 h, weekly_report
+    #   every Monday 08:00 UTC (writes to reports/ and pushes to GitHub if
+    #   GITHUB_TOKEN + GITHUB_REPO env vars are set). Disable by setting
+    #   SOCCER_AUTO_DISABLED=1.
+    if not os.environ.get("SOCCER_AUTO_DISABLED"):
+        try:
+            from tasks.soccer_auto import start_soccer_auto
+            start_soccer_auto()
+        except Exception:
+            pass
 
 
 @app.get("/ping")
@@ -803,6 +816,52 @@ def analyze_soccer_endpoint(body: SoccerRequest):
     if "error" in result and not result.get("home_team"):
         raise HTTPException(500, detail=result["error"])
     return result
+
+
+# ── Soccer auto-collection admin endpoints ────────────────────────────────────
+
+@app.get("/soccer-auto/status")
+def soccer_auto_status():
+    """Show whether the background loop is running + last-run timestamps."""
+    from tasks.soccer_auto import status
+    return status()
+
+
+@app.post("/soccer-auto/scan")
+def soccer_auto_scan(days_ahead: int = 3):
+    """Manually trigger a fixture-scan-and-predict pass."""
+    from tasks.soccer_auto import scan_fixtures
+    return scan_fixtures(days_ahead=days_ahead)
+
+
+@app.post("/soccer-auto/resolve")
+def soccer_auto_resolve():
+    """Manually trigger a resolve-finished pass. Fetches ESPN results for
+    every soccer prediction whose scheduled_at is in the past + no outcome
+    row, then calls record_outcome."""
+    from tasks.soccer_auto import resolve_finished
+    return resolve_finished()
+
+
+@app.post("/soccer-auto/report")
+def soccer_auto_report():
+    """Manually generate the weekly report. Writes reports/soccer_YYYY_WW.md
+    and pushes to GitHub if GITHUB_TOKEN + GITHUB_REPO env vars are set."""
+    from tasks.soccer_auto import weekly_report
+    return weekly_report()
+
+
+@app.get("/soccer-auto/report/latest")
+def soccer_auto_report_latest():
+    """Return the contents of the most recent weekly report as JSON."""
+    from tasks.soccer_auto import REPORTS_DIR
+    files = sorted(REPORTS_DIR.glob("soccer_*.md"), reverse=True)
+    if not files:
+        raise HTTPException(404, "No reports generated yet — call POST /soccer-auto/report first")
+    return {
+        "filename": files[0].name,
+        "content":  files[0].read_text(encoding="utf-8"),
+    }
 
 
 class BaseballRequest(BaseModel):

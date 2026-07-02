@@ -7805,3 +7805,267 @@ calls: run_soccer_analysis
 called_by: FastAPI (HTTP request)
 mutates: predicta.db indirectly via run_soccer_analysis
 ---
+
+---
+
+## fetchers/soccer_schedule.py
+
+---
+name: _LEAGUE_TO_ESPN
+type: variable
+file: fetchers/soccer_schedule.py
+purpose: Map Understat league slug → ESPN scoreboard slug. Covers the 5 Understat-supported leagues: EPL=eng.1, La_liga=esp.1, Bundesliga=ger.1, Serie_A=ita.1, Ligue_1=fra.1.
+inputs: none
+outputs: dict[str, str]
+calls: none
+called_by: upcoming_fixtures, finished_result
+mutates: none
+---
+
+---
+name: upcoming_fixtures
+type: function
+file: fetchers/soccer_schedule.py
+purpose: Fetch scheduled matches across the 5 big soccer leagues within the next `days_ahead` days from ESPN's public scoreboard API. Each entry: {league, home, away, kickoff_utc, espn_id}. Used by tasks/soccer_auto.scan_fixtures to feed the auto-collection loop.
+inputs: days_ahead: int = 3
+outputs: list[dict]
+calls: _get (ESPN scoreboard), _LEAGUE_TO_ESPN
+called_by: scan_fixtures (tasks/soccer_auto.py)
+mutates: none
+---
+
+---
+name: finished_result
+type: function
+file: fetchers/soccer_schedule.py
+purpose: Look up a completed match's final score by team names + earliest date. Scans ESPN scoreboards ±3 days around the given date across all 5 leagues, matches teams with fuzzy substring + last-word logic. Returns {result: 'a'|'b'|'draw', score_a, score_b, kickoff_utc, matched_home, matched_away} or None if the match hasn't finished yet.
+inputs: home: str, away: str, on_or_after: str (YYYY-MM-DD)
+outputs: Optional[dict]
+calls: _get, _last_word_match, _LEAGUE_TO_ESPN
+called_by: resolve_finished (tasks/soccer_auto.py)
+mutates: none
+---
+
+---
+
+## tasks/soccer_auto.py
+
+---
+name: REPORTS_DIR
+type: variable
+file: tasks/soccer_auto.py
+purpose: Path to reports/ folder at the repo root. Weekly reports are written here as soccer_YYYY_WW.md. Committed to git (with .gitkeep) so Railway deploys include the directory.
+inputs: none
+outputs: pathlib.Path
+calls: none
+called_by: weekly_report, _push_to_github
+mutates: created at import time
+---
+
+---
+name: _STATE
+type: variable
+file: tasks/soccer_auto.py
+purpose: Module-level dict holding last-run timestamps and schedule config (scan_interval_h=4, resolve_interval_h=2, report on Monday at 08:00 UTC). Surfaced via /soccer-auto/status endpoint.
+inputs: none
+outputs: dict
+calls: none
+called_by: _should_run_interval, _should_run_weekly, status
+mutates: updated by every job run
+---
+
+---
+name: scan_fixtures
+type: function
+file: tasks/soccer_auto.py
+purpose: Job 1 — fetch upcoming fixtures via fetchers.soccer_schedule.upcoming_fixtures, call run_soccer_analysis for each new one (skipping already-predicted matches via _already_predicted). Returns {fixtures_seen, predicted, skipped, failed, details}.
+inputs: days_ahead: int = 3
+outputs: dict
+calls: upcoming_fixtures, run_soccer_analysis (analyze_soccer.py), _already_predicted
+called_by: _scheduler_loop, /soccer-auto/scan endpoint
+mutates: predictions and signals tables (via run_soccer_analysis); _STATE
+---
+
+---
+name: _already_predicted
+type: function
+file: tasks/soccer_auto.py
+purpose: Idempotency check — True if a soccer match row exists for these two teams within ±1 day of the given kickoff. Handles both team orderings. Called before every scan_fixtures prediction to avoid duplicates.
+inputs: home: str, away: str, kickoff_utc: str
+outputs: bool
+calls: get_db
+called_by: scan_fixtures
+mutates: none
+---
+
+---
+name: resolve_finished
+type: function
+file: tasks/soccer_auto.py
+purpose: Job 2 — find soccer predictions whose scheduled_at is in the past and have no outcome. Look them up on ESPN via fetchers.soccer_schedule.finished_result and record via engine.record_outcome (which also updates Elo ratings). Returns {candidates, resolved, still_pending, errors, details}.
+inputs: none
+outputs: dict
+calls: get_db, finished_result, record_outcome (engine.py)
+called_by: _scheduler_loop, /soccer-auto/resolve endpoint
+mutates: outcomes table + matches.status; _STATE
+---
+
+---
+name: weekly_report
+type: function
+file: tasks/soccer_auto.py
+purpose: Job 3 — compute soccer model metrics (Brier score, favorite hit rate, per-league breakdown), render as markdown, write to reports/soccer_YYYY_WW.md, and push to GitHub via the Contents API when GITHUB_TOKEN + GITHUB_REPO env vars are set. Returns {filename, local_path, metrics, pushed_to_github, push_error}.
+inputs: none
+outputs: dict
+calls: _compute_metrics, _render_report, _push_to_github
+called_by: _scheduler_loop, /soccer-auto/report endpoint
+mutates: reports/ directory, optionally the GitHub repo, _STATE
+---
+
+---
+name: _compute_metrics
+type: function
+file: tasks/soccer_auto.py
+purpose: Query all resolved soccer predictions and compute average Brier score (across 3-way probabilities), favorite hit rate (higher-prob side wins), and per-league breakdown. Returns {resolved, avg_brier, favorite_hit_rate, by_league, generated_utc}.
+inputs: none
+outputs: dict
+calls: get_db
+called_by: weekly_report
+mutates: none
+---
+
+---
+name: _render_report
+type: function
+file: tasks/soccer_auto.py
+purpose: Convert the metrics dict into a markdown report with global metrics table, per-league breakdown table, and next-steps section. Interpretation thresholds: Brier <0.20 + hit rate >55% = beating market; Brier >0.25 = worse than random.
+inputs: metrics: dict
+outputs: str (markdown)
+calls: none
+called_by: weekly_report
+mutates: none
+---
+
+---
+name: _push_to_github
+type: function
+file: tasks/soccer_auto.py
+purpose: Create or update a file in the GitHub repo via the Contents API. Requires GITHUB_TOKEN (PAT with contents:write) and GITHUB_REPO ("owner/repo") env vars. Optional GITHUB_BRANCH (default "main"). Fetches existing file's sha for updates; returns True on 200/201.
+inputs: path_in_repo: str, content: str
+outputs: bool
+calls: httpx.Client
+called_by: weekly_report
+mutates: pushes to the configured GitHub repo
+---
+
+---
+name: _scheduler_loop
+type: function
+file: tasks/soccer_auto.py
+purpose: Background thread body. Every 5 minutes checks _should_run_interval / _should_run_weekly for each of the 3 jobs and fires them. Exceptions are printed but don't stop the loop.
+inputs: none
+outputs: none
+calls: _should_run_interval, _should_run_weekly, scan_fixtures, resolve_finished, weekly_report
+called_by: start_soccer_auto (via threading.Thread)
+mutates: _STATE (indirectly through job calls)
+---
+
+---
+name: start_soccer_auto
+type: function
+file: tasks/soccer_auto.py
+purpose: Start the background scheduler thread. Idempotent — safe to call multiple times, only starts if not already running. Called from app.py startup unless SOCCER_AUTO_DISABLED env var is set.
+inputs: none
+outputs: none
+calls: threading.Thread
+called_by: startup (app.py), /soccer-auto/status endpoint
+mutates: _THREAD, _STATE
+---
+
+---
+name: stop_soccer_auto
+type: function
+file: tasks/soccer_auto.py
+purpose: Signal the scheduler thread to stop. Sets _STOP event; thread exits after its current 5-min wait completes.
+inputs: none
+outputs: none
+calls: _STOP.set
+called_by: (utility)
+mutates: _STOP
+---
+
+---
+name: status (tasks/soccer_auto.py)
+type: function
+file: tasks/soccer_auto.py
+purpose: Return current scheduler state — {running, last_scan_utc, last_resolve_utc, last_report_utc, intervals, started_at}. Surfaced via GET /soccer-auto/status.
+inputs: none
+outputs: dict
+calls: _STATE
+called_by: /soccer-auto/status endpoint
+mutates: none
+---
+
+---
+
+## app.py (soccer auto-collection admin)
+
+---
+name: soccer_auto_status
+type: function
+file: app.py
+purpose: GET /soccer-auto/status — surface the background scheduler state.
+inputs: none
+outputs: dict
+calls: tasks.soccer_auto.status
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: soccer_auto_scan
+type: function
+file: app.py
+purpose: POST /soccer-auto/scan — manually trigger fixture scan + predict for the next N days. Query param days_ahead defaults to 3.
+inputs: days_ahead: int = 3
+outputs: dict
+calls: tasks.soccer_auto.scan_fixtures
+called_by: FastAPI (HTTP POST)
+mutates: predictions, signals tables
+---
+
+---
+name: soccer_auto_resolve
+type: function
+file: app.py
+purpose: POST /soccer-auto/resolve — manually trigger resolution of past predictions. Fetches ESPN results and calls record_outcome.
+inputs: none
+outputs: dict
+calls: tasks.soccer_auto.resolve_finished
+called_by: FastAPI (HTTP POST)
+mutates: outcomes, matches.status
+---
+
+---
+name: soccer_auto_report
+type: function
+file: app.py
+purpose: POST /soccer-auto/report — manually generate weekly report. Writes local file + pushes to GitHub if credentials are set.
+inputs: none
+outputs: dict
+calls: tasks.soccer_auto.weekly_report
+called_by: FastAPI (HTTP POST)
+mutates: reports/, optionally GitHub repo
+---
+
+---
+name: soccer_auto_report_latest
+type: function
+file: app.py
+purpose: GET /soccer-auto/report/latest — return the most recent markdown report as JSON. Used to check what got generated without SSH-ing into the container.
+inputs: none
+outputs: dict {filename, content}
+calls: REPORTS_DIR.glob, Path.read_text
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
