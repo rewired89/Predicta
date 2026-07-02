@@ -513,16 +513,16 @@
   <div class="paper-banner">⚠ Paper mode — no real wagers are placed or assumed.</div>
 
   <h1 class="hero-title">Ask about any <span>match</span>.</h1>
-  <p class="hero-sub">Type a natural language question. The system fetches real data, runs the statistical model, and explains the probabilities.</p>
+  <p class="hero-sub">Type a match from the <b>Premier League, La Liga, Bundesliga, Serie A, or Ligue 1</b>. The model uses live npxG + Dixon-Coles + Elo. National teams and other competitions aren't supported (no free xG data) — those return PASS.</p>
 
   <div class="prompt-card">
-    <div class="prompt-label">Match query</div>
-    <textarea id="query-input" placeholder="e.g. Analyze the match between Argentina and Austria in June 2024. Who is likely to win and who might score?"></textarea>
+    <div class="prompt-label">Match query (top-5 European club leagues only)</div>
+    <textarea id="query-input" placeholder="e.g. Arsenal vs Tottenham this weekend, EPL. Add odds like 'Arsenal -180 / draw +320 / Spurs +420' for a market-edge read."></textarea>
     <div class="prompt-row">
       <div class="examples">
-        <span class="example-chip" onclick="fillExample(this)">Argentina vs Austria, June 2024</span>
-        <span class="example-chip" onclick="fillExample(this)">Real Madrid vs Barcelona, El Clasico 2025</span>
-        <span class="example-chip" onclick="fillExample(this)">England vs France World Cup 2026</span>
+        <span class="example-chip" onclick="fillExample(this)">Arsenal vs Tottenham, EPL</span>
+        <span class="example-chip" onclick="fillExample(this)">Real Madrid vs Barcelona, La Liga</span>
+        <span class="example-chip" onclick="fillExample(this)">Bayern vs Dortmund, Bundesliga</span>
       </div>
       <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">
         <span class="spinner" id="spinner"></span>
@@ -800,7 +800,7 @@ async function runAnalysis() {
   }, 2200);
 
   try {
-    const res = await fetch("/analyze", {
+    const res = await fetch("/analyze-soccer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -814,6 +814,58 @@ async function runAnalysis() {
     }
 
     const data = await res.json();
+
+    // ── Insufficient-data path: the new model refuses to predict matches it
+    //    has no live xG for (national teams, unsupported leagues) rather than
+    //    hallucinate. Show a clear message instead of a fake prediction. ────
+    if (data.status === "insufficient_data") {
+      stepIds.forEach(id => setStepStatus(id, "done"));
+      const ec = document.getElementById("error-card");
+      ec.style.display = "block";
+      ec.innerHTML =
+        `<b>No prediction — insufficient data.</b><br>` +
+        `${data.narrative || ""}<br><br>` +
+        `This model covers <b>EPL, La Liga, Bundesliga, Serie A, Ligue 1</b> only ` +
+        `(the leagues with free live xG data). National teams and other ` +
+        `competitions aren't supported. Recommendation: <b>PASS</b>.`;
+      return;
+    }
+
+    // ── Normalize new /analyze-soccer shape → fields the UI expects ──────────
+    // New endpoint uses home_team/away_team/prob_home/prob_away; the UI was
+    // written for the old team_a/prob_a shape. Alias them here so the rest of
+    // the render code is unchanged.
+    if (data.home_team && !data.team_a) {
+      data.team_a = data.home_team;
+      data.team_b = data.away_team;
+      data.prob_a = data.prob_home;
+      data.prob_b = data.prob_away;
+    }
+    // ai_signals is a nested dict in the new model; flatten to the row array
+    // the signal table renders. Skip fbref-internal keys.
+    if (data.ai_signals && !Array.isArray(data.ai_signals)) {
+      const rows = [];
+      const push = (teamName, obj) => {
+        if (!obj) return;
+        for (const [k, v] of Object.entries(obj)) {
+          if (v === null || v === undefined || typeof v === "object") continue;
+          rows.push({ team: teamName, signal: k, value: v, source: "understat/fbref" });
+        }
+      };
+      push(data.team_a, data.ai_signals.home);
+      push(data.team_b, data.ai_signals.away);
+      push(data.team_a + " (fbref)", data.ai_signals.home_fbref);
+      push(data.team_b + " (fbref)", data.ai_signals.away_fbref);
+      data.ai_signals = rows;
+    }
+    // Surface the bet verdict in the confidence note if present
+    if (data.bet_recommendations && data.bet_recommendations.length) {
+      const rec = data.bet_recommendations[0];
+      const parts = [`Verdict: ${rec.verdict}`];
+      if (rec.bet) parts.push(rec.bet);
+      if (rec.reasons && rec.reasons.length) parts.push(rec.reasons.join("; "));
+      data.signal_notes = parts.join(" · ") + (data.signal_notes ? " · " + data.signal_notes : "");
+    }
 
     if (data.error) {
       clearInterval(stepTimer);
