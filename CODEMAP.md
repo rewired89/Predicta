@@ -7254,13 +7254,8 @@ mutates: data/nrfi_reports/YYYY-MM-DD.md
 ---
 name: nrfi_daily
 type: workflow
-file: .github/workflows/nrfi_daily.yml
-purpose: GitHub Actions workflow for automated daily NRFI predictions, closing-line capture, and resolution. Job "predict" runs at 13:00 UTC (9 AM ET) — morning predictions + entry NRFI odds. Job "capture-odds" runs at 23:00 UTC (7 PM ET) — snapshots closing NRFI lines for CLV. Job "resolve" runs at 05:00 UTC (1 AM ET) — fetches linescores, computes outcomes + CLV. All three trigger manually via workflow_dispatch mode (predict|capture-odds|resolve) with optional date. Commits use [skip ci].
-inputs: ANTHROPIC_API_KEY, OPENWEATHER_API_KEY, ODDS_API_KEY (secrets); workflow_dispatch inputs mode + date
-outputs: commits to data/nrfi_predictions/ and data/nrfi_reports/ on main
-calls: scripts/daily_nrfi.py
-called_by: GitHub Actions cron scheduler, workflow_dispatch
-mutates: main branch (nrfi_predictions/ + nrfi_reports/ directories)
+file: .github/workflows/nrfi_daily.yml (REMOVED 2026-07-02)
+purpose: REMOVED — superseded by tasks/nrfi_auto.py (always-on Railway scheduler). GitHub Actions `schedule` cron proved unreliable (delayed/skipped runs) and its `git push` raced with Railway's Contents-API pushes to main (non-fast-forward rejections). Deleted so there is exactly ONE writer to main. Run predictions on demand via POST /nrfi-auto/run?job=predict instead of the old workflow_dispatch.
 ---
 
 name: capture_odds
