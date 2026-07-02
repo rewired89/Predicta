@@ -3807,7 +3807,7 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend (60/40, was 70/30) → 72% max confidence cap → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
 outputs: dict {match_id, team_a, team_b, team_home, team_away, plain_summary, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
 calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, _baseball_data_confidence, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets, _build_plain_summary
@@ -7429,8 +7429,8 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 name: _bet_recommendations
 type: function
 file: analyze_baseball.py
-purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, full-game moneyline, and Game Total (O/U). NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET; F5: >= 60% + SIERA gap >= 1.0; ML: >= 62%; Game Total (O/U): picks best line (6.5–10.5), BET >= 62%, LEAN >= 57%. Now accepts bankroll param and attaches kelly dict to BET/LEAN recommendations.
-inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, full-game moneyline, and Game Total (O/U). Full Game: BET requires >= 65% (was 62%) + data_confidence != "low" + no market disagreement > 20pp; F5: BET requires >= 62% (was 60%) + starter gap >= 1.0 + data_confidence != "low"; O/U: picks best line (6.5–10.5), BET >= 62%, LEAN >= 57%; NRFI: prob >= 55% + elite starter signal → BET. Market sanity check: when sportsbook odds provided, if model disagrees with market by > 20pp, downgrades ML to LEAN at best. Accepts bankroll param and attaches kelly dict to BET/LEAN recommendations.
+inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float, data_confidence: str, market_implied_home: float|None, market_implied_away: float|None
 outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
 calls: _nrfi_kelly
 called_by: run_baseball_analysis

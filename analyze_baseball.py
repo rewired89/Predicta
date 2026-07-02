@@ -285,13 +285,16 @@ def _bet_recommendations(
     team_home: str,
     team_away: str,
     bankroll: float = 1000.0,
+    data_confidence: str = "high",
+    market_implied_home: float | None = None,
+    market_implied_away: float | None = None,
 ) -> list[dict]:
     """
     Explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline.
 
-    NRFI:      prob >= 65% + at least one starter with CSW% > 30% OR barrel% < 6.5%
+    NRFI:      prob >= 55% + at least one starter with CSW% > 30% OR barrel% < 6.5%
     F5:        leading side >= 60% + SIERA/FIP gap between starters >= 1.0
-    Full Game: leading side >= 62%
+    Full Game: leading side >= 65% + data_confidence != "low"
 
     Uses formatted_markets (probabilities already in %).
     """
@@ -385,26 +388,26 @@ def _bet_recommendations(
         # Positive gap = favored team has better (lower) starter SIERA
         gap = dog_q - fav_q
 
-        if leading_prob >= 60.0 and gap >= 1.0:
+        if leading_prob >= 62.0 and gap >= 1.0 and data_confidence != "low":
             verdict     = "BET"
-            confidence  = "HIGH" if (leading_prob >= 65.0 and gap >= 1.5) else "MEDIUM"
+            confidence  = "HIGH" if (leading_prob >= 67.0 and gap >= 1.5) else "MEDIUM"
             reasons     = [
                 f"Model: {leading_prob:.1f}% F5 for {leading_team}",
                 f"Starter gap: {fav_name} {fav_src} {fav_q:.2f} vs {dog_name} {dog_src} {dog_q:.2f} (gap {gap:.2f}, threshold 1.0)",
             ]
             skip_reason = None
-        elif leading_prob >= 60.0:
+        elif leading_prob >= 58.0:
             verdict     = "LEAN"
             confidence  = "LOW"
             reasons     = [
-                f"Model: {leading_prob:.1f}% F5 for {leading_team} — starter gap {gap:.2f} < 1.0",
+                f"Model: {leading_prob:.1f}% F5 for {leading_team} — starter gap {gap:.2f}",
             ]
-            skip_reason = f"Starter SIERA/FIP gap {gap:.2f} below 1.0 — soft lean only"
+            skip_reason = f"Below 62% F5 threshold or starter gap < 1.0 — soft lean only"
         else:
             verdict     = "SKIP"
             confidence  = None
             reasons     = []
-            skip_reason = f"F5 probability {leading_prob:.1f}% below 60% threshold"
+            skip_reason = f"F5 probability {leading_prob:.1f}% below 58% threshold"
 
         recs.append({
             "market":      "F5",
@@ -427,28 +430,50 @@ def _bet_recommendations(
         leading_team = team_home if leading_side == "home" else team_away
         leading_prob = max(home_ml_prob, away_ml_prob)
 
-        if leading_prob >= 62.0:
+        # Market sanity check: if we have real sportsbook odds, see if the
+        # model disagrees with the market by > 20pp. If so, downgrade to
+        # LEAN at best — wild disagreement usually means the model is wrong.
+        market_disagree = False
+        _disagree_note = ""
+        if market_implied_home is not None and market_implied_away is not None:
+            model_home_pct = home_ml_prob
+            market_home_pct = market_implied_home * 100
+            gap = abs(model_home_pct - market_home_pct)
+            if gap > 20.0:
+                market_disagree = True
+                _disagree_note = (f"Model disagrees with market by {gap:.0f}pp "
+                                  f"(model {model_home_pct:.0f}% vs market {market_home_pct:.0f}%) "
+                                  f"— capped at LEAN")
+
+        if leading_prob >= 65.0 and data_confidence != "low" and not market_disagree:
             verdict     = "BET"
-            confidence  = "HIGH" if leading_prob >= 68.0 else "MEDIUM"
+            confidence  = "HIGH" if leading_prob >= 70.0 else "MEDIUM"
             reasons     = [f"Model: {leading_prob:.1f}% full-game edge for {leading_team}"]
             skip_reason = None
-        elif leading_prob >= 57.0:
+        elif leading_prob >= 58.0 and data_confidence != "low":
             verdict     = "LEAN"
             confidence  = "LOW"
             reasons     = [f"Model: {leading_prob:.1f}% — soft edge for {leading_team}"]
-            skip_reason = "Below 62% full-game threshold — lean only, no bet"
+            if market_disagree:
+                reasons.append(_disagree_note)
+            skip_reason = "Below 65% full-game threshold — lean only, no bet"
         else:
             verdict     = "SKIP"
             confidence  = None
             reasons     = []
-            skip_reason = f"{leading_prob:.1f}% — coin-flip range, no edge"
+            parts = []
+            if leading_prob < 58.0:
+                parts.append(f"{leading_prob:.1f}% — coin-flip range, no edge")
+            if data_confidence == "low":
+                parts.append("data confidence low — insufficient real data for BET")
+            skip_reason = "; ".join(parts) or f"{leading_prob:.1f}% — no edge"
 
         recs.append({
             "market":      "Full Game",
             "verdict":     verdict,
             "bet":         f"{leading_team} moneyline",
             "model_prob":  round(leading_prob, 1),
-            "threshold":   62.0,
+            "threshold":   65.0,
             "confidence":  confidence,
             "reasons":     reasons,
             "skip_reason": skip_reason,
@@ -555,9 +580,9 @@ def _build_plain_summary(
         bets.append(f"YRFI — run scored 1st inning ({(1-p_nrfi)*100:.0f}%)")
 
     accuracy = win_prob * 100
-    if accuracy >= 58:
+    if accuracy >= 65:
         headline = f"{winner} is gonna win vs {loser} ({accuracy:.0f}% accuracy)."
-    elif accuracy >= 52:
+    elif accuracy >= 55:
         headline = f"{winner} slight favourite vs {loser} ({accuracy:.0f}% accuracy — tight match)."
     else:
         headline = f"{team_home} vs {team_away}: coin-flip ({accuracy:.0f}% lean, no clear winner)."
@@ -877,7 +902,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     prob_a = prob_home if is_home_a else prob_away
     prob_b = prob_away if is_home_a else prob_home
 
-    # ── 6. Elo blend (30% weight) ────────────────────────────────────────────
+    # ── 6. Elo blend (40% weight) ────────────────────────────────────────────
     elo_explanation = ""
     try:
         elo = EloModel()
@@ -886,11 +911,20 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         if record_b.get("games_played", 0) >= 10:
             elo.set_rating(f"MLB:{team_b}", _elo_from_winpct(record_b["win_pct"]))
         elo_a, elo_b = elo.win_probability(f"MLB:{team_a}", f"MLB:{team_b}")
-        prob_a = 0.7 * prob_a + 0.3 * elo_a
-        prob_b = 0.7 * prob_b + 0.3 * elo_b
+        prob_a = 0.6 * prob_a + 0.4 * elo_a
+        prob_b = 0.6 * prob_b + 0.4 * elo_b
         total  = prob_a + prob_b
         prob_a /= total
         prob_b /= total
+        # Cap: no single MLB game should exceed 72% model confidence.
+        # Even the best matchup has high variance over 9 innings.
+        MAX_MLB_PROB = 0.72
+        if prob_a > MAX_MLB_PROB:
+            prob_a = MAX_MLB_PROB
+            prob_b = 1.0 - MAX_MLB_PROB
+        elif prob_b > MAX_MLB_PROB:
+            prob_b = MAX_MLB_PROB
+            prob_a = 1.0 - MAX_MLB_PROB
         elo_explanation = (
             f" Elo (from win%): {team_a} {elo_a*100:.1f}% / {team_b} {elo_b*100:.1f}%."
         )
@@ -1068,6 +1102,12 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         steps.append({"step": "narrative", "status": "error", "error": str(exc)})
 
     # ── Format ────────────────────────────────────────────────────────────────
+    # Override moneyline with Elo-blended + capped probabilities so BET
+    # recommendations use the final model output, not raw Poisson.
+    prob_home_final = prob_a if is_home_a else prob_b
+    prob_away_final = prob_b if is_home_a else prob_a
+    markets_raw["moneyline"]["p_home_win"] = prob_home_final
+    markets_raw["moneyline"]["p_away_win"] = prob_away_final
     formatted_markets = _format_baseball_markets(markets_raw, team_home, team_away)
 
     # Starters in home/away order for easy frontend rendering
@@ -1321,6 +1361,9 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "bet_recommendations": _bet_recommendations(
             formatted_markets, home_starter, away_starter, team_home, team_away,
             bankroll=bankroll,
+            data_confidence=data_confidence,
+            market_implied_home=(1.0 / odds_a if not _using_default_odds else None),
+            market_implied_away=(1.0 / odds_b if not _using_default_odds else None),
         ),
         "ai_signals":        ai_signals,
         "market_comparison": market_comparison,
