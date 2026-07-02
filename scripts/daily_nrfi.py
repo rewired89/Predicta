@@ -370,6 +370,11 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
             kelly     = nrfi_rec.get("kelly") or {}
             model_src = nrfi_market.get("model", "unknown")
 
+            # The model also predicts moneyline + F5 for every game — capture
+            # them so the daily report shows the full slate, not just NRFI.
+            f5_rec = next((r for r in bet_recs if r.get("market") == "F5"), {})
+            ml_rec = next((r for r in bet_recs if r.get("market") == "Full Game"), {})
+
             # Feature-source diagnostics: record which advanced pitcher features
             # were real vs defaulted, so we can SEE from the committed JSON whether
             # FanGraphs/Savant enrichment actually fired in the CI environment.
@@ -403,6 +408,14 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "verdict":      verdict,
                 "confidence":   nrfi_rec.get("confidence"),
                 "model":        model_src,
+                # Full-model picks (moneyline + F5) — the model predicts these
+                # for EVERY game, not just NRFI.
+                "ml_pick":      ml_rec.get("bet"),        # "<team> moneyline"
+                "ml_prob":      ml_rec.get("model_prob"),
+                "ml_verdict":   ml_rec.get("verdict"),
+                "f5_pick":      f5_rec.get("bet"),        # "<team> to lead after 5"
+                "f5_prob":      f5_rec.get("model_prob"),
+                "f5_verdict":   f5_rec.get("verdict"),
                 "data_confidence": result.get("data_confidence"),
                 "features_enriched": _enriched,   # any advanced stat present?
                 "feat_home":    _feat_home,
@@ -571,6 +584,43 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
         ]
     except Exception:
         pass
+
+    # ── All games — full model picks (moneyline + F5 + NRFI) ─────────────────
+    # NRFI is deliberately selective (few bets/day). The model ALSO predicts the
+    # moneyline and first-5 for every game — surface those so the whole slate is
+    # actionable, not just the 1-2 NRFI plays. A ⭐ marks a BET/LEAN in any market.
+    allg = [p for p in predictions if not p.get("error")]
+    if allg:
+        lines += ["## All Games — Model Picks", ""]
+        lines += ["| Matchup | Moneyline | First 5 (F5) | NRFI | Best play |",
+                  "|---------|-----------|--------------|------|-----------|"]
+        for p in allg:
+            away = p.get("away_abbr", "?"); home = p.get("home_abbr", "?")
+            def _cell(pick, prob, verd):
+                if prob is None:
+                    return "—"
+                star = " ⭐" if verd in ("BET", "LEAN") else ""
+                # shorten "<team> moneyline" / "<team> to lead after 5"
+                who = (pick or "").split(" moneyline")[0].split(" to lead")[0]
+                return f"{who} {prob:.0f}%{star}"
+            ml = _cell(p.get("ml_pick"), p.get("ml_prob"), p.get("ml_verdict"))
+            f5 = _cell(p.get("f5_pick"), p.get("f5_prob"), p.get("f5_verdict"))
+            nr = f"{p['p_nrfi']:.0f}%" + (" ⭐" if p.get("verdict") in ("BET","LEAN") else "") if p.get("p_nrfi") else "—"
+            # Best play = highest-confidence non-SKIP across the three markets
+            plays = []
+            for mkt, pick, prob, verd in (
+                ("ML", p.get("ml_pick"), p.get("ml_prob"), p.get("ml_verdict")),
+                ("F5", p.get("f5_pick"), p.get("f5_prob"), p.get("f5_verdict")),
+                ("NRFI", ("NRFI" if (p.get("p_nrfi") or 0) >= 50 else "YRFI"),
+                 p.get("p_nrfi"), p.get("verdict"))):
+                if verd in ("BET", "LEAN") and prob is not None:
+                    who = (pick or "").split(" moneyline")[0].split(" to lead")[0]
+                    plays.append((prob, f"{verd} {mkt}: {who} {prob:.0f}%"))
+            best = max(plays, key=lambda t: t[0])[1] if plays else "no edge — pass"
+            lines.append(f"| {away} @ {home} | {ml} | {f5} | {nr} | {best} |")
+        lines += ["", "*⭐ = model flags a BET or LEAN in that market. "
+                  "\"Best play\" is the strongest edge across all three; \"pass\" "
+                  "means every market is a coin-flip (correct to skip).*", ""]
 
     if bets:
         lines += ["## Plays", ""]
