@@ -7320,7 +7320,7 @@ mutates: none
 name: nrfi_store
 type: module
 file: nrfi_store.py
-purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE) plus a state-aware honesty `disclaimer` (no profit claim before edge proven), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct, avg_entry_lead_hrs, n_stale_excluded (headline CLV excludes entry_stale plays so it measures leading the market, not moving with it).
+purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE) plus a state-aware honesty `disclaimer` (no profit claim before edge proven), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct, avg_entry_lead_hrs, n_stale_excluded (headline CLV excludes entry_stale plays so it measures leading the market, not moving with it), clv_vs_winrate(days) → buckets resolved plays by CLV + Pearson corr + t-test verdict (detects whether positive CLV predicts winners or is just line-chasing).
 inputs: game_date/days args
 outputs: list[str] / list[dict] / dict summaries
 calls: json, scipy.stats (optional)
@@ -7334,7 +7334,7 @@ mutates: none
 name: v1_nrfi_endpoints
 type: endpoints
 file: app.py
-purpose: API-key-gated read-only endpoints for syndicate/media clients. GET /v1/status (health + coverage + client label), GET /v1/nrfi/predictions?date= (all records for a date, default latest), GET /v1/nrfi/plays?date= (BET/LEAN only), GET /v1/nrfi/clv?days=30 (CLV summary), GET /v1/nrfi/performance?days= (W/L+ROI+CLV+verdict). All read committed JSON via nrfi_store and depend on require_api_key.
+purpose: API-key-gated read-only endpoints for syndicate/media clients. GET /v1/status (health + coverage + client label), GET /v1/nrfi/predictions?date= (all records for a date, default latest), GET /v1/nrfi/plays?date= (BET/LEAN only), GET /v1/nrfi/clv?days=30 (CLV summary), GET /v1/nrfi/performance?days= (W/L+ROI+CLV+verdict+disclaimer), GET /v1/nrfi/clv-quality?days= (CLV-vs-winrate diagnostic — significance-tested detection of line-chasing vs predictive edge). All read committed JSON via nrfi_store and depend on require_api_key.
 inputs: query params (date, days), X-API-Key header
 outputs: dict JSON
 calls: nrfi_store.*, api_auth.require_api_key

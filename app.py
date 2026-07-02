@@ -800,6 +800,16 @@ def v1_nrfi_performance(days: int = 3650, client: str = Depends(require_api_key)
     return nrfi_store.aggregate_performance(days)
 
 
+@app.get("/v1/nrfi/clv-quality")
+def v1_nrfi_clv_quality(days: int = 3650, client: str = Depends(require_api_key)):
+    """
+    CLV vs win-rate diagnostic: is positive CLV actually predictive of winners,
+    or are we just following late line movement? Buckets resolved plays by CLV.
+    """
+    import nrfi_store
+    return nrfi_store.clv_vs_winrate(days)
+
+
 # ── Report ────────────────────────────────────────────────────────────────────
 
 @app.get("/report")

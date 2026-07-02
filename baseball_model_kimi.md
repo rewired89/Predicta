@@ -191,6 +191,10 @@ performance response:
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-02** — Added **CLV-vs-win-rate diagnostic** (`/v1/nrfi/clv-quality`):
+  buckets resolved plays by CLV and significance-tests whether higher CLV
+  actually tracks higher win rate. Flags "line-chasing" if positive CLV does not
+  predict winners (Kimi's subtle-risk watch-item #3, now instrumented).
 - **2026-07-02** — Added CLV **timing safeguard**: entry lines now record hours-
   before-first-pitch and a stale flag; headline CLV excludes entries captured
   < 3h before first pitch (so it measures *leading* the market, not moving with it).
@@ -225,6 +229,14 @@ performance response:
    until its data pipeline is reworked and given a *refuse-to-predict* gate when
    data quality is too low (it currently predicts on empty data — reputationally
    risky). Tracked as the next engineering project, not a launch blocker.
+
+### Watch-items (from Kimi — status)
+1. **9 AM ET actually beats the market** — instrumented (`avg_entry_lead_hrs`,
+   stale-exclusion). Confirm with first week of live data.
+2. **Rolling-window A/B after retrain** — planned; ~200 live predictions post-retrain.
+3. **CLV actually predicts wins** — instrumented (`/v1/nrfi/clv-quality`,
+   significance-tested). Read after ~50–100 resolved games.
+4. **Soccer refuse-to-predict gate** — not started; deferred until soccer is picked back up.
 
 ### Still open for Kimi
 - Review the actual CLV math / API JSON for soundness (samples can be shared once

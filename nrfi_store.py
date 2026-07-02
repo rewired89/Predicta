@@ -186,3 +186,82 @@ def aggregate_clv(days: int = 3650) -> dict:
         "note": ("Headline CLV uses only entry lines captured >= 3h before first "
                  "pitch, so it measures leading the market, not moving with it."),
     }
+
+
+def clv_vs_winrate(days: int = 3650) -> dict:
+    """
+    Detects Kimi's subtle CLV risk: is positive CLV actually *predictive* of
+    winners, or are we just being led by late line movement (lineups, weather,
+    sharp action between entry and first pitch)?
+
+    Buckets resolved, non-stale plays by CLV and reports the win rate in each.
+    If win rate does NOT rise with CLV, the "edge" is line-chasing, not skill.
+    Also computes the correlation between clv_pp and the win/loss outcome.
+
+    Only meaningful once enough games have resolved; returns a status message
+    until then.
+    """
+    plays = [
+        p for d in _recent_dates(days) for p in _plays(load_date(d))
+        if p.get("clv_pp") is not None
+        and p.get("won") in (0, 1)
+        and not p.get("entry_stale")
+    ]
+    if not plays:
+        return {"n": 0, "status": "no resolved CLV plays yet",
+                "message": "Need resolved games with entry+closing lines to run this."}
+
+    bucket_defs = [
+        ("<0pp (negative CLV)", lambda c: c < 0),
+        ("0-2pp",              lambda c: 0 <= c < 2),
+        ("2-5pp",              lambda c: 2 <= c < 5),
+        ("5pp+",               lambda c: c >= 5),
+    ]
+    buckets = {}
+    for label, test in bucket_defs:
+        b = [p for p in plays if test(p["clv_pp"])]
+        if b:
+            wins = sum(1 for p in b if p["won"] == 1)
+            buckets[label] = {"n": len(b), "wins": wins,
+                              "win_rate_pct": round(wins / len(b) * 100, 1)}
+        else:
+            buckets[label] = {"n": 0, "win_rate_pct": None}
+
+    # Pearson correlation between clv_pp and outcome (won = 1/0).
+    n = len(plays)
+    xs = [p["clv_pp"] for p in plays]
+    ys = [float(p["won"]) for p in plays]
+    mx, my = sum(xs) / n, sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    vx  = sum((x - mx) ** 2 for x in xs)
+    vy  = sum((y - my) ** 2 for y in ys)
+    corr = round(cov / (vx * vy) ** 0.5, 3) if vx > 0 and vy > 0 else None
+
+    # Significance test on the correlation (t-test), so we don't call a small
+    # noisy sample "predictive". t = r*sqrt((n-2)/(1-r^2)); |t|>1.96 ≈ p<0.05.
+    t_stat = None
+    if corr is not None and n > 2 and abs(corr) < 1.0:
+        t_stat = corr * ((n - 2) / (1 - corr ** 2)) ** 0.5
+
+    if n < 50:
+        verdict = f"INCONCLUSIVE — only {n} resolved CLV plays (need ~50+)"
+    elif t_stat is None:
+        verdict = "INCONCLUSIVE"
+    elif t_stat > 1.96:
+        verdict = "CLV IS PREDICTIVE — higher CLV significantly tracks higher win rate"
+    elif t_stat < -1.96:
+        verdict = ("WARNING — CLV NEGATIVELY tracks wins. Likely line-chasing "
+                   "(being led by late info), not a real edge.")
+    else:
+        verdict = ("WEAK / NOT SIGNIFICANT — CLV does not yet clearly predict "
+                   "wins; keep collecting.")
+
+    return {
+        "n":                n,
+        "clv_win_corr":     corr,
+        "t_stat":           round(t_stat, 2) if t_stat is not None else None,
+        "verdict":          verdict,
+        "buckets":          buckets,
+        "note": ("If win rate does not rise across the buckets, positive CLV is "
+                 "line movement we followed, not predictive skill."),
+    }
