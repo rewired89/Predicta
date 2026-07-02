@@ -48,8 +48,33 @@ def build(season: int | None = None, fg_only: bool = False) -> None:
 
     df = _load_fg_pitchers(yr)
     if df is None or df.empty:
-        print("ERROR: FanGraphs pitching_stats returned nothing. Are you on a "
-              "residential IP? (FanGraphs blocks datacenter IPs.)")
+        # Surface the REAL error so we can tell a VPN/IP block from a dead
+        # endpoint or a season-not-yet-available issue.
+        print("FanGraphs returned nothing — diagnosing the actual cause...\n")
+        try:
+            import pybaseball as pyb
+        except Exception as e:
+            print(f"  pybaseball import failed: {type(e).__name__}: {e}")
+            print("  → Fix: pip install pybaseball")
+            sys.exit(1)
+        for probe_yr in (yr, yr - 1):
+            try:
+                print(f"  probing pyb.pitching_stats({probe_yr}) ...")
+                pdf = pyb.pitching_stats(probe_yr, qual=10)
+                n = 0 if pdf is None else len(pdf)
+                print(f"    → returned {n} rows")
+                if n:
+                    print("    (this year works — re-run without --season, or use "
+                          f"--season {probe_yr})")
+                    sys.exit(1)
+            except Exception as e:
+                print(f"    → {type(e).__name__}: {str(e)[:180]}")
+        print("\nMost likely causes, in order:")
+        print("  1. VPN is ON — turn it OFF and retry (VPN exit IPs are datacenter"
+              " IPs, which FanGraphs blocks). This is the #1 cause.")
+        print("  2. FanGraphs endpoint changed — upgrade pybaseball:"
+              " pip install -U pybaseball")
+        print(f"  3. {yr} season not published yet — try --season {yr-1}")
         sys.exit(1)
 
     names = df["Name"].tolist()
