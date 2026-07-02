@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-02 (rev 3 — freshness tracking + validation separation per Kimi feedback)
+> **Last updated:** 2026-07-02 (rev 4 — Over/Under market + all-market auto-resolution)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -37,6 +37,7 @@ auto-scan ran 2026-07-02: 9 games scanned, 7 flagged edges (mostly moneylines),
 |--------|----------|-------|
 | Moneyline | Who wins the game? | Split Poisson + Elo blend |
 | First 5 innings (F5) | Who leads after 5 innings? | Split Poisson (starter-weighted) |
+| Game Total (O/U) | Over or under X.5 runs? | Split Poisson (lines 6.5–10.5) |
 | NRFI / YRFI | Does *anyone* score in the 1st inning? | XGBoost + calibration |
 
 ---
@@ -305,6 +306,14 @@ raced with Railway's pushes (causing git push rejections). See §8.
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-02 (rev 4)** — **Over/Under (Game Total) market**: the Poisson engine
+  already computed totals probabilities at 6.5–10.5 lines internally; now surfaced
+  as a 4th bet market with BET ≥62% / LEAN ≥57% thresholds. Expected total runs
+  shown per game. Report now has 5 columns: Matchup | Exp. Runs | ML | F5 | O/U | NRFI.
+- **2026-07-02 (rev 4)** — **All-market auto-resolution**: resolve now grades ALL
+  four markets from one MLB linescore fetch: moneyline (final winner), F5 (leader
+  after 5 innings), O/U (total runs vs predicted line), NRFI (first-inning outcome).
+  Results section shows per-market accuracy table. No manual tracking needed.
 - **2026-07-02 (rev 3)** — **Feature store freshness tracking**: daily report
   shows source, pitcher count, age, ⚠️ STALE (>7d) and ⚠️ EXPIRED (>14d) flags.
   Prevents silent data-integrity drift from forgotten CSV updates.
