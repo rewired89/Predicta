@@ -516,6 +516,29 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
         "",
     ]
 
+    # ── Live Validation Tracker (cumulative proof-of-edge snapshot) ──────────
+    try:
+        import nrfi_store
+        vt = nrfi_store.validation_tracker()
+        def _fmt(v, suffix=""):
+            return f"{v}{suffix}" if v is not None else "—"
+        lines += [
+            "## Live Validation Tracker",
+            "",
+            "```",
+            f"Resolved predictions : {vt['resolved_predictions']}",
+            f"Win rate             : {_fmt(vt['win_rate_pct'], '%')}",
+            f"CLV-quality verdict  : {vt['clv_quality_verdict']}",
+            f"Avg entry lead time  : {_fmt(vt['avg_entry_lead_hrs'], ' hrs')} (n={vt['clv_plays']})",
+            f"Avg CLV              : {_fmt(vt['avg_clv_pp'], ' pp')}",
+            f"Beat the close       : {_fmt(vt['beat_close_pct'], '%')}",
+            f"Stale exclusions     : {vt['stale_exclusions']}",
+            "```",
+            "",
+        ]
+    except Exception:
+        pass
+
     if bets:
         lines += ["## Plays", ""]
         lines += ["| # | Matchup | Starter (H) | Starter (A) | p_NRFI | Verdict | Half-Kelly | CLV | Model |",

@@ -189,8 +189,36 @@ performance response:
 
 ---
 
+## 9b. Live Validation Tracker
+
+Rendered at the top of every daily report (cumulative, auto-updated). Current:
+
+```
+Resolved predictions : 0
+Win rate             : —
+CLV-quality verdict  : INCONCLUSIVE (awaiting ~30–50 games)
+Avg entry lead time  : 15.3 hrs (n=9, first live capture)
+Avg CLV              : — (first close not yet captured)
+Beat the close       : —
+Stale exclusions     : 0
+```
+
+## 9c. CLV math notes (pre-answers to Kimi's review)
+
+- **No push at the 0.5 line.** First-inning runs are integers: 0 → Under 0.5 =
+  NRFI; 1+ → Over 0.5 = YRFI. Nothing lands *on* 0.5, so there is no push to
+  handle. (Push only arises on an integer line like 1.0 — we deliberately use 0.5.)
+- **Devig is proportional (multiplicative):** `fair = (1/dec) / Σ(1/dec)`. It is
+  **symmetric** by construction — a −120/+100 pair and its mirror +100/−120 both
+  yield NRFI/YRFI fair = 0.5217 (verified).
+- **CLV is measured on the bet side** as vig-free closing prob − vig-free entry
+  prob; entries < 3h before first pitch are excluded from the headline.
+
 ## 10. Recent changes (newest first)
 
+- **2026-07-02** — Added **Live Validation Tracker** to every daily report + a
+  `nrfi_store.validation_tracker()` snapshot (resolved count, win rate, CLV-quality
+  verdict, avg entry lead time, avg CLV, beat-close %, stale exclusions).
 - **2026-07-02** — Added **CLV-vs-win-rate diagnostic** (`/v1/nrfi/clv-quality`):
   buckets resolved plays by CLV and significance-tests whether higher CLV
   actually tracks higher win rate. Flags "line-chasing" if positive CLV does not

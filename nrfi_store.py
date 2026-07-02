@@ -265,3 +265,24 @@ def clv_vs_winrate(days: int = 3650) -> dict:
         "note": ("If win rate does not rise across the buckets, positive CLV is "
                  "line movement we followed, not predictive skill."),
     }
+
+
+def validation_tracker(days: int = 3650) -> dict:
+    """
+    One-glance proof-of-edge snapshot (Kimi's "Live Validation Tracker").
+    Cumulative across the committed prediction record. Rendered at the top of
+    every daily report so proof status is transparent to us and to buyers.
+    """
+    perf = aggregate_performance(days)
+    clvq = clv_vs_winrate(days)
+    clv  = perf.get("clv", {}) or {}
+    return {
+        "resolved_predictions": perf.get("n_resolved", 0),
+        "win_rate_pct":         perf.get("win_rate_pct"),
+        "clv_quality_verdict":  clvq.get("verdict") or clvq.get("status", "INCONCLUSIVE"),
+        "avg_entry_lead_hrs":   clv.get("avg_entry_lead_hrs"),
+        "clv_plays":            clv.get("n", 0),
+        "avg_clv_pp":           clv.get("avg_clv_pp"),
+        "beat_close_pct":       clv.get("beat_close_pct"),
+        "stale_exclusions":     clv.get("n_stale_excluded", 0),
+    }
