@@ -10,20 +10,28 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
 def _migrate_sport_check(conn: sqlite3.Connection) -> None:
-    """Widen matches.sport CHECK to include all active sports (baseball, esports)."""
-    # Clean up any leftover backup table from a previously interrupted migration
-    bak_exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='_matches_bak'"
-    ).fetchone()
-    if bak_exists:
-        conn.execute("DROP TABLE _matches_bak")
-        conn.commit()
+    """
+    Widen matches.sport CHECK to include all active sports (baseball, esports).
+
+    Concurrency-safe: schema.sql already ships the full constraint, so on any
+    fresh DB this returns immediately without touching the table. The rename/
+    rebuild path only runs to upgrade a pre-existing DB created by the old
+    schema, and is wrapped so two overlapping callers (e.g. a web request and a
+    background thread both calling init_db) can never crash on a half-migrated
+    _matches_bak — the loser rolls back and the winner's result stands.
+    """
+    FULL_CONSTRAINT = "'soccer','table_tennis','tennis','baseball','esports'"
 
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='matches'"
     ).fetchone()
-    FULL_CONSTRAINT = "'soccer','table_tennis','tennis','baseball','esports'"
-    if row and FULL_CONSTRAINT not in row[0]:
+
+    # Already up to date (or table not created yet) — nothing to do.
+    if not row or FULL_CONSTRAINT in row[0]:
+        return
+
+    try:
+        conn.execute("DROP TABLE IF EXISTS _matches_bak")
         conn.execute("ALTER TABLE matches RENAME TO _matches_bak")
         conn.execute(f"""
             CREATE TABLE matches (
@@ -41,6 +49,28 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO matches SELECT * FROM _matches_bak")
         conn.execute("DROP TABLE _matches_bak")
         conn.commit()
+    except Exception:
+        # A concurrent init_db won the race, or a prior attempt was interrupted.
+        # Roll back our partial work, then recover to a valid `matches` table
+        # regardless of the intermediate state we find.
+        conn.rollback()
+        have_matches = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='matches'"
+        ).fetchone()
+        have_bak = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='_matches_bak'"
+        ).fetchone()
+        try:
+            if not have_matches and have_bak:
+                # RENAME committed but rebuild didn't — restore the original.
+                conn.execute("ALTER TABLE _matches_bak RENAME TO matches")
+                conn.commit()
+            elif have_matches and have_bak:
+                # Winner already rebuilt matches — just drop the leftover backup.
+                conn.execute("DROP TABLE _matches_bak")
+                conn.commit()
+        except Exception:
+            conn.rollback()
 
 
 def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:

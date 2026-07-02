@@ -3124,22 +3124,6 @@ mutates: none
 
 ---
 
-## db/database.py (additions)
-
----
-name: _migrate_sport_check
-type: function
-file: db/database.py
-purpose: One-time migration — recreates matches table with updated sport CHECK constraint that includes 'baseball'; cleans up any leftover _matches_bak from a previously interrupted run before attempting.
-inputs: conn: sqlite3.Connection
-outputs: none
-calls: conn.execute, conn.commit
-called_by: init_db
-mutates: matches table (rename → recreate → copy → drop old)
----
-
----
-
 ## fetchers/data_cache.py
 
 ---
@@ -7385,12 +7369,12 @@ Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tenn
 name: _migrate_sport_check
 type: function
 file: db/database.py
-purpose: Widens the matches.sport CHECK constraint to include all 5 active sports: soccer, table_tennis, tennis, baseball, esports. Detects if the full constraint string is absent from the existing DDL and, if so, renames the table, recreates it with the full constraint, copies data back, and drops the backup. Idempotent — skips if constraint already present. Also cleans up any leftover _matches_bak from a previously interrupted migration.
+purpose: Widens the matches.sport CHECK constraint to include all 5 active sports (soccer, table_tennis, tennis, baseball, esports). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB. Concurrency-safe: wrapped in try/except so two overlapping init_db callers (e.g. a web request + a background thread) can never crash on a half-migrated _matches_bak — the loser rolls back and recovers to a valid matches table whatever intermediate state it finds. Idempotent.
 inputs: conn: sqlite3.Connection
 outputs: none
-calls: sqlite3.Connection.execute, conn.commit
+calls: sqlite3.Connection.execute, conn.commit, conn.rollback
 called_by: init_db
-mutates: predicta.db schema (matches table DDL)
+mutates: predicta.db schema (matches table DDL) — only when upgrading an old-schema DB
 ---
 
 
