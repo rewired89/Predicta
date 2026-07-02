@@ -707,10 +707,16 @@ def nrfi_auto_status():
 
 
 @app.post("/nrfi-auto/run")
-def nrfi_auto_run(job: str = "predict", date: Optional[str] = None):
+def nrfi_auto_run(job: str = "predict", date: Optional[str] = None,
+                  background: bool = True):
     """
     Manually fire an NRFI job now (for testing / on-demand). job = predict |
-    capture | resolve. Runs synchronously and returns the result + push status.
+    capture | resolve.
+
+    Defaults to background=true: launches the job in a thread and returns
+    immediately (a full predict run takes ~1 min — longer than a browser waits).
+    Check progress/result at GET /nrfi-auto/status. Pass background=false to run
+    synchronously and get the result inline (may time out on slow runs).
     """
     from tasks import nrfi_auto
     fn = {"predict": nrfi_auto.run_predict,
@@ -718,6 +724,14 @@ def nrfi_auto_run(job: str = "predict", date: Optional[str] = None):
           "resolve": nrfi_auto.run_resolve}.get(job)
     if fn is None:
         raise HTTPException(400, "job must be one of: predict, capture, resolve")
+
+    if background:
+        import threading
+        threading.Thread(target=lambda: nrfi_auto._run_job(job, lambda: fn(date),
+                                                           f"last_{job}"),
+                         name=f"nrfi-manual-{job}", daemon=True).start()
+        return {"job": job, "status": "started",
+                "note": "running in background — check GET /nrfi-auto/status"}
     try:
         return {"job": job, "result": fn(date)}
     except Exception as exc:
