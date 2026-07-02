@@ -7170,6 +7170,78 @@ mutates: data/nrfi_dataset.csv
 
 ---
 
+## scripts/daily_nrfi.py
+
+---
+name: daily_nrfi
+type: script
+file: scripts/daily_nrfi.py
+purpose: Automated daily NRFI pipeline. Morning mode (default): fetches today's MLB schedule, runs NRFI analysis for each game via run_baseball_analysis(), saves raw predictions to data/nrfi_predictions/YYYY-MM-DD.json and a markdown report to data/nrfi_reports/YYYY-MM-DD.md. Night/resolve mode (--resolve): loads yesterday's prediction JSON, fetches final linescores from MLB Stats API, computes NRFI/YRFI outcome for each game, and appends a Results section to the markdown report. Triggered by GitHub Actions nrfi_daily.yml (predict 9 AM ET, resolve 1 AM ET).
+inputs: --resolve (flag), --date YYYY-MM-DD (optional override)
+outputs: data/nrfi_predictions/YYYY-MM-DD.json, data/nrfi_reports/YYYY-MM-DD.md
+calls: run_baseball_analysis (analyze_baseball.py), MLB Stats API (/schedule, /game/{pk}/linescore), ESPN cache fallback (data/live/mlb_scoreboard.json)
+called_by: .github/workflows/nrfi_daily.yml (cron), manual: python scripts/daily_nrfi.py
+mutates: data/nrfi_predictions/, data/nrfi_reports/
+---
+
+name: fetch_schedule
+type: function
+file: scripts/daily_nrfi.py
+purpose: Returns list of game dicts {game_pk, home_abbr, away_abbr, home_name, away_name, game_time} for a given date. Primary: MLB Stats API /schedule. Fallback: ESPN scoreboard cache at data/live/mlb_scoreboard.json.
+inputs: game_date: str (YYYY-MM-DD)
+outputs: list[dict]
+calls: _fetch_schedule_mlb, _fetch_schedule_espn_cache
+called_by: main (daily_nrfi.py)
+mutates: none
+---
+
+name: run_predictions
+type: function
+file: scripts/daily_nrfi.py
+purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, and starters. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
+inputs: games: list[dict], game_date: str
+outputs: list[dict]
+calls: run_baseball_analysis (analyze_baseball.py)
+called_by: main (daily_nrfi.py)
+mutates: none
+---
+
+name: resolve_predictions
+type: function
+file: scripts/daily_nrfi.py
+purpose: Loads prediction JSON for a given date, fetches MLB Stats API linescores, computes NRFI/YRFI outcome, W/L, and P&L in units (assuming -110 juice: win=+0.909u, loss=-1.0u). Only resolves rows where outcome is still None.
+inputs: game_date: str
+outputs: list[dict] (updated predictions)
+calls: fetch_linescore (MLB Stats API /game/{pk}/linescore)
+called_by: main (daily_nrfi.py)
+mutates: none (caller saves to disk)
+---
+
+name: write_report
+type: function
+file: scripts/daily_nrfi.py
+purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
+inputs: predictions: list[dict], game_date: str, is_resolve: bool
+outputs: Path (written file)
+calls: none
+called_by: main (daily_nrfi.py)
+mutates: data/nrfi_reports/YYYY-MM-DD.md
+---
+
+## .github/workflows/nrfi_daily.yml
+
+---
+name: nrfi_daily
+type: workflow
+file: .github/workflows/nrfi_daily.yml
+purpose: GitHub Actions workflow for automated daily NRFI predictions and resolution. Job "predict" runs at 1 PM UTC (9 AM ET) to run morning predictions and commit results to main. Job "resolve" runs at 5 AM UTC (1 AM ET) to fetch last night's linescores and update reports. Both jobs can be triggered manually via workflow_dispatch with mode (predict/resolve) and optional date override. Commits use [skip ci] to avoid recursive triggers.
+inputs: ANTHROPIC_API_KEY (secret), OPENWEATHER_API_KEY (secret), workflow_dispatch inputs: mode (predict|resolve), date (optional)
+outputs: commits to data/nrfi_predictions/ and data/nrfi_reports/ on main
+calls: scripts/daily_nrfi.py
+called_by: GitHub Actions cron scheduler, workflow_dispatch
+mutates: main branch (nrfi_predictions/ + nrfi_reports/ directories)
+---
+
 ## models/nrfi_model.py
 
 ---
