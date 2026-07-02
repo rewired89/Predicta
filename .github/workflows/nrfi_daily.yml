@@ -47,8 +47,8 @@ jobs:
 
       - name: Run predictions
         env:
-          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENWEATHER_API_KEY:  ${{ secrets.OPENWEATHER_API_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY || vars.ANTHROPIC_API_KEY }}
+          OPENWEATHER_API_KEY:  ${{ secrets.OPENWEATHER_API_KEY || vars.OPENWEATHER_API_KEY }}
           ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY || vars.ODDS_API_KEY }}
         run: |
           DATE_ARG=""
@@ -141,8 +141,8 @@ jobs:
 
       - name: Resolve last night's games
         env:
-          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENWEATHER_API_KEY:  ${{ secrets.OPENWEATHER_API_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY || vars.ANTHROPIC_API_KEY }}
+          OPENWEATHER_API_KEY:  ${{ secrets.OPENWEATHER_API_KEY || vars.OPENWEATHER_API_KEY }}
           ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY || vars.ODDS_API_KEY }}
         run: |
           DATE_ARG=""
