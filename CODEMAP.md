@@ -6490,10 +6490,10 @@ mutates: none
 name: build_feature_store
 type: script
 file: scripts/build_feature_store.py
-purpose: Builds data/nrfi_feature_store.json LOCALLY (residential IP, where FanGraphs works) so CI never live-fetches. Loads FanGraphs pitching_stats (bulk, cached) for the pitcher universe + per-pitcher fields (SIERA/xFIP/CSW%/O-Swing%/K%/BB%/GB%/HR-FB); optionally per-pitcher Savant barrel%/hard-hit%/velo/whiff (--fg-only skips for a fast core build). Reuses fetchers.savant fetch functions so units match the training data. Refresh every few days and commit. Run after nothing / independently of retrain.
-inputs: --season <int>, --fg-only (flag)
+purpose: Builds data/nrfi_feature_store.json LOCALLY (residential IP) so CI never live-fetches. BACKBONE = Baseball Savant exit-velo/barrels leaderboard (pyb.statcast_pitcher_exitvelo_barrels — one bulk call, MLB-official, rarely blocks) → pitcher universe + barrel%/hard-hit%/exit-velo/xwOBA. FanGraphs (SIERA/xFIP/CSW%/O-Swing%/K%/BB%/GB%/HR-FB) merged BEST-EFFORT and auto-skipped when its endpoint 403s (FanGraphs retired leaders-legacy.aspx → 403 for all IPs). --with-arsenal adds per-pitcher fastball velo/whiff (slow). Name key normalized from Savant 'Last, First'. NaN dropped. Even Savant-only (no FanGraphs) un-flattens the model: ESPN FIP + real Statcast per pitcher. Refresh every few days and commit.
+inputs: --season <int>, --with-arsenal (flag)
 outputs: data/nrfi_feature_store.json
-calls: fetchers.savant (_load_fg_pitchers, fetch_pitcher_fg, fetch_pitcher_statcast, fetch_pitcher_arsenal)
+calls: pybaseball.statcast_pitcher_exitvelo_barrels, fetchers.savant (_load_fg_pitchers, fetch_pitcher_arsenal, _current_season)
 called_by: manual: python scripts/build_feature_store.py
 mutates: data/nrfi_feature_store.json
 ---

@@ -2,18 +2,28 @@
 scripts/build_feature_store.py
 
 Build the committed pitcher feature store (data/nrfi_feature_store.json) that
-lets the NRFI model get real FanGraphs/Savant features in CI, where those
-sources are IP-blocked.
+lets the NRFI model get real advanced pitcher features in CI, where the live
+stat sources are unreachable.
 
-WHY: FanGraphs' leaders endpoint blocks datacenter IPs, so live enrichment
-silently fails on GitHub Actions / Railway and every starter defaults to ESPN
-— flattening the model to ~51% on every game. Run THIS locally (residential
-IP, where FanGraphs works), commit the JSON, and the pipeline reads it at
-runtime with no live fetch. Refresh every few days.
+WHY: FanGraphs retired the legacy leaderboard endpoint pybaseball uses (it now
+returns HTTP 403 for everyone, on any IP), and both FanGraphs and Baseball
+Savant block/deny datacenter IPs (GitHub Actions, Railway). So live enrichment
+fails in production and every starter defaults to ESPN — flattening the NRFI
+model to ~51% on every game. Run THIS locally (residential IP), commit the
+JSON, and the pipeline reads it at runtime with no live fetch.
+
+Data sources (in order of reliability from a residential IP):
+  - Baseball Savant (MLB official)  → barrel%, hard-hit%, exit velo, xwOBA
+                                       (the backbone — one bulk leaderboard call)
+  - FanGraphs (best-effort)         → SIERA, xFIP, CSW%, O-Swing%, K%, BB%,
+                                       GB%, HR/FB — SKIPPED automatically if the
+                                       endpoint 403s (it currently does)
+  - Savant pitch arsenal (optional) → fastball velo, whiff% (--with-arsenal;
+                                       per-pitcher, slower)
 
 Usage:
-  python scripts/build_feature_store.py            # FanGraphs + Savant (fuller)
-  python scripts/build_feature_store.py --fg-only  # FanGraphs only (fast core)
+  python scripts/build_feature_store.py                 # Savant backbone (+FG if it works)
+  python scripts/build_feature_store.py --with-arsenal  # also fastball velo / whiff (slower)
   python scripts/build_feature_store.py --season 2025
 
 Then commit data/nrfi_feature_store.json.
@@ -36,121 +46,134 @@ def _norm(name: str) -> str:
     return "".join(c for c in (name or "").lower() if c.isalnum())
 
 
-def build(season: int | None = None, fg_only: bool = False) -> None:
-    from fetchers.savant import (
-        _load_fg_pitchers, fetch_pitcher_fg, fetch_pitcher_statcast,
-        fetch_pitcher_arsenal, _current_season,
-    )
+def _norm_savant(last_first: str) -> tuple[str, str]:
+    """'Valdez, Framber' → (normalized key 'frambervaldez', display 'Framber Valdez')."""
+    if "," in last_first:
+        last, first = [p.strip() for p in last_first.split(",", 1)]
+        disp = f"{first} {last}".strip()
+    else:
+        disp = last_first.strip()
+    return _norm(disp), disp
+
+
+def _safe(v):
+    try:
+        f = float(v)
+        return f if f == f else None   # drop NaN
+    except (TypeError, ValueError):
+        return None
+
+
+def build(season: int | None = None, with_arsenal: bool = False) -> None:
+    try:
+        import pybaseball as pyb
+    except Exception as e:
+        print(f"pybaseball import failed: {e}\n  → pip install pybaseball")
+        sys.exit(1)
+    from fetchers.savant import _current_season, _load_fg_pitchers, fetch_pitcher_arsenal
 
     yr = season or _current_season()
-    print(f"Building feature store for season {yr} "
-          f"({'FanGraphs only' if fg_only else 'FanGraphs + Savant'})...")
+    print(f"Building feature store for season {yr} (Baseball Savant backbone)...\n")
 
-    df = _load_fg_pitchers(yr)
-    if df is None or df.empty:
-        # Surface the REAL error so we can tell a VPN/IP block from a dead
-        # endpoint or a season-not-yet-available issue.
-        print("FanGraphs returned nothing — diagnosing the actual cause...\n")
-        try:
-            import pybaseball as pyb
-        except Exception as e:
-            print(f"  pybaseball import failed: {type(e).__name__}: {e}")
-            print("  → Fix: pip install pybaseball")
-            sys.exit(1)
-        for probe_yr in (yr, yr - 1):
-            try:
-                print(f"  probing pyb.pitching_stats({probe_yr}) ...")
-                pdf = pyb.pitching_stats(probe_yr, qual=10)
-                n = 0 if pdf is None else len(pdf)
-                print(f"    → returned {n} rows")
-                if n:
-                    print("    (this year works — re-run without --season, or use "
-                          f"--season {probe_yr})")
-                    sys.exit(1)
-            except Exception as e:
-                print(f"    → {type(e).__name__}: {str(e)[:180]}")
-        print("\nMost likely causes, in order:")
-        print("  1. VPN is ON — turn it OFF and retry (VPN exit IPs are datacenter"
-              " IPs, which FanGraphs blocks). This is the #1 cause.")
-        print("  2. FanGraphs endpoint changed — upgrade pybaseball:"
-              " pip install -U pybaseball")
-        print(f"  3. {yr} season not published yet — try --season {yr-1}")
+    # ── Backbone: Baseball Savant exit-velo / barrels leaderboard (one bulk call)
+    try:
+        sv = pyb.statcast_pitcher_exitvelo_barrels(yr, minBBE=20)
+    except Exception as e:
+        print(f"Baseball Savant fetch FAILED: {type(e).__name__}: {str(e)[:200]}")
+        print("\nSavant is MLB's official site and rarely blocks residential IPs.")
+        print("If this failed from home, check: internet up? pybaseball installed?")
+        print(f"Also try last season: --season {yr-1}")
+        sys.exit(1)
+    if sv is None or sv.empty:
+        print(f"Savant returned no rows for {yr}. Try --season {yr-1}.")
         sys.exit(1)
 
-    names = df["Name"].tolist()
-    print(f"FanGraphs returned {len(names)} qualified pitchers.")
+    name_col = "last_name, first_name"
+    if name_col not in sv.columns:
+        print(f"Unexpected Savant columns: {list(sv.columns)[:15]}")
+        sys.exit(1)
 
     pitchers: dict[str, dict] = {}
-    sources = ["fangraphs"] if fg_only else ["fangraphs", "savant"]
-
-    for i, name in enumerate(names, 1):
-        fg = fetch_pitcher_fg(name, yr)      # cached df → fast
-        if not fg:
+    for _, row in sv.iterrows():
+        key, disp = _norm_savant(str(row.get(name_col, "")))
+        if not key:
             continue
-        feat = {
-            "display_name": name,
-            "siera":        fg.get("siera"),
-            "xfip":         fg.get("xfip"),
-            "fip":          fg.get("fip"),
-            "era":          fg.get("era"),
-            "k_pct":        fg.get("k_pct"),
-            "bb_pct":       fg.get("bb_pct"),
-            "k_bb_ratio":   fg.get("k_bb_ratio"),
-            "swstr_pct":    fg.get("swstr_pct"),
-            "f_strike_pct": fg.get("f_strike_pct"),
-            "zone_pct":     fg.get("zone_pct"),
-            "o_swing_pct":  fg.get("o_swing_pct"),
-            "contact_pct":  fg.get("contact_pct"),
-            "csw_pct":      fg.get("csw_pct"),
-            "gb_pct":       fg.get("gb_pct"),
-            "hr_fb_pct":    fg.get("hr_fb_pct"),
-            "whip":         fg.get("whip"),
+        pitchers[key] = {
+            "display_name":         disp,
+            "barrel_pct_against":   _safe(row.get("barrel_batted_rate")),
+            "hard_hit_pct_against": _safe(row.get("hard_hit_percent")),
+            "exit_velo_against":    _safe(row.get("avg_hit_speed")),
+            "xwoba_against":        _safe(row.get("xwoba")),
         }
+    print(f"Savant: {len(pitchers)} pitchers with barrel%/hard-hit%/velo/xwOBA.")
 
-        if not fg_only:
+    # ── Best-effort: FanGraphs for SIERA/xFIP/CSW%/O-Swing% (skipped if 403)
+    sources = ["baseball_savant"]
+    fg_df = _load_fg_pitchers(yr)
+    if fg_df is not None and not fg_df.empty:
+        sources.append("fangraphs")
+        n_fg = 0
+        for _, r in fg_df.iterrows():
+            key = _norm(str(r.get("Name", "")))
+            if key not in pitchers:
+                pitchers[key] = {"display_name": str(r.get("Name", ""))}
+            p = pitchers[key]
+            for src_col, dst in [
+                ("SIERA", "siera"), ("xFIP", "xfip"), ("FIP", "fip"),
+                ("CSW%", "csw_pct"), ("O-Swing%", "o_swing_pct"),
+                ("K%", "k_pct"), ("BB%", "bb_pct"),
+                ("GB%", "gb_pct"), ("HR/FB", "hr_fb_pct"),
+            ]:
+                v = _safe(r.get(src_col))
+                if v is not None:
+                    p[dst] = v
+            n_fg += 1
+        print(f"FanGraphs: merged advanced stats for {n_fg} pitchers.")
+    else:
+        print("FanGraphs: unavailable (endpoint 403) — SIERA/CSW%/O-Swing% will "
+              "default; ESPN FIP + Savant Statcast still differentiate games.")
+
+    # ── Optional: per-pitcher arsenal for fastball velo + whiff (slower)
+    if with_arsenal:
+        print("Fetching pitch arsenal (velo/whiff) per pitcher — this is slow...")
+        for i, (key, p) in enumerate(list(pitchers.items()), 1):
             try:
-                sv = fetch_pitcher_statcast(name, yr)
-                if sv:
-                    feat["barrel_pct_against"]   = sv.get("barrel_pct_against")
-                    feat["hard_hit_pct_against"] = sv.get("hard_hit_pct_against")
-                    feat["exit_velo_against"]    = sv.get("exit_velo_against")
-                    feat["xwoba_against"]        = sv.get("xwoba_against")
-                ar = fetch_pitcher_arsenal(name, yr)
+                ar = fetch_pitcher_arsenal(p["display_name"], yr)
                 if ar:
-                    feat["avg_fb_velo"]  = ar.get("avg_fb_velo")
-                    feat["whiff_pct"]    = ar.get("whiff_pct")
-                    feat["fastball_pct"] = ar.get("fastball_pct")
-                    feat["breaking_pct"] = ar.get("breaking_pct")
-            except Exception as exc:
-                print(f"  savant lookup failed for {name}: {exc}")
-            time.sleep(0.3)  # be gentle with Savant
-
-        pitchers[_norm(name)] = feat
-        if i % 25 == 0:
-            print(f"  {i}/{len(names)} pitchers...")
+                    if ar.get("avg_fb_velo") is not None:
+                        p["avg_fb_velo"] = ar["avg_fb_velo"]
+                    if ar.get("whiff_pct") is not None:
+                        p["whiff_pct"] = ar["whiff_pct"]
+            except Exception:
+                pass
+            time.sleep(0.3)
+            if i % 25 == 0:
+                print(f"  arsenal {i}/{len(pitchers)}...")
+        sources.append("savant_arsenal")
 
     store = {
-        "season":   yr,
-        "built_at": datetime.now(timezone.utc).isoformat(),
-        "sources":  sources,
+        "season":     yr,
+        "built_at":   datetime.now(timezone.utc).isoformat(),
+        "sources":    sources,
         "n_pitchers": len(pitchers),
-        "pitchers": pitchers,
+        "pitchers":   pitchers,
     }
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_PATH, "w") as f:
         json.dump(store, f, indent=2)
 
-    n_siera  = sum(1 for p in pitchers.values() if p.get("siera") is not None)
     n_barrel = sum(1 for p in pitchers.values() if p.get("barrel_pct_against") is not None)
+    n_siera  = sum(1 for p in pitchers.values() if p.get("siera") is not None)
     print(f"\nSaved {len(pitchers)} pitchers → {OUT_PATH}")
-    print(f"  with SIERA: {n_siera}  |  with barrel%: {n_barrel}")
-    print("Commit data/nrfi_feature_store.json to activate it in CI.")
+    print(f"  with barrel%: {n_barrel}  |  with SIERA: {n_siera}  |  sources: {sources}")
+    print("\nCommit it:  git add data/nrfi_feature_store.json && "
+          "git commit -m 'nrfi: feature store' && git push")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=None)
-    ap.add_argument("--fg-only", action="store_true",
-                    help="FanGraphs only (skip per-pitcher Savant; much faster)")
+    ap.add_argument("--with-arsenal", action="store_true",
+                    help="Also fetch fastball velo / whiff per pitcher (slower)")
     args = ap.parse_args()
-    build(season=args.season, fg_only=args.fg_only)
+    build(season=args.season, with_arsenal=args.with_arsenal)
