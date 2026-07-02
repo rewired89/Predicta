@@ -706,6 +706,18 @@ def nrfi_auto_status():
     return status()
 
 
+@app.get("/nrfi-auto/odds-diag")
+def nrfi_odds_diag():
+    """
+    Diagnose why NRFI odds capture (CLV) works or fails — reports the raw Odds
+    API status, quota remaining, and whether the first-inning market comes back
+    or is rejected (wrong market / plan not included). Use this instead of
+    guessing at config.
+    """
+    from fetchers.nrfi_odds import diagnose
+    return diagnose()
+
+
 @app.post("/nrfi-auto/run")
 def nrfi_auto_run(job: str = "predict", date: Optional[str] = None,
                   background: bool = True):
