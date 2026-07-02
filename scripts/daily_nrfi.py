@@ -405,7 +405,9 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "home_1st_runs": None,
                 "away_1st_runs": None,
                 "outcome":       None,   # "NRFI" or "YRFI"
-                "won":           None,
+                "lean_side":     None,   # model's lean (NRFI/YRFI) — every game
+                "lean_correct":  None,   # 1 if lean matched outcome — every game
+                "won":           None,   # bet result (BET/LEAN only)
                 "pnl_units":     None,
             }
             verdict_str = f"{verdict} ({p_nrfi:.1f}%)" if p_nrfi else verdict
@@ -466,14 +468,21 @@ def resolve_predictions(game_date: str) -> list[dict]:
 
         p_nrfi  = pred.get("p_nrfi", 50)
         verdict = pred.get("verdict", "SKIP")
-        # Determine bet side: BET/LEAN with p_nrfi >= 50 = bet NRFI; else bet YRFI
+
+        # Model lean side + correctness for EVERY game (independent of the bet
+        # gate) so a predictive-accuracy + CLV record accumulates even while
+        # most verdicts are SKIP. NRFI when p_nrfi >= 50, else YRFI.
+        lean_side = _bet_side(p_nrfi)
+        pred["lean_side"]    = lean_side
+        pred["lean_correct"] = 1 if lean_side == outcome else 0
+
+        # Bet P&L only for actual BET/LEAN plays (real staking view).
         if verdict in ("BET", "LEAN"):
-            bet_side = "NRFI" if (p_nrfi is not None and p_nrfi >= 50) else "YRFI"
-            won      = 1 if bet_side == outcome else 0
-            pnl      = round(100 / 110, 4) if won else -1.0
+            won = 1 if lean_side == outcome else 0
+            pnl = round(100 / 110, 4) if won else -1.0
         else:
-            won  = None
-            pnl  = None
+            won = None
+            pnl = None
 
         pred["home_1st_runs"] = h1
         pred["away_1st_runs"] = a1
@@ -526,13 +535,15 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
             "## Live Validation Tracker",
             "",
             "```",
-            f"Resolved predictions : {vt['resolved_predictions']}",
-            f"Win rate             : {_fmt(vt['win_rate_pct'], '%')}",
-            f"CLV-quality verdict  : {vt['clv_quality_verdict']}",
-            f"Avg entry lead time  : {_fmt(vt['avg_entry_lead_hrs'], ' hrs')} (n={vt['clv_plays']})",
-            f"Avg CLV              : {_fmt(vt['avg_clv_pp'], ' pp')}",
-            f"Beat the close       : {_fmt(vt['beat_close_pct'], '%')}",
-            f"Stale exclusions     : {vt['stale_exclusions']}",
+            f"Model games resolved  : {vt['model_games_resolved']}",
+            f"Model lean accuracy   : {_fmt(vt['model_lean_accuracy_pct'], '%')}",
+            f"Bet plays resolved    : {vt['bet_predictions_resolved']}",
+            f"Bet win rate          : {_fmt(vt['bet_win_rate_pct'], '%')}",
+            f"CLV-quality verdict   : {vt['clv_quality_verdict']}",
+            f"Avg entry lead time   : {_fmt(vt['avg_entry_lead_hrs'], ' hrs')} (n={vt['clv_plays']})",
+            f"Avg CLV               : {_fmt(vt['avg_clv_pp'], ' pp')}",
+            f"Beat the close        : {_fmt(vt['beat_close_pct'], '%')}",
+            f"Stale exclusions      : {vt['stale_exclusions']}",
             "```",
             "",
         ]

@@ -60,8 +60,19 @@ def _recent_dates(days: int) -> list[str]:
 
 
 def _plays(records: list[dict]) -> list[dict]:
+    """Actual BET/LEAN plays — used for staking P&L / ROI."""
     return [r for r in records
             if r.get("verdict") in _BET_VERDICTS and not r.get("error")]
+
+
+def _tracked(records: list[dict]) -> list[dict]:
+    """
+    Every game the model produced a probability for (any verdict, incl. SKIP).
+    This is the model-lean universe used for predictive-accuracy and CLV, so a
+    track record accumulates even while most verdicts are SKIP.
+    """
+    return [r for r in records
+            if r.get("p_nrfi") is not None and not r.get("error")]
 
 
 def aggregate_performance(days: int = 3650) -> dict:
@@ -72,8 +83,11 @@ def aggregate_performance(days: int = 3650) -> dict:
     import math
 
     all_plays: list[dict] = []
+    tracked:   list[dict] = []
     for d in _recent_dates(days):
-        all_plays += _plays(load_date(d))
+        recs = load_date(d)
+        all_plays += _plays(recs)
+        tracked   += _tracked(recs)
 
     resolved = [p for p in all_plays if p.get("won") in (0, 1)]
     wins   = sum(1 for p in resolved if p.get("won") == 1)
@@ -81,6 +95,12 @@ def aggregate_performance(days: int = 3650) -> dict:
     pnl    = sum(p.get("pnl_units") or 0 for p in resolved)
     wr     = (wins / len(resolved)) if resolved else None
     roi    = (pnl / len(resolved) * 100) if resolved else None
+
+    # Model-lean accuracy over ALL resolved games (accumulates even when every
+    # verdict is SKIP — the pure predictive signal, separate from staking).
+    lean_resolved = [p for p in tracked if p.get("lean_correct") in (0, 1)]
+    lean_hits     = sum(1 for p in lean_resolved if p.get("lean_correct") == 1)
+    lean_acc      = round(lean_hits / len(lean_resolved) * 100, 1) if lean_resolved else None
 
     p_value = None
     ci_95 = None
@@ -135,6 +155,13 @@ def aggregate_performance(days: int = 3650) -> dict:
         "pnl_units":    round(pnl, 3),
         "ci_95":        ci_95,
         "p_value":      p_value,
+        # Model-lean accuracy: every game the model leaned on, resolved. This is
+        # what accumulates while verdicts are SKIP (bets require the 55% gate).
+        "model_lean": {
+            "n_games":         len(tracked),
+            "n_resolved":      len(lean_resolved),
+            "lean_accuracy_pct": lean_acc,
+        },
         "clv":          clv,
         "window_days":  days,
         "disclaimer":   disclaimer,
@@ -155,7 +182,7 @@ def aggregate_clv(days: int = 3650) -> dict:
     """
     clv_plays: list[dict] = []
     for d in _recent_dates(days):
-        for p in _plays(load_date(d)):
+        for p in _tracked(load_date(d)):
             if p.get("clv_pp") is not None:
                 clv_plays.append(p)
 
@@ -202,9 +229,9 @@ def clv_vs_winrate(days: int = 3650) -> dict:
     until then.
     """
     plays = [
-        p for d in _recent_dates(days) for p in _plays(load_date(d))
+        p for d in _recent_dates(days) for p in _tracked(load_date(d))
         if p.get("clv_pp") is not None
-        and p.get("won") in (0, 1)
+        and p.get("lean_correct") in (0, 1)
         and not p.get("entry_stale")
     ]
     if not plays:
@@ -221,16 +248,16 @@ def clv_vs_winrate(days: int = 3650) -> dict:
     for label, test in bucket_defs:
         b = [p for p in plays if test(p["clv_pp"])]
         if b:
-            wins = sum(1 for p in b if p["won"] == 1)
+            wins = sum(1 for p in b if p["lean_correct"] == 1)
             buckets[label] = {"n": len(b), "wins": wins,
                               "win_rate_pct": round(wins / len(b) * 100, 1)}
         else:
             buckets[label] = {"n": 0, "win_rate_pct": None}
 
-    # Pearson correlation between clv_pp and outcome (won = 1/0).
+    # Pearson correlation between clv_pp and lean correctness (1/0).
     n = len(plays)
     xs = [p["clv_pp"] for p in plays]
-    ys = [float(p["won"]) for p in plays]
+    ys = [float(p["lean_correct"]) for p in plays]
     mx, my = sum(xs) / n, sum(ys) / n
     cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
     vx  = sum((x - mx) ** 2 for x in xs)
@@ -276,13 +303,16 @@ def validation_tracker(days: int = 3650) -> dict:
     perf = aggregate_performance(days)
     clvq = clv_vs_winrate(days)
     clv  = perf.get("clv", {}) or {}
+    lean = perf.get("model_lean", {}) or {}
     return {
-        "resolved_predictions": perf.get("n_resolved", 0),
-        "win_rate_pct":         perf.get("win_rate_pct"),
-        "clv_quality_verdict":  clvq.get("verdict") or clvq.get("status", "INCONCLUSIVE"),
-        "avg_entry_lead_hrs":   clv.get("avg_entry_lead_hrs"),
-        "clv_plays":            clv.get("n", 0),
-        "avg_clv_pp":           clv.get("avg_clv_pp"),
-        "beat_close_pct":       clv.get("beat_close_pct"),
-        "stale_exclusions":     clv.get("n_stale_excluded", 0),
+        "bet_predictions_resolved": perf.get("n_resolved", 0),
+        "bet_win_rate_pct":         perf.get("win_rate_pct"),
+        "model_games_resolved":     lean.get("n_resolved", 0),
+        "model_lean_accuracy_pct":  lean.get("lean_accuracy_pct"),
+        "clv_quality_verdict":      clvq.get("verdict") or clvq.get("status", "INCONCLUSIVE"),
+        "avg_entry_lead_hrs":       clv.get("avg_entry_lead_hrs"),
+        "clv_plays":                clv.get("n", 0),
+        "avg_clv_pp":               clv.get("avg_clv_pp"),
+        "beat_close_pct":           clv.get("beat_close_pct"),
+        "stale_exclusions":         clv.get("n_stale_excluded", 0),
     }
