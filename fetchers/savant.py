@@ -469,6 +469,30 @@ def enrich_starter(
     name = starter.get("name", "")
     yr = season or _current_season()
 
+    # ── Feature store first (works in CI where FanGraphs/Savant are IP-blocked)
+    # If the committed store has this pitcher, use it and skip live fetches —
+    # they fail from datacenter IPs anyway. Live fetch below still runs when the
+    # store is absent (e.g. local dev on a residential IP).
+    try:
+        from fetchers.feature_store import lookup_pitcher_features
+        fs = lookup_pitcher_features(name)
+    except Exception:
+        fs = {}
+    if fs:
+        for k, v in fs.items():
+            if k == "display_name" or v is None:
+                continue
+            result[k] = v
+        best_quality = fs.get("siera") or fs.get("xfip") or fs.get("fip")
+        if best_quality and best_quality > 0:
+            result["fip"] = best_quality
+            result["fip_source"] = (
+                "siera" if fs.get("siera") else
+                "xfip"  if fs.get("xfip")  else "fangraphs_fip"
+            )
+        result["feature_source"] = "store"
+        return result
+
     fg = fetch_pitcher_fg(name, yr)
     if fg:
         # Use SIERA as the primary "FIP-equivalent" when available

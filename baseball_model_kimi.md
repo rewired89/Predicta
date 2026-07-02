@@ -214,8 +214,34 @@ Stale exclusions     : 0
 - **CLV is measured on the bet side** as vig-free closing prob − vig-free entry
   prob; entries < 3h before first pitch are excluded from the headline.
 
+## 9d. Feature-blocking diagnosis + fix (2026-07-02)
+
+**Diagnosis (from live diagnostics):** production predictions clustered at
+~51.3% on every game because **FanGraphs/Savant enrichment fails from server
+IPs**. Per-game feature flags showed 0/9 games enriched — *including veterans*
+(Framber Valdez, Eovaldi, May), ruling out thin-rookie data. Direct test:
+`pyb.pitching_stats` → `ProxyError`/blocked. FanGraphs blocks datacenter IPs
+(Actions, Railway) and pybaseball uses a deprecated legacy endpoint. So every
+FanGraphs/Savant feature collapsed to league mean and the model couldn't
+differentiate games (→ never clears the 55% bet gate).
+
+**Fix — precomputed feature store (preserves the full 32-feature edge):**
+`scripts/build_feature_store.py` runs **locally** (residential IP, where
+FanGraphs works), writes `data/nrfi_feature_store.json`, committed to the repo.
+At runtime `enrich_starter` reads the store first (`feature_source="store"`) and
+never live-fetches. Refresh locally every few days + commit — same rhythm as
+retraining. Chosen over an ESPN-only retrain because that would discard the
+Statcast signal and force the p=0.0049 edge to be re-proven from scratch.
+
+**Status:** store reader + build script shipped. Awaiting first local build +
+commit to populate real features; next daily run should then show
+`features_enriched: true` and spread p_nrfi across games.
+
 ## 10. Recent changes (newest first)
 
+- **2026-07-02** — Diagnosed FanGraphs/Savant server-IP block as the cause of
+  flat ~51% predictions; shipped a precomputed **feature store** (local build +
+  committed JSON, read at runtime) so the model gets real features in CI.
 - **2026-07-02** — Added **Live Validation Tracker** to every daily report + a
   `nrfi_store.validation_tracker()` snapshot (resolved count, win rate, CLV-quality
   verdict, avg entry lead time, avg CLV, beat-close %, stale exclusions).

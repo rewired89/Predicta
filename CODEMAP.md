@@ -6466,12 +6466,36 @@ mutates: none
 name: enrich_starter
 type: function
 file: fetchers/savant.py
-purpose: Non-destructively enrich an ESPN starter dict with FanGraphs SIERA/xFIP and Savant barrel%/xwOBA. Priority for fip field: SIERA > xFIP > FG FIP > original ESPN FIP. fip_source key records which was used. Returns new merged dict; original unchanged. Falls back silently.
+purpose: Non-destructively enrich an ESPN starter dict with FanGraphs SIERA/xFIP and Savant barrel%/xwOBA. NOW CHECKS THE PRECOMPUTED FEATURE STORE FIRST (fetchers.feature_store.lookup_pitcher_features): if the committed store has the pitcher, uses those fields, sets feature_source="store", and returns WITHOUT live-fetching (FanGraphs/Savant are IP-blocked from datacenter/CI). Falls through to live fetch only when the store misses (e.g. local dev on residential IP). Priority for fip field: SIERA > xFIP > FG FIP > original ESPN FIP; fip_source records which. Returns new merged dict; original unchanged.
 inputs: starter: dict, team_abbr: str = "", season: int | None
-outputs: dict
-calls: fetch_pitcher_fg, fetch_pitcher_statcast
+outputs: dict (adds feature_source="store" when store hit)
+calls: feature_store.lookup_pitcher_features, fetch_pitcher_fg, fetch_pitcher_statcast, fetch_pitcher_arsenal
 called_by: run_baseball_analysis (analyze_baseball.py step 2.5)
 mutates: none
+---
+
+---
+name: feature_store
+type: module
+file: fetchers/feature_store.py
+purpose: Reader for the committed pitcher feature store (data/nrfi_feature_store.json) — the fix for FanGraphs/Savant being IP-blocked from servers (Actions/Railway). load_store() (cached), store_meta() (season/built_at/n_pitchers), lookup_pitcher_features(name) → precomputed {siera,xfip,fip,csw_pct,o_swing_pct,k_pct,bb_pct,gb_pct,hr_fb_pct,barrel_pct_against,hard_hit_pct_against,avg_fb_velo,whiff_pct,...} via normalized-name match (exact, then last-name+first-initial fallback). Returns {} when store absent so enrich_starter falls through to live fetch. Store is built locally by scripts/build_feature_store.py and committed.
+inputs: name: str
+outputs: dict
+calls: json
+called_by: enrich_starter (fetchers/savant.py)
+mutates: none
+---
+
+---
+name: build_feature_store
+type: script
+file: scripts/build_feature_store.py
+purpose: Builds data/nrfi_feature_store.json LOCALLY (residential IP, where FanGraphs works) so CI never live-fetches. Loads FanGraphs pitching_stats (bulk, cached) for the pitcher universe + per-pitcher fields (SIERA/xFIP/CSW%/O-Swing%/K%/BB%/GB%/HR-FB); optionally per-pitcher Savant barrel%/hard-hit%/velo/whiff (--fg-only skips for a fast core build). Reuses fetchers.savant fetch functions so units match the training data. Refresh every few days and commit. Run after nothing / independently of retrain.
+inputs: --season <int>, --fg-only (flag)
+outputs: data/nrfi_feature_store.json
+calls: fetchers.savant (_load_fg_pitchers, fetch_pitcher_fg, fetch_pitcher_statcast, fetch_pitcher_arsenal)
+called_by: manual: python scripts/build_feature_store.py
+mutates: data/nrfi_feature_store.json
 ---
 
 ---
