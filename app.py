@@ -718,7 +718,7 @@ def nrfi_odds_diag():
     return diagnose()
 
 
-@app.post("/nrfi-auto/run")
+@app.api_route("/nrfi-auto/run", methods=["GET", "POST"])
 def nrfi_auto_run(job: str = "predict", date: Optional[str] = None,
                   background: bool = True):
     """

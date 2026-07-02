@@ -7255,7 +7255,7 @@ mutates: data/nrfi_reports/YYYY-MM-DD.md
 name: nrfi_daily
 type: workflow
 file: .github/workflows/nrfi_daily.yml (REMOVED 2026-07-02)
-purpose: REMOVED — superseded by tasks/nrfi_auto.py (always-on Railway scheduler). GitHub Actions `schedule` cron proved unreliable (delayed/skipped runs) and its `git push` raced with Railway's Contents-API pushes to main (non-fast-forward rejections). Deleted so there is exactly ONE writer to main. Run predictions on demand via POST /nrfi-auto/run?job=predict instead of the old workflow_dispatch.
+purpose: REMOVED — superseded by tasks/nrfi_auto.py (always-on Railway scheduler). GitHub Actions `schedule` cron proved unreliable (delayed/skipped runs) and its `git push` raced with Railway's Contents-API pushes to main (non-fast-forward rejections). Deleted so there is exactly ONE writer to main. Run predictions on demand via GET or POST /nrfi-auto/run?job=predict instead of the old workflow_dispatch.
 ---
 
 name: capture_odds
