@@ -186,7 +186,18 @@ CREATE TABLE IF NOT EXISTS nrfi_bets (
     won              INTEGER,            -- 1=bet won, 0=lost, NULL=pending
     pnl_units        REAL,               -- +0.909 won / −1.0 lost (at −110)
     logged_at        TEXT    NOT NULL DEFAULT (datetime('now')),
-    resolved_at      TEXT
+    resolved_at      TEXT,
+    -- Closing Line Value (CLV) tracking — see models/devig.nrfi_clv --
+    entry_nrfi_dec   REAL,               -- NRFI decimal odds when pick was made
+    entry_yrfi_dec   REAL,               -- YRFI decimal odds when pick was made
+    entry_book       TEXT,               -- reference book for entry line
+    entry_odds_at    TEXT,
+    closing_nrfi_dec REAL,               -- NRFI decimal odds at/near first pitch
+    closing_yrfi_dec REAL,               -- YRFI decimal odds at/near first pitch
+    closing_book     TEXT,
+    closing_odds_at  TEXT,
+    clv_pp           REAL,               -- vig-free (close - entry) prob on bet side, pp
+    beat_close       INTEGER             -- 1 = positive CLV (beat the close)
 );
 CREATE INDEX IF NOT EXISTS idx_nrfi_bets_date    ON nrfi_bets(game_date);
 CREATE INDEX IF NOT EXISTS idx_nrfi_bets_verdict ON nrfi_bets(verdict, game_date);

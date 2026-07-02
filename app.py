@@ -10,10 +10,12 @@ from typing import Optional
 
 import env_loader  # noqa: F401 — loads .env on import, handles CRLF/BOM/quotes
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from api_auth import require_api_key, auth_enabled
 
 from db.database import init_db, get_db
 from engine import predict_match, record_outcome
@@ -727,6 +729,75 @@ def api_nrfi(home: str, away: str, date: Optional[str] = None, bankroll: float =
         "reasons":        nrfi_rec.get("reasons", []),
         "note":           nrfi_market.get("note", ""),
     }
+
+
+# ── Public /v1 API (API-key gated) ──────────────────────────────────────────
+# Read-only, programmatic access for syndicates and media clients. Reads the
+# committed daily prediction files (the persistent, auditable record) rather
+# than the live DB. Gate with PREDICTA_API_KEYS; open dev-mode when unset.
+
+@app.get("/v1/status")
+def v1_status(client: str = Depends(require_api_key)):
+    """Health + data coverage. Confirms the caller's key is valid."""
+    import nrfi_store
+    dates = nrfi_store.list_dates()
+    return {
+        "ok":            True,
+        "client":        client,
+        "auth_enabled":  auth_enabled(),
+        "dates_covered": len(dates),
+        "first_date":    dates[0] if dates else None,
+        "latest_date":   dates[-1] if dates else None,
+    }
+
+
+@app.get("/v1/nrfi/predictions")
+def v1_nrfi_predictions(
+    date: Optional[str] = None,
+    client: str = Depends(require_api_key),
+):
+    """
+    All NRFI prediction records for a date (default: latest available).
+    GET /v1/nrfi/predictions?date=2026-07-02
+    """
+    import nrfi_store
+    target = date or nrfi_store.latest_date()
+    if not target:
+        raise HTTPException(404, "No prediction data available yet.")
+    records = nrfi_store.load_date(target)
+    if not records:
+        raise HTTPException(404, f"No predictions found for {target}.")
+    return {"date": target, "count": len(records), "predictions": records}
+
+
+@app.get("/v1/nrfi/plays")
+def v1_nrfi_plays(
+    date: Optional[str] = None,
+    client: str = Depends(require_api_key),
+):
+    """BET/LEAN plays only for a date (default: latest available)."""
+    import nrfi_store
+    target = date or nrfi_store.latest_date()
+    if not target:
+        raise HTTPException(404, "No prediction data available yet.")
+    records = nrfi_store.load_date(target)
+    plays = [r for r in records
+             if r.get("verdict") in ("BET", "LEAN") and not r.get("error")]
+    return {"date": target, "count": len(plays), "plays": plays}
+
+
+@app.get("/v1/nrfi/clv")
+def v1_nrfi_clv(days: int = 30, client: str = Depends(require_api_key)):
+    """Closing Line Value summary over the last N days (default 30)."""
+    import nrfi_store
+    return nrfi_store.aggregate_clv(days)
+
+
+@app.get("/v1/nrfi/performance")
+def v1_nrfi_performance(days: int = 3650, client: str = Depends(require_api_key)):
+    """Win-rate + ROI + CLV summary over the committed prediction record."""
+    import nrfi_store
+    return nrfi_store.aggregate_performance(days)
 
 
 # ── Report ────────────────────────────────────────────────────────────────────

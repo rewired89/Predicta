@@ -196,6 +196,116 @@ def fetch_linescore(game_pk: int) -> Optional[dict]:
         return None
 
 
+# ── CLV / odds capture ──────────────────────────────────────────────────────
+
+def _bet_side(p_nrfi: Optional[float]) -> str:
+    """Side the model leans: NRFI when p_nrfi >= 50, else YRFI."""
+    return "NRFI" if (p_nrfi is not None and p_nrfi >= 50) else "YRFI"
+
+
+def capture_odds(predictions: list[dict], phase: str) -> int:
+    """
+    Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction
+    record for Closing Line Value (CLV) measurement.
+
+    phase="entry"   → fill entry_* (the line when we made the pick). Also seeds
+                       closing_* so a single daily run still yields a CLV of 0.
+    phase="closing" → update closing_* (the latest line before first pitch).
+
+    No-op (returns 0) when ODDS_API_KEY is unset or no games match. Mutates the
+    records in place; caller is responsible for saving the JSON.
+    """
+    try:
+        from fetchers.nrfi_odds import fetch_nrfi_odds
+    except Exception:
+        return 0
+
+    games = [
+        {
+            "home_abbr": p.get("home_abbr", ""),
+            "away_abbr": p.get("away_abbr", ""),
+            "home_name": p.get("home_team", p.get("home_name", "")),
+            "away_name": p.get("away_team", p.get("away_name", "")),
+        }
+        for p in predictions
+        if not p.get("error")
+    ]
+    odds = fetch_nrfi_odds(games)
+    if not odds:
+        return 0
+
+    updated = 0
+    for p in predictions:
+        key = f"{p.get('away_abbr')}@{p.get('home_abbr')}"
+        o = odds.get(key)
+        if not o:
+            continue
+        if phase == "entry":
+            # Only set entry once; seed closing so same-day CLV is defined.
+            if p.get("entry_nrfi_dec") is None:
+                p["entry_nrfi_dec"] = o["nrfi_dec"]
+                p["entry_yrfi_dec"] = o["yrfi_dec"]
+                p["entry_book"]     = o["book"]
+                p["entry_odds_at"]  = o["captured_at"]
+            p["closing_nrfi_dec"] = o["nrfi_dec"]
+            p["closing_yrfi_dec"] = o["yrfi_dec"]
+            p["closing_book"]     = o["book"]
+            p["closing_odds_at"]  = o["captured_at"]
+        else:  # closing
+            p["closing_nrfi_dec"] = o["nrfi_dec"]
+            p["closing_yrfi_dec"] = o["yrfi_dec"]
+            p["closing_book"]     = o["book"]
+            p["closing_odds_at"]  = o["captured_at"]
+        updated += 1
+
+    return updated
+
+
+def _compute_clv(pred: dict) -> None:
+    """Compute clv_pp + beat_close on a prediction record (in place) if both
+    entry and closing NRFI lines are present. Mirrors into nrfi_bets best-effort."""
+    if (pred.get("entry_nrfi_dec") and pred.get("entry_yrfi_dec")
+            and pred.get("closing_nrfi_dec") and pred.get("closing_yrfi_dec")):
+        try:
+            from models.devig import nrfi_clv
+            side = _bet_side(pred.get("p_nrfi"))
+            res = nrfi_clv(
+                side,
+                pred["entry_nrfi_dec"], pred["entry_yrfi_dec"],
+                pred["closing_nrfi_dec"], pred["closing_yrfi_dec"],
+            )
+            pred["clv_pp"]     = res["clv_pp"]
+            pred["beat_close"] = res["beat_close"]
+        except Exception:
+            return
+    _mirror_clv_to_db(pred)
+
+
+def _mirror_clv_to_db(pred: dict) -> None:
+    """Best-effort: copy odds/CLV onto the matching nrfi_bets row (live app path).
+    Silent no-op if the row doesn't exist (e.g. ephemeral CI database)."""
+    try:
+        from db.database import get_db
+        with get_db() as db:
+            db.execute(
+                """UPDATE nrfi_bets SET
+                     entry_nrfi_dec=?, entry_yrfi_dec=?, entry_book=?, entry_odds_at=?,
+                     closing_nrfi_dec=?, closing_yrfi_dec=?, closing_book=?, closing_odds_at=?,
+                     clv_pp=?, beat_close=?
+                   WHERE game_date=? AND home_team=? AND away_team=?""",
+                (
+                    pred.get("entry_nrfi_dec"), pred.get("entry_yrfi_dec"),
+                    pred.get("entry_book"), pred.get("entry_odds_at"),
+                    pred.get("closing_nrfi_dec"), pred.get("closing_yrfi_dec"),
+                    pred.get("closing_book"), pred.get("closing_odds_at"),
+                    pred.get("clv_pp"), pred.get("beat_close"),
+                    pred.get("game_date"), pred.get("home_team"), pred.get("away_team"),
+                ),
+            )
+    except Exception:
+        pass
+
+
 # ── Prediction runner ─────────────────────────────────────────────────────────
 
 def run_predictions(games: list[dict], game_date: str) -> list[dict]:
@@ -244,6 +354,17 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "kelly_half":   kelly.get("half_kelly_pct"),
                 "stake_100":    kelly.get("recommended_stake"),  # at $1000 bankroll
                 "edge_pct":     kelly.get("edge_pct"),
+                # ── CLV tracking (filled by capture_odds + resolve) ──────────
+                "entry_nrfi_dec":   None,
+                "entry_yrfi_dec":   None,
+                "entry_book":       None,
+                "entry_odds_at":    None,
+                "closing_nrfi_dec": None,
+                "closing_yrfi_dec": None,
+                "closing_book":     None,
+                "closing_odds_at":  None,
+                "clv_pp":           None,   # vig-free (close - entry) prob on bet side, pp
+                "beat_close":       None,   # 1 = positive CLV
                 # filled in by resolve
                 "home_1st_runs": None,
                 "away_1st_runs": None,
@@ -324,8 +445,15 @@ def resolve_predictions(game_date: str) -> list[dict]:
         pred["won"]           = won
         pred["pnl_units"]     = pnl
 
+        # Closing Line Value: did the market move toward our side after we bet?
+        _compute_clv(pred)
+        clv_str = ""
+        if pred.get("clv_pp") is not None:
+            clv_str = f" | CLV {pred['clv_pp']:+.2f}pp"
+
         print(f"  {pred.get('away_abbr','?')} @ {pred.get('home_abbr','?')}: "
-              f"1st inning {a1}-{h1} → {outcome} | {'WIN' if won else 'LOSS' if won == 0 else 'NO BET'}")
+              f"1st inning {a1}-{h1} → {outcome} | "
+              f"{'WIN' if won else 'LOSS' if won == 0 else 'NO BET'}{clv_str}")
         resolved += 1
         time.sleep(0.3)
 
@@ -354,8 +482,8 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
 
     if bets:
         lines += ["## Plays", ""]
-        lines += ["| # | Matchup | Starter (H) | Starter (A) | p_NRFI | Verdict | Half-Kelly | Model |",
-                  "|---|---------|-------------|-------------|--------|---------|------------|-------|"]
+        lines += ["| # | Matchup | Starter (H) | Starter (A) | p_NRFI | Verdict | Half-Kelly | CLV | Model |",
+                  "|---|---------|-------------|-------------|--------|---------|------------|-----|-------|"]
         for i, p in enumerate(bets, 1):
             home   = p.get("home_abbr", p.get("home_team","?"))
             away   = p.get("away_abbr", p.get("away_team","?"))
@@ -366,6 +494,7 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
             conf   = p.get("confidence","")
             verd_s = f"**{verd}**" + (f" ({conf})" if conf else "")
             hk     = f"{p['kelly_half']:.1f}%" if p.get("kelly_half") else "—"
+            clv    = f"{p['clv_pp']:+.2f}pp" if p.get("clv_pp") is not None else "—"
             mdl    = p.get("model","?")
 
             outcome_cell = ""
@@ -374,7 +503,7 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
                 outcome_cell = f" → {p['outcome']} {won_str}"
 
             lines.append(
-                f"| {i} | {away} @ {home}{outcome_cell} | {hs} | {as_} | {pn} | {verd_s} | {hk} | {mdl} |"
+                f"| {i} | {away} @ {home}{outcome_cell} | {hs} | {as_} | {pn} | {verd_s} | {hk} | {clv} | {mdl} |"
             )
         lines.append("")
 
@@ -403,6 +532,20 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
                 f"**W-L:** {wins}–{losses}  |  **P&L:** {pnl:+.3f} units",
                 "",
             ]
+            # CLV summary — proof of edge that doesn't depend on the result.
+            clv_bets = [p for p in bet_resolved if p.get("clv_pp") is not None]
+            if clv_bets:
+                beat = sum(1 for p in clv_bets if p.get("beat_close") == 1)
+                avg  = sum(p["clv_pp"] for p in clv_bets) / len(clv_bets)
+                lines += [
+                    f"**CLV:** beat the close {beat}/{len(clv_bets)} "
+                    f"({beat/len(clv_bets)*100:.0f}%)  |  **Avg CLV:** {avg:+.2f}pp",
+                    "",
+                    "*CLV = vig-free closing probability minus entry probability on the bet "
+                    "side. Positive means the market moved toward our pick after we made it — "
+                    "the sharpest available proof of edge.*",
+                    "",
+                ]
 
     if errs:
         lines += ["## Errors", ""]
@@ -420,11 +563,31 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--resolve", action="store_true",
                         help="Resolve yesterday's games (night run)")
+    parser.add_argument("--capture-odds", action="store_true", dest="capture_odds",
+                        help="Snapshot current NRFI lines as the closing reference (afternoon run)")
     parser.add_argument("--date", default=None,
                         help="Override date (YYYY-MM-DD). Default: today (morning) or yesterday (resolve)")
     args = parser.parse_args()
 
     today = date.today().isoformat()
+
+    if args.capture_odds:
+        target_date = args.date or today
+        print(f"\n=== NRFI Closing-Line Capture — {target_date} ===")
+        pred_file = PRED_DIR / f"{target_date}.json"
+        if not pred_file.exists():
+            print(f"No prediction file for {target_date}. Run predictions first.")
+            return
+        with open(pred_file) as f:
+            predictions = json.load(f)
+        n = capture_odds(predictions, phase="closing")
+        with open(pred_file, "w") as f:
+            json.dump(predictions, f, indent=2)
+        if n:
+            print(f"Updated closing lines for {n} games.")
+        else:
+            print("No odds captured (ODDS_API_KEY unset or no market match).")
+        return
 
     if args.resolve:
         target_date = args.date or (date.today() - timedelta(days=1)).isoformat()
@@ -457,6 +620,11 @@ def main():
 
         print("Running NRFI analysis...")
         predictions = run_predictions(games, target_date)
+
+        # Capture the NRFI line available now as our entry price (for CLV).
+        n_odds = capture_odds(predictions, phase="entry")
+        if n_odds:
+            print(f"Captured entry odds for {n_odds} games.")
 
         PRED_DIR.mkdir(parents=True, exist_ok=True)
         pred_file = PRED_DIR / f"{target_date}.json"

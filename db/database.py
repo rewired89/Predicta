@@ -288,6 +288,39 @@ def _migrate_new_tables(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_nrfi_clv(conn: sqlite3.Connection) -> None:
+    """
+    Idempotent: add Closing Line Value (CLV) columns to nrfi_bets.
+    entry_* = the NRFI/YRFI line available when we made the pick;
+    closing_* = the last line captured before first pitch;
+    clv_pp = vig-free closing prob − entry prob on the bet side (percentage
+    points); beat_close = 1 when clv_pp > 0. See models/devig.nrfi_clv.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='nrfi_bets'"
+    ).fetchone()
+    if not row:
+        return  # created by _migrate_new_tables / schema.sql on first run
+
+    clv_cols = [
+        ("entry_nrfi_dec",      "REAL"),
+        ("entry_yrfi_dec",      "REAL"),
+        ("entry_book",          "TEXT"),
+        ("entry_odds_at",       "TEXT"),
+        ("closing_nrfi_dec",    "REAL"),
+        ("closing_yrfi_dec",    "REAL"),
+        ("closing_book",        "TEXT"),
+        ("closing_odds_at",     "TEXT"),
+        ("clv_pp",              "REAL"),
+        ("beat_close",          "INTEGER"),
+    ]
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(nrfi_bets)").fetchall()}
+    for col, coltype in clv_cols:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE nrfi_bets ADD COLUMN {col} {coltype}")
+    conn.commit()
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)  # ensure volume dir exists on Railway
     schema = SCHEMA_PATH.read_text()
@@ -297,6 +330,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
     _repair_matches_fk(conn)   # heal DBs corrupted by the old rename migration
     _migrate_intraday_trades(conn)
     _migrate_new_tables(conn)
+    _migrate_nrfi_clv(conn)
     conn.close()
 
 

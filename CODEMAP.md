@@ -7144,10 +7144,10 @@ mutates: data/nrfi_dataset.csv
 name: enrich_nrfi_fi_rates
 type: script
 file: scripts/enrich_nrfi_fi_rates.py
-purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes rolling venue-split per-starter first-inning run rate (no API calls, ~5 sec). home_starter_fi_rate = pitcher's rate specifically in HOME starts; away_starter_fi_rate = rate specifically in AWAY (road) starts. Fallback cascade: venue-specific (≥MIN_STARTS_VENUE=3) → overall (≥MIN_STARTS=5) → dynamic league average (computed from data; NOT the 0.477 YRFI rate). Three separate history dicts: history_home, history_away, history_all. Must be run after build_nrfi_dataset.py and before nrfi_model.py --train.
+purpose: Post-processing enrichment for data/nrfi_dataset.csv. Computes SHORT-WINDOW, TIME-DECAYED venue-split per-starter first-inning run rate (no API calls, ~5 sec) — combats baseball data drift (Kimi feedback 2026-07). _decayed_rate() keeps only the last WINDOW=6 starts, weights them by exponential decay (HALF_LIFE_DAYS=21, a start halves in weight every 3 weeks), and shrinks toward the league mean by PRIOR_STARTS=2 pseudo-starts to stabilize thin samples. home_starter_fi_rate = recent HOME-start rate; away_starter_fi_rate = recent AWAY-start rate. Fallback cascade: venue-specific (≥MIN_STARTS_VENUE=3) → overall (≥MIN_STARTS=3) → dynamic league average. No look-ahead (histories updated after read). Must be run after build_nrfi_dataset.py and before nrfi_model.py --train (retrain required for changes to take effect).
 inputs: data/nrfi_dataset.csv
 outputs: data/nrfi_dataset.csv (adds home_starter_fi_rate, away_starter_fi_rate columns)
-calls: pandas
+calls: pandas, math (_decayed_rate)
 called_by: manual: python scripts/enrich_nrfi_fi_rates.py
 mutates: data/nrfi_dataset.csv
 ---
@@ -7218,12 +7218,129 @@ mutates: data/nrfi_reports/YYYY-MM-DD.md
 name: nrfi_daily
 type: workflow
 file: .github/workflows/nrfi_daily.yml
-purpose: GitHub Actions workflow for automated daily NRFI predictions and resolution. Job "predict" runs at 1 PM UTC (9 AM ET) to run morning predictions and commit results to main. Job "resolve" runs at 5 AM UTC (1 AM ET) to fetch last night's linescores and update reports. Both jobs can be triggered manually via workflow_dispatch with mode (predict/resolve) and optional date override. Commits use [skip ci] to avoid recursive triggers.
-inputs: ANTHROPIC_API_KEY (secret), OPENWEATHER_API_KEY (secret), workflow_dispatch inputs: mode (predict|resolve), date (optional)
+purpose: GitHub Actions workflow for automated daily NRFI predictions, closing-line capture, and resolution. Job "predict" runs at 13:00 UTC (9 AM ET) — morning predictions + entry NRFI odds. Job "capture-odds" runs at 23:00 UTC (7 PM ET) — snapshots closing NRFI lines for CLV. Job "resolve" runs at 05:00 UTC (1 AM ET) — fetches linescores, computes outcomes + CLV. All three trigger manually via workflow_dispatch mode (predict|capture-odds|resolve) with optional date. Commits use [skip ci].
+inputs: ANTHROPIC_API_KEY, OPENWEATHER_API_KEY, ODDS_API_KEY (secrets); workflow_dispatch inputs mode + date
 outputs: commits to data/nrfi_predictions/ and data/nrfi_reports/ on main
 calls: scripts/daily_nrfi.py
 called_by: GitHub Actions cron scheduler, workflow_dispatch
 mutates: main branch (nrfi_predictions/ + nrfi_reports/ directories)
+---
+
+name: capture_odds
+type: function
+file: scripts/daily_nrfi.py
+purpose: Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction record for Closing Line Value (CLV). phase="entry" fills entry_* (line when pick was made) and seeds closing_*; phase="closing" updates closing_*. Graceful no-op (returns 0) when ODDS_API_KEY unset or no market match. Mutates records in place.
+inputs: predictions: list[dict], phase: str ("entry"|"closing")
+outputs: int (games updated)
+calls: fetchers.nrfi_odds.fetch_nrfi_odds
+called_by: main (daily_nrfi.py) predict + capture-odds modes
+mutates: prediction record dicts
+---
+
+name: _compute_clv
+type: function
+file: scripts/daily_nrfi.py
+purpose: Computes clv_pp + beat_close on a resolved prediction record (in place) from entry vs closing NRFI lines via models.devig.nrfi_clv. Mirrors odds/CLV onto the matching nrfi_bets row best-effort (_mirror_clv_to_db). Called for each game during resolve.
+inputs: pred: dict
+outputs: none (mutates pred)
+calls: models.devig.nrfi_clv, _mirror_clv_to_db
+called_by: resolve_predictions
+mutates: prediction record dict, nrfi_bets (best-effort UPDATE)
+---
+
+## fetchers/nrfi_odds.py
+
+---
+name: fetch_nrfi_odds
+type: function
+file: fetchers/nrfi_odds.py
+purpose: Fetch first-inning NRFI/YRFI odds from The Odds API (market totals_1st_1_innings, line 0.5; Under=NRFI, Over=YRFI) for a list of games. Matches events by fuzzy team-name comparison, prefers Pinnacle then other sharp books, else median across books. Returns {"{away_abbr}@{home_abbr}": {nrfi_dec, yrfi_dec, book, captured_at}}. Empty dict when ODDS_API_KEY unset or API unreachable (graceful).
+inputs: games: list[dict] (home_abbr, away_abbr, home_name, away_name)
+outputs: dict[str, dict]
+calls: The Odds API /sports/baseball_mlb/events + /events/{id}/odds (httpx)
+called_by: scripts/daily_nrfi.capture_odds
+mutates: none
+---
+
+## models/devig.py (nrfi_clv)
+
+---
+name: nrfi_clv
+type: function
+file: models/devig.py
+purpose: Closing Line Value for a 2-way NRFI/YRFI bet — the vig-free implied probability of the bet side at the CLOSING line minus the same side at the ENTRY line. Positive = market moved toward our pick after we bet it = beat the close. Returns {clv_pp (percentage points), entry_fair, close_fair, beat_close}. This is the fastest-accumulating proof of edge (independent of game outcome).
+inputs: bet_side: str, entry_nrfi_dec, entry_yrfi_dec, close_nrfi_dec, close_yrfi_dec: float
+outputs: dict
+calls: devig_market
+called_by: scripts/daily_nrfi._compute_clv, nrfi_store.aggregate_clv (indirect via stored values)
+mutates: none
+---
+
+## api_auth.py
+
+---
+name: require_api_key
+type: function
+file: api_auth.py
+purpose: FastAPI dependency for the public /v1 endpoints. Validates the X-API-Key header against keys configured in PREDICTA_API_KEYS ("key:label,key:label"). Returns the client label on success; raises 401 when keys are configured and the header is missing/invalid. Open "dev mode" (returns "dev", no key required) when PREDICTA_API_KEYS is unset — keeps local dev + existing UI working.
+inputs: x_api_key: Optional[str] (Header)
+outputs: str (client label)
+calls: _load_keys
+called_by: app.py /v1/* endpoints (Depends)
+mutates: none
+---
+
+name: auth_enabled
+type: function
+file: api_auth.py
+purpose: True when PREDICTA_API_KEYS is configured (production lock-down active). Used by /v1/status to report auth state.
+inputs: none
+outputs: bool
+calls: _load_keys
+called_by: app.v1_status
+mutates: none
+---
+
+## nrfi_store.py
+
+---
+name: nrfi_store
+type: module
+file: nrfi_store.py
+purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct.
+inputs: game_date/days args
+outputs: list[str] / list[dict] / dict summaries
+calls: json, scipy.stats (optional)
+called_by: app.py /v1/nrfi/* endpoints
+mutates: none
+---
+
+## app.py (/v1 public API)
+
+---
+name: v1_nrfi_endpoints
+type: endpoints
+file: app.py
+purpose: API-key-gated read-only endpoints for syndicate/media clients. GET /v1/status (health + coverage + client label), GET /v1/nrfi/predictions?date= (all records for a date, default latest), GET /v1/nrfi/plays?date= (BET/LEAN only), GET /v1/nrfi/clv?days=30 (CLV summary), GET /v1/nrfi/performance?days= (W/L+ROI+CLV+verdict). All read committed JSON via nrfi_store and depend on require_api_key.
+inputs: query params (date, days), X-API-Key header
+outputs: dict JSON
+calls: nrfi_store.*, api_auth.require_api_key
+called_by: FastAPI (HTTP), external API clients
+mutates: none
+---
+
+## db/database.py (_migrate_nrfi_clv)
+
+---
+name: _migrate_nrfi_clv
+type: function
+file: db/database.py
+purpose: Idempotent migration adding CLV columns to nrfi_bets: entry_nrfi_dec, entry_yrfi_dec, entry_book, entry_odds_at, closing_nrfi_dec, closing_yrfi_dec, closing_book, closing_odds_at, clv_pp, beat_close. Adds only missing columns (safe on every startup). Called by init_db after _migrate_new_tables.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: PRAGMA table_info, ALTER TABLE
+called_by: init_db
+mutates: predicta.db (nrfi_bets schema)
 ---
 
 ## models/nrfi_model.py
@@ -7352,7 +7469,7 @@ mutates: nrfi_bets (via run_baseball_analysis logging)
 name: nrfi_bets
 type: table
 file: db/schema.sql
-purpose: Tracks every NRFI prediction for live performance measurement. One row per game queried. Columns: game_date, home/away team + starter, p_nrfi, verdict, confidence, kelly_full_pct, kelly_half_pct, recommended_stake, bankroll, market_odds, outcome (1=NRFI/0=YRFI/NULL=pending), home/away_1st_runs, won, pnl_units, logged_at, resolved_at. Outcome filled via POST /nrfi-resolve.
+purpose: Tracks every NRFI prediction for live performance measurement. One row per game queried. Columns: game_date, home/away team + starter, p_nrfi, verdict, confidence, kelly_full_pct, kelly_half_pct, recommended_stake, bankroll, market_odds, outcome (1=NRFI/0=YRFI/NULL=pending), home/away_1st_runs, won, pnl_units, logged_at, resolved_at. CLV columns (added by _migrate_nrfi_clv): entry_nrfi_dec/entry_yrfi_dec/entry_book/entry_odds_at (line when pick made), closing_nrfi_dec/closing_yrfi_dec/closing_book/closing_odds_at (line near first pitch), clv_pp (vig-free close−entry prob on bet side), beat_close (1=positive CLV). Outcome filled via POST /nrfi-resolve; CLV mirrored by scripts/daily_nrfi._mirror_clv_to_db.
 inputs: populated by _log_nrfi_prediction (analyze_baseball.py)
 outputs: read by GET /nrfi-performance
 ---
