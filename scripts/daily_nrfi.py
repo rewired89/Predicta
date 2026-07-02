@@ -370,6 +370,24 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
             kelly     = nrfi_rec.get("kelly") or {}
             model_src = nrfi_market.get("model", "unknown")
 
+            # Feature-source diagnostics: record which advanced pitcher features
+            # were real vs defaulted, so we can SEE from the committed JSON whether
+            # FanGraphs/Savant enrichment actually fired in the CI environment.
+            def _feat_flags(s: dict) -> dict:
+                return {
+                    "fip_source": s.get("fip_source"),
+                    "siera":  s.get("siera") is not None,
+                    "barrel": s.get("barrel_pct_against") is not None,
+                    "csw":    s.get("csw_pct") is not None,
+                    "velo":   s.get("avg_fb_velo") is not None,
+                }
+            _hs = result.get("starters", {}).get("home", {})
+            _as = result.get("starters", {}).get("away", {})
+            _feat_home = _feat_flags(_hs)
+            _feat_away = _feat_flags(_as)
+            _enriched  = any(v is True for d in (_feat_home, _feat_away)
+                             for v in (d["siera"], d["barrel"], d["csw"], d["velo"]))
+
             rec = {
                 "game_pk":      g["game_pk"],
                 "game_date":    game_date,
@@ -385,6 +403,10 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "verdict":      verdict,
                 "confidence":   nrfi_rec.get("confidence"),
                 "model":        model_src,
+                "data_confidence": result.get("data_confidence"),
+                "features_enriched": _enriched,   # any advanced stat present?
+                "feat_home":    _feat_home,
+                "feat_away":    _feat_away,
                 "kelly_half":   kelly.get("half_kelly_pct"),
                 "stake_100":    kelly.get("recommended_stake"),  # at $1000 bankroll
                 "edge_pct":     kelly.get("edge_pct"),
