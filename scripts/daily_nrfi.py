@@ -585,15 +585,41 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
     except Exception:
         pass
 
+    # ── Feature store freshness ────────────────────────────────────────────────
+    try:
+        from fetchers.feature_store import store_freshness
+        fresh = store_freshness()
+        src = ", ".join(fresh.get("sources", [])) or "none"
+        age_label = fresh["label"]
+        n = fresh.get("n_pitchers", 0)
+        warn = ""
+        if fresh.get("is_expired"):
+            warn = " ⚠️ EXPIRED (>14d) — FanGraphs features dropped to league mean"
+        elif fresh.get("is_stale"):
+            warn = " ⚠️ STALE (>7d) — refresh recommended"
+        lines += [
+            "## Feature Store Freshness",
+            "",
+            f"Source: **{src}** | Pitchers: {n} | Last built: **{age_label}**{warn}",
+            "",
+        ]
+    except Exception:
+        pass
+
     # ── All games — full model picks (moneyline + F5 + NRFI) ─────────────────
-    # NRFI is deliberately selective (few bets/day). The model ALSO predicts the
-    # moneyline and first-5 for every game — surface those so the whole slate is
-    # actionable, not just the 1-2 NRFI plays. A ⭐ marks a BET/LEAN in any market.
     allg = [p for p in predictions if not p.get("error")]
     if allg:
-        lines += ["## All Games — Model Picks", ""]
-        lines += ["| Matchup | Moneyline | First 5 (F5) | NRFI | Best play |",
-                  "|---------|-----------|--------------|------|-----------|"]
+        lines += [
+            "## All Games — Model Picks",
+            "",
+            "| | Validated | Not yet validated |",
+            "|---|---|---|",
+            "| **Model** | NRFI — XGBoost + Platt calibration | Moneyline & F5 — Split Poisson + Elo |",
+            "| **Proof** | Walk-forward 54.9%, p=0.0049 | Pending independent validation |",
+            "",
+        ]
+        lines += ["| Matchup | Moneyline | First 5 (F5) | NRFI ✅ | Best play |",
+                  "|---------|-----------|--------------|---------|-----------|"]
         for p in allg:
             away = p.get("away_abbr", "?"); home = p.get("home_abbr", "?")
             def _cell(pick, prob, verd):
@@ -618,9 +644,14 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
                     plays.append((prob, f"{verd} {mkt}: {who} {prob:.0f}%"))
             best = max(plays, key=lambda t: t[0])[1] if plays else "no edge — pass"
             lines.append(f"| {away} @ {home} | {ml} | {f5} | {nr} | {best} |")
-        lines += ["", "*⭐ = model flags a BET or LEAN in that market. "
-                  "\"Best play\" is the strongest edge across all three; \"pass\" "
-                  "means every market is a coin-flip (correct to skip).*", ""]
+        lines += [
+            "",
+            "*⭐ = model flags a BET or LEAN in that market. "
+            "NRFI ✅ = walk-forward validated (54.9%, p=0.0049). "
+            "Moneyline & F5 picks are model-generated but not yet independently validated. "
+            "\"Best play\" is the strongest edge across all three; \"pass\" = no edge found.*",
+            "",
+        ]
 
     if bets:
         lines += ["## Plays", ""]

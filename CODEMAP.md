@@ -6478,11 +6478,11 @@ mutates: none
 name: feature_store
 type: module
 file: fetchers/feature_store.py
-purpose: Reader for the committed pitcher feature store (data/nrfi_feature_store.json) — the fix for FanGraphs/Savant being IP-blocked from servers (Actions/Railway). load_store() (cached), store_meta() (season/built_at/n_pitchers), lookup_pitcher_features(name) → precomputed {siera,xfip,fip,csw_pct,o_swing_pct,k_pct,bb_pct,gb_pct,hr_fb_pct,barrel_pct_against,hard_hit_pct_against,avg_fb_velo,whiff_pct,...} via normalized-name match (exact, then last-name+first-initial fallback). Returns {} when store absent so enrich_starter falls through to live fetch. Store is built locally by scripts/build_feature_store.py and committed.
+purpose: Reader for the committed pitcher feature store (data/nrfi_feature_store.json) — the fix for FanGraphs/Savant being IP-blocked from servers (Actions/Railway). load_store() (cached), store_meta() (season/built_at/n_pitchers), store_freshness() (age_days/is_stale>7d/is_expired>14d/label — used by write_report to flag data-integrity drift), lookup_pitcher_features(name) → precomputed {siera,xfip,fip,csw_pct,o_swing_pct,k_pct,bb_pct,gb_pct,hr_fb_pct,barrel_pct_against,hard_hit_pct_against,avg_fb_velo,whiff_pct,...} via normalized-name match (exact, then last-name+first-initial fallback). Returns {} when store absent so enrich_starter falls through to live fetch. Store is built locally by scripts/build_feature_store.py and committed.
 inputs: name: str
 outputs: dict
-calls: json
-called_by: enrich_starter (fetchers/savant.py)
+calls: json, datetime
+called_by: enrich_starter (fetchers/savant.py), write_report (scripts/daily_nrfi.py)
 mutates: none
 ---
 
@@ -7241,10 +7241,10 @@ mutates: none (caller saves to disk)
 name: write_report
 type: function
 file: scripts/daily_nrfi.py
-purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, All Games — Model Picks table (moneyline + F5 + NRFI picks for every game with ⭐ edge flags and "Best play" column), Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
+purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, Feature Store Freshness (age + stale/expired warnings via store_freshness()), All Games — Model Picks table (validation-status header separating NRFI ✅ validated from moneyline/F5 unvalidated; ⭐ edge flags; "Best play" column), Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
 inputs: predictions: list[dict], game_date: str, is_resolve: bool
 outputs: Path (written file)
-calls: none
+calls: nrfi_store.validation_tracker, fetchers.feature_store.store_freshness
 called_by: main (daily_nrfi.py)
 mutates: data/nrfi_reports/YYYY-MM-DD.md
 ---

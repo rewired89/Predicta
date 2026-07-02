@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-02 (rev 2 — Railway scheduler live, first auto-scan complete)
+> **Last updated:** 2026-07-02 (rev 3 — freshness tracking + validation separation per Kimi feedback)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -305,6 +305,12 @@ raced with Railway's pushes (causing git push rejections). See §8.
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-02 (rev 3)** — **Feature store freshness tracking**: daily report
+  shows source, pitcher count, age, ⚠️ STALE (>7d) and ⚠️ EXPIRED (>14d) flags.
+  Prevents silent data-integrity drift from forgotten CSV updates.
+- **2026-07-02 (rev 3)** — **Validation-status separation** in all-markets table:
+  NRFI column labeled ✅ (validated), moneyline/F5 labeled "not yet validated."
+  Header table + footer make the proof hierarchy explicit for buyers.
 - **2026-07-02 (rev 2)** — **Deleted GitHub Actions workflow** (`.github/workflows/
   nrfi_daily.yml`). Its `git push` raced with Railway's Contents API pushes to
   main → non-fast-forward rejections. Railway is now the single writer.
@@ -381,18 +387,37 @@ raced with Railway's pushes (causing git push rejections). See §8.
 3. **CLV actually predicts wins** — instrumented (`/v1/nrfi/clv-quality`,
    significance-tested). Read after ~50–100 resolved games.
 4. **Soccer refuse-to-predict gate** — not started; deferred until soccer is picked back up.
-5. **Moneyline/F5 track record** — the new all-markets report shows picks across
-   all three markets for every game. These come from the split-Poisson + Elo model
-   and are *not* XGBoost-validated like NRFI. Consider: should moneyline/F5 picks
-   get their own validation tracker, or is NRFI the flagship product?
+5. **Moneyline/F5 validation tracker** — DECIDED: defer until NRFI has a live
+   track record. Don't split proof-building across three markets when one isn't
+   proven yet. NRFI stays the flagship.
+6. **Feature store freshness** (Kimi rev 2 feedback) — IMPLEMENTED. Daily report
+   now shows "Feature Store Freshness" section with source, pitcher count, age,
+   and ⚠️ warnings at >7d (STALE, refresh recommended) and >14d (EXPIRED,
+   FanGraphs features silently dropped to league mean). Prevents the "forgot to
+   update CSV for 3 weeks" integrity risk.
+
+### Decisions resolved (Kimi rev 2 feedback)
+
+5. **FanGraphs CSV worth the manual chore?** → DECIDED: **measure for 2 weeks,
+   then decide.** Savant carries ~80% of the contact-quality signal. After 2
+   weeks of live data, compare model-lean accuracy with vs without FanGraphs CSV.
+   If gap < 1pp, drop permanently. If > 2pp, consider automating.
+
+6. **All-markets report dilutes the NRFI edge story?** → DECIDED: **ship it, but
+   visually separate.** Report now has a validation-status table at the top of the
+   all-markets section:
+   - NRFI ✅ = walk-forward validated (54.9%, p=0.0049)
+   - Moneyline & F5 = model-generated, not yet independently validated
+   The footer reinforces this. Buyers see the full slate but understand which
+   model is proven.
 
 ### Still open for Kimi
-- Review the actual CLV math / API JSON for soundness — Odds API is confirmed
-  working (Pinnacle 1.81/2.03 on today's sample event). First real closing-line
-  capture fires tonight.
-- Feedback on the all-markets report format — is showing moneyline/F5/NRFI
-  side-by-side the right presentation for potential buyers, or does it dilute the
-  NRFI edge story?
+- Review the first week of closing-line JSON once resolve fires (expected
+  2026-07-03 1 AM ET). The CLV math and devig symmetry are instrumented but
+  unverified against real data.
+- After ~30 resolved games: is the model-lean accuracy (all games, not just
+  BET/LEAN) tracking above 52%? That's the earliest signal that directional
+  skill is real.
 
 ---
 
