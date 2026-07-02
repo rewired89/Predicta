@@ -7230,7 +7230,7 @@ mutates: none
 name: resolve_predictions
 type: function
 file: scripts/daily_nrfi.py
-purpose: Loads prediction JSON for a given date, fetches MLB Stats API linescores, computes NRFI/YRFI outcome, W/L, and P&L in units (assuming -110 juice: win=+0.909u, loss=-1.0u). Only resolves rows where outcome is still None.
+purpose: Loads prediction JSON for a given date, fetches MLB Stats API linescores, resolves ALL four markets: NRFI (1st-inning outcome), moneyline (final winner via ml_correct), F5 (leader after 5 innings via f5_correct), Over/Under (total runs vs ou_line via ou_correct). Also computes lean_side/lean_correct for every game and W/L/P&L for BET/LEAN plays. fetch_linescore now returns full game data: home_1st/away_1st, home_runs/away_runs (finals), home_f5/away_f5 (through 5).
 inputs: game_date: str
 outputs: list[dict] (updated predictions)
 calls: fetch_linescore (MLB Stats API /game/{pk}/linescore)
@@ -7429,7 +7429,7 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 name: _bet_recommendations
 type: function
 file: analyze_baseball.py
-purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET (HIGH if >=57% with 2+ signals); prob >= 55% without elite signal → LEAN; YRFI prob >= 55% → BET. Now accepts bankroll param and attaches kelly dict (full_kelly_pct, half_kelly_pct, recommended_stake, edge_pct, breakeven_pct) to BET/LEAN recommendations.
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, full-game moneyline, and Game Total (O/U). NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET; F5: >= 60% + SIERA gap >= 1.0; ML: >= 62%; Game Total (O/U): picks best line (6.5–10.5), BET >= 62%, LEAN >= 57%. Now accepts bankroll param and attaches kelly dict to BET/LEAN recommendations.
 inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float
 outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
 calls: _nrfi_kelly

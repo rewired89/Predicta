@@ -454,6 +454,53 @@ def _bet_recommendations(
             "skip_reason": skip_reason,
         })
 
+    # ── Game Total (Over/Under) ─────────────────────────────────────────────
+    totals = formatted_markets.get("totals", {})
+    if totals:
+        total_lines = totals.get("lines", [])
+        # Pick the line with the strongest edge (highest probability on either side)
+        best_line = None
+        best_prob = 0.0
+        best_side = "over"
+        for tl in total_lines:
+            p_over  = tl.get("p_over", 50.0)
+            p_under = tl.get("p_under", 50.0)
+            top = max(p_over, p_under)
+            if top > best_prob:
+                best_prob = top
+                best_side = "over" if p_over >= p_under else "under"
+                best_line = tl
+
+        if best_line:
+            line_val = best_line["line"]
+            if best_prob >= 62.0:
+                verdict     = "BET"
+                confidence  = "HIGH" if best_prob >= 68.0 else "MEDIUM"
+                reasons     = [f"Model: {best_prob:.1f}% {best_side} {line_val} runs"]
+                skip_reason = None
+            elif best_prob >= 57.0:
+                verdict     = "LEAN"
+                confidence  = "LOW"
+                reasons     = [f"Model: {best_prob:.1f}% {best_side} {line_val} — soft edge"]
+                skip_reason = f"Below 62% O/U threshold — lean only"
+            else:
+                verdict     = "SKIP"
+                confidence  = None
+                reasons     = []
+                skip_reason = f"O/U best line {best_prob:.1f}% — no strong edge"
+
+            recs.append({
+                "market":      "Game Total",
+                "verdict":     verdict,
+                "bet":         f"{best_side.title()} {line_val}",
+                "model_prob":  round(best_prob, 1),
+                "threshold":   62.0,
+                "line":        line_val,
+                "confidence":  confidence,
+                "reasons":     reasons,
+                "skip_reason": skip_reason,
+            })
+
     return recs
 
 

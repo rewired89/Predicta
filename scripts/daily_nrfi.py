@@ -179,7 +179,11 @@ def _fetch_schedule_espn_cache(game_date: str) -> list[dict]:
 
 def fetch_linescore(game_pk: int) -> Optional[dict]:
     """
-    Returns {home_1st: int, away_1st: int} for a completed game, or None.
+    Returns full linescore for a completed game:
+      home_1st, away_1st          — first-inning runs (NRFI)
+      home_runs, away_runs        — final total runs (moneyline + O/U)
+      home_f5, away_f5            — runs through 5 innings (F5)
+    Returns None if game data is unavailable or incomplete.
     """
     try:
         data = _get(f"{MLB_API}/game/{game_pk}/linescore")
@@ -187,11 +191,34 @@ def fetch_linescore(game_pk: int) -> Optional[dict]:
         if not innings:
             return None
         first = innings[0]
-        home_runs = first.get("home", {}).get("runs")
-        away_runs = first.get("away", {}).get("runs")
-        if home_runs is None or away_runs is None:
+        home_1st = first.get("home", {}).get("runs")
+        away_1st = first.get("away", {}).get("runs")
+        if home_1st is None or away_1st is None:
             return None
-        return {"home_1st": int(home_runs), "away_1st": int(away_runs)}
+
+        # Total runs from the teams block (most reliable)
+        teams = data.get("teams", {})
+        home_total = teams.get("home", {}).get("runs")
+        away_total = teams.get("away", {}).get("runs")
+
+        # Runs through 5 innings (F5)
+        home_f5 = away_f5 = 0
+        for inn in innings[:5]:
+            h = inn.get("home", {}).get("runs")
+            a = inn.get("away", {}).get("runs")
+            if h is not None:
+                home_f5 += int(h)
+            if a is not None:
+                away_f5 += int(a)
+
+        return {
+            "home_1st": int(home_1st),
+            "away_1st": int(away_1st),
+            "home_runs": int(home_total) if home_total is not None else None,
+            "away_runs": int(away_total) if away_total is not None else None,
+            "home_f5": home_f5,
+            "away_f5": away_f5,
+        }
     except Exception:
         return None
 
@@ -370,10 +397,11 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
             kelly     = nrfi_rec.get("kelly") or {}
             model_src = nrfi_market.get("model", "unknown")
 
-            # The model also predicts moneyline + F5 for every game — capture
-            # them so the daily report shows the full slate, not just NRFI.
+            # The model also predicts moneyline + F5 + O/U for every game —
+            # capture them so the daily report shows the full slate.
             f5_rec = next((r for r in bet_recs if r.get("market") == "F5"), {})
             ml_rec = next((r for r in bet_recs if r.get("market") == "Full Game"), {})
+            ou_rec = next((r for r in bet_recs if r.get("market") == "Game Total"), {})
 
             # Feature-source diagnostics: record which advanced pitcher features
             # were real vs defaulted, so we can SEE from the committed JSON whether
@@ -416,6 +444,16 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "f5_pick":      f5_rec.get("bet"),        # "<team> to lead after 5"
                 "f5_prob":      f5_rec.get("model_prob"),
                 "f5_verdict":   f5_rec.get("verdict"),
+                # Over/Under (Game Total)
+                "ou_pick":      ou_rec.get("bet"),        # "Over 8.5" / "Under 7.5"
+                "ou_prob":      ou_rec.get("model_prob"),
+                "ou_verdict":   ou_rec.get("verdict"),
+                "ou_line":      ou_rec.get("line"),       # numeric line (8.5)
+                # Expected runs (Poisson model output)
+                "mu_home":      result.get("mu_home"),
+                "mu_away":      result.get("mu_away"),
+                "expected_total": round((result.get("mu_home", 0) or 0)
+                                        + (result.get("mu_away", 0) or 0), 2),
                 "data_confidence": result.get("data_confidence"),
                 "features_enriched": _enriched,   # any advanced stat present?
                 "feat_home":    _feat_home,
@@ -444,6 +482,13 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "lean_correct":  None,   # 1 if lean matched outcome — every game
                 "won":           None,   # bet result (BET/LEAN only)
                 "pnl_units":     None,
+                # All-market resolution (filled by resolve)
+                "home_runs":     None,   # final score
+                "away_runs":     None,
+                "ml_correct":    None,   # 1 if moneyline pick won
+                "f5_correct":    None,   # 1 if F5 pick was leading after 5
+                "ou_correct":    None,   # 1 if O/U pick was right
+                "total_runs":    None,   # actual total runs
             }
             verdict_str = f"{verdict} ({p_nrfi:.1f}%)" if p_nrfi else verdict
             print(verdict_str)
@@ -504,14 +549,10 @@ def resolve_predictions(game_date: str) -> list[dict]:
         p_nrfi  = pred.get("p_nrfi", 50)
         verdict = pred.get("verdict", "SKIP")
 
-        # Model lean side + correctness for EVERY game (independent of the bet
-        # gate) so a predictive-accuracy + CLV record accumulates even while
-        # most verdicts are SKIP. NRFI when p_nrfi >= 50, else YRFI.
         lean_side = _bet_side(p_nrfi)
         pred["lean_side"]    = lean_side
         pred["lean_correct"] = 1 if lean_side == outcome else 0
 
-        # Bet P&L only for actual BET/LEAN plays (real staking view).
         if verdict in ("BET", "LEAN"):
             won = 1 if lean_side == outcome else 0
             pnl = round(100 / 110, 4) if won else -1.0
@@ -525,15 +566,61 @@ def resolve_predictions(game_date: str) -> list[dict]:
         pred["won"]           = won
         pred["pnl_units"]     = pnl
 
-        # Closing Line Value: did the market move toward our side after we bet?
+        # ── Moneyline resolution ────────────────────────────────────────────
+        home_runs = ls.get("home_runs")
+        away_runs = ls.get("away_runs")
+        if home_runs is not None and away_runs is not None:
+            pred["home_runs"] = home_runs
+            pred["away_runs"] = away_runs
+            pred["total_runs"] = home_runs + away_runs
+
+            ml_pick = pred.get("ml_pick", "")
+            if ml_pick and home_runs != away_runs:
+                home_team = pred.get("home_team", pred.get("home_abbr", ""))
+                ml_picked_home = home_team.lower() in ml_pick.lower()
+                home_won = home_runs > away_runs
+                pred["ml_correct"] = 1 if (ml_picked_home == home_won) else 0
+
+            # ── F5 resolution ───────────────────────────────────────────────
+            home_f5 = ls.get("home_f5")
+            away_f5 = ls.get("away_f5")
+            f5_pick = pred.get("f5_pick", "")
+            if f5_pick and home_f5 is not None and away_f5 is not None and home_f5 != away_f5:
+                home_team = pred.get("home_team", pred.get("home_abbr", ""))
+                f5_picked_home = home_team.lower() in f5_pick.lower()
+                home_led_f5 = home_f5 > away_f5
+                pred["f5_correct"] = 1 if (f5_picked_home == home_led_f5) else 0
+
+            # ── Over/Under resolution ───────────────────────────────────────
+            ou_line = pred.get("ou_line")
+            ou_pick = pred.get("ou_pick", "")
+            total = home_runs + away_runs
+            if ou_line is not None and ou_pick and total != ou_line:
+                actual_over = total > ou_line
+                picked_over = "over" in ou_pick.lower()
+                pred["ou_correct"] = 1 if (picked_over == actual_over) else 0
+
         _compute_clv(pred)
         clv_str = ""
         if pred.get("clv_pp") is not None:
             clv_str = f" | CLV {pred['clv_pp']:+.2f}pp"
 
+        # Summary line with all markets
+        parts = [f"1st: {a1}-{h1} → {outcome}"]
+        if home_runs is not None:
+            parts.append(f"Final: {away_runs}-{home_runs}")
+            ml_r = pred.get("ml_correct")
+            if ml_r is not None:
+                parts.append(f"ML:{'✓' if ml_r else '✗'}")
+            f5_r = pred.get("f5_correct")
+            if f5_r is not None:
+                parts.append(f"F5:{'✓' if f5_r else '✗'}")
+            ou_r = pred.get("ou_correct")
+            if ou_r is not None:
+                parts.append(f"O/U:{'✓' if ou_r else '✗'}")
+
         print(f"  {pred.get('away_abbr','?')} @ {pred.get('home_abbr','?')}: "
-              f"1st inning {a1}-{h1} → {outcome} | "
-              f"{'WIN' if won else 'LOSS' if won == 0 else 'NO BET'}{clv_str}")
+              f"{' | '.join(parts)}{clv_str}")
         resolved += 1
         time.sleep(0.3)
 
@@ -614,42 +701,44 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
             "",
             "| | Validated | Not yet validated |",
             "|---|---|---|",
-            "| **Model** | NRFI — XGBoost + Platt calibration | Moneyline & F5 — Split Poisson + Elo |",
+            "| **Model** | NRFI — XGBoost + Platt calibration | ML, F5, O/U — Split Poisson + Elo |",
             "| **Proof** | Walk-forward 54.9%, p=0.0049 | Pending independent validation |",
             "",
         ]
-        lines += ["| Matchup | Moneyline | First 5 (F5) | NRFI ✅ | Best play |",
-                  "|---------|-----------|--------------|---------|-----------|"]
+        lines += ["| Matchup | Exp. Runs | Moneyline | First 5 | O/U | NRFI ✅ | Best play |",
+                  "|---------|-----------|-----------|---------|-----|---------|-----------|"]
         for p in allg:
             away = p.get("away_abbr", "?"); home = p.get("home_abbr", "?")
             def _cell(pick, prob, verd):
                 if prob is None:
                     return "—"
                 star = " ⭐" if verd in ("BET", "LEAN") else ""
-                # shorten "<team> moneyline" / "<team> to lead after 5"
                 who = (pick or "").split(" moneyline")[0].split(" to lead")[0]
                 return f"{who} {prob:.0f}%{star}"
             ml = _cell(p.get("ml_pick"), p.get("ml_prob"), p.get("ml_verdict"))
             f5 = _cell(p.get("f5_pick"), p.get("f5_prob"), p.get("f5_verdict"))
+            ou = _cell(p.get("ou_pick"), p.get("ou_prob"), p.get("ou_verdict"))
             nr = f"{p['p_nrfi']:.0f}%" + (" ⭐" if p.get("verdict") in ("BET","LEAN") else "") if p.get("p_nrfi") else "—"
-            # Best play = highest-confidence non-SKIP across the three markets
+            exp = f"{p['expected_total']:.1f}" if p.get("expected_total") else "—"
+            # Best play = highest-confidence non-SKIP across the four markets
             plays = []
             for mkt, pick, prob, verd in (
                 ("ML", p.get("ml_pick"), p.get("ml_prob"), p.get("ml_verdict")),
                 ("F5", p.get("f5_pick"), p.get("f5_prob"), p.get("f5_verdict")),
+                ("O/U", p.get("ou_pick"), p.get("ou_prob"), p.get("ou_verdict")),
                 ("NRFI", ("NRFI" if (p.get("p_nrfi") or 0) >= 50 else "YRFI"),
                  p.get("p_nrfi"), p.get("verdict"))):
                 if verd in ("BET", "LEAN") and prob is not None:
                     who = (pick or "").split(" moneyline")[0].split(" to lead")[0]
                     plays.append((prob, f"{verd} {mkt}: {who} {prob:.0f}%"))
             best = max(plays, key=lambda t: t[0])[1] if plays else "no edge — pass"
-            lines.append(f"| {away} @ {home} | {ml} | {f5} | {nr} | {best} |")
+            lines.append(f"| {away} @ {home} | {exp} | {ml} | {f5} | {ou} | {nr} | {best} |")
         lines += [
             "",
-            "*⭐ = model flags a BET or LEAN in that market. "
+            "*⭐ = model flags a BET or LEAN. "
             "NRFI ✅ = walk-forward validated (54.9%, p=0.0049). "
-            "Moneyline & F5 picks are model-generated but not yet independently validated. "
-            "\"Best play\" is the strongest edge across all three; \"pass\" = no edge found.*",
+            "ML, F5, O/U picks are model-generated but not yet independently validated. "
+            "\"Best play\" = strongest edge across all four markets.*",
             "",
         ]
 
@@ -694,18 +783,39 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
         lines.append("")
 
     if is_resolve:
+        resolved_all = [p for p in predictions if p.get("outcome") is not None and not p.get("error")]
         bet_resolved = [p for p in bets if p.get("outcome") is not None]
+
+        # ── All-market accuracy (every game, not just BET/LEAN) ─────────────
+        if resolved_all:
+            def _accuracy(key):
+                graded = [p for p in resolved_all if p.get(key) is not None]
+                if not graded:
+                    return "—"
+                correct = sum(1 for p in graded if p[key] == 1)
+                return f"{correct}/{len(graded)} ({correct/len(graded)*100:.0f}%)"
+            lines += [
+                "## Results — All Markets",
+                "",
+                "| Market | Accuracy | Status |",
+                "|--------|----------|--------|",
+                f"| Moneyline | {_accuracy('ml_correct')} | not yet validated |",
+                f"| First 5 (F5) | {_accuracy('f5_correct')} | not yet validated |",
+                f"| Over/Under | {_accuracy('ou_correct')} | not yet validated |",
+                f"| NRFI lean | {_accuracy('lean_correct')} | ✅ validated model |",
+                "",
+            ]
+
         if bet_resolved:
             wins   = sum(1 for p in bet_resolved if p.get("won") == 1)
             losses = sum(1 for p in bet_resolved if p.get("won") == 0)
             pnl    = sum(p.get("pnl_units", 0) or 0 for p in bet_resolved)
             lines += [
-                "## Results",
+                "## Results — NRFI Bets",
                 "",
                 f"**W-L:** {wins}–{losses}  |  **P&L:** {pnl:+.3f} units",
                 "",
             ]
-            # CLV summary — proof of edge that doesn't depend on the result.
             clv_bets = [p for p in bet_resolved if p.get("clv_pp") is not None]
             if clv_bets:
                 beat = sum(1 for p in clv_bets if p.get("beat_close") == 1)
