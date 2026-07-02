@@ -105,6 +105,44 @@ def _derive_bullpen_fip(team_era: float, starter_fip: float,
     return max(3.0, min(derived, 7.5))
 
 
+def _baseball_data_confidence(
+    ai_fallback: bool,
+    starter_a: dict, starter_b: dict,
+    hitting_a: dict, hitting_b: dict,
+    record_a: dict, record_b: dict,
+) -> str:
+    """
+    Data confidence for a baseball prediction, based on how much of the model's
+    input is real live data vs defaults. Mirrors the other sports' pipelines.
+
+      low     — ESPN unreachable (AI-estimated signals), OR both probable
+                starters unknown/TBD (common for next-day games before lineups
+                post). The model is running largely on league averages.
+      medium  — one starter unknown/TBD, or missing team offense (wRC+), or a
+                thin season sample (< 10 games played).
+      high    — both starters named with FIP, real wRC+, and ≥ 10 games played
+                for both teams.
+    """
+    if ai_fallback:
+        return "low"
+
+    def _starter_missing(s: dict) -> bool:
+        name = (s.get("name") or "").strip().lower()
+        return name in ("", "tbd", "unknown") or not s.get("fip")
+
+    missing_starters = sum(_starter_missing(s) for s in (starter_a, starter_b))
+    if missing_starters == 2:
+        return "low"
+
+    weak = missing_starters  # 0 or 1 at this point
+    if not hitting_a.get("wrc_plus") or not hitting_b.get("wrc_plus"):
+        weak += 1
+    if (record_a.get("games_played") or 0) < 10 or (record_b.get("games_played") or 0) < 10:
+        weak += 1
+
+    return "high" if weak == 0 else "medium"
+
+
 def _format_baseball_markets(markets: dict, team_home: str, team_away: str) -> dict:
     def pct(v):
         return round(float(v) * 100, 1)
@@ -631,6 +669,15 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         except Exception as exc:
             steps.append({"step": "savant_enrich", "status": "skipped", "error": str(exc)})
 
+    # ── Data confidence (how much is real live data vs defaults) ─────────────
+    data_confidence = _baseball_data_confidence(
+        ai_fallback, starter_a, starter_b, hitting_a, hitting_b, record_a, record_b,
+    )
+    steps.append({"step": "data_confidence", "status": "ok",
+                  "level": data_confidence,
+                  "starter_a": starter_a.get("name", "TBD"),
+                  "starter_b": starter_b.get("name", "TBD")})
+
     # ── 2.6. Weather fetch + fatigue / rest ──────────────────────────────────
     # Weather is now applied to the run model (not just logged).
     weather_data = None
@@ -905,6 +952,10 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
             log_signal(match_id, sig_name, participant,
                        signal_value=float(val), source="mlb_api")
 
+        # Data confidence (text signal → drives audit/calibration by-confidence)
+        log_signal(match_id, "data_confidence", None,
+                   signal_text=data_confidence, source="mlb_api")
+
         # Weather signals (participant=None → game-level, not team-specific)
         forecast_ts = weather_data.get("forecast_time", "") if weather_data else None
         weather_source = "openweather" if weather_data else "fallback"
@@ -1122,6 +1173,7 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "date":       game_date,
         "venue":      context["game"].get("venue", ""),
         "park_factor": park_factor,
+        "data_confidence": data_confidence,
         "plain_summary": _build_plain_summary(
             team_home, team_away,
             (prob_a if team_a == team_home else prob_b),

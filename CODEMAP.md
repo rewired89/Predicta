@@ -3767,6 +3767,18 @@ mutates: none
 ---
 
 ---
+name: _baseball_data_confidence
+type: function
+file: analyze_baseball.py
+purpose: Computes data confidence (low/medium/high) for a baseball prediction from how much input is real live data vs defaults — mirrors the other sports' pipelines. low = ESPN unreachable (AI-estimated) OR both probable starters unknown/TBD (common for next-day games before lineups post); medium = one starter TBD, missing team wRC+, or thin sample (<10 GP); high = both starters named with FIP + real wRC+ + ≥10 GP. Fixes the bug where baseball never returned data_confidence so the UI always showed its hardcoded "medium" default (baseball.html:737).
+inputs: ai_fallback: bool, starter_a, starter_b, hitting_a, hitting_b, record_a, record_b: dict
+outputs: str ("low"|"medium"|"high")
+calls: none
+called_by: run_baseball_analysis
+mutates: none
+---
+
+---
 name: _format_baseball_markets
 type: function
 file: analyze_baseball.py
@@ -3798,7 +3810,8 @@ file: analyze_baseball.py
 purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
 outputs: dict {match_id, team_a, team_b, team_home, team_away, plain_summary, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
-calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets, _build_plain_summary
+calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, _baseball_data_confidence, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets, _build_plain_summary
+note: result dict now includes data_confidence (low/medium/high, from _baseball_data_confidence); also logged as a text signal for audit/calibration by-confidence.
 called_by: analyze_baseball (app.py)
 mutates: matches, signals (incl. weather + savant signals), predictions tables
 ---
