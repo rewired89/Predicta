@@ -483,6 +483,15 @@ def enrich_starter(
             if k == "display_name" or v is None:
                 continue
             result[k] = v
+        # Canonical aliases so downstream serialization, the UI, and the daily
+        # diagnostics see the values under the names they expect (the model
+        # already reads both via predict_nrfi._get, but these don't).
+        if result.get("barrel_pct") is not None and result.get("barrel_pct_against") is None:
+            result["barrel_pct_against"] = result["barrel_pct"]
+        if result.get("hard_hit_pct") is not None and result.get("hard_hit_pct_against") is None:
+            result["hard_hit_pct_against"] = result["hard_hit_pct"]
+        if result.get("avg_velo") is not None and result.get("avg_fb_velo") is None:
+            result["avg_fb_velo"] = result["avg_velo"]
         best_quality = fs.get("siera") or fs.get("xfip") or fs.get("fip")
         if best_quality and best_quality > 0:
             result["fip"] = best_quality
