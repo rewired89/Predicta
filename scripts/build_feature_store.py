@@ -65,47 +65,38 @@ def _safe(v):
 
 
 def build(season: int | None = None, with_arsenal: bool = False) -> None:
-    try:
-        import pybaseball as pyb
-    except Exception as e:
-        print(f"pybaseball import failed: {e}\n  → pip install pybaseball")
-        sys.exit(1)
-    from fetchers.savant import _current_season, _load_fg_pitchers, fetch_pitcher_arsenal
+    # Reuse the EXACT Savant fetch the training data was built from
+    # (scripts/enrich_nrfi_savant._load_savant_season), so the store's columns
+    # and units match what the model learned on — no risk of a whole-number vs
+    # decimal (100x) mismatch from re-implementing the column mapping.
+    from scripts.enrich_nrfi_savant import _load_savant_season, _norm as _sv_norm  # noqa: F401
+    from fetchers.savant import _current_season, _load_fg_pitchers
 
     yr = season or _current_season()
-    print(f"Building feature store for season {yr} (Baseball Savant backbone)...\n")
+    print(f"Building feature store for season {yr} (Baseball Savant backbone, "
+          f"training-consistent fetch)...\n")
 
-    # ── Backbone: Baseball Savant exit-velo / barrels leaderboard (one bulk call)
-    try:
-        sv = pyb.statcast_pitcher_exitvelo_barrels(yr, minBBE=20)
-    except Exception as e:
-        print(f"Baseball Savant fetch FAILED: {type(e).__name__}: {str(e)[:200]}")
-        print("\nSavant is MLB's official site and rarely blocks residential IPs.")
-        print("If this failed from home, check: internet up? pybaseball installed?")
-        print(f"Also try last season: --season {yr-1}")
-        sys.exit(1)
-    if sv is None or sv.empty:
-        print(f"Savant returned no rows for {yr}. Try --season {yr-1}.")
-        sys.exit(1)
-
-    name_col = "last_name, first_name"
-    if name_col not in sv.columns:
-        print(f"Unexpected Savant columns: {list(sv.columns)[:15]}")
+    lookup = _load_savant_season(yr)   # {"first last": {barrel_pct, hard_hit_pct, whiff_pct, avg_velo, xwoba_against}}
+    if not lookup:
+        print(f"\nSavant returned nothing for {yr}. Try --season {yr-1}. "
+              "(Savant is MLB-official and rarely blocks residential IPs — check "
+              "internet / pybaseball install.)")
         sys.exit(1)
 
     pitchers: dict[str, dict] = {}
-    for _, row in sv.iterrows():
-        key, disp = _norm_savant(str(row.get(name_col, "")))
+    for spaced_name, feats in lookup.items():
+        key = _norm(spaced_name)
         if not key:
             continue
-        pitchers[key] = {
-            "display_name":         disp,
-            "barrel_pct_against":   _safe(row.get("barrel_batted_rate")),
-            "hard_hit_pct_against": _safe(row.get("hard_hit_percent")),
-            "exit_velo_against":    _safe(row.get("avg_hit_speed")),
-            "xwoba_against":        _safe(row.get("xwoba")),
-        }
-    print(f"Savant: {len(pitchers)} pitchers with barrel%/hard-hit%/velo/xwOBA.")
+        rec = {"display_name": " ".join(w.capitalize() for w in spaced_name.split())}
+        for k, v in feats.items():
+            fv = _safe(v)
+            if fv is not None:
+                rec[k] = fv
+        if len(rec) > 1:            # keep only pitchers with >=1 real metric
+            pitchers[key] = rec
+    print(f"\nSavant: {len(pitchers)} pitchers with real Statcast metrics "
+          "(barrel%/hard-hit%/whiff%/velo).")
 
     # ── Best-effort: FanGraphs for SIERA/xFIP/CSW%/O-Swing% (skipped if 403)
     sources = ["baseball_savant"]
@@ -133,24 +124,6 @@ def build(season: int | None = None, with_arsenal: bool = False) -> None:
         print("FanGraphs: unavailable (endpoint 403) — SIERA/CSW%/O-Swing% will "
               "default; ESPN FIP + Savant Statcast still differentiate games.")
 
-    # ── Optional: per-pitcher arsenal for fastball velo + whiff (slower)
-    if with_arsenal:
-        print("Fetching pitch arsenal (velo/whiff) per pitcher — this is slow...")
-        for i, (key, p) in enumerate(list(pitchers.items()), 1):
-            try:
-                ar = fetch_pitcher_arsenal(p["display_name"], yr)
-                if ar:
-                    if ar.get("avg_fb_velo") is not None:
-                        p["avg_fb_velo"] = ar["avg_fb_velo"]
-                    if ar.get("whiff_pct") is not None:
-                        p["whiff_pct"] = ar["whiff_pct"]
-            except Exception:
-                pass
-            time.sleep(0.3)
-            if i % 25 == 0:
-                print(f"  arsenal {i}/{len(pitchers)}...")
-        sources.append("savant_arsenal")
-
     store = {
         "season":     yr,
         "built_at":   datetime.now(timezone.utc).isoformat(),
@@ -162,10 +135,12 @@ def build(season: int | None = None, with_arsenal: bool = False) -> None:
     with open(OUT_PATH, "w") as f:
         json.dump(store, f, indent=2)
 
-    n_barrel = sum(1 for p in pitchers.values() if p.get("barrel_pct_against") is not None)
-    n_siera  = sum(1 for p in pitchers.values() if p.get("siera") is not None)
+    def _cov(field):
+        return sum(1 for p in pitchers.values() if p.get(field) is not None)
     print(f"\nSaved {len(pitchers)} pitchers → {OUT_PATH}")
-    print(f"  with barrel%: {n_barrel}  |  with SIERA: {n_siera}  |  sources: {sources}")
+    print(f"  barrel%: {_cov('barrel_pct')}  hard-hit%: {_cov('hard_hit_pct')}  "
+          f"whiff%: {_cov('whiff_pct')}  velo: {_cov('avg_velo')}  "
+          f"SIERA: {_cov('siera')}  | sources: {sources}")
     print("\nCommit it:  git add data/nrfi_feature_store.json && "
           "git commit -m 'nrfi: feature store' && git push")
 
@@ -173,7 +148,5 @@ def build(season: int | None = None, with_arsenal: bool = False) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=None)
-    ap.add_argument("--with-arsenal", action="store_true",
-                    help="Also fetch fastball velo / whiff per pitcher (slower)")
     args = ap.parse_args()
-    build(season=args.season, with_arsenal=args.with_arsenal)
+    build(season=args.season)
