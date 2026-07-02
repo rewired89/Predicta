@@ -48,6 +48,12 @@ except ImportError:
 
 FBREF_BASE = "https://fbref.com"
 
+# Round 6 P1 (Kimi): FBref cache TTL. Cloudflare success rate decays over
+# time — cache lets us serve slightly-stale data instead of dropping to the
+# partial-data threshold on every fetch failure. PSxG-GA / possession /
+# aerials barely change week-to-week, so 7 days is safe.
+CACHE_TTL_DAYS = 7
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -233,17 +239,96 @@ def _safe_float(val) -> Optional[float]:
         return None
 
 
-def fetch_team_gk(team_name: str, league: str, season: int) -> dict:
+def _cache_read(league: str, season: int, team: str, kind: str) -> Optional[dict]:
     """
-    Goalkeeper quality from FBref advanced keepers table.
+    Return (data, fresh) for a cache entry, or None if none exists.
+      data:  the cached dict
+      fresh: True if within CACHE_TTL_DAYS, False if stale but still returnable
+    """
+    try:
+        from db.database import get_db
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT data_json, cached_at FROM fbref_cache "
+                "WHERE league=? AND season=? AND team=? AND kind=?",
+                (league, int(season), team, kind),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            data = _json.loads(row["data_json"])
+        except Exception:
+            return None
+        try:
+            cached_at = _dt.fromisoformat(row["cached_at"].replace("Z", "+00:00"))
+        except Exception:
+            cached_at = _dt.now(_tz.utc)
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=_tz.utc)
+        fresh = (_dt.now(_tz.utc) - cached_at) < _td(days=CACHE_TTL_DAYS)
+        return {"data": data, "fresh": fresh,
+                "cached_at": cached_at.isoformat()}
+    except Exception:
+        return None
 
-    Returns:
-      psxg          — total post-shot xG faced
-      psxg_minus_ga — keeper's shot-stopping above expected (per 90; positive = good GK)
-      saves_pct     — save %
-      goals_against — total goals allowed
-    Empty dict on failure.
+
+def _cache_write(league: str, season: int, team: str, kind: str, data: dict) -> None:
+    """Insert or update the cache row. Empty dicts are not cached — we only
+    persist successful fetches so stale-serve mode doesn't perpetuate failures."""
+    if not data:
+        return
+    try:
+        from db.database import get_db
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+        with get_db() as conn:
+            conn.execute(
+                """
+                INSERT INTO fbref_cache (league, season, team, kind, data_json, cached_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(league, season, team, kind) DO UPDATE SET
+                    data_json = excluded.data_json,
+                    cached_at = excluded.cached_at
+                """,
+                (league, int(season), team, kind,
+                 _json.dumps(data),
+                 _dt.now(_tz.utc).isoformat()),
+            )
+    except Exception:
+        pass
+
+
+def _cached_or_fetch(team: str, league: str, season: int, kind: str, fresh_fn) -> dict:
     """
+    Wrapper: try cache (fresh → return), else fetch, else cache (stale → serve
+    with fbref_stale=True flag). Ensures the pipeline gets FBref data even
+    when Cloudflare wins that day.
+    """
+    cache = _cache_read(league, season, team, kind)
+    if cache and cache["fresh"]:
+        d = dict(cache["data"])
+        d["fbref_stale"]     = False
+        d["fbref_cached_at"] = cache["cached_at"]
+        return d
+    # Try a live fetch
+    fresh = fresh_fn()
+    if fresh:
+        _cache_write(league, season, team, kind, fresh)
+        d = dict(fresh)
+        d["fbref_stale"] = False
+        return d
+    # Fall back to stale cache if we have it
+    if cache and cache["data"]:
+        d = dict(cache["data"])
+        d["fbref_stale"]     = True
+        d["fbref_cached_at"] = cache["cached_at"]
+        return d
+    return {}
+
+
+def _live_gk(team_name: str, league: str, season: int) -> dict:
     df = _fetch_table(league, season, "keepers_adv")
     if df is None or df.empty:
         return {}
@@ -264,25 +349,7 @@ def fetch_team_gk(team_name: str, league: str, season: int) -> dict:
     }
 
 
-def fetch_team_pressing(team_name: str, league: str, season: int) -> dict:
-    """
-    Pressing intensity proxy from FBref possession + defense tables.
-
-    PPDA (passes allowed per defensive action) is the league-standard pressing
-    metric but FBref doesn't publish it directly. We approximate it from:
-
-      defensive_actions = tackles + interceptions + fouls_committed (opp half)
-      For a free public proxy we use total tackles + interceptions vs the
-      opponent's possession metrics.
-
-    Returns:
-      ppda_proxy   — lower = more pressing (top pressers ~7-9, low blocks ~15-18)
-      tkl_int      — tackles + interceptions per 90
-      pressures_def_3rd_pct — % of pressures in own third (low-block signal)
-      challenge_pct — successful tackle %
-
-    Empty dict on failure.
-    """
+def _live_pressing(team_name: str, league: str, season: int) -> dict:
     df = _fetch_table(league, season, "defense")
     if df is None or df.empty:
         return {}
@@ -308,21 +375,7 @@ def fetch_team_pressing(team_name: str, league: str, season: int) -> dict:
     }
 
 
-def fetch_team_possession(team_name: str, league: str, season: int) -> dict:
-    """
-    Field tilt + possession metrics from FBref possession table.
-
-    Field tilt approximation: share of touches in attacking third
-    (att_3rd_touches / total_touches). Top teams ~32-38%, bottom ~22-27%.
-
-    Returns:
-      att_3rd_touch_pct — % of touches in attacking third
-      def_3rd_touch_pct — % of touches in defensive third
-      possession_pct    — overall ball possession %
-      progressive_passes — progressive passes per 90
-
-    Empty dict on failure.
-    """
+def _live_possession(team_name: str, league: str, season: int) -> dict:
     df = _fetch_table(league, season, "possession")
     if df is None or df.empty:
         return {}
@@ -345,13 +398,7 @@ def fetch_team_possession(team_name: str, league: str, season: int) -> dict:
     }
 
 
-def fetch_team_aerials(team_name: str, league: str, season: int) -> dict:
-    """
-    Aerial duel win % from FBref misc table — feeds the set-piece model.
-
-    Returns aerials_won_pct, fouls_per_90, yellow_per_90.
-    Empty dict on failure.
-    """
+def _live_aerials(team_name: str, league: str, season: int) -> dict:
     df = _fetch_table(league, season, "misc")
     if df is None or df.empty:
         return {}
@@ -371,6 +418,36 @@ def fetch_team_aerials(team_name: str, league: str, season: int) -> dict:
         "yellow_per_90":   round(yel   / minutes, 2) if (yel   and minutes) else None,
         "source":          f"fbref/{league}/{season} misc",
     }
+
+
+# ── Public wrappers: cache-first, live-fetch fallback, stale-serve safety net ──
+
+def fetch_team_gk(team_name: str, league: str, season: int) -> dict:
+    """
+    Goalkeeper quality (PSxG, PSxG-GA per 90). Cache-first: fresh cache <
+    7d returns immediately, cache miss triggers live fetch, live fetch fail
+    with existing stale cache returns stale with fbref_stale=True flag.
+    """
+    return _cached_or_fetch(team_name, league, season, "gk",
+                            lambda: _live_gk(team_name, league, season))
+
+
+def fetch_team_pressing(team_name: str, league: str, season: int) -> dict:
+    """PPDA proxy + tackles+interceptions. Cache-first (see fetch_team_gk)."""
+    return _cached_or_fetch(team_name, league, season, "pressing",
+                            lambda: _live_pressing(team_name, league, season))
+
+
+def fetch_team_possession(team_name: str, league: str, season: int) -> dict:
+    """Field tilt + possession %. Cache-first (see fetch_team_gk)."""
+    return _cached_or_fetch(team_name, league, season, "possession",
+                            lambda: _live_possession(team_name, league, season))
+
+
+def fetch_team_aerials(team_name: str, league: str, season: int) -> dict:
+    """Aerial duel % + discipline. Cache-first (see fetch_team_gk)."""
+    return _cached_or_fetch(team_name, league, season, "aerials",
+                            lambda: _live_aerials(team_name, league, season))
 
 
 def enrich_soccer_advanced(

@@ -172,6 +172,26 @@ def _migrate_new_tables(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_nrfi_bets_verdict ON nrfi_bets(verdict, game_date)"
     )
+    # Round 6 P1 (Kimi): FBref response cache with 7-day TTL. When Cloudflare
+    # bypass fails, we serve stale data (flagged) instead of dropping to the
+    # partial-data threshold. kind is one of 'gk'|'pressing'|'possession'|'aerials'.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS fbref_cache (
+            id            INTEGER PRIMARY KEY,
+            league        TEXT NOT NULL,
+            season        INTEGER NOT NULL,
+            team          TEXT NOT NULL,
+            kind          TEXT NOT NULL,
+            data_json     TEXT NOT NULL,
+            cached_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(league, season, team, kind)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_fbref_cache_lookup ON fbref_cache(league, season, team, kind)"
+    )
     conn.commit()
 
 

@@ -228,20 +228,31 @@ def weekly_report() -> dict:
 
 def _compute_metrics() -> dict:
     """
-    Pull all resolved soccer predictions + outcomes and compute:
-      - counts (total, resolved, by verdict, by league)
-      - Brier score (probability-weighted squared error, lower = better)
-      - hit rate on BET / LEAN picks (percentage of correct favorites)
-      - ROI estimate for BET picks at implied breakeven odds
+    Compute soccer model performance (Round 6 rewrite for Kimi P4-P6):
+
+      Global:
+        - resolved (n), avg Brier score
+        - BET pick hit rate + avg odds + implied ROI
+        - LEAN pick hit rate + avg odds + implied ROI
+        - Calibration buckets (50-60%, 60-70%, 70-80%, 80%+)
+      Per-league:
+        - n, BET hit rate, LEAN hit rate, avg Brier
+
+    Depends on Round 6 P4-P6 signal persistence in analyze_soccer.py:
+    verdict / bet_side / bet_model_prob / bet_decimal_odds / bet_edge_pp are
+    logged per prediction.
     """
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT m.id AS match_id, m.league, m.participant_a, m.participant_b,
-                   p.prob_a, p.prob_draw, p.prob_b, p.explanation,
-                   o.result, o.score_a, o.score_b,
-                   (SELECT signal_value FROM signals WHERE match_id=m.id AND signal_name='verdict' LIMIT 1) AS verdict_num,
-                   (SELECT signal_text  FROM signals WHERE match_id=m.id AND signal_name='data_confidence' LIMIT 1) AS confidence
+            SELECT m.id AS match_id, m.league,
+                   p.prob_a, p.prob_draw, p.prob_b,
+                   o.result,
+                   (SELECT signal_text  FROM signals WHERE match_id=m.id AND signal_name='verdict'          LIMIT 1) AS verdict,
+                   (SELECT signal_text  FROM signals WHERE match_id=m.id AND signal_name='bet_side'         LIMIT 1) AS bet_side,
+                   (SELECT signal_value FROM signals WHERE match_id=m.id AND signal_name='bet_model_prob'   LIMIT 1) AS bet_model_prob,
+                   (SELECT signal_value FROM signals WHERE match_id=m.id AND signal_name='bet_decimal_odds' LIMIT 1) AS bet_decimal_odds,
+                   (SELECT signal_value FROM signals WHERE match_id=m.id AND signal_name='bet_edge_pp'      LIMIT 1) AS bet_edge_pp
             FROM matches m
             JOIN predictions p ON p.match_id = m.id
             JOIN outcomes    o ON o.match_id = m.id
@@ -253,13 +264,31 @@ def _compute_metrics() -> dict:
     if not rows:
         return {"resolved": 0}
 
-    by_league: dict[str, dict] = {}
-    total_brier = 0.0
-    correct_favorite = 0
+    total_brier    = 0.0
     total_resolved = 0
+    by_league: dict[str, dict] = {}
+
+    # BET / LEAN pick trackers
+    bet_picks:  list[dict] = []
+    lean_picks: list[dict] = []
+
+    # Calibration buckets — model prob buckets and actual hit rate
+    # (only when the model made a BET or LEAN pick — most-confident calls)
+    buckets: dict[str, dict] = {
+        "50-60%": {"n": 0, "hits": 0},
+        "60-70%": {"n": 0, "hits": 0},
+        "70-80%": {"n": 0, "hits": 0},
+        "80%+":   {"n": 0, "hits": 0},
+    }
+
+    def _bucket_for(prob: float) -> str:
+        if prob < 0.60: return "50-60%"
+        if prob < 0.70: return "60-70%"
+        if prob < 0.80: return "70-80%"
+        return "80%+"
 
     for r in rows:
-        actual = r["result"]  # 'a', 'b', 'draw'
+        actual = r["result"]
         if actual not in ("a", "b", "draw"):
             continue
         total_resolved += 1
@@ -267,81 +296,192 @@ def _compute_metrics() -> dict:
         p_b = float(r["prob_b"]  or 0)
         p_d = float(r["prob_draw"] or 0)
 
-        # Brier: sum((p_i - y_i)^2) over three outcomes
-        y_a = 1.0 if actual == "a"    else 0.0
-        y_b = 1.0 if actual == "b"    else 0.0
+        # Brier score
+        y_a = 1.0 if actual == "a" else 0.0
+        y_b = 1.0 if actual == "b" else 0.0
         y_d = 1.0 if actual == "draw" else 0.0
         brier = (p_a - y_a) ** 2 + (p_b - y_b) ** 2 + (p_d - y_d) ** 2
         total_brier += brier
 
-        # Favorite hit rate (ignores draw — picks the higher of a/b)
-        favorite = "a" if p_a >= p_b else "b"
-        if favorite == actual:
-            correct_favorite += 1
-
         lg = r["league"] or "unknown"
-        agg = by_league.setdefault(lg, {"n": 0, "correct": 0, "brier": 0.0})
+        agg = by_league.setdefault(lg, {"n": 0, "brier": 0.0,
+                                       "bet_n": 0, "bet_hits": 0,
+                                       "lean_n": 0, "lean_hits": 0})
         agg["n"] += 1
         agg["brier"] += brier
-        if favorite == actual:
-            agg["correct"] += 1
 
-    avg_brier = total_brier / total_resolved if total_resolved else None
-    favorite_rate = correct_favorite / total_resolved if total_resolved else None
+        # Verdict-based tracking
+        verdict = (r["verdict"] or "").upper()
+        bet_side = r["bet_side"]
+        model_prob = float(r["bet_model_prob"] or 0) if r["bet_model_prob"] is not None else None
+        decimal_odds = float(r["bet_decimal_odds"] or 0) if r["bet_decimal_odds"] is not None else None
+
+        if verdict in ("BET", "LEAN") and bet_side in ("home", "away", "draw"):
+            actual_side = {"a": "home", "b": "away", "draw": "draw"}[actual]
+            hit = 1 if actual_side == bet_side else 0
+            entry = {
+                "match_id":     r["match_id"],
+                "league":       lg,
+                "bet_side":     bet_side,
+                "model_prob":   model_prob,
+                "decimal_odds": decimal_odds,
+                "actual":       actual_side,
+                "hit":          hit,
+                "edge_pp":      float(r["bet_edge_pp"] or 0) if r["bet_edge_pp"] is not None else None,
+            }
+            if verdict == "BET":
+                bet_picks.append(entry)
+                agg["bet_n"] += 1
+                agg["bet_hits"] += hit
+            else:
+                lean_picks.append(entry)
+                agg["lean_n"] += 1
+                agg["lean_hits"] += hit
+
+            # Calibration on picked side's model prob
+            if model_prob is not None:
+                bk = _bucket_for(model_prob)
+                buckets[bk]["n"] += 1
+                buckets[bk]["hits"] += hit
+
+    def _pick_summary(picks: list[dict]) -> dict:
+        if not picks:
+            return {"n": 0}
+        n = len(picks)
+        hits = sum(p["hit"] for p in picks)
+        odds_available = [p["decimal_odds"] for p in picks if p.get("decimal_odds")]
+        avg_odds = sum(odds_available) / len(odds_available) if odds_available else None
+        # Implied ROI at avg odds: hit_rate × (avg_odds - 1) - (1 - hit_rate)
+        # Only compute when we have odds for every pick (else it's misleading)
+        implied_roi = None
+        if odds_available and len(odds_available) == n:
+            hr = hits / n
+            implied_roi = hr * (avg_odds - 1) - (1 - hr)
+        return {
+            "n":              n,
+            "hits":           hits,
+            "hit_rate":       round(hits / n, 3),
+            "avg_odds":       round(avg_odds, 3) if avg_odds else None,
+            "implied_roi":    round(implied_roi, 3) if implied_roi is not None else None,
+        }
 
     league_summary = {}
     for lg, agg in by_league.items():
         league_summary[lg] = {
-            "n":              agg["n"],
-            "favorite_rate":  round(agg["correct"] / agg["n"], 3) if agg["n"] else None,
-            "avg_brier":      round(agg["brier"] / agg["n"], 4) if agg["n"] else None,
+            "n":            agg["n"],
+            "avg_brier":    round(agg["brier"] / agg["n"], 4) if agg["n"] else None,
+            "bet_n":        agg["bet_n"],
+            "bet_hit_rate": round(agg["bet_hits"] / agg["bet_n"], 3) if agg["bet_n"] else None,
+            "lean_n":       agg["lean_n"],
+            "lean_hit_rate": round(agg["lean_hits"] / agg["lean_n"], 3) if agg["lean_n"] else None,
+        }
+
+    calib = {}
+    for name, b in buckets.items():
+        calib[name] = {
+            "n":        b["n"],
+            "hit_rate": round(b["hits"] / b["n"], 3) if b["n"] else None,
         }
 
     return {
-        "resolved":         total_resolved,
-        "avg_brier":        round(avg_brier, 4) if avg_brier is not None else None,
-        "favorite_hit_rate": round(favorite_rate, 3) if favorite_rate is not None else None,
-        "by_league":        league_summary,
-        "generated_utc":    datetime.now(timezone.utc).isoformat(),
+        "resolved":     total_resolved,
+        "avg_brier":    round(total_brier / total_resolved, 4) if total_resolved else None,
+        "bet":          _pick_summary(bet_picks),
+        "lean":         _pick_summary(lean_picks),
+        "calibration":  calib,
+        "by_league":    league_summary,
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
     }
 
 
 def _render_report(metrics: dict) -> str:
+    """
+    Kimi Round 6 P4-P6 rewrite. Report structure:
+
+      1. Header (n resolved, avg Brier)
+      2. BET picks table: n, hit rate, avg odds, implied ROI
+      3. LEAN picks table: same
+      4. Calibration buckets (does 60-70% predicted happen 60-70% of the time?)
+      5. Per-league breakdown (n, avg Brier, BET hit rate, LEAN hit rate)
+      6. Ship/halt thresholds
+
+    Favorite hit rate has been removed — it was Kimi-flagged as misleading for
+    a probabilistic model. BET/LEAN hit rate + ROI is what actually matters.
+    """
     now = datetime.now(timezone.utc)
+    resolved = metrics.get("resolved", 0)
     lines = [
         f"# Predicta Soccer Model — Weekly Report",
         f"",
         f"**Generated:** {now.isoformat()}",
-        f"**Resolved predictions:** {metrics.get('resolved', 0)} / 50 needed for full validator",
-        f"",
-        f"## Global metrics",
-        f"",
-        f"| Metric | Value | Interpretation |",
-        f"| --- | --- | --- |",
-        f"| Avg Brier score (0=perfect, 0.667=coin flip) | **{metrics.get('avg_brier', 'n/a')}** | Lower = better calibration |",
-        f"| Favorite hit rate | **{metrics.get('favorite_hit_rate', 'n/a')}** | Ignoring draw, does the higher-prob side win? |",
+        f"**Resolved predictions:** {resolved} / 50 needed for full validator",
+        f"**Global avg Brier:** {metrics.get('avg_brier', 'n/a')}   *(0 = perfect, 0.667 = coin flip)*",
         f"",
     ]
+
+    bet  = metrics.get("bet")  or {"n": 0}
+    lean = metrics.get("lean") or {"n": 0}
+
+    lines += [
+        "## BET picks — the money metric",
+        "",
+        "| Metric | Value | Notes |",
+        "| --- | --- | --- |",
+        f"| n | **{bet.get('n', 0)}** | Number of BET recommendations |",
+        f"| Hit rate | **{bet.get('hit_rate', 'n/a')}** | Fraction that won |",
+        f"| Avg odds | **{bet.get('avg_odds', 'n/a')}** | Mean decimal odds when supplied |",
+        f"| Implied ROI | **{bet.get('implied_roi', 'n/a')}** | hit × (odds−1) − (1−hit). Positive = profitable. |",
+        "",
+        "## LEAN picks — lower confidence, watch only",
+        "",
+        "| Metric | Value |",
+        "| --- | --- |",
+        f"| n | {lean.get('n', 0)} |",
+        f"| Hit rate | {lean.get('hit_rate', 'n/a')} |",
+        f"| Avg odds | {lean.get('avg_odds', 'n/a')} |",
+        f"| Implied ROI | {lean.get('implied_roi', 'n/a')} |",
+        "",
+    ]
+
+    calib = metrics.get("calibration") or {}
+    if any(v.get("n", 0) > 0 for v in calib.values()):
+        lines += [
+            "## Calibration — does the model's probability match reality?",
+            "",
+            "*Only picks where verdict = BET or LEAN. Well-calibrated model has hit rate close to the bucket midpoint.*",
+            "",
+            "| Model prob bucket | n | Actual hit rate |",
+            "| --- | --- | --- |",
+        ]
+        for name in ["50-60%", "60-70%", "70-80%", "80%+"]:
+            b = calib.get(name, {})
+            lines.append(f"| {name} | {b.get('n', 0)} | {b.get('hit_rate', 'n/a')} |")
+        lines.append("")
 
     by_league = metrics.get("by_league") or {}
     if by_league:
         lines += [
             "## Per-league breakdown",
             "",
-            "| League | n | Favorite Hit Rate | Avg Brier |",
-            "| --- | --- | --- | --- |",
+            "| League | n | Avg Brier | BET n | BET hit rate | LEAN n | LEAN hit rate |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
         ]
         for lg, m in sorted(by_league.items()):
-            lines.append(f"| {lg} | {m['n']} | {m['favorite_rate']} | {m['avg_brier']} |")
+            lines.append(
+                f"| {lg} | {m['n']} | {m['avg_brier']} | "
+                f"{m['bet_n']} | {m['bet_hit_rate']} | "
+                f"{m['lean_n']} | {m['lean_hit_rate']} |"
+            )
         lines.append("")
 
     lines += [
-        "## Next steps",
+        "## Ship / halt thresholds",
         "",
-        "- Continue collecting predictions and outcomes.",
-        "- At ≥50 resolved, compute BET-specific hit rate and ROI vs sportsbook odds (CLV).",
-        "- If Brier < 0.20 and favorite hit rate > 55%, model is beating market implied odds — proceed to Kelly-sized paper trades.",
-        "- If Brier > 0.25 or hit rate < 50%, model is worse than random — halt, investigate calibration.",
+        "- **Ship it** if all three hold: Brier < 0.20, BET hit rate > 55%, BET implied ROI > 0.",
+        "- **Watch** if two of three hold — collect more data before scaling.",
+        "- **Halt** if any of these: Brier > 0.25, BET hit rate < 45%, BET implied ROI < −0.05.",
+        "",
+        "**CLV check (manual for now):** For the first 20 BET picks, look up Pinnacle's closing line and compare against the odds we used. If we beat the close ≥55% of the time, the edge is real. If not, we're getting lucky.",
         "",
         "This report was auto-generated by `tasks/soccer_auto.weekly_report()`.",
     ]

@@ -34,38 +34,61 @@ _LEAGUES: dict[str, dict[str, float]] = {
         "xg_per_team_per_game":    1.51,
         "home_advantage":          1.13,
         "open_play_xg_share":      0.79,
+        # Championship is physical, not technical — big gap up
+        "promoted_attack_prior":   0.88,
+        "promoted_defense_prior":  1.12,
     },
     "La_liga": {
         "goals_per_team_per_game": 1.31,
         "xg_per_team_per_game":    1.38,
         "home_advantage":          1.18,
         "open_play_xg_share":      0.76,
+        # Segunda is far below the top flight
+        "promoted_attack_prior":   0.87,
+        "promoted_defense_prior":  1.13,
     },
     "Bundesliga": {
         "goals_per_team_per_game": 1.55,
         "xg_per_team_per_game":    1.62,
         "home_advantage":          1.10,
         "open_play_xg_share":      0.78,
+        # 2.Bundesliga is close in quality; promoted sides often survive
+        "promoted_attack_prior":   0.93,
+        "promoted_defense_prior":  1.08,
     },
     "Serie_A": {
         "goals_per_team_per_game": 1.38,
         "xg_per_team_per_game":    1.45,
         "home_advantage":          1.16,
         "open_play_xg_share":      0.77,
+        # Serie B is defensive; promoted teams struggle to score
+        "promoted_attack_prior":   0.89,
+        "promoted_defense_prior":  1.11,
     },
     "Ligue_1": {
         "goals_per_team_per_game": 1.28,
         "xg_per_team_per_game":    1.36,
         "home_advantage":          1.17,
         "open_play_xg_share":      0.79,
+        # Big gap to Ligue 2, promoted teams underperform
+        "promoted_attack_prior":   0.86,
+        "promoted_defense_prior":  1.14,
     },
     "RFPL": {
         "goals_per_team_per_game": 1.30,
         "xg_per_team_per_game":    1.37,
         "home_advantage":          1.20,
         "open_play_xg_share":      0.78,
+        # No strong signal — use global default
+        "promoted_attack_prior":   0.90,
+        "promoted_defense_prior":  1.10,
     },
 }
+
+
+# Global fallback for unknown leagues
+DEFAULT_PROMOTED_ATTACK  = 0.90
+DEFAULT_PROMOTED_DEFENSE = 1.10
 
 
 def league_avg_goals(league: Optional[str]) -> float:
@@ -127,3 +150,19 @@ def open_play_share(league: Optional[str]) -> float:
 
 def known_leagues() -> list[str]:
     return list(_LEAGUES.keys())
+
+
+def promoted_prior(league: Optional[str]) -> tuple[float, float]:
+    """
+    Return (attack_prior, defense_prior) for a promoted / unknown team in
+    this league (Kimi Round 6 P2). Championship-to-EPL is a big gap
+    (0.88 / 1.12) while 2.Bundesliga-to-Bundesliga is small (0.93 / 1.08).
+
+    Falls back to the global 0.90 / 1.10 when the league isn't in _LEAGUES.
+    """
+    if not league:
+        return (DEFAULT_PROMOTED_ATTACK, DEFAULT_PROMOTED_DEFENSE)
+    entry = _LEAGUES.get(league, {})
+    a = entry.get("promoted_attack_prior",  DEFAULT_PROMOTED_ATTACK)
+    d = entry.get("promoted_defense_prior", DEFAULT_PROMOTED_DEFENSE)
+    return (a, d)

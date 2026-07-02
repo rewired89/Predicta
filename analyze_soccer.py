@@ -93,7 +93,7 @@ def _set_piece_share(team_sit: dict, league: Optional[str]) -> float:
     return max(0.05, min(0.45, float(s)))
 
 
-PROMOTED_TEAM_ATTACK_PRIOR  = 0.90
+PROMOTED_TEAM_ATTACK_PRIOR  = 0.90   # global fallback; use leagues.promoted_prior(league) for per-league
 PROMOTED_TEAM_DEFENSE_PRIOR = 1.10
 
 
@@ -102,6 +102,7 @@ def _build_strengths(
     opp_data: dict,
     league_avg_goals: float,
     is_home: bool,
+    league: Optional[str] = None,
 ) -> dict:
     """
     Convert Understat enriched dict → Dixon-Coles attack/defense.
@@ -132,17 +133,21 @@ def _build_strengths(
         venue_against = team_data.get("away_npxga_per_game") or team_data.get("away_xga_per_game")
         venue_matches = team_data.get("away_matches", 0)
 
-    # Round 4 #3: if no xG signal in any column, use the promoted-team prior.
+    # Round 4 #3 + Round 6 P2: if no xG signal in any column, use the
+    # league-specific promoted-team prior. Championship-to-EPL is a bigger
+    # gap than 2.Bundesliga-to-Bundesliga; a flat prior over-corrected.
     if (season_for is None and recent_for is None and venue_for is None
         and season_against is None and recent_against is None and venue_against is None):
+        prior_attack, prior_defense = leagues.promoted_prior(league)
         return {
-            "attack":  PROMOTED_TEAM_ATTACK_PRIOR,
-            "defense": PROMOTED_TEAM_DEFENSE_PRIOR,
+            "attack":  prior_attack,
+            "defense": prior_defense,
             "components": {
-                "prior_used":   "promoted_team",
+                "prior_used":   f"promoted_team[{league or 'default'}]",
+                "prior_values": (prior_attack, prior_defense),
                 "league_avg":   league_avg_goals,
                 "is_home":      is_home,
-                "note":         "No live xG — using below-average prior, not league average",
+                "note":         "No live xG — using league-specific below-average prior",
             },
         }
 
@@ -313,7 +318,15 @@ def _bet_recommendations(
 
 
 def _format_markets(raw: dict, home: str, away: str) -> dict:
-    """Frontend-friendly market dict — mirrors analyze.py shape but home/away keyed."""
+    """
+    Frontend-friendly market dict.
+
+    Kimi Round 6 P8: pre-match models can't predict "next shot on target" or
+    "method of the 2nd goal" with any real edge — these are live-betting
+    concepts. compute_all_markets still generates them but we explicitly do
+    NOT surface them; only match_result_2up, correct_score, spread (Asian
+    handicap), and winner_push_if_tied (DNB) appear in the output.
+    """
     def pct(v: float) -> float:
         return round(float(v) * 100, 1)
 
@@ -580,8 +593,8 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                   "value": round(league_avg_anchor, 3), "source": anchor_source})
 
     # ── 5. Build attack/defense strengths ───────────────────────────────────
-    str_h = _build_strengths(enriched["home"], enriched["away"], league_avg_goals, is_home=True)
-    str_a = _build_strengths(enriched["away"], enriched["home"], league_avg_goals, is_home=False)
+    str_h = _build_strengths(enriched["home"], enriched["away"], league_avg_goals, is_home=True,  league=league)
+    str_a = _build_strengths(enriched["away"], enriched["home"], league_avg_goals, is_home=False, league=league)
     steps.append({
         "step": "strengths",
         "status": "ok",
@@ -770,6 +783,46 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             if v is not None:
                 log_signal(match_id, name, team, signal_value=v,
                            source="understat_fbref")
+
+        # Round 6 P4-P6 (Kimi): persist BET context so weekly_report can
+        # compute BET-hit-rate, avg odds, and implied ROI. Without these,
+        # the report can only track "did the favorite win" which Kimi rightly
+        # rejected as not a profitability signal.
+        top_rec = (recs or [{}])[0]
+        verdict = top_rec.get("verdict")
+        if verdict:
+            log_signal(match_id, "verdict", None, signal_text=verdict,
+                       source="soccer_v2")
+        # Which side we would bet if verdict = BET / LEAN
+        bet_side = None
+        bet_prob = None
+        bet_decimal_odds = None
+        bet_str = top_rec.get("bet", "") or ""
+        if bet_str.startswith(home_team):
+            bet_side, bet_prob = "home", prob_home
+            bet_decimal_odds = odds_home
+        elif bet_str.startswith(away_team):
+            bet_side, bet_prob = "away", prob_away
+            bet_decimal_odds = odds_away
+        elif bet_str.startswith("Draw") or "draw" in bet_str.lower():
+            bet_side, bet_prob = "draw", prob_draw
+            bet_decimal_odds = odds_draw
+        if bet_side:
+            log_signal(match_id, "bet_side", None, signal_text=bet_side, source="soccer_v2")
+            log_signal(match_id, "bet_model_prob", None, signal_value=float(bet_prob),
+                       source="soccer_v2")
+        if bet_decimal_odds is not None:
+            log_signal(match_id, "bet_decimal_odds", None,
+                       signal_value=float(bet_decimal_odds), source="soccer_v2")
+        edge_pp = top_rec.get("edge_pp")
+        if edge_pp is not None:
+            log_signal(match_id, "bet_edge_pp", None, signal_value=float(edge_pp),
+                       source="soccer_v2")
+        # Data completeness for stratified reporting
+        log_signal(match_id, "data_completeness_home", None,
+                   signal_text=data_completeness["home"], source="soccer_v2")
+        log_signal(match_id, "data_completeness_away", None,
+                   signal_text=data_completeness["away"], source="soccer_v2")
 
         explanation = _build_explanation(
             home_team, away_team, dc, str_h, str_a, league_avg_goals,
