@@ -108,6 +108,22 @@ def aggregate_performance(days: int = 3650) -> dict:
     else:
         verdict = "NO EDGE DETECTED"
 
+    # Honesty guard: an explicit, state-aware disclaimer travels with every
+    # performance response so the API can never be quoted as a profit claim
+    # before the live edge is actually proven (Kimi's "don't oversell" point).
+    if len(resolved) == 0:
+        disclaimer = ("No resolved live predictions yet. Historical walk-forward "
+                      "validation only (2022–2025: 54.9% at the 55% threshold, "
+                      "p=0.0049). The live edge is NOT yet proven — this scorecard "
+                      "is being built in public, starting now.")
+    elif verdict in ("TOO EARLY", "EDGE EXISTS"):
+        disclaimer = (f"{len(resolved)} live predictions resolved — too few to "
+                      "prove an edge. Treat these as an accumulating track record, "
+                      "not a profit claim.")
+    else:
+        disclaimer = ("Live results shown. Past performance does not guarantee "
+                      "future results; variance is real over small samples.")
+
     return {
         "verdict":      verdict,
         "n_plays":      len(all_plays),
@@ -121,6 +137,7 @@ def aggregate_performance(days: int = 3650) -> dict:
         "p_value":      p_value,
         "clv":          clv,
         "window_days":  days,
+        "disclaimer":   disclaimer,
     }
 
 
@@ -129,6 +146,12 @@ def aggregate_clv(days: int = 3650) -> dict:
     Closing Line Value summary across plays that have both entry + closing lines.
     CLV accumulates every game (independent of outcome), so it's the fastest
     signal of edge and the number sharp buyers ask for.
+
+    Validity guard (Kimi's caveat): CLV only means "we led the market" if the
+    entry line was captured well before first pitch. Entries flagged
+    entry_stale=True (captured < MIN_ENTRY_LEAD_HOURS before first pitch) are
+    excluded from the headline number and reported separately, so a late/stale
+    entry can't inflate the metric.
     """
     clv_plays: list[dict] = []
     for d in _recent_dates(days):
@@ -141,11 +164,25 @@ def aggregate_clv(days: int = 3650) -> dict:
                 "message": "No closing-line data yet. Set ODDS_API_KEY and run the "
                            "capture-odds step so CLV can accumulate."}
 
-    beat = sum(1 for p in clv_plays if p.get("beat_close") == 1)
-    avg  = sum(p["clv_pp"] for p in clv_plays) / len(clv_plays)
+    # Headline CLV uses only entries captured early enough to be valid.
+    valid  = [p for p in clv_plays if not p.get("entry_stale")]
+    stale  = [p for p in clv_plays if p.get("entry_stale")]
+    scored = valid or clv_plays  # fall back if no lead-time info recorded
+
+    beat = sum(1 for p in scored if p.get("beat_close") == 1)
+    avg  = sum(p["clv_pp"] for p in scored) / len(scored)
+
+    leads = [p["entry_hours_to_fp"] for p in scored
+             if p.get("entry_hours_to_fp") is not None]
+    avg_lead = round(sum(leads) / len(leads), 1) if leads else None
+
     return {
-        "n":              len(clv_plays),
-        "avg_clv_pp":     round(avg, 3),
-        "beat_close":     beat,
-        "beat_close_pct": round(beat / len(clv_plays) * 100, 1),
+        "n":                  len(scored),
+        "avg_clv_pp":         round(avg, 3),
+        "beat_close":         beat,
+        "beat_close_pct":     round(beat / len(scored) * 100, 1),
+        "avg_entry_lead_hrs": avg_lead,
+        "n_stale_excluded":   len(stale),
+        "note": ("Headline CLV uses only entry lines captured >= 3h before first "
+                 "pitch, so it measures leading the market, not moving with it."),
     }

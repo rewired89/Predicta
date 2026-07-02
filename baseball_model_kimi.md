@@ -130,11 +130,21 @@ starters are confirmed on game-day morning. This is intended behavior.
 CLV measures whether the betting market moved **toward our pick** after we made it
 — the sharpest proof of edge because it accumulates every game, win or lose.
 
-- Capture the NRFI line at **pick time** (entry) and again **near first pitch**
-  (closing), preferring Pinnacle.
+- Capture the NRFI line at **pick time** (entry, 9 AM ET) and again **near first
+  pitch** (closing, 7 PM ET), preferring Pinnacle.
 - `clv_pp` = vig-free closing probability − entry probability, on our bet side.
   Positive = we were early = we beat the close.
 - Stored in the daily reports and the database; exposed via the API.
+
+**Timing safeguard (added per Kimi's caveat).** CLV only means "we led the
+market" if the entry line was captured *before* the sharps moved it. So every
+entry now records `entry_hours_to_fp` (hours before first pitch) and an
+`entry_stale` flag. Entries captured **< 3 hours** before first pitch are
+**excluded from the headline CLV** and reported separately (`n_stale_excluded`),
+and the API reports `avg_entry_lead_hrs` so the number is auditable. For typical
+7 PM ET games the 9 AM ET entry is ~10h early (good); afternoon games get less
+lead and may be flagged. **Still to verify with live data:** that our 9 AM entry
+is genuinely ahead of the bulk of same-day line movement.
 
 ---
 
@@ -161,8 +171,31 @@ CLV measures whether the betting market moved **toward our pick** after we made 
 
 ---
 
+## 9a. How we talk about performance (honest claims)
+
+Adopted from Kimi. With zero resolved live predictions, the **only** claims we
+make — and that the API enforces via a state-aware `disclaimer` field on every
+performance response:
+
+1. **Historically validated:** "Trained on 2022–2025; 54.9% win rate at the 55%
+   threshold, p=0.0049. Break-even at −110 is 52.4%, so a ~2.5pp historical margin."
+2. **Tracked in real time, in public:** "Every pick, its confidence, and its
+   closing-line value are published before the game — auditable in our commit history."
+3. **Transparent about the unknown:** "We have NOT proven this edge live yet.
+   We're building the track record in public."
+
+**Never say:** "our model wins," "profitable system," "beat the market,"
+"guaranteed ROI." Sell **access + transparency**, not guaranteed profit.
+
+---
+
 ## 10. Recent changes (newest first)
 
+- **2026-07-02** — Added CLV **timing safeguard**: entry lines now record hours-
+  before-first-pitch and a stale flag; headline CLV excludes entries captured
+  < 3h before first pitch (so it measures *leading* the market, not moving with it).
+- **2026-07-02** — Added a state-aware **honesty disclaimer** to the performance
+  API so results can't be quoted as a profit claim before the edge is proven.
 - **2026-07-02** — Fixed baseball `data_confidence` (was hardcoded "medium" for
   every game); now derived from real data quality.
 - **2026-07-02** — Rewrote the starter first-inning-rate feature to a **short
@@ -174,22 +207,28 @@ CLV measures whether the betting market moved **toward our pick** after we made 
 
 ---
 
-## 11. Open questions for Kimi
+## 11. Decisions (resolved with Kimi) + what to watch
 
-1. **CLV method.** We measure edge as *entry-line vs closing-line movement on our
-   side* (we're paper, so we have no real bet price). Is that the right proxy, or
-   should we instead compare *our model probability vs the closing fair
-   probability*? Which is more defensible to a sharp buyer?
+1. **CLV method → DECIDED: Way A** (track line movement toward our pick).
+   *Watch:* verify entry lines aren't stale — handled by the timing safeguard in
+   §7. If live data shows our 9 AM entry is already post-movement, revisit.
 
-2. **Rolling window size.** Starters pitch every ~5 days, so 6 starts ≈ 30 days.
-   Is a 6-start window with a 21-day half-life the right recency trade-off for
-   MLB, or too short/too long?
+2. **Rolling window → DECIDED: ship 6 starts / 21-day half-life.**
+   *Validation plan:* after retrain + ~200 live predictions, A/B the new feature
+   vs the old season-to-date feature; keep whichever performs better. Don't
+   over-tune pre-launch.
 
-3. **Honest first claim.** With zero resolved live predictions, what is the
-   strongest *honest* thing we can tell a first paying customer?
+3. **First-customer claim → DECIDED:** the three honest claims in §9a, enforced
+   by the API disclaimer. Sell access + transparency, never guaranteed profit.
 
-4. **Sequencing.** Ship baseball-only now, or first fix sibling pipelines (e.g.
-   soccer currently predicts even when it has no data)?
+4. **Sequencing → DECIDED: ship baseball-only.** Soccer sits behind "coming soon"
+   until its data pipeline is reworked and given a *refuse-to-predict* gate when
+   data quality is too low (it currently predicts on empty data — reputationally
+   risky). Tracked as the next engineering project, not a launch blocker.
+
+### Still open for Kimi
+- Review the actual CLV math / API JSON for soundness (samples can be shared once
+  `ODDS_API_KEY` is set and real lines flow).
 
 ---
 

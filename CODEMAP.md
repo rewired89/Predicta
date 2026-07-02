@@ -7242,7 +7242,7 @@ mutates: main branch (nrfi_predictions/ + nrfi_reports/ directories)
 name: capture_odds
 type: function
 file: scripts/daily_nrfi.py
-purpose: Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction record for Closing Line Value (CLV). phase="entry" fills entry_* (line when pick was made) and seeds closing_*; phase="closing" updates closing_*. Graceful no-op (returns 0) when ODDS_API_KEY unset or no market match. Mutates records in place.
+purpose: Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction record for Closing Line Value (CLV). phase="entry" fills entry_* (line when pick was made), records entry_hours_to_fp (hours before first pitch via _hours_before_first_pitch) + entry_stale flag (True if < MIN_ENTRY_LEAD_HOURS=3h before first pitch, so stale entries can be excluded from headline CLV), and seeds closing_*; phase="closing" updates closing_*. Graceful no-op (returns 0) when ODDS_API_KEY unset or no market match. Mutates records in place.
 inputs: predictions: list[dict], phase: str ("entry"|"closing")
 outputs: int (games updated)
 calls: fetchers.nrfi_odds.fetch_nrfi_odds
@@ -7320,7 +7320,7 @@ mutates: none
 name: nrfi_store
 type: module
 file: nrfi_store.py
-purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct.
+purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE) plus a state-aware honesty `disclaimer` (no profit claim before edge proven), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct, avg_entry_lead_hrs, n_stale_excluded (headline CLV excludes entry_stale plays so it measures leading the market, not moving with it).
 inputs: game_date/days args
 outputs: list[str] / list[dict] / dict summaries
 calls: json, scipy.stats (optional)

@@ -198,9 +198,39 @@ def fetch_linescore(game_pk: int) -> Optional[dict]:
 
 # ── CLV / odds capture ──────────────────────────────────────────────────────
 
+# Minimum hours the entry line must be captured BEFORE first pitch for its CLV
+# to count. Kimi's caveat: if we capture "entry" after the morning sharps have
+# already moved the line, CLV measures "moved WITH the sharps", not "led them".
+# We time-stamp every entry and flag anything captured too close to first pitch.
+MIN_ENTRY_LEAD_HOURS = 3.0
+
+
 def _bet_side(p_nrfi: Optional[float]) -> str:
     """Side the model leans: NRFI when p_nrfi >= 50, else YRFI."""
     return "NRFI" if (p_nrfi is not None and p_nrfi >= 50) else "YRFI"
+
+
+def _parse_iso(ts: str):
+    """Parse an ISO-8601 timestamp (handles trailing 'Z' and missing seconds)."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _hours_before_first_pitch(game_time: str, captured_at: str) -> Optional[float]:
+    """Hours between an odds capture and first pitch (positive = captured before)."""
+    gt = _parse_iso(game_time)
+    cap = _parse_iso(captured_at)
+    if gt is None or cap is None:
+        return None
+    if gt.tzinfo is None:
+        gt = gt.replace(tzinfo=timezone.utc)
+    if cap.tzinfo is None:
+        cap = cap.replace(tzinfo=timezone.utc)
+    return round((gt - cap).total_seconds() / 3600.0, 2)
 
 
 def capture_odds(predictions: list[dict], phase: str) -> int:
@@ -247,6 +277,10 @@ def capture_odds(predictions: list[dict], phase: str) -> int:
                 p["entry_yrfi_dec"] = o["yrfi_dec"]
                 p["entry_book"]     = o["book"]
                 p["entry_odds_at"]  = o["captured_at"]
+                # Audit trail: how early was this entry line? (CLV validity)
+                lead = _hours_before_first_pitch(p.get("game_time", ""), o["captured_at"])
+                p["entry_hours_to_fp"] = lead
+                p["entry_stale"] = (lead is not None and lead < MIN_ENTRY_LEAD_HOURS)
             p["closing_nrfi_dec"] = o["nrfi_dec"]
             p["closing_yrfi_dec"] = o["yrfi_dec"]
             p["closing_book"]     = o["book"]
@@ -359,6 +393,8 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "entry_yrfi_dec":   None,
                 "entry_book":       None,
                 "entry_odds_at":    None,
+                "entry_hours_to_fp": None,   # hours before first pitch (CLV validity)
+                "entry_stale":      None,    # True if captured < 3h before first pitch
                 "closing_nrfi_dec": None,
                 "closing_yrfi_dec": None,
                 "closing_book":     None,
