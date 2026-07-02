@@ -63,6 +63,15 @@ def startup():
         except Exception:
             pass
 
+    # Always-on NRFI daily pipeline (predict 13:00 / capture 23:00 / resolve
+    # 05:00 UTC), pushing results to GitHub. Replaces the unreliable GitHub
+    # Actions cron. Disable with NRFI_AUTO_DISABLED=1.
+    try:
+        from tasks.nrfi_auto import start_nrfi_auto
+        start_nrfi_auto()
+    except Exception:
+        pass
+
 
 @app.get("/ping")
 def ping():
@@ -688,6 +697,31 @@ def nrfi_resolve(body: dict):
 
     return {"id": row["id"], "outcome": "NRFI" if outcome else "YRFI",
             "won": bool(won), "pnl_units": pnl}
+
+
+@app.get("/nrfi-auto/status")
+def nrfi_auto_status():
+    """Is the always-on NRFI scheduler running? When did each job last fire?"""
+    from tasks.nrfi_auto import status
+    return status()
+
+
+@app.post("/nrfi-auto/run")
+def nrfi_auto_run(job: str = "predict", date: Optional[str] = None):
+    """
+    Manually fire an NRFI job now (for testing / on-demand). job = predict |
+    capture | resolve. Runs synchronously and returns the result + push status.
+    """
+    from tasks import nrfi_auto
+    fn = {"predict": nrfi_auto.run_predict,
+          "capture": nrfi_auto.run_capture,
+          "resolve": nrfi_auto.run_resolve}.get(job)
+    if fn is None:
+        raise HTTPException(400, "job must be one of: predict, capture, resolve")
+    try:
+        return {"job": job, "result": fn(date)}
+    except Exception as exc:
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}")
 
 
 @app.get("/api/nrfi")
