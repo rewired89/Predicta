@@ -12,18 +12,30 @@ fails in production and every starter defaults to ESPN — flattening the NRFI
 model to ~51% on every game. Run THIS locally (residential IP), commit the
 JSON, and the pipeline reads it at runtime with no live fetch.
 
-Data sources (in order of reliability from a residential IP):
-  - Baseball Savant (MLB official)  → barrel%, hard-hit%, exit velo, xwOBA
-                                       (the backbone — one bulk leaderboard call)
-  - FanGraphs (best-effort)         → SIERA, xFIP, CSW%, O-Swing%, K%, BB%,
-                                       GB%, HR/FB — SKIPPED automatically if the
-                                       endpoint 403s (it currently does)
-  - Savant pitch arsenal (optional) → fastball velo, whiff% (--with-arsenal;
-                                       per-pitcher, slower)
+Data sources:
+  - Baseball Savant (MLB official)  → barrel%, hard-hit%, whiff%, velo, xwOBA
+                                       (auto-fetched — the backbone)
+  - FanGraphs advanced stats        → SIERA, xFIP, FIP, CSW%, O-Swing%, K%, BB%,
+                                       GB%, HR/FB. FanGraphs blocks scripts
+                                       (Cloudflare 403), so we can't fetch these
+                                       live. Instead, a FanGraphs MEMBER exports
+                                       the pitching leaderboard(s) to CSV and
+                                       drops them in data/ (see below). This
+                                       script reads any data/fangraphs*.csv and
+                                       merges the columns it finds, converting
+                                       percentages to the decimals the model
+                                       expects. Optional but recommended.
+
+How to add FanGraphs stats (needs a FanGraphs membership):
+  1. FanGraphs → Leaders → Pitching → your season, qualified (or low IP filter).
+  2. Pick the "Advanced" view (SIERA, xFIP, FIP, K%, BB%, HR/FB) → Export Data →
+     save as  data/fangraphs_advanced.csv
+  3. (optional) Pick "Plate Discipline" (O-Swing%, CSW% if shown) → Export Data →
+     save as  data/fangraphs_plate.csv
+  4. Re-run this script — it auto-detects and merges those files by pitcher name.
 
 Usage:
-  python scripts/build_feature_store.py                 # Savant backbone (+FG if it works)
-  python scripts/build_feature_store.py --with-arsenal  # also fastball velo / whiff (slower)
+  python scripts/build_feature_store.py            # Savant + any data/fangraphs*.csv
   python scripts/build_feature_store.py --season 2025
 
 Then commit data/nrfi_feature_store.json.
@@ -64,6 +76,77 @@ def _safe(v):
         return None
 
 
+# FanGraphs CSV column → (store field, is_percentage). Percentages are
+# normalized to the decimals the model expects (CSW% 28.5 -> 0.285).
+_FG_COLS = [
+    ("SIERA", "siera", False), ("xFIP", "xfip", False), ("FIP", "fip", False),
+    ("CSW%", "csw_pct", True), ("O-Swing%", "o_swing_pct", True),
+    ("K%", "k_pct", True), ("BB%", "bb_pct", True),
+    ("GB%", "gb_pct", True), ("HR/FB", "hr_fb_pct", True),
+]
+
+
+def _to_decimal(v):
+    """A percent value in either form (28.5 or 0.285) → decimal 0.285."""
+    f = _safe(str(v).replace("%", "").strip())
+    if f is None:
+        return None
+    return round(f / 100.0, 4) if f > 1.5 else round(f, 4)
+
+
+def _merge_fangraphs_csv(pitchers: dict, data_dir) -> int:
+    """
+    Merge FanGraphs member-exported CSV(s) into the pitcher store. Reads every
+    file matching data/fangraphs*.csv (so you can drop 'Advanced' and 'Plate
+    Discipline' exports separately). Matches columns case-insensitively and
+    normalizes percentages to decimals. Returns number of pitchers touched.
+    """
+    from pathlib import Path
+    try:
+        import pandas as pd
+    except ImportError:
+        return 0
+
+    files = sorted(Path(data_dir).glob("fangraphs*.csv"))
+    if not files:
+        return 0
+
+    touched: set[str] = set()
+    for f in files:
+        try:
+            df = pd.read_csv(f)
+        except Exception as e:
+            print(f"  could not read {f.name}: {e}")
+            continue
+        # case-insensitive header lookup
+        cols = {str(c).strip().lower(): c for c in df.columns}
+        name_col = next((cols[c] for c in ("name", "playername", "player_name", "player")
+                         if c in cols), None)
+        if not name_col:
+            print(f"  {f.name}: no Name column — skipping")
+            continue
+        matched = [dst for (src, dst, _p) in _FG_COLS if src.lower() in cols]
+        print(f"  {f.name}: {len(df)} rows, columns matched → {matched or 'none'}")
+        for _, r in df.iterrows():
+            key = _norm(str(r.get(name_col, "")))
+            if not key:
+                continue
+            if key not in pitchers:
+                pitchers[key] = {"display_name": str(r.get(name_col, ""))}
+            p = pitchers[key]
+            for src, dst, is_pct in _FG_COLS:
+                if src.lower() not in cols:
+                    continue
+                raw = r.get(cols[src.lower()])
+                val = _to_decimal(raw) if is_pct else _safe(raw)
+                if val is not None:
+                    p[dst] = val
+                    touched.add(key)
+    if touched:
+        print(f"FanGraphs CSV: merged advanced stats for {len(touched)} pitchers.")
+    return len(touched)
+
+
 def build(season: int | None = None, with_arsenal: bool = False) -> None:
     # Reuse the EXACT Savant fetch the training data was built from
     # (scripts/enrich_nrfi_savant._load_savant_season), so the store's columns
@@ -98,31 +181,35 @@ def build(season: int | None = None, with_arsenal: bool = False) -> None:
     print(f"\nSavant: {len(pitchers)} pitchers with real Statcast metrics "
           "(barrel%/hard-hit%/whiff%/velo).")
 
-    # ── Best-effort: FanGraphs for SIERA/xFIP/CSW%/O-Swing% (skipped if 403)
+    # ── FanGraphs advanced stats (SIERA/xFIP/CSW%/O-Swing%) ───────────────────
+    # Live scraping is blocked (Cloudflare 403). Instead, a FanGraphs *member*
+    # exports the pitching leaderboard(s) to CSV in their browser and drops the
+    # file(s) in data/ as fangraphs*.csv — this reads + merges them. Values are
+    # normalized to the DECIMAL units the model was trained on (CSW% 28.5 -> 0.285).
     sources = ["baseball_savant"]
-    fg_df = _load_fg_pitchers(yr)
-    if fg_df is not None and not fg_df.empty:
-        sources.append("fangraphs")
-        n_fg = 0
-        for _, r in fg_df.iterrows():
-            key = _norm(str(r.get("Name", "")))
-            if key not in pitchers:
-                pitchers[key] = {"display_name": str(r.get("Name", ""))}
-            p = pitchers[key]
-            for src_col, dst in [
-                ("SIERA", "siera"), ("xFIP", "xfip"), ("FIP", "fip"),
-                ("CSW%", "csw_pct"), ("O-Swing%", "o_swing_pct"),
-                ("K%", "k_pct"), ("BB%", "bb_pct"),
-                ("GB%", "gb_pct"), ("HR/FB", "hr_fb_pct"),
-            ]:
-                v = _safe(r.get(src_col))
-                if v is not None:
-                    p[dst] = v
-            n_fg += 1
-        print(f"FanGraphs: merged advanced stats for {n_fg} pitchers.")
+    n_fg = _merge_fangraphs_csv(pitchers, _REPO / "data")
+    if n_fg:
+        sources.append("fangraphs_csv")
     else:
-        print("FanGraphs: unavailable (endpoint 403) — SIERA/CSW%/O-Swing% will "
-              "default; ESPN FIP + Savant Statcast still differentiate games.")
+        # Fall back to the (usually blocked) pybaseball path just in case.
+        fg_df = _load_fg_pitchers(yr)
+        if fg_df is not None and not fg_df.empty:
+            sources.append("fangraphs")
+            for _, r in fg_df.iterrows():
+                key = _norm(str(r.get("Name", "")))
+                if key not in pitchers:
+                    pitchers[key] = {"display_name": str(r.get("Name", ""))}
+                p = pitchers[key]
+                for src_col, dst, is_pct in _FG_COLS:
+                    v = _safe(r.get(src_col))
+                    if v is not None:
+                        p[dst] = _to_decimal(v) if is_pct else v
+            print(f"FanGraphs (pybaseball): merged {len(fg_df)} pitchers.")
+        else:
+            print("FanGraphs: no CSV in data/ and live endpoint 403 — SIERA/CSW%/"
+                  "O-Swing% will default. To add them: export the pitching "
+                  "leaderboard from FanGraphs to data/fangraphs_advanced.csv (see "
+                  "the script header) and re-run.")
 
     store = {
         "season":     yr,
