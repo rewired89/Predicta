@@ -30,7 +30,14 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
     if not row or FULL_CONSTRAINT in row[0]:
         return
 
+    # legacy_alter_table=ON stops SQLite from rewriting child-table foreign keys
+    # (predictions/signals/outcomes/odds_snapshots REFERENCES matches) to point
+    # at _matches_bak during the RENAME. Without this, dropping _matches_bak
+    # leaves those children with a dangling FK → "no such table: _matches_bak"
+    # on the next INSERT. _repair_matches_fk() cleans up any DB already corrupted
+    # by the old migration.
     try:
+        conn.execute("PRAGMA legacy_alter_table=ON")
         conn.execute("DROP TABLE IF EXISTS _matches_bak")
         conn.execute("ALTER TABLE matches RENAME TO _matches_bak")
         conn.execute(f"""
@@ -71,6 +78,62 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
                 conn.commit()
         except Exception:
             conn.rollback()
+    finally:
+        try:
+            conn.execute("PRAGMA legacy_alter_table=OFF")
+        except Exception:
+            pass
+
+
+def _repair_matches_fk(conn: sqlite3.Connection) -> None:
+    """
+    Repair a DB corrupted by the old sport-check migration.
+
+    The pre-fix migration did `ALTER TABLE matches RENAME TO _matches_bak`
+    without legacy_alter_table, so SQLite rewrote the foreign keys in every
+    child table (predictions, signals, outcomes, odds_snapshots) to reference
+    _matches_bak. Once _matches_bak was dropped, any INSERT into those children
+    failed with "no such table: main._matches_bak".
+
+    This rewrites the stored DDL text, changing every dangling _matches_bak
+    reference back to matches. Idempotent — a no-op once the schema is clean.
+    """
+    n_bad = conn.execute(
+        "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%_matches_bak%'"
+    ).fetchone()[0]
+    if not n_bad:
+        return
+
+    # Resolve any physical _matches_bak table first so its own CREATE DDL is not
+    # rewritten into a second 'matches' definition.
+    has_matches = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='matches'"
+    ).fetchone()
+    has_bak = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='_matches_bak'"
+    ).fetchone()
+    conn.execute("PRAGMA legacy_alter_table=ON")
+    try:
+        if has_bak and has_matches:
+            conn.execute("DROP TABLE _matches_bak")
+        elif has_bak and not has_matches:
+            conn.execute("ALTER TABLE _matches_bak RENAME TO matches")
+        conn.commit()
+    finally:
+        conn.execute("PRAGMA legacy_alter_table=OFF")
+
+    # Rewrite any remaining child-table FK references in the stored schema text.
+    still_bad = conn.execute(
+        "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%_matches_bak%'"
+    ).fetchone()[0]
+    if still_bad:
+        conn.execute("PRAGMA writable_schema=ON")
+        conn.execute(
+            "UPDATE sqlite_master SET sql = replace(sql, '_matches_bak', 'matches') "
+            "WHERE sql LIKE '%_matches_bak%'"
+        )
+        conn.execute("PRAGMA writable_schema=OFF")
+        conn.commit()
 
 
 def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
@@ -231,6 +294,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
     conn = sqlite3.connect(db_path)
     conn.executescript(schema)
     _migrate_sport_check(conn)
+    _repair_matches_fk(conn)   # heal DBs corrupted by the old rename migration
     _migrate_intraday_trades(conn)
     _migrate_new_tables(conn)
     conn.close()

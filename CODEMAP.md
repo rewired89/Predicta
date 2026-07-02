@@ -53,7 +53,7 @@ file: db/database.py
 purpose: Initialize the SQLite database by executing schema.sql, running all idempotent migrations, and creating any missing indexes. Creates the parent directory first (supports Railway volume mounts). Called on every app startup.
 inputs: db_path: Path = DB_PATH
 outputs: none
-calls: SCHEMA_PATH, _migrate_sport_check, _migrate_intraday_trades, _migrate_new_tables
+calls: SCHEMA_PATH, _migrate_sport_check, _repair_matches_fk, _migrate_intraday_trades, _migrate_new_tables
 called_by: startup (app.py)
 mutates: predicta.db (creates/migrates tables and indexes)
 ---
@@ -7369,12 +7369,24 @@ Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tenn
 name: _migrate_sport_check
 type: function
 file: db/database.py
-purpose: Widens the matches.sport CHECK constraint to include all 5 active sports (soccer, table_tennis, tennis, baseball, esports). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB. Concurrency-safe: wrapped in try/except so two overlapping init_db callers (e.g. a web request + a background thread) can never crash on a half-migrated _matches_bak — the loser rolls back and recovers to a valid matches table whatever intermediate state it finds. Idempotent.
+purpose: Widens the matches.sport CHECK constraint to include all 5 active sports (soccer, table_tennis, tennis, baseball, esports). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB, and sets PRAGMA legacy_alter_table=ON around the RENAME so SQLite does NOT rewrite child-table foreign keys (predictions/signals/outcomes/odds_snapshots) to point at _matches_bak — that rewrite was the cause of the "no such table: _matches_bak" crash. Concurrency-safe: try/except so two overlapping init_db callers can never crash on a half-migrated _matches_bak. Idempotent.
 inputs: conn: sqlite3.Connection
 outputs: none
 calls: sqlite3.Connection.execute, conn.commit, conn.rollback
 called_by: init_db
 mutates: predicta.db schema (matches table DDL) — only when upgrading an old-schema DB
+---
+
+---
+name: _repair_matches_fk
+type: function
+file: db/database.py
+purpose: Heals a DB corrupted by the pre-fix sport-check migration. That migration renamed matches→_matches_bak without legacy_alter_table, so SQLite rewrote every child table's foreign key (predictions/signals/outcomes/odds_snapshots) to reference _matches_bak; after _matches_bak was dropped, any INSERT into those children failed with "no such table: main._matches_bak". This drops/renames any stray _matches_bak table, then uses PRAGMA writable_schema to rewrite the stored DDL text of all remaining objects, changing dangling _matches_bak references back to matches. Idempotent — no-op once schema is clean.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: sqlite3.Connection.execute, conn.commit
+called_by: init_db
+mutates: predicta.db schema (child-table FK DDL via sqlite_master) — only when corruption is detected
 ---
 
 
