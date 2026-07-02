@@ -41,15 +41,20 @@ resolved live predictions yet** — the live track record starts now.
 | Source | Provides | Status |
 |--------|----------|--------|
 | **ESPN** (primary) | Team records, hitting stats, team ERA, probable starters, park factor, schedule | Live, reliable |
-| **FanGraphs** (pybaseball) | Pitcher SIERA/xFIP/CSW%/O-Swing%, team wRC+/wOBA/ISO | Enrichment; **proxy-blocked in prod** → falls back to ESPN |
-| **Baseball Savant** (pybaseball) | Barrel% against, xwOBA, fastball velo, whiff% | Enrichment; same fallback |
-| **MLB Stats API** | 1st-inning linescores (for grading), confirmed lineups | Used by the daily automation |
-| **The Odds API** | First-inning NRFI/YRFI betting lines (for CLV) | Needs `ODDS_API_KEY`; optional |
+| **Baseball Savant** (feature store) | Barrel%, hard-hit%, whiff%, fastball velo, xwOBA per pitcher | **WORKING** — baked into a committed `data/nrfi_feature_store.json` built locally, read at runtime (see §9d) |
+| **FanGraphs** | SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB | **DEAD for automation** — no API, Cloudflare 403s all scripts. Only obtainable via manual member CSV export (optional, see §9d) |
+| **MLB Stats API** | 1st-inning linescores (for grading), confirmed lineups | Proxy-blocked in CI; ESPN cache used as fallback |
+| **The Odds API** | First-inning NRFI/YRFI betting lines (for CLV) | Needs `ODDS_API_KEY`; **working** |
 | **OpenWeatherMap** | Temperature + wind for outdoor parks | Needs `OPENWEATHER_API_KEY`; optional |
 | **Claude (AI)** | Query parsing; fallback stat estimates when ESPN is down | Live |
 
 Fallback philosophy: if a live source fails, the model degrades gracefully to the
 next-best source and **lowers its confidence** rather than refusing to answer.
+
+**Key architecture change:** live stat-fetching from FanGraphs/Savant fails on
+any datacenter IP (Actions/Railway) — FanGraphs is fully blocked (Cloudflare),
+Savant is blocked live too. So advanced pitcher stats are now **pre-fetched
+locally and committed as a feature store** that the runtime reads. See §9d.
 
 ---
 
@@ -233,12 +238,43 @@ never live-fetches. Refresh locally every few days + commit — same rhythm as
 retraining. Chosen over an ESPN-only retrain because that would discard the
 Statcast signal and force the p=0.0049 edge to be re-proven from scratch.
 
-**Status:** store reader + build script shipped. Awaiting first local build +
-commit to populate real features; next daily run should then show
-`features_enriched: true` and spread p_nrfi across games.
+**RESOLVED (final state):**
+- **Savant features are LIVE.** The local build (`build_feature_store.py`) pulls
+  Baseball Savant (barrel%, hard-hit%, whiff%, velo, xwOBA) for ~650 pitchers,
+  writes the committed store. Verified working: after committing it, model
+  p_nrfi spread went from flat **51.1–51.8 (0.7pp)** to **48.1–55.9 (7.8pp)** and
+  fired its first LEAN. The model differentiates games again.
+- **FanGraphs is a genuine dead end for automation.** Confirmed on the user's own
+  residential machine: `pitching_stats` → 403; the modern `/api/leaders` JSON
+  endpoint → 403 (Cloudflare "Just a moment"); even `cloudscraper` can't pass the
+  challenge. FanGraphs has **no API** — the "membership" is a website login only.
+- **FanGraphs stats are still obtainable, manually.** A member can *export* the
+  pitching leaderboard to CSV in the browser. `build_feature_store.py` now reads
+  any `data/fangraphs*.csv` the user drops in and merges SIERA/xFIP/CSW%/O-Swing%/
+  K%/BB%/GB%/HR-FB, converting "28.5%"→0.285 to match training units. Optional.
+
+**Net:** the model runs on ~10 of its 14 pitcher features (Savant + ESPN FIP +
+fi_rate). The 4 FanGraphs-only features (SIERA/xFIP/CSW%/O-Swing%) default to
+league mean unless the user does the manual CSV export. Open question for Kimi:
+is that 4-feature gap worth a recurring manual chore, or does Savant already
+carry most of the contact-quality signal? (We plan to measure it after ~2 weeks
+of live data — compare model-lean accuracy with vs without the FanGraphs CSV.)
+
+**Ops reliability note:** GitHub Actions `schedule` cron is unreliable (it
+delayed/skipped the 9 AM predict run on 2026-07-02). The always-on Railway
+deployment is the more reliable way to get on-demand predictions; scheduled
+collection may need a Railway cron or a manual trigger as backup.
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-02** — Feature store now built on **Baseball Savant** (FanGraphs
+  endpoint confirmed dead — Cloudflare 403 even from residential IP + cloudscraper).
+  Store carries real Savant Statcast for ~650 pitchers; model differentiates
+  games again (p_nrfi 48–56 vs prior flat 51). Added optional FanGraphs member
+  **CSV import** (`data/fangraphs*.csv`) to restore SIERA/CSW%/O-Swing%.
+- **2026-07-02** — Fixed CI keys: ANTHROPIC/OPENWEATHER/ODDS now resolve from
+  either GitHub Secrets or Variables (were read only from Secrets → blank → empty
+  predictions). Root cause of the initial all-SKIP/empty runs.
 - **2026-07-02** — Diagnosed FanGraphs/Savant server-IP block as the cause of
   flat ~51% predictions; shipped a precomputed **feature store** (local build +
   committed JSON, read at runtime) so the model gets real features in CI.
