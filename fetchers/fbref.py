@@ -48,11 +48,18 @@ except ImportError:
 
 FBREF_BASE = "https://fbref.com"
 
-# Round 6 P1 (Kimi): FBref cache TTL. Cloudflare success rate decays over
-# time — cache lets us serve slightly-stale data instead of dropping to the
-# partial-data threshold on every fetch failure. PSxG-GA / possession /
-# aerials barely change week-to-week, so 7 days is safe.
-CACHE_TTL_DAYS = 7
+# Round 6 P1 + Round 7 P1 (Kimi): FBref cache TTLs, tiered by metric volatility.
+# GK PSxG-GA per 90 shifts materially after 2 bad games; possession is a stable
+# team-identity metric; pressing/tackles+int is structural and rarely changes.
+# During a busy week (Sat league + Tue CL + Sat league), the GK cache expires
+# twice while possession stays fresh — exactly what we want.
+CACHE_TTL_DAYS = 7   # default fallback
+CACHE_TTL_BY_KIND = {
+    "gk":         3,    # PSxG-GA per 90 — most volatile
+    "aerials":    5,    # aerial % — moderately volatile
+    "possession": 7,    # possession %, field tilt — stable team identity
+    "pressing":  14,    # tackles+int, PPDA proxy — structural
+}
 
 _HEADERS = {
     "User-Agent": (
@@ -241,9 +248,9 @@ def _safe_float(val) -> Optional[float]:
 
 def _cache_read(league: str, season: int, team: str, kind: str) -> Optional[dict]:
     """
-    Return (data, fresh) for a cache entry, or None if none exists.
+    Return (data, fresh, cached_at) for a cache entry, or None if none exists.
       data:  the cached dict
-      fresh: True if within CACHE_TTL_DAYS, False if stale but still returnable
+      fresh: True if within the per-kind TTL (see CACHE_TTL_BY_KIND)
     """
     try:
         from db.database import get_db
@@ -267,9 +274,11 @@ def _cache_read(league: str, season: int, team: str, kind: str) -> Optional[dict
             cached_at = _dt.now(_tz.utc)
         if cached_at.tzinfo is None:
             cached_at = cached_at.replace(tzinfo=_tz.utc)
-        fresh = (_dt.now(_tz.utc) - cached_at) < _td(days=CACHE_TTL_DAYS)
+        ttl_days = CACHE_TTL_BY_KIND.get(kind, CACHE_TTL_DAYS)
+        fresh = (_dt.now(_tz.utc) - cached_at) < _td(days=ttl_days)
         return {"data": data, "fresh": fresh,
-                "cached_at": cached_at.isoformat()}
+                "cached_at": cached_at.isoformat(),
+                "ttl_days": ttl_days}
     except Exception:
         return None
 

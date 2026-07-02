@@ -784,6 +784,17 @@ def run_soccer_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                 log_signal(match_id, name, team, signal_value=v,
                            source="understat_fbref")
 
+        # Round 7 P2 (Kimi): flag when we hit the promoted-team prior path so
+        # backtest can stratify "used league-avg prior" vs "used real xG data."
+        # If promoted-prior predictions underperform, we know the prior needs
+        # more work, not the strengths_from_xg logic.
+        home_used_prior = (str_h.get("components", {}).get("prior_used") or "").startswith("promoted_team")
+        away_used_prior = (str_a.get("components", {}).get("prior_used") or "").startswith("promoted_team")
+        if home_used_prior or away_used_prior:
+            log_signal(match_id, "promoted_prior_applied", None,
+                       signal_text=f"home={home_used_prior},away={away_used_prior}",
+                       source="soccer_v2")
+
         # Round 6 P4-P6 (Kimi): persist BET context so weekly_report can
         # compute BET-hit-rate, avg odds, and implied ROI. Without these,
         # the report can only track "did the favorite win" which Kimi rightly

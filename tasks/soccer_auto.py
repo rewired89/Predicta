@@ -281,11 +281,28 @@ def _compute_metrics() -> dict:
         "80%+":   {"n": 0, "hits": 0},
     }
 
+    # Round 7 P5 (Kimi): edge-size calibration buckets. Tests whether the
+    # model's edge ESTIMATES are meaningful — a +7pp claimed edge should hit
+    # more often than a +3pp claimed edge. If they hit at the same rate, the
+    # edge scoring is uninformative.
+    edge_buckets: dict[str, dict] = {
+        "+0.5-3pp":  {"n": 0, "hits": 0},   # LEAN range
+        "+3-5pp":    {"n": 0, "hits": 0},   # BET (partial-data-lifted or normal)
+        "+5-8pp":    {"n": 0, "hits": 0},   # BET (strong)
+        "+8pp+":     {"n": 0, "hits": 0},   # BET (very strong)
+    }
+
     def _bucket_for(prob: float) -> str:
         if prob < 0.60: return "50-60%"
         if prob < 0.70: return "60-70%"
         if prob < 0.80: return "70-80%"
         return "80%+"
+
+    def _edge_bucket_for(edge_pp: float) -> str:
+        if edge_pp < 3.0: return "+0.5-3pp"
+        if edge_pp < 5.0: return "+3-5pp"
+        if edge_pp < 8.0: return "+5-8pp"
+        return "+8pp+"
 
     for r in rows:
         actual = r["result"]
@@ -344,25 +361,58 @@ def _compute_metrics() -> dict:
                 buckets[bk]["n"] += 1
                 buckets[bk]["hits"] += hit
 
+            # Round 7 P5: edge-size calibration
+            edge_pp = entry.get("edge_pp")
+            if edge_pp is not None:
+                ebk = _edge_bucket_for(edge_pp)
+                edge_buckets[ebk]["n"] += 1
+                edge_buckets[ebk]["hits"] += hit
+
     def _pick_summary(picks: list[dict]) -> dict:
+        """
+        Round 7 P3 (Kimi): keep unit-stake ROI as the honest primary metric,
+        add quarter-Kelly simulated bankroll as the sizing metric. Both
+        computed on the same picks.
+        """
         if not picks:
             return {"n": 0}
         n = len(picks)
         hits = sum(p["hit"] for p in picks)
         odds_available = [p["decimal_odds"] for p in picks if p.get("decimal_odds")]
         avg_odds = sum(odds_available) / len(odds_available) if odds_available else None
-        # Implied ROI at avg odds: hit_rate × (avg_odds - 1) - (1 - hit_rate)
-        # Only compute when we have odds for every pick (else it's misleading)
         implied_roi = None
         if odds_available and len(odds_available) == n:
             hr = hits / n
             implied_roi = hr * (avg_odds - 1) - (1 - hr)
+
+        # Simulated bankroll: start at $1000, stake quarter-Kelly on each pick
+        # in order. Only run when every pick has odds + model_prob.
+        sim_bankroll = None
+        sim_return_pct = None
+        if all(p.get("decimal_odds") and p.get("model_prob") is not None for p in picks):
+            bankroll = 1000.0
+            for p in picks:
+                dec  = float(p["decimal_odds"])
+                prob = float(p["model_prob"])
+                b = dec - 1.0
+                full_kelly = (b * prob - (1 - prob)) / b if b > 0 else 0.0
+                frac = max(0.25 * full_kelly, 0.0)   # quarter-Kelly
+                stake = bankroll * frac
+                if p["hit"]:
+                    bankroll = bankroll - stake + stake * dec
+                else:
+                    bankroll = bankroll - stake
+            sim_bankroll   = round(bankroll, 2)
+            sim_return_pct = round((bankroll - 1000.0) / 1000.0, 4)
+
         return {
-            "n":              n,
-            "hits":           hits,
-            "hit_rate":       round(hits / n, 3),
-            "avg_odds":       round(avg_odds, 3) if avg_odds else None,
-            "implied_roi":    round(implied_roi, 3) if implied_roi is not None else None,
+            "n":                    n,
+            "hits":                 hits,
+            "hit_rate":             round(hits / n, 3),
+            "avg_odds":             round(avg_odds, 3) if avg_odds else None,
+            "implied_roi":          round(implied_roi, 3) if implied_roi is not None else None,
+            "sim_bankroll_qkelly":  sim_bankroll,
+            "sim_return_pct":       sim_return_pct,
         }
 
     league_summary = {}
@@ -383,14 +433,22 @@ def _compute_metrics() -> dict:
             "hit_rate": round(b["hits"] / b["n"], 3) if b["n"] else None,
         }
 
+    edge_calib = {}
+    for name, b in edge_buckets.items():
+        edge_calib[name] = {
+            "n":        b["n"],
+            "hit_rate": round(b["hits"] / b["n"], 3) if b["n"] else None,
+        }
+
     return {
-        "resolved":     total_resolved,
-        "avg_brier":    round(total_brier / total_resolved, 4) if total_resolved else None,
-        "bet":          _pick_summary(bet_picks),
-        "lean":         _pick_summary(lean_picks),
-        "calibration":  calib,
-        "by_league":    league_summary,
-        "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "resolved":       total_resolved,
+        "avg_brier":      round(total_brier / total_resolved, 4) if total_resolved else None,
+        "bet":            _pick_summary(bet_picks),
+        "lean":           _pick_summary(lean_picks),
+        "calibration":    calib,
+        "edge_calibration": edge_calib,
+        "by_league":      league_summary,
+        "generated_utc":  datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -430,7 +488,9 @@ def _render_report(metrics: dict) -> str:
         f"| n | **{bet.get('n', 0)}** | Number of BET recommendations |",
         f"| Hit rate | **{bet.get('hit_rate', 'n/a')}** | Fraction that won |",
         f"| Avg odds | **{bet.get('avg_odds', 'n/a')}** | Mean decimal odds when supplied |",
-        f"| Implied ROI | **{bet.get('implied_roi', 'n/a')}** | hit × (odds−1) − (1−hit). Positive = profitable. |",
+        f"| Unit-stake implied ROI | **{bet.get('implied_roi', 'n/a')}** | hit × (odds−1) − (1−hit). Honest reporting metric. |",
+        f"| Simulated bankroll (q-Kelly, $1k start) | **${bet.get('sim_bankroll_qkelly', 'n/a')}** | If you'd staked quarter-Kelly on every BET |",
+        f"| Simulated return | **{bet.get('sim_return_pct', 'n/a')}** | (bankroll − 1000) / 1000 |",
         "",
         "## LEAN picks — lower confidence, watch only",
         "",
@@ -439,7 +499,8 @@ def _render_report(metrics: dict) -> str:
         f"| n | {lean.get('n', 0)} |",
         f"| Hit rate | {lean.get('hit_rate', 'n/a')} |",
         f"| Avg odds | {lean.get('avg_odds', 'n/a')} |",
-        f"| Implied ROI | {lean.get('implied_roi', 'n/a')} |",
+        f"| Unit-stake implied ROI | {lean.get('implied_roi', 'n/a')} |",
+        f"| Simulated bankroll (q-Kelly, $1k start) | ${lean.get('sim_bankroll_qkelly', 'n/a')} |",
         "",
     ]
 
@@ -455,6 +516,21 @@ def _render_report(metrics: dict) -> str:
         ]
         for name in ["50-60%", "60-70%", "70-80%", "80%+"]:
             b = calib.get(name, {})
+            lines.append(f"| {name} | {b.get('n', 0)} | {b.get('hit_rate', 'n/a')} |")
+        lines.append("")
+
+    edge_calib = metrics.get("edge_calibration") or {}
+    if any(v.get("n", 0) > 0 for v in edge_calib.values()):
+        lines += [
+            "## Edge-size calibration — do bigger claimed edges actually win more?",
+            "",
+            "*If +8pp edges hit at the same rate as +3pp edges, the edge estimate isn't informative and we're picking noise.*",
+            "",
+            "| Claimed edge | n | Actual hit rate |",
+            "| --- | --- | --- |",
+        ]
+        for name in ["+0.5-3pp", "+3-5pp", "+5-8pp", "+8pp+"]:
+            b = edge_calib.get(name, {})
             lines.append(f"| {name} | {b.get('n', 0)} | {b.get('hit_rate', 'n/a')} |")
         lines.append("")
 
@@ -475,11 +551,15 @@ def _render_report(metrics: dict) -> str:
         lines.append("")
 
     lines += [
-        "## Ship / halt thresholds",
+        "## Ship / halt thresholds (Kimi Round 7 P4 — tightened)",
         "",
-        "- **Ship it** if all three hold: Brier < 0.20, BET hit rate > 55%, BET implied ROI > 0.",
-        "- **Watch** if two of three hold — collect more data before scaling.",
-        "- **Halt** if any of these: Brier > 0.25, BET hit rate < 45%, BET implied ROI < −0.05.",
+        "A well-calibrated Dixon-Coles with real xG should get Brier < 0.18. The old",
+        "0.20 threshold was too loose. We also require a +5% ROI margin of safety",
+        "because +2% ROI at small n is inside noise range.",
+        "",
+        "- **Ship it** — all three: `Brier < 0.18` AND `BET hit rate > 55%` AND `BET implied ROI > +5%`.",
+        "- **Watch** — 2 of 3 hold, OR Brier in 0.18–0.22 range.",
+        "- **Halt** — `Brier > 0.22` OR `BET hit rate < 50%` OR `BET implied ROI < −5%`.",
         "",
         "**CLV check (manual for now):** For the first 20 BET picks, look up Pinnacle's closing line and compare against the odds we used. If we beat the close ≥55% of the time, the edge is real. If not, we're getting lucky.",
         "",
