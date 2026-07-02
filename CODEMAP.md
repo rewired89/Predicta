@@ -7219,7 +7219,7 @@ mutates: none
 name: run_predictions
 type: function
 file: scripts/daily_nrfi.py
-purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, and starters. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
+purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, starters, and all-market picks (ml_pick/ml_prob/ml_verdict for moneyline, f5_pick/f5_prob/f5_verdict for F5) from bet_recs. Also captures lean_side (NRFI or YRFI based on p_nrfi vs 0.50) and feature-source diagnostics. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
 inputs: games: list[dict], game_date: str
 outputs: list[dict]
 calls: run_baseball_analysis (analyze_baseball.py)
@@ -7241,7 +7241,7 @@ mutates: none (caller saves to disk)
 name: write_report
 type: function
 file: scripts/daily_nrfi.py
-purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
+purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, All Games — Model Picks table (moneyline + F5 + NRFI picks for every game with ⭐ edge flags and "Best play" column), Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
 inputs: predictions: list[dict], game_date: str, is_resolve: bool
 outputs: Path (written file)
 calls: none
@@ -8071,7 +8071,7 @@ mutates: none
 name: nrfi_auto
 type: module
 file: tasks/nrfi_auto.py
-purpose: Always-on NRFI daily pipeline for Railway — replaces the unreliable GitHub Actions schedule cron (which delayed/skipped runs). An in-process daemon thread (start_nrfi_auto, called from app.py startup, disable via NRFI_AUTO_DISABLED=1) checks every 5 min and fires each job once per UTC day after its hour: run_predict (13:00 UTC / 9 AM ET — fetch schedule, run_predictions, capture entry odds, write JSON+report), run_capture (23:00 UTC / 7 PM ET — closing odds), run_resolve (05:00 UTC / 1 AM ET — resolve prior day + CLV). Reuses scripts/daily_nrfi functions. Persists results by pushing JSON+report to GitHub via the Contents API (_push_file/_push_day; needs GITHUB_TOKEN + GITHUB_REPO env vars — same as soccer_auto). Also overwrites a fixed-path data/nrfi_latest.md every run (header + the day's report) so the newest scan is always one known file — read that to check the most recent results without hunting for the date. status() reports running state + last-run/error/push + whether push is configured. Exposed via app.py GET /nrfi-auto/status and POST /nrfi-auto/run?job=predict|capture|resolve (manual on-demand trigger).
+purpose: Always-on NRFI daily pipeline for Railway — replaces the unreliable GitHub Actions schedule cron (which delayed/skipped runs). An in-process daemon thread (start_nrfi_auto, called from app.py startup, disable via NRFI_AUTO_DISABLED=1) checks every 5 min and fires each job once per UTC day after its hour: run_predict (13:00 UTC / 9 AM ET — fetch schedule, run_predictions, capture entry odds, write JSON+report), run_capture (23:00 UTC / 7 PM ET — closing odds), run_resolve (05:00 UTC / 1 AM ET — resolve prior day + CLV). Reuses scripts/daily_nrfi functions. Persists results by pushing JSON+report to GitHub via the Contents API (_push_file/_push_day; needs GITHUB_TOKEN + GITHUB_REPO env vars — same as soccer_auto). Also overwrites a fixed-path data/nrfi_latest.md every run (header + the day's report) so the newest scan is always one known file — read that to check the most recent results without hunting for the date. status() reports running state + last-run/error/push + whether push is configured. Exposed via app.py GET /nrfi-auto/status and GET|POST /nrfi-auto/run?job=predict|capture|resolve (manual on-demand trigger; GET added for browser-friendly access).
 inputs: env GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, NRFI_AUTO_DISABLED
 outputs: commits to data/nrfi_predictions/ + data/nrfi_reports/ on main; nrfi_bets DB rows (via run_baseball_analysis)
 calls: scripts.daily_nrfi (fetch_schedule, run_predictions, capture_odds, resolve_predictions, write_report), GitHub Contents API (httpx)
