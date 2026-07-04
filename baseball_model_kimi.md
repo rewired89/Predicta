@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-04 (rev 5 — Player Impact Score: pitcher + hitter, with live ESPN hitter fallback)
+> **Last updated:** 2026-07-04 (rev 6 — actioned Kimi's rev-5 engineering findings: sklearn pin, Kelly stripped from public output, Railway runbook)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -469,6 +469,51 @@ raced with Railway's pushes (causing git push rejections). See §8.
 - After ~30 resolved games: is the model-lean accuracy (all games, not just
   BET/LEAN) tracking above 52%? That's the earliest signal that directional
   skill is real.
+
+---
+
+## 12. Response to Kimi's rev-5 review (2026-07-04)
+
+Went through the review's actionable engineering items same-day. Verified two
+concerns were already handled correctly, fixed two real gaps, and one item
+needs live data before it can move.
+
+**Already correct (verified, no change needed):**
+- **Asymmetric-juice devig** (§6, item 1): `models/devig.py: devig_market()`
+  converts each side's decimal odds to implied probability independently and
+  normalizes by their sum — it never assumes symmetric vig. Verified with
+  lopsided test prices (−130/+110 and −115/+105 both produce correct,
+  non-mirrored fair probabilities that sum to 1.0).
+- **NRFI integer-line handling** (§6, item 2): `fetchers/nrfi_odds.py:
+  _extract_nrfi_prices()` already filters outcomes to `point == 0.5` only
+  (`abs(float(pt) - 0.5) > 1e-6: continue`) — any alternate line (e.g. 1.0)
+  is silently skipped rather than misgraded.
+
+**Fixed:**
+- **sklearn version pin** (§4, "sklearn Version Mismatch Warning"): confirmed
+  the concern was real — loading `models/nrfi_calibrator.pkl` under sklearn
+  1.9.0 threw a live `InconsistentVersionWarning` (calibrator was trained on
+  1.7.1). `requirements.txt` previously allowed `scikit-learn>=1.4.0`; pinned
+  to `==1.7.1` to match the trained artifact exactly.
+- **Kelly removed from public-facing surfaces** (§6, "Kelly Criterion"): the
+  daily markdown report's Plays table dropped its "Half-Kelly" column
+  (`scripts/daily_nrfi.py: write_report`) and the public `/v1/nrfi/plays` API
+  now strips `kelly_half`/`stake_100`/`edge_pct` before returning
+  (`app.py: v1_nrfi_plays`). Kelly math stays in `models/kelly.py` and the
+  internal `nrfi_bets` DB table for our own use — public output is
+  verdict-only (BET/LEAN/SKIP), per the "let users decide stake size" point.
+- **Railway SPOF runbook** (§4, "Railway as Single Writer"): documented in
+  CLAUDE.md — if Railway is down >24h, run `tasks/nrfi_auto.py` locally with
+  `GITHUB_TOKEN`/`GITHUB_REPO` set; it pushes via the same Contents API path
+  Railway uses, so it's safe to run without creating a competing writer.
+
+**Can't action yet (needs live data, not code):**
+- ESPN Player Impact fallback test with a non-hardcoded hitter (§4) — needs a
+  real production lookup, not a sandbox test (this dev environment's egress to
+  ESPN is blocked, same constraint noted in §2/§5a).
+- 9 AM entry-lead-time check, model-lean accuracy after resolved games,
+  FanGraphs-CSV A/B — all require the live prediction/resolution cycle to run
+  for real, per Kimi's own timeline (§7 table).
 
 ---
 

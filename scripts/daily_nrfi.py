@@ -744,8 +744,8 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
 
     if bets:
         lines += ["## Plays", ""]
-        lines += ["| # | Matchup | Starter (H) | Starter (A) | p_NRFI | Verdict | Half-Kelly | CLV | Model |",
-                  "|---|---------|-------------|-------------|--------|---------|------------|-----|-------|"]
+        lines += ["| # | Matchup | Starter (H) | Starter (A) | p_NRFI | Verdict | CLV | Model |",
+                  "|---|---------|-------------|-------------|--------|---------|-----|-------|"]
         for i, p in enumerate(bets, 1):
             home   = p.get("home_abbr", p.get("home_team","?"))
             away   = p.get("away_abbr", p.get("away_team","?"))
@@ -755,7 +755,6 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
             verd   = p.get("verdict","?")
             conf   = p.get("confidence","")
             verd_s = f"**{verd}**" + (f" ({conf})" if conf else "")
-            hk     = f"{p['kelly_half']:.1f}%" if p.get("kelly_half") else "—"
             clv    = f"{p['clv_pp']:+.2f}pp" if p.get("clv_pp") is not None else "—"
             mdl    = p.get("model","?")
 
@@ -765,7 +764,7 @@ def write_report(predictions: list[dict], game_date: str, is_resolve: bool = Fal
                 outcome_cell = f" → {p['outcome']} {won_str}"
 
             lines.append(
-                f"| {i} | {away} @ {home}{outcome_cell} | {hs} | {as_} | {pn} | {verd_s} | {hk} | {clv} | {mdl} |"
+                f"| {i} | {away} @ {home}{outcome_cell} | {hs} | {as_} | {pn} | {verd_s} | {clv} | {mdl} |"
             )
         lines.append("")
 

@@ -49,6 +49,8 @@
 - Status: `GET /nrfi-auto/status`; odds debug: `GET /nrfi-auto/odds-diag`
 - **Do NOT recreate** `.github/workflows/nrfi_daily.yml` — Railway handles everything
 
+**Railway-down runbook (single point of failure, per Kimi's review):** Railway is the sole scheduler and sole writer to `main`, so a Railway outage stops the daily scan with no automatic fallback. If Railway is down for >24h: run `python tasks/nrfi_auto.py --job predict` (or `capture`/`resolve`) locally with `GITHUB_TOKEN` + `GITHUB_REPO` env vars set — it pushes to `main` via the same GitHub Contents API path Railway uses, so it's safe to run from any machine without creating a competing writer. The `GET /nrfi-auto/run?job=predict` manual trigger only helps if Railway itself is up enough to serve requests; if the whole service is down, the local script is the only path.
+
 ## Player Impact Score
 
 Tool for evaluating **any MLB player** — pitchers AND position players (hitters) — to see how much they move game outcomes.

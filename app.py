@@ -843,6 +843,10 @@ def v1_nrfi_plays(
     records = nrfi_store.load_date(target)
     plays = [r for r in records
              if r.get("verdict") in ("BET", "LEAN") and not r.get("error")]
+    # Strip Kelly stake-sizing fields from the public API — we publish BET/LEAN/SKIP
+    # verdicts, not bet-sizing advice. Callers decide their own stake.
+    stake_keys = ("kelly_half", "stake_100", "edge_pct")
+    plays = [{k: v for k, v in p.items() if k not in stake_keys} for p in plays]
     return {"date": target, "count": len(plays), "plays": plays}
 
 

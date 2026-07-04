@@ -7401,7 +7401,7 @@ mutates: none (caller saves to disk)
 name: write_report
 type: function
 file: scripts/daily_nrfi.py
-purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, Feature Store Freshness (age + stale/expired warnings via store_freshness()), All Games — Model Picks table (validation-status header separating NRFI ✅ validated from moneyline/F5 unvalidated; ⭐ edge flags; "Best play" column), Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
+purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, Feature Store Freshness (age + stale/expired warnings via store_freshness()), All Games — Model Picks table (validation-status header separating NRFI ✅ validated from moneyline/F5 unvalidated; ⭐ edge flags; "Best play" column), Plays table (BET/LEAN only — columns: #, Matchup, Starter H/A, p_NRFI, Verdict, CLV, Model; Half-Kelly column removed 2026-07-04 per Kimi's review — public report shows verdicts only, not bet-sizing advice), Skipped Games table, Results summary (resolve mode only), Errors list.
 inputs: predictions: list[dict], game_date: str, is_resolve: bool
 outputs: Path (written file)
 calls: nrfi_store.validation_tracker, fetchers.feature_store.store_freshness
@@ -7513,7 +7513,7 @@ mutates: none
 name: v1_nrfi_endpoints
 type: endpoints
 file: app.py
-purpose: API-key-gated read-only endpoints for syndicate/media clients. GET /v1/status (health + coverage + client label), GET /v1/nrfi/predictions?date= (all records for a date, default latest), GET /v1/nrfi/plays?date= (BET/LEAN only), GET /v1/nrfi/clv?days=30 (CLV summary), GET /v1/nrfi/performance?days= (W/L+ROI+CLV+verdict+disclaimer), GET /v1/nrfi/clv-quality?days= (CLV-vs-winrate diagnostic — significance-tested detection of line-chasing vs predictive edge). All read committed JSON via nrfi_store and depend on require_api_key.
+purpose: API-key-gated read-only endpoints for syndicate/media clients. GET /v1/status (health + coverage + client label), GET /v1/nrfi/predictions?date= (all records for a date, default latest), GET /v1/nrfi/plays?date= (BET/LEAN only; kelly_half/stake_100/edge_pct stripped from the response as of 2026-07-04 per Kimi's review — public API surfaces verdicts, not bet-sizing advice), GET /v1/nrfi/clv?days=30 (CLV summary), GET /v1/nrfi/performance?days= (W/L+ROI+CLV+verdict+disclaimer), GET /v1/nrfi/clv-quality?days= (CLV-vs-winrate diagnostic — significance-tested detection of line-chasing vs predictive edge). All read committed JSON via nrfi_store and depend on require_api_key.
 inputs: query params (date, days), X-API-Key header
 outputs: dict JSON
 calls: nrfi_store.*, api_auth.require_api_key
