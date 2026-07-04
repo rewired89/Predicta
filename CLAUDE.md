@@ -27,7 +27,7 @@
 
 | Sport | Pipeline | Model |
 |-------|----------|-------|
-| Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 60/40 Elo blend + 72% max cap + FanGraphs SIERA/Savant Statcast enrichment + market sanity check + data confidence gating |
+| Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 60/40 Elo blend + 72% max cap (65% at Coors) + corrected park factors + data confidence gating + market sanity check |
 | Tennis (ATP/WTA) | analyze_tennis.py | Nested Markov chain (points→games→sets→match) |
 | Soccer | analyze_soccer.py | Dixon-Coles Poisson + Elo |
 | Table Tennis (Ping Pong) | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer |
@@ -53,7 +53,9 @@
 
 - `logistic_scale = 40` in analyze_tennis.py may be too aggressive (see tests/validate_tennis_scale.py output — ~80pp hold-rate gap vs ATP reference of ~20-25pp); needs real match data to confirm
 - Weather signals (temp_f, wind_mph, wind_factor, temp_factor, is_dome) are now applied to the run model via weather_factor multiplier
-- Full Game ML BET threshold raised from 62% → 65% after early losses; F5 BET from 60% → 62%; model probability hard-capped at 72% (MLB variance ceiling)
+- Full Game ML BET threshold raised from 62% → 65% after early losses; F5 BET from 60% → 62%; model probability hard-capped at 72% (65% at Coors-type parks)
+- Coors Field park factor corrected from 1.19 → 1.38 (FanGraphs multi-year run factor); several other parks adjusted
+- Run clamps loosened from 6.0/5.0 → 8.0/7.0 to avoid suppressing real run projections at extreme parks
 - Market comparison layer (`market_comparison` dict) is live in both baseball and TT pipelines; only meaningful when user supplies sportsbook odds in the query (e.g., "NYY -130 vs BOS +110 tonight")
 - FanGraphs season-1 fallback active: if 2026 data is unavailable, `_load_fg_pitchers`/`_load_fg_batters` silently fetch 2025 stats; this is expected mid-season and valid for pitcher quality evaluation
 - FanGraphs is **dead for automation** (Cloudflare 403 even from residential IPs) — advanced pitcher stats come from the precomputed feature store (`data/nrfi_feature_store.json`, built locally via `scripts/build_feature_store.py` using Baseball Savant). Optional FanGraphs CSV import available for SIERA/CSW%/O-Swing%

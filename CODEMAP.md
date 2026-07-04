@@ -3242,7 +3242,7 @@ mutates: none
 name: PARK_FACTORS
 type: variable
 file: fetchers/baseball.py
-purpose: Dict mapping ESPN MLB team abbreviations to 3-year park run factors (1.0 = neutral). Covers all 30 MLB venues.
+purpose: Dict mapping ESPN MLB team abbreviations to multi-year park run factors (1.0 = neutral). Coors Field (COL) = 1.38. Corrected 2026-07-04 from compressed range to FanGraphs-calibrated values.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -3548,7 +3548,7 @@ type: function
 file: models/baseball_market.py
 purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP). When opp_starter_avg_ip is provided, starter_frac = clamp(avg_ip, 3, 7)/9 (dynamic); otherwise falls back to fixed 5/9. weather_factor (temp+wind combined, 0.85–1.15) and off_rest_mult (0.99–1.01) applied to base. math: base = LEAGUE_AVG × (wRC+/100) × park × home × weather_factor × off_rest_mult; mu_f5 = base × starter_frac × (starter_FIP/LEAGUE_FIP); mu_l4 = base × bullpen_frac × (bullpen_FIP/LEAGUE_FIP).
 inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_starter_avg_ip: Optional[float] = None, weather_factor: float = 1.0, off_rest_mult: float = 1.0
-outputs: tuple[float, float] — (mu_f5 clamped 0.5-6.0, mu_l4 clamped 0.4-5.0)
+outputs: tuple[float, float] — (mu_f5 clamped 0.5-8.0, mu_l4 clamped 0.4-7.0)
 calls: none
 called_by: run_baseball_analysis
 mutates: none

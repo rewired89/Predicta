@@ -916,9 +916,8 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         total  = prob_a + prob_b
         prob_a /= total
         prob_b /= total
-        # Cap: no single MLB game should exceed 72% model confidence.
-        # Even the best matchup has high variance over 9 innings.
-        MAX_MLB_PROB = 0.72
+        # Cap: no single MLB game should exceed 72% confidence (65% at Coors-type parks).
+        MAX_MLB_PROB = 0.65 if park_factor >= 1.20 else 0.72
         if prob_a > MAX_MLB_PROB:
             prob_a = MAX_MLB_PROB
             prob_b = 1.0 - MAX_MLB_PROB
