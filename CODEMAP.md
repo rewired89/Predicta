@@ -3468,6 +3468,32 @@ mutates: none
 
 ---
 
+## models/player_impact.py
+
+---
+name: compute_impact
+type: function
+file: models/player_impact.py
+purpose: Computes a pitcher's impact on win probability in percentage points vs a league-average replacement (FIP=4.00). Runs split Poisson model twice and returns delta, tier (ACE/FRONT-LINE/SOLID/AVERAGE/BELOW AVG/LIABILITY), stats, and optional trade note.
+inputs: pitcher_name (str), team_abbr (optional str), opponent_wrc_plus, park_factor, is_home
+outputs: dict with impact_pp, tier, tier_desc, fip, era, avg_ip, win_prob_with, win_prob_replacement, runs, trade_note
+calls: _get_pitcher_data, _win_prob_for_fip, expected_runs_split
+called_by: app.py /player-impact endpoint
+mutates: none
+---
+
+---
+name: search_pitchers
+type: function
+file: models/player_impact.py
+purpose: Searches for pitchers by name prefix across KNOWN_STARTERS and the feature store. Returns list of {key, display_name, team, fip}.
+inputs: query (str), limit (int)
+outputs: list[dict]
+calls: load_store, _norm
+called_by: app.py /player-search endpoint
+mutates: none
+---
+
 ## models/baseball_market.py
 
 ---

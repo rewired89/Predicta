@@ -1023,6 +1023,28 @@ def analyze_baseball(body: BaseballRequest):
     return result
 
 
+class PlayerImpactRequest(BaseModel):
+    name: str
+    team: str = ""
+
+
+@app.post("/player-impact")
+def player_impact(body: PlayerImpactRequest):
+    from models.player_impact import compute_impact
+    result = compute_impact(body.name.strip(), team_abbr=body.team.strip() or None)
+    if "error" in result:
+        raise HTTPException(404, detail=result["error"])
+    return result
+
+
+@app.get("/player-search")
+def player_search(q: str = ""):
+    if not q.strip() or len(q.strip()) < 2:
+        return {"results": []}
+    from models.player_impact import search_pitchers
+    return {"results": search_pitchers(q.strip())}
+
+
 class TennisRequest(BaseModel):
     query: str
     bankroll: float = 1000.0
