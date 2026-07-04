@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-02 (rev 4 — Over/Under market + all-market auto-resolution)
+> **Last updated:** 2026-07-04 (rev 5 — Player Impact Score: pitcher + hitter, with live ESPN hitter fallback)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -118,6 +118,40 @@ approximation and clearly labels it as unvalidated.
 elite signal (CSW% > 30% or barrel% < 6.5%); LEAN when ≥ 55% without that signal;
 otherwise SKIP. **Staking:** Kelly criterion, half-Kelly recommended, paper-mode
 only (no real bets placed by the system).
+
+---
+
+## 5a. Player Impact Score (standalone tool, new)
+
+A separate feature from the daily prediction pipeline above — lets a user look
+up **any MLB player** (pitcher or hitter) and see how many percentage points
+they move their team's win probability vs a league-average replacement in the
+same role. Runs the same split-Poisson engine from §3, just twice per lookup
+(real player vs replacement) and diffs the win probabilities.
+
+**Pitchers:**
+- Real pitcher FIP vs replacement FIP (4.00), through the split-Poisson model.
+- Tiers: ACE / FRONT-LINE / SOLID / AVERAGE / BELOW AVG / LIABILITY.
+- Data: 80+ hardcoded starters, falling back to the ~650-pitcher Savant feature
+  store (§9d) for anyone else — so almost any active starter resolves.
+
+**Hitters:**
+- Team wRC+ with the hitter in the lineup (1/9 weight) vs replacing that slot
+  with a league-average bat (wRC+ 100), through the same run model.
+- Tiers: MVP / ALL-STAR / STARTER / AVERAGE / BENCH / REPLACEMENT.
+- Data: ~100 hardcoded hitters (superstars) — **and this table had no fallback
+  until today.** Any hitter not on that list returned "not found," even
+  everyday active players. Fixed by adding a live ESPN fallback: resolve the
+  supplied team abbreviation → ESPN team → fuzzy-match the player on that
+  team's roster → pull season AVG/OBP/SLG/OPS/HR/SB → derive wRC+ with the
+  same `(2×OBP+SLG)/1.045` formula already used for team-level wRC+ elsewhere
+  in the codebase. Requires a team hint since ESPN has no cross-league
+  player-name search; `war` is `None` for these since ESPN doesn't expose it.
+
+**Known gap:** the live ESPN fallback couldn't be tested against the real API
+from the dev sandbox (ESPN blocks that egress, same as noted in §2), so it's
+verified by code path and graceful-failure behavior only, not a live call yet.
+First real-world exercise will be whatever the user looks up next in production.
 
 ---
 
@@ -306,6 +340,14 @@ raced with Railway's pushes (causing git push rejections). See §8.
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-04 (rev 5)** — **Player Impact Score fully live for hitters**: added
+  a live ESPN roster-lookup fallback (`fetchers/baseball.py: lookup_batter`) so
+  any active hitter resolves, not just the ~100 hardcoded stars. Mirrors the
+  pattern pitchers already had via the Savant feature store. See §5a.
+- **2026-07-04** — **Player Impact Score Phase 2 (hitters)** shipped: team
+  wRC+-with-vs-without-hitter model, ~100 hardcoded hitters, 30 team wRC+
+  averages, MVP→REPLACEMENT tiers, `/hitter-impact` endpoint, pitcher/hitter
+  toggle in the UI. See §5a.
 - **2026-07-02 (rev 4)** — **Over/Under (Game Total) market**: the Poisson engine
   already computed totals probabilities at 6.5–10.5 lines internally; now surfaced
   as a 4th bet market with BET ≥62% / LEAN ≥57% thresholds. Expected total runs
