@@ -437,7 +437,7 @@
     </div>
     <div class="impact-body" id="impact-body">
       <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px;">
-        How much does a player move the win probability vs a league-average replacement?
+        How much does a player move the win probability compared to a league-average player in the same spot?
       </p>
       <div class="impact-toggle-row">
         <button class="impact-type-btn active" id="toggle-pitcher" onclick="setImpactType('pitcher')">Pitcher</button>
@@ -1114,19 +1114,19 @@ function renderImpact(d) {
       <div class="impact-number ${colorCls}">${sign}${d.impact_pp}pp</div>
       <div class="impact-pitcher-info">
         <div class="impact-pitcher-name">${d.pitcher}</div>
-        <div class="impact-pitcher-meta">${d.team ? d.team + " · " : ""}${d.throws}HP · Win% with: ${d.win_prob_with}% vs replacement: ${d.win_prob_replacement}%</div>
+        <div class="impact-pitcher-meta">${d.team ? d.team + " · " : ""}${d.throws}HP · Team wins ${d.win_prob_with}% with ${d.pitcher} vs ${d.win_prob_replacement}% with a league-avg arm</div>
       </div>
       <span class="impact-tier tier-${tierCls}">${d.tier}</span>
     </div>
     <div class="impact-stats-grid">${statsHtml}</div>
     <div class="impact-runs-compare">
       <div class="runs-bar-group">
-        <div class="runs-bar-label">Runs allowed (F5) — This pitcher</div>
+        <div class="runs-bar-label">Runs allowed (F5) — ${d.pitcher}</div>
         <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${realW}%;background:${realColor}"></div></div>
         <div class="runs-bar-val" style="color:${realColor}">${d.runs_allowed_f5} runs/game</div>
       </div>
       <div class="runs-bar-group">
-        <div class="runs-bar-label">Runs allowed (F5) — Replacement</div>
+        <div class="runs-bar-label">Runs allowed (F5) — League-avg pitcher</div>
         <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${replW}%;background:${replColor}"></div></div>
         <div class="runs-bar-val" style="color:${replColor}">${d.runs_allowed_repl_f5} runs/game</div>
       </div>
@@ -1166,19 +1166,19 @@ function renderHitterImpact(d) {
       <div class="impact-number ${colorCls}">${sign}${d.impact_pp}pp</div>
       <div class="impact-pitcher-info">
         <div class="impact-pitcher-name">${d.hitter}</div>
-        <div class="impact-pitcher-meta">${d.team ? d.team + " · " : ""}${d.pos} · Bats ${d.bats} · Win% with: ${d.win_prob_with}% vs replacement: ${d.win_prob_replacement}%</div>
+        <div class="impact-pitcher-meta">${d.team ? d.team + " · " : ""}${d.pos} · Bats ${d.bats} · Team wins ${d.win_prob_with}% with ${d.hitter} vs ${d.win_prob_replacement}% with a league-avg bat</div>
       </div>
       <span class="impact-tier tier-${tierCls}">${d.tier}</span>
     </div>
     <div class="impact-stats-grid">${statsHtml}</div>
     <div class="impact-runs-compare">
       <div class="runs-bar-group">
-        <div class="runs-bar-label">Team wRC+ — With this hitter</div>
+        <div class="runs-bar-label">Team wRC+ — With ${d.hitter}</div>
         <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${withW}%;background:${withColor}"></div></div>
         <div class="runs-bar-val" style="color:${withColor}">${d.team_wrc_with}</div>
       </div>
       <div class="runs-bar-group">
-        <div class="runs-bar-label">Team wRC+ — Replacement bat</div>
+        <div class="runs-bar-label">Team wRC+ — League-avg bat</div>
         <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${withoutW}%;background:${withoutColor}"></div></div>
         <div class="runs-bar-val" style="color:${withoutColor}">${d.team_wrc_without}</div>
       </div>
