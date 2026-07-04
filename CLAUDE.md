@@ -51,9 +51,13 @@
 
 ## Player Impact Score (NEW — July 2026)
 
-Individual pitcher lookup feature on the baseball page (`/baseball`). Shows how much a specific pitcher moves win probability compared to a league-average replacement.
+Tool for evaluating **any MLB player** — pitchers AND position players (hitters) — to see how much they move game outcomes. Inspired by what pro teams and front offices use internally to evaluate trades, acquisitions, and lineup decisions.
 
-**How it works:**
+### Current state: Pitchers only (Phase 1)
+
+Phase 1 is live — pitcher lookup on the baseball page (`/baseball`). Shows how much a starting pitcher moves win probability vs a league-average replacement.
+
+**How it works (pitchers):**
 1. Runs the split Poisson model twice — once with the real pitcher's FIP, once with a replacement-level FIP (4.00)
 2. The delta in win probability = the pitcher's "impact" in percentage points (pp)
 3. Classifies into tiers: ACE (≥8pp), FRONT-LINE (≥4), SOLID (≥1), AVERAGE (≥-1), BELOW AVG (≥-4), LIABILITY (<-4)
@@ -64,6 +68,32 @@ Individual pitcher lookup feature on the baseball page (`/baseball`). Shows how 
 - `templates/baseball.html` — collapsible UI section with autocomplete input, stats grid (FIP/ERA/IP/Velo/CSW%/Barrel%/Whiff%), runs comparison bars, and trade notes
 
 **Data sources for pitcher lookup:** KNOWN_STARTERS dict in player_impact.py (hardcoded, 80+ starters) → feature store fallback (`data/nrfi_feature_store.json`, 656 pitchers from Savant) → estimated FIP from Savant barrel%/velo/hard-hit if no hardcoded FIP exists.
+
+### TODO: Position players / hitters (Phase 2) — NOT YET BUILT
+
+The user's original request is for ALL players, not just pitchers. Phase 2 must add hitter impact scoring. This is what pro teams use to evaluate trade targets, free agent signings, and lineup decisions.
+
+**Hitter impact approach (to be implemented):**
+1. Look up the hitter's stats: wRC+, OPS, WAR, batting average, HR, SB, defensive metrics (OAA, DRS)
+2. Run the Poisson model twice: once with the team's real wRC+ (including this hitter), once with the hitter replaced by a league-average bat (wRC+ 100)
+3. Delta in win probability = hitter's impact in pp
+4. Tier system similar to pitchers but tuned for hitters (MVP-caliber, All-Star, Starter, Bench, etc.)
+5. Include trade/signing news, contract status, injury status
+6. Show offensive stats (wRC+, OPS, ISO, BB%, K%), baserunning (SB, sprint speed), and defensive value (OAA, position)
+
+**Data sources needed for hitters:**
+- Baseball Savant: sprint speed, barrel%, hard-hit%, xwOBA, OAA (defensive)
+- Feature store expansion: add hitter data to `data/nrfi_feature_store.json` or create a separate `data/hitter_feature_store.json`
+- ESPN: basic batting stats (AVG, HR, RBI, OPS) already available from current fetcher
+- Hardcoded KNOWN_HITTERS dict (like KNOWN_STARTERS) for top ~100 position players with wRC+/WAR/OPS
+
+**UI changes needed:**
+- Add a toggle or dropdown in the Player Impact section: "Pitcher" vs "Hitter" (or auto-detect by name)
+- Hitter result card shows different stats than pitcher card (OPS/wRC+/WAR instead of FIP/ERA/CSW%)
+- Defensive value section (position, OAA, DRS)
+- "What if this hitter joins [Team X]?" scenario — plug the hitter's wRC+ into a different team's lineup
+
+**Why this matters for Predicta:** Pro teams pay millions for this kind of analysis. A public tool that lets anyone look up "how much does trading for Player X improve my team's win probability" is valuable for fans, media, fantasy leagues, and potentially sellable to smaller organizations that can't afford proprietary systems.
 
 ## Bugs Fixed (July 2026)
 

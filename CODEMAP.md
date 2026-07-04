@@ -3470,11 +3470,37 @@ mutates: none
 
 ## models/player_impact.py
 
+NOTE: This module currently handles PITCHERS ONLY (Phase 1). Phase 2 will add hitter/position player impact scoring — see CLAUDE.md "Player Impact Score" section for the full plan.
+
+---
+name: KNOWN_STARTERS
+type: dict
+file: models/player_impact.py
+purpose: Hardcoded stats for 80+ MLB starting pitchers (ERA, FIP, avg_ip, throws, team). Primary data source for pitcher impact lookups. Must be updated manually when stats change significantly.
+inputs: none
+outputs: dict[str, dict] keyed by pitcher display name
+calls: none
+called_by: _get_pitcher_data, search_pitchers
+mutates: none
+---
+
+---
+name: TRADE_NEWS
+type: dict
+file: models/player_impact.py
+purpose: Trade/signing/injury news for 16 notable pitchers. Displayed in the UI when a matching pitcher is looked up.
+inputs: none
+outputs: dict[str, str] keyed by pitcher display name
+calls: none
+called_by: compute_impact
+mutates: none
+---
+
 ---
 name: compute_impact
 type: function
 file: models/player_impact.py
-purpose: Computes a pitcher's impact on win probability in percentage points vs a league-average replacement (FIP=4.00). Runs split Poisson model twice and returns delta, tier (ACE/FRONT-LINE/SOLID/AVERAGE/BELOW AVG/LIABILITY), stats, and optional trade note.
+purpose: Computes a pitcher's impact on win probability in percentage points vs a league-average replacement (FIP=4.00). Runs split Poisson model twice and returns delta, tier (ACE/FRONT-LINE/SOLID/AVERAGE/BELOW AVG/LIABILITY), stats, and optional trade note. Phase 2 will extend this to hitters using wRC+ delta instead of FIP delta.
 inputs: pitcher_name (str), team_abbr (optional str), opponent_wrc_plus, park_factor, is_home
 outputs: dict with impact_pp, tier, tier_desc, fip, era, avg_ip, win_prob_with, win_prob_replacement, runs, trade_note
 calls: _get_pitcher_data, _win_prob_for_fip, expected_runs_split
@@ -3486,7 +3512,7 @@ mutates: none
 name: search_pitchers
 type: function
 file: models/player_impact.py
-purpose: Searches for pitchers by name prefix across KNOWN_STARTERS and the feature store. Returns list of {key, display_name, team, fip}.
+purpose: Searches for pitchers by name prefix across KNOWN_STARTERS and the feature store. Returns list of {key, display_name, team, fip}. Phase 2 will add a search_hitters counterpart or unify into search_players.
 inputs: query (str), limit (int)
 outputs: list[dict]
 calls: load_store, _norm
