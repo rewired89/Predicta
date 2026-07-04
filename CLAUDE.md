@@ -49,6 +49,48 @@
 - Status: `GET /nrfi-auto/status`; odds debug: `GET /nrfi-auto/odds-diag`
 - **Do NOT recreate** `.github/workflows/nrfi_daily.yml` — Railway handles everything
 
+## Player Impact Score (NEW — July 2026)
+
+Individual pitcher lookup feature on the baseball page (`/baseball`). Shows how much a specific pitcher moves win probability compared to a league-average replacement.
+
+**How it works:**
+1. Runs the split Poisson model twice — once with the real pitcher's FIP, once with a replacement-level FIP (4.00)
+2. The delta in win probability = the pitcher's "impact" in percentage points (pp)
+3. Classifies into tiers: ACE (≥8pp), FRONT-LINE (≥4), SOLID (≥1), AVERAGE (≥-1), BELOW AVG (≥-4), LIABILITY (<-4)
+
+**Files:**
+- `models/player_impact.py` — core calculation (compute_impact, search_pitchers), 80+ hardcoded MLB starters with FIP/ERA/avg_ip/team, trade/signing news for 16 notable pitchers
+- `app.py` — `POST /player-impact` (returns impact data) and `GET /player-search?q=` (autocomplete search)
+- `templates/baseball.html` — collapsible UI section with autocomplete input, stats grid (FIP/ERA/IP/Velo/CSW%/Barrel%/Whiff%), runs comparison bars, and trade notes
+
+**Data sources for pitcher lookup:** KNOWN_STARTERS dict in player_impact.py (hardcoded, 80+ starters) → feature store fallback (`data/nrfi_feature_store.json`, 656 pitchers from Savant) → estimated FIP from Savant barrel%/velo/hard-hit if no hardcoded FIP exists.
+
+## Bugs Fixed (July 2026)
+
+### Bug 1: All pitchers defaulting to FIP 4.00 (the "everything is 51%" bug)
+
+**Symptom:** Every MLB game prediction came back ~51/49 regardless of the matchup. A game like Cubs losing 1-14 would have been predicted as a coin flip.
+
+**Root cause:** FanGraphs and Baseball Savant block datacenter IPs (Cloudflare 403). Railway and GitHub Actions run on datacenter IPs. So every time the model tried to fetch real pitcher stats (SIERA, xFIP, CSW%, barrel%, velo), the request silently failed and every pitcher collapsed to the ESPN default FIP = 4.00. When all pitchers have the same FIP, the model sees every game as equal.
+
+**Fix:** Created a precomputed feature store (`data/nrfi_feature_store.json`) built locally from a residential IP using `scripts/build_feature_store.py`. The `fetchers/feature_store.py` module loads this committed JSON at runtime so the model gets real Savant metrics (barrel%, hard-hit%, avg velo, whiff%, fastball%) without ever touching FanGraphs. The enrichment script `enrich_starter()` in `fetchers/baseball.py` consults the feature store first. Added 80+ hardcoded starter FIP/ERA values in `models/player_impact.py` as a second fallback.
+
+**Impact:** Model now differentiates between Paul Skenes (FIP 2.07, +21pp impact) and Patrick Corbin (FIP 5.10, -9pp impact) instead of treating them both as FIP 4.00 league average.
+
+### Bug 2: Park factors were wrong (Coors Field and others)
+
+**Symptom:** Games at Coors Field were being modeled with a park factor of 1.19, way too low. The real multi-year run factor from FanGraphs is 1.38. Other parks were also off.
+
+**Root cause:** The park factor table in `fetchers/baseball.py` had outdated/incorrect values. Coors at 1.19 means the model thought it was only 19% above average for runs — reality is 38% above average. This caused the model to underpredict runs at extreme parks and generate wrong win probabilities.
+
+**Fix:** Corrected Coors Field from 1.19 → 1.38. Adjusted several other parks to match FanGraphs multi-year run factors. Loosened run clamps from max 6.0/5.0 (F5/L4) → 8.0/7.0 so the model doesn't artificially suppress run projections at extreme parks like Coors. Added a special probability cap of 65% at Coors-type parks (vs 72% elsewhere) because high-scoring environments are inherently more volatile.
+
+### Bug 3: Model confidence was too high / thresholds too low
+
+**Symptom:** Model was recommending BET on games where it had a thin edge, leading to early losses.
+
+**Fix:** Raised Full Game ML BET threshold from 62% → 65%. Raised F5 BET threshold from 60% → 62%. Hard-capped model probability at 72% max (no baseball model should claim >72% confidence). Added 60/40 Poisson/Elo blend so the model doesn't rely solely on pitcher matchup stats — historical team strength (Elo) acts as a sanity check. Added market comparison layer that shows model edge vs sportsbook odds when odds are provided in the query.
+
 ## Open Calibration Issues
 
 - `logistic_scale = 40` in analyze_tennis.py may be too aggressive (see tests/validate_tennis_scale.py output — ~80pp hold-rate gap vs ATP reference of ~20-25pp); needs real match data to confirm
