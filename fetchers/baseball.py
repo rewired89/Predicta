@@ -485,6 +485,110 @@ def _get_team_hitting(team_id: str) -> dict:
     }
 
 
+# ── Individual batter lookup (Player Impact hitter fallback) ─────────────────
+
+def _find_roster_athlete(team_id: str, name: str) -> Optional[dict]:
+    """Fuzzy-match a player name within a team's roster. Returns {id, name, pos, bats}."""
+    data = _espn_get(f"/teams/{team_id}/roster")
+    groups = data.get("athletes", [])
+    flat: list = []
+    for g in groups:
+        if isinstance(g, dict) and "items" in g:
+            flat.extend(g["items"])
+        elif isinstance(g, dict):
+            flat.append(g)
+
+    q = name.lower().strip()
+    by_name = {(a.get("displayName") or a.get("fullName") or ""): a for a in flat}
+    best = next((a for n, a in by_name.items() if n.lower() == q), None)
+    if not best:
+        close = difflib.get_close_matches(q, [n.lower() for n in by_name], n=1, cutoff=0.6)
+        if close:
+            best = next(a for n, a in by_name.items() if n.lower() == close[0])
+    if not best:
+        return None
+
+    pos = (best.get("position") or {}).get("abbreviation", "")
+    bats_abbr = (best.get("bats") or {}).get("abbreviation", "R").strip().upper()
+    return {
+        "id":   str(best.get("id", "")),
+        "name": best.get("displayName") or best.get("fullName") or name,
+        "pos":  pos,
+        "bats": bats_abbr if bats_abbr in ("L", "R", "S") else "R",
+    }
+
+
+def _get_batter_stats(athlete_id: str) -> dict:
+    """Fetch season batting stats for one player. Returns AVG/OPS/HR/SB and derived wRC+."""
+    if not athlete_id:
+        return {}
+    data = _espn_get(f"/athletes/{athlete_id}/statistics")
+
+    stats: list = []
+    for section in data.get("statistics", []):
+        if isinstance(section, dict):
+            inner = section.get("stats", section.get("statistics", []))
+            if inner:
+                stats = inner
+                break
+        if isinstance(section, list):
+            stats = section
+            break
+    if not stats:
+        for cat in data.get("splits", {}).get("categories", []):
+            cat_name = cat.get("name", "").lower()
+            if "batt" in cat_name or "hit" in cat_name:
+                stats = cat.get("stats", [])
+                break
+    if not stats:
+        return {}
+
+    avg = _stat(stats, "avg", "battingAverage", "average")
+    obp = _stat(stats, "onBasePct", "onBasePercentage", "obp")
+    slg = _stat(stats, "slugAvg", "sluggingPercentage", "slg")
+    ops = _stat(stats, "OPS", "ops", "onBasePlusSlugging")
+    hr  = int(_stat(stats, "homeRuns", "hr"))
+    sb  = int(_stat(stats, "stolenBases", "sb"))
+
+    if obp > 0 and slg > 0:
+        wrc_plus = round(((2 * obp + slg) / 1.045) * 100)
+        ops = ops or round(obp + slg, 3)
+    elif ops > 0:
+        wrc_plus = round((ops / 0.730) * 100)
+    else:
+        return {}
+
+    return {"avg": round(avg, 3), "ops": round(ops, 3), "hr": hr, "sb": sb, "wrc_plus": wrc_plus}
+
+
+def lookup_batter(name: str, team_abbr: Optional[str] = None) -> dict:
+    """
+    Live ESPN fallback for hitters not in the Player Impact hardcoded table.
+    ESPN has no public cross-league name search, so this requires a team hint
+    (abbreviation, city, or nickname) to find the athlete on that team's roster.
+    Returns {} if team_abbr is missing/unmatched or the player isn't found.
+    """
+    if not name or not team_abbr:
+        return {}
+    team = _match_team(team_abbr, _all_teams())
+    if not team:
+        return {}
+    athlete = _find_roster_athlete(str(team.get("id", "")), name)
+    if not athlete:
+        return {}
+    batting = _get_batter_stats(athlete["id"])
+    if not batting:
+        return {}
+    return {
+        "display_name": athlete["name"],
+        "team":         (team.get("abbreviation") or team_abbr).upper(),
+        "bats":         athlete["bats"],
+        "pos":          athlete["pos"],
+        "war":          None,
+        **batting,
+    }
+
+
 # ── Starter builder ───────────────────────────────────────────────────────────
 
 def _build_starter(probable: Optional[dict]) -> dict:

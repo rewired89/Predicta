@@ -66,6 +66,7 @@ Tool for evaluating **any MLB player** — pitchers AND position players (hitter
 - Tiers: MVP (6+pp) / ALL-STAR (3+) / STARTER (1+) / AVERAGE (-0.5+) / BENCH (-2+) / REPLACEMENT
 - 100 hardcoded hitters in KNOWN_HITTERS with wRC+/OPS/AVG/HR/SB/WAR
 - 30 team-level wRC+ averages in TEAM_WRC_PLUS
+- Live ESPN fallback (`fetchers/baseball.py: lookup_batter`) covers any hitter not in KNOWN_HITTERS: resolves team_abbr → ESPN team → roster fuzzy-match → season batting stats → wRC+ derived from 2×OBP+SLG. Requires team_abbr (ESPN has no cross-league player-name search); war is None for these since ESPN doesn't expose it.
 
 **Files:** `models/player_impact.py`, `app.py` (POST /player-impact, POST /hitter-impact, GET /player-search?type=pitcher|hitter), `templates/baseball.html`
 

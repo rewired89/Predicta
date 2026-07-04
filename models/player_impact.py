@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fetchers.feature_store import load_store, lookup_pitcher_features, _norm
+from fetchers.baseball import lookup_batter
 from models.baseball_market import (
     expected_runs_split, build_run_matrix, moneyline_market,
     LEAGUE_AVG_FIP, LEAGUE_BULLPEN_FIP,
@@ -417,12 +418,16 @@ KNOWN_HITTERS: dict[str, dict] = {
 }
 
 
-def _get_hitter_data(name: str) -> dict:
+def _get_hitter_data(name: str, team_abbr: Optional[str] = None) -> dict:
+    """Look up hitter data from KNOWN_HITTERS first, then a live ESPN roster lookup."""
     if not name:
         return {}
     for known_name, data in KNOWN_HITTERS.items():
         if _norm(known_name) == _norm(name):
             return {"display_name": known_name, **data}
+    live_data = lookup_batter(name, team_abbr)
+    if live_data:
+        return live_data
     return {}
 
 
@@ -460,9 +465,10 @@ def compute_hitter_impact(
     park_factor: float = 1.0,
     is_home: bool = True,
 ) -> dict:
-    data = _get_hitter_data(hitter_name)
+    data = _get_hitter_data(hitter_name, team_abbr)
     if not data:
-        return {"error": f"Hitter '{hitter_name}' not found in database. Try a different spelling."}
+        hint = "" if team_abbr else " Add a team abbreviation (e.g. PIT) to search live rosters."
+        return {"error": f"Hitter '{hitter_name}' not found in database.{hint}"}
 
     display_name = data.get("display_name", hitter_name)
     wrc = data.get("wrc_plus", 100)
@@ -470,7 +476,7 @@ def compute_hitter_impact(
     avg = data.get("avg", 0)
     hr = data.get("hr", 0)
     sb = data.get("sb", 0)
-    war = data.get("war", 0)
+    war = data.get("war")
     bats = data.get("bats", "R")
     pos = data.get("pos", "")
     team = team_abbr or data.get("team", "")

@@ -3467,6 +3467,42 @@ mutates: none
 ---
 
 ---
+name: lookup_batter
+type: function
+file: fetchers/baseball.py
+purpose: Live ESPN fallback for individual hitters not in the Player Impact KNOWN_HITTERS table. Resolves team_abbr to an ESPN team, finds the athlete on that team's roster by fuzzy name match, and pulls season batting stats. Requires team_abbr since ESPN has no cross-league player-name search endpoint; returns {} if team_abbr is missing or the player isn't found.
+inputs: name (str), team_abbr (optional str)
+outputs: dict (display_name, team, bats, pos, war=None, avg, ops, hr, sb, wrc_plus) or {}
+calls: _match_team, _all_teams, _find_roster_athlete, _get_batter_stats
+called_by: models/player_impact.py _get_hitter_data
+mutates: none
+---
+
+---
+name: _find_roster_athlete
+type: function
+file: fetchers/baseball.py
+purpose: Fuzzy-matches a player name against a team's ESPN roster (/teams/{id}/roster) and returns the athlete's id, position, and batting handedness.
+inputs: team_id (str), name (str)
+outputs: dict {id, name, pos, bats} or None
+calls: _espn_get
+called_by: lookup_batter
+mutates: none
+---
+
+---
+name: _get_batter_stats
+type: function
+file: fetchers/baseball.py
+purpose: Fetches season batting stats (AVG/OBP/SLG/OPS/HR/SB) for one ESPN athlete id and derives wRC+ using the same 2×OBP+SLG formula as _get_team_hitting.
+inputs: athlete_id (str)
+outputs: dict {avg, ops, hr, sb, wrc_plus} or {}
+calls: _espn_get
+called_by: lookup_batter
+mutates: none
+---
+
+---
 
 ## models/player_impact.py
 
@@ -3548,11 +3584,23 @@ mutates: none
 name: compute_hitter_impact
 type: function
 file: models/player_impact.py
-purpose: Computes a hitter's impact on win probability in percentage points. Runs Poisson model with team wRC+ including the hitter vs replacing with league-average bat (wRC+ 100). Returns delta, tier (MVP/ALL-STAR/STARTER/AVERAGE/BENCH/REPLACEMENT), stats, and trade note.
+purpose: Computes a hitter's impact on win probability in percentage points. Runs Poisson model with team wRC+ including the hitter vs replacing with league-average bat (wRC+ 100). Returns delta, tier (MVP/ALL-STAR/STARTER/AVERAGE/BENCH/REPLACEMENT), stats, and trade note. war is None for hitters resolved via the live ESPN fallback (ESPN doesn't expose WAR).
 inputs: hitter_name (str), team_abbr (optional str), park_factor, is_home
 outputs: dict with impact_pp, tier, tier_desc, wrc_plus, ops, avg, hr, sb, war, team_wrc_with, team_wrc_without, win_prob_with, win_prob_replacement, trade_note
 calls: _get_hitter_data, _team_wrc_with_hitter, _team_wrc_without_hitter, _win_prob_for_wrc
 called_by: app.py /hitter-impact endpoint
+mutates: none
+---
+
+---
+name: _get_hitter_data
+type: function
+file: models/player_impact.py
+purpose: Looks up a hitter's stats — checks KNOWN_HITTERS first, then falls back to fetchers.baseball.lookup_batter for a live ESPN roster lookup so any active MLB hitter (not just the ~100 hardcoded stars) can resolve. team_abbr is required for the live fallback since ESPN has no cross-league player-name search.
+inputs: name (str), team_abbr (optional str)
+outputs: dict (display_name, wrc_plus, ops, avg, hr, sb, war, bats, pos, team) or {} if not found
+calls: lookup_batter
+called_by: compute_hitter_impact
 mutates: none
 ---
 
