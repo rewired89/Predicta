@@ -3242,7 +3242,7 @@ mutates: none
 name: PARK_FACTORS
 type: variable
 file: fetchers/baseball.py
-purpose: Dict mapping ESPN MLB team abbreviations to 3-year park run factors (1.0 = neutral). Covers all 30 MLB venues.
+purpose: Dict mapping ESPN MLB team abbreviations to multi-year park run factors (1.0 = neutral). Coors Field (COL) = 1.38. Corrected 2026-07-04 from compressed range to FanGraphs-calibrated values.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -3548,7 +3548,7 @@ type: function
 file: models/baseball_market.py
 purpose: Returns (mu_f5, mu_l4): expected runs for innings 1-5 (starter FIP) and 6-9 (bullpen FIP). When opp_starter_avg_ip is provided, starter_frac = clamp(avg_ip, 3, 7)/9 (dynamic); otherwise falls back to fixed 5/9. weather_factor (temp+wind combined, 0.85–1.15) and off_rest_mult (0.99–1.01) applied to base. math: base = LEAGUE_AVG × (wRC+/100) × park × home × weather_factor × off_rest_mult; mu_f5 = base × starter_frac × (starter_FIP/LEAGUE_FIP); mu_l4 = base × bullpen_frac × (bullpen_FIP/LEAGUE_FIP).
 inputs: wrc_plus: float, opp_starter_fip: float, opp_bullpen_fip: float, park_factor: float = 1.0, is_home: bool = False, opp_starter_avg_ip: Optional[float] = None, weather_factor: float = 1.0, off_rest_mult: float = 1.0
-outputs: tuple[float, float] — (mu_f5 clamped 0.5-6.0, mu_l4 clamped 0.4-5.0)
+outputs: tuple[float, float] — (mu_f5 clamped 0.5-8.0, mu_l4 clamped 0.4-7.0)
 calls: none
 called_by: run_baseball_analysis
 mutates: none
@@ -3807,7 +3807,7 @@ mutates: none
 name: run_baseball_analysis
 type: function
 file: analyze_baseball.py
-purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
+purpose: Full baseball_v2 pipeline: parse → fetch ESPN → step 2.5 enrich starters with FG SIERA/xFIP + Savant barrel% (non-destructive fallback) → derive bullpen FIP (dynamic) → platoon wRC+ → split Poisson F5/L4 → Elo blend (60/40, was 70/30) → 72% max confidence cap → markets → weather fetch (step 6.5, signal-only) → persist (signals incl. siera, xfip, barrel_pct_against, xwoba_against) → Kelly sizing (both sides, caller-supplied decimal odds) → AI narrative → plain_summary in user-preferred phrasing → result dict.
 inputs: user_query: str, bankroll: float = 1000.0, odds_a: float = 1.909, odds_b: float = 1.909
 outputs: dict {match_id, team_a, team_b, team_home, team_away, plain_summary, prob_a, prob_b, mu_home, mu_away, mu_home_f5, mu_away_f5, mu_home_l4, mu_away_l4, starters (with siera, xfip, fip_source, barrel_pct_against, xwoba_against, bullpen_fip), team_stats (with wrc_source, woba, iso), kelly_a, kelly_b, markets, narrative, raw_sources, steps, …}
 calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team_hitting, _avg_ip, _derive_bullpen_fip, _baseball_data_confidence, platoon_wrc_adjust, expected_runs_split, compute_baseball_markets, EloModel, team_to_stadium_code, fetch_game_weather, weather_to_signals, kelly_stake, log_signal, get_db, generate_baseball_narrative, _format_baseball_markets, _build_plain_summary
@@ -6478,11 +6478,11 @@ mutates: none
 name: feature_store
 type: module
 file: fetchers/feature_store.py
-purpose: Reader for the committed pitcher feature store (data/nrfi_feature_store.json) — the fix for FanGraphs/Savant being IP-blocked from servers (Actions/Railway). load_store() (cached), store_meta() (season/built_at/n_pitchers), lookup_pitcher_features(name) → precomputed {siera,xfip,fip,csw_pct,o_swing_pct,k_pct,bb_pct,gb_pct,hr_fb_pct,barrel_pct_against,hard_hit_pct_against,avg_fb_velo,whiff_pct,...} via normalized-name match (exact, then last-name+first-initial fallback). Returns {} when store absent so enrich_starter falls through to live fetch. Store is built locally by scripts/build_feature_store.py and committed.
+purpose: Reader for the committed pitcher feature store (data/nrfi_feature_store.json) — the fix for FanGraphs/Savant being IP-blocked from servers (Actions/Railway). load_store() (cached), store_meta() (season/built_at/n_pitchers), store_freshness() (age_days/is_stale>7d/is_expired>14d/label — used by write_report to flag data-integrity drift), lookup_pitcher_features(name) → precomputed {siera,xfip,fip,csw_pct,o_swing_pct,k_pct,bb_pct,gb_pct,hr_fb_pct,barrel_pct_against,hard_hit_pct_against,avg_fb_velo,whiff_pct,...} via normalized-name match (exact, then last-name+first-initial fallback). Returns {} when store absent so enrich_starter falls through to live fetch. Store is built locally by scripts/build_feature_store.py and committed.
 inputs: name: str
 outputs: dict
-calls: json
-called_by: enrich_starter (fetchers/savant.py)
+calls: json, datetime
+called_by: enrich_starter (fetchers/savant.py), write_report (scripts/daily_nrfi.py)
 mutates: none
 ---
 
@@ -7219,7 +7219,7 @@ mutates: none
 name: run_predictions
 type: function
 file: scripts/daily_nrfi.py
-purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, and starters. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
+purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, starters, and all-market picks (ml_pick/ml_prob/ml_verdict for moneyline, f5_pick/f5_prob/f5_verdict for F5) from bet_recs. Also captures lean_side (NRFI or YRFI based on p_nrfi vs 0.50) and feature-source diagnostics. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
 inputs: games: list[dict], game_date: str
 outputs: list[dict]
 calls: run_baseball_analysis (analyze_baseball.py)
@@ -7230,7 +7230,7 @@ mutates: none
 name: resolve_predictions
 type: function
 file: scripts/daily_nrfi.py
-purpose: Loads prediction JSON for a given date, fetches MLB Stats API linescores, computes NRFI/YRFI outcome, W/L, and P&L in units (assuming -110 juice: win=+0.909u, loss=-1.0u). Only resolves rows where outcome is still None.
+purpose: Loads prediction JSON for a given date, fetches MLB Stats API linescores, resolves ALL four markets: NRFI (1st-inning outcome), moneyline (final winner via ml_correct), F5 (leader after 5 innings via f5_correct), Over/Under (total runs vs ou_line via ou_correct). Also computes lean_side/lean_correct for every game and W/L/P&L for BET/LEAN plays. fetch_linescore now returns full game data: home_1st/away_1st, home_runs/away_runs (finals), home_f5/away_f5 (through 5).
 inputs: game_date: str
 outputs: list[dict] (updated predictions)
 calls: fetch_linescore (MLB Stats API /game/{pk}/linescore)
@@ -7241,10 +7241,10 @@ mutates: none (caller saves to disk)
 name: write_report
 type: function
 file: scripts/daily_nrfi.py
-purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
+purpose: Writes markdown report to data/nrfi_reports/YYYY-MM-DD.md. Sections: Live Validation Tracker, Feature Store Freshness (age + stale/expired warnings via store_freshness()), All Games — Model Picks table (validation-status header separating NRFI ✅ validated from moneyline/F5 unvalidated; ⭐ edge flags; "Best play" column), Plays table (BET/LEAN only), Skipped Games table, Results summary (resolve mode only), Errors list.
 inputs: predictions: list[dict], game_date: str, is_resolve: bool
 outputs: Path (written file)
-calls: none
+calls: nrfi_store.validation_tracker, fetchers.feature_store.store_freshness
 called_by: main (daily_nrfi.py)
 mutates: data/nrfi_reports/YYYY-MM-DD.md
 ---
@@ -7254,13 +7254,8 @@ mutates: data/nrfi_reports/YYYY-MM-DD.md
 ---
 name: nrfi_daily
 type: workflow
-file: .github/workflows/nrfi_daily.yml
-purpose: GitHub Actions workflow for automated daily NRFI predictions, closing-line capture, and resolution. Job "predict" runs at 13:00 UTC (9 AM ET) — morning predictions + entry NRFI odds. Job "capture-odds" runs at 23:00 UTC (7 PM ET) — snapshots closing NRFI lines for CLV. Job "resolve" runs at 05:00 UTC (1 AM ET) — fetches linescores, computes outcomes + CLV. All three trigger manually via workflow_dispatch mode (predict|capture-odds|resolve) with optional date. Commits use [skip ci].
-inputs: ANTHROPIC_API_KEY, OPENWEATHER_API_KEY, ODDS_API_KEY (secrets); workflow_dispatch inputs mode + date
-outputs: commits to data/nrfi_predictions/ and data/nrfi_reports/ on main
-calls: scripts/daily_nrfi.py
-called_by: GitHub Actions cron scheduler, workflow_dispatch
-mutates: main branch (nrfi_predictions/ + nrfi_reports/ directories)
+file: .github/workflows/nrfi_daily.yml (REMOVED 2026-07-02)
+purpose: REMOVED — superseded by tasks/nrfi_auto.py (always-on Railway scheduler). GitHub Actions `schedule` cron proved unreliable (delayed/skipped runs) and its `git push` raced with Railway's Contents-API pushes to main (non-fast-forward rejections). Deleted so there is exactly ONE writer to main. Run predictions on demand via GET or POST /nrfi-auto/run?job=predict instead of the old workflow_dispatch.
 ---
 
 name: capture_odds
@@ -7434,8 +7429,8 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl
 name: _bet_recommendations
 type: function
 file: analyze_baseball.py
-purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, and full-game moneyline. NRFI: prob >= 55% + elite starter signal (CSW% > 30% OR barrel% < 6.5%) → BET (HIGH if >=57% with 2+ signals); prob >= 55% without elite signal → LEAN; YRFI prob >= 55% → BET. Now accepts bankroll param and attaches kelly dict (full_kelly_pct, half_kelly_pct, recommended_stake, edge_pct, breakeven_pct) to BET/LEAN recommendations.
-inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float
+purpose: Generate explicit BET / LEAN / SKIP verdicts for NRFI, F5, full-game moneyline, and Game Total (O/U). Full Game: BET requires >= 65% (was 62%) + data_confidence != "low" + no market disagreement > 20pp; F5: BET requires >= 62% (was 60%) + starter gap >= 1.0 + data_confidence != "low"; O/U: picks best line (6.5–10.5), BET >= 62%, LEAN >= 57%; NRFI: prob >= 55% + elite starter signal → BET. Market sanity check: when sportsbook odds provided, if model disagrees with market by > 20pp, downgrades ML to LEAN at best. Accepts bankroll param and attaches kelly dict to BET/LEAN recommendations.
+inputs: formatted_markets: dict, home_starter: dict, away_starter: dict, team_home: str, team_away: str, bankroll: float, data_confidence: str, market_implied_home: float|None, market_implied_away: float|None
 outputs: list[dict] — one entry per market (NRFI, F5, Full Game)
 calls: _nrfi_kelly
 called_by: run_baseball_analysis
@@ -8068,6 +8063,20 @@ called_by: resolve_finished (tasks/soccer_auto.py)
 mutates: none
 ---
 
+---
+
+## tasks/nrfi_auto.py
+
+---
+name: nrfi_auto
+type: module
+file: tasks/nrfi_auto.py
+purpose: Always-on NRFI daily pipeline for Railway — replaces the unreliable GitHub Actions schedule cron (which delayed/skipped runs). An in-process daemon thread (start_nrfi_auto, called from app.py startup, disable via NRFI_AUTO_DISABLED=1) checks every 5 min and fires each job once per UTC day after its hour: run_predict (13:00 UTC / 9 AM ET — fetch schedule, run_predictions, capture entry odds, write JSON+report), run_capture (23:00 UTC / 7 PM ET — closing odds), run_resolve (05:00 UTC / 1 AM ET — resolve prior day + CLV). Reuses scripts/daily_nrfi functions. Persists results by pushing JSON+report to GitHub via the Contents API (_push_file/_push_day; needs GITHUB_TOKEN + GITHUB_REPO env vars — same as soccer_auto). Also overwrites a fixed-path data/nrfi_latest.md every run (header + the day's report) so the newest scan is always one known file — read that to check the most recent results without hunting for the date. status() reports running state + last-run/error/push + whether push is configured. Exposed via app.py GET /nrfi-auto/status and GET|POST /nrfi-auto/run?job=predict|capture|resolve (manual on-demand trigger; GET added for browser-friendly access).
+inputs: env GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, NRFI_AUTO_DISABLED
+outputs: commits to data/nrfi_predictions/ + data/nrfi_reports/ on main; nrfi_bets DB rows (via run_baseball_analysis)
+calls: scripts.daily_nrfi (fetch_schedule, run_predictions, capture_odds, resolve_predictions, write_report), GitHub Contents API (httpx)
+called_by: app.startup (start_nrfi_auto); app.py /nrfi-auto/* endpoints
+mutates: data/nrfi_predictions/, data/nrfi_reports/ (via GitHub API), nrfi_bets
 ---
 
 ## tasks/soccer_auto.py

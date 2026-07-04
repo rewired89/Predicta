@@ -18,6 +18,7 @@ rhythm as retraining.
 """
 from __future__ import annotations
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -51,6 +52,32 @@ def store_meta() -> dict:
     p = s.get("pitchers", {})
     return {"season": s.get("season"), "built_at": s.get("built_at"),
             "n_pitchers": len(p), "sources": s.get("sources", [])}
+
+
+def store_freshness() -> dict:
+    """
+    How stale is the feature store? Returns age_days, is_stale (>7d),
+    is_expired (>14d), and a human label for the daily report.
+    """
+    meta = store_meta()
+    built = meta.get("built_at")
+    if not built:
+        return {"age_days": None, "is_stale": True, "is_expired": True,
+                "label": "no feature store", "sources": []}
+    try:
+        ts = datetime.fromisoformat(built)
+    except (ValueError, TypeError):
+        return {"age_days": None, "is_stale": True, "is_expired": True,
+                "label": "unparseable timestamp", "sources": meta.get("sources", [])}
+    age = (datetime.now(timezone.utc) - ts).total_seconds() / 86400
+    return {
+        "age_days": round(age, 1),
+        "is_stale": age > 7,
+        "is_expired": age > 14,
+        "label": (f"{age:.0f}d ago" if age >= 1 else "today"),
+        "sources": meta.get("sources", []),
+        "n_pitchers": meta.get("n_pitchers", 0),
+    }
 
 
 def lookup_pitcher_features(name: str) -> dict:

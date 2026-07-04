@@ -135,7 +135,7 @@ def expected_runs_split(
     mu_f5 = base * sf * (starter_fip / LEAGUE_AVG_FIP) * process_adj
     mu_l4 = base * bf * (bullpen_fip / LEAGUE_AVG_FIP)
 
-    return max(0.5, min(mu_f5, 6.0)), max(0.4, min(mu_l4, 5.0))
+    return max(0.5, min(mu_f5, 8.0)), max(0.4, min(mu_l4, 7.0))
 
 
 def expected_runs(

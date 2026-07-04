@@ -63,6 +63,15 @@ def startup():
         except Exception:
             pass
 
+    # Always-on NRFI daily pipeline (predict 13:00 / capture 23:00 / resolve
+    # 05:00 UTC), pushing results to GitHub. Replaces the unreliable GitHub
+    # Actions cron. Disable with NRFI_AUTO_DISABLED=1.
+    try:
+        from tasks.nrfi_auto import start_nrfi_auto
+        start_nrfi_auto()
+    except Exception:
+        pass
+
 
 @app.get("/ping")
 def ping():
@@ -688,6 +697,57 @@ def nrfi_resolve(body: dict):
 
     return {"id": row["id"], "outcome": "NRFI" if outcome else "YRFI",
             "won": bool(won), "pnl_units": pnl}
+
+
+@app.get("/nrfi-auto/status")
+def nrfi_auto_status():
+    """Is the always-on NRFI scheduler running? When did each job last fire?"""
+    from tasks.nrfi_auto import status
+    return status()
+
+
+@app.get("/nrfi-auto/odds-diag")
+def nrfi_odds_diag():
+    """
+    Diagnose why NRFI odds capture (CLV) works or fails — reports the raw Odds
+    API status, quota remaining, and whether the first-inning market comes back
+    or is rejected (wrong market / plan not included). Use this instead of
+    guessing at config.
+    """
+    from fetchers.nrfi_odds import diagnose
+    return diagnose()
+
+
+@app.api_route("/nrfi-auto/run", methods=["GET", "POST"])
+def nrfi_auto_run(job: str = "predict", date: Optional[str] = None,
+                  background: bool = True):
+    """
+    Manually fire an NRFI job now (for testing / on-demand). job = predict |
+    capture | resolve.
+
+    Defaults to background=true: launches the job in a thread and returns
+    immediately (a full predict run takes ~1 min — longer than a browser waits).
+    Check progress/result at GET /nrfi-auto/status. Pass background=false to run
+    synchronously and get the result inline (may time out on slow runs).
+    """
+    from tasks import nrfi_auto
+    fn = {"predict": nrfi_auto.run_predict,
+          "capture": nrfi_auto.run_capture,
+          "resolve": nrfi_auto.run_resolve}.get(job)
+    if fn is None:
+        raise HTTPException(400, "job must be one of: predict, capture, resolve")
+
+    if background:
+        import threading
+        threading.Thread(target=lambda: nrfi_auto._run_job(job, lambda: fn(date),
+                                                           f"last_{job}"),
+                         name=f"nrfi-manual-{job}", daemon=True).start()
+        return {"job": job, "status": "started",
+                "note": "running in background — check GET /nrfi-auto/status"}
+    try:
+        return {"job": job, "result": fn(date)}
+    except Exception as exc:
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}")
 
 
 @app.get("/api/nrfi")

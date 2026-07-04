@@ -27,7 +27,7 @@
 
 | Sport | Pipeline | Model |
 |-------|----------|-------|
-| Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 70/30 Elo blend + FanGraphs SIERA/Savant Statcast enrichment + market comparison layer |
+| Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 60/40 Elo blend + 72% max cap (65% at Coors) + corrected park factors + data confidence gating + market sanity check |
 | Tennis (ATP/WTA) | analyze_tennis.py | Nested Markov chain (points→games→sets→match) |
 | Soccer | analyze_soccer.py | Dixon-Coles Poisson + Elo |
 | Table Tennis (Ping Pong) | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer |
@@ -39,10 +39,24 @@
 - Will be activated when 100+ resolved predictions exist in DB (MIN_SAMPLES = 100)
 - Sport-specific feature schemas are ready: BASEBALL_FEATURES, TENNIS_FEATURES, SOCCER_FEATURES, TABLE_TENNIS_FEATURES
 
+## NRFI Daily Automation
+
+- **Railway is the single writer to `main`** — GitHub Actions workflow was deleted (it raced with Railway's Contents API pushes)
+- `tasks/nrfi_auto.py` scheduler runs in-process on Railway: predict 13:00 UTC (9 AM ET), capture 23:00 UTC (7 PM ET), resolve 05:00 UTC (1 AM ET)
+- Results pushed to GitHub via Contents API (needs `GITHUB_TOKEN` + `GITHUB_REPO` env vars on Railway)
+- `data/nrfi_latest.md` is overwritten every run — always holds the newest scan
+- Manual trigger: `GET /nrfi-auto/run?job=predict` (browser-friendly) or POST
+- Status: `GET /nrfi-auto/status`; odds debug: `GET /nrfi-auto/odds-diag`
+- **Do NOT recreate** `.github/workflows/nrfi_daily.yml` — Railway handles everything
+
 ## Open Calibration Issues
 
 - `logistic_scale = 40` in analyze_tennis.py may be too aggressive (see tests/validate_tennis_scale.py output — ~80pp hold-rate gap vs ATP reference of ~20-25pp); needs real match data to confirm
-- Weather signals (temp_f, wind_mph, wind_factor, temp_factor, is_dome) are logged to DB and shown in ai_signals but NOT applied to the run model — enable after 50+ baseball predictions validate the effect
+- Weather signals (temp_f, wind_mph, wind_factor, temp_factor, is_dome) are now applied to the run model via weather_factor multiplier
+- Full Game ML BET threshold raised from 62% → 65% after early losses; F5 BET from 60% → 62%; model probability hard-capped at 72% (65% at Coors-type parks)
+- Coors Field park factor corrected from 1.19 → 1.38 (FanGraphs multi-year run factor); several other parks adjusted
+- Run clamps loosened from 6.0/5.0 → 8.0/7.0 to avoid suppressing real run projections at extreme parks
 - Market comparison layer (`market_comparison` dict) is live in both baseball and TT pipelines; only meaningful when user supplies sportsbook odds in the query (e.g., "NYY -130 vs BOS +110 tonight")
 - FanGraphs season-1 fallback active: if 2026 data is unavailable, `_load_fg_pitchers`/`_load_fg_batters` silently fetch 2025 stats; this is expected mid-season and valid for pitcher quality evaluation
+- FanGraphs is **dead for automation** (Cloudflare 403 even from residential IPs) — advanced pitcher stats come from the precomputed feature store (`data/nrfi_feature_store.json`, built locally via `scripts/build_feature_store.py` using Baseball Savant). Optional FanGraphs CSV import available for SIERA/CSW%/O-Swing%
 - TT 5pp value gate: when real odds provided, PASS recommendation fires unless model edge ≥ 5pp; call `GET /tt-performance` after 10+ resolved predictions to see if edge is real

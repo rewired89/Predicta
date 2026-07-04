@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-02
+> **Last updated:** 2026-07-02 (rev 4 — Over/Under market + all-market auto-resolution)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -18,11 +18,16 @@ Predicta predicts MLB games three ways: **full-game moneyline**, **first-5-innin
 - Moneyline / F5 use a **split-Poisson run model** blended with **Elo**.
 - NRFI uses a separately trained **XGBoost model with probability calibration**,
   validated at **54.9% win rate, p = 0.0049** across ~8,644 historical games.
-- Live picks are auto-generated daily and committed to the repo. We just added
-  **Closing Line Value (CLV) tracking** and a **public API** to make it sellable.
+- Live picks are auto-generated daily by an always-on **Railway scheduler** and
+  committed to the repo via the GitHub API. We have **CLV tracking** and a
+  **public API** to make it sellable.
+- The report now shows **all three markets for every game** (moneyline, F5, NRFI)
+  so even games where NRFI is a coin-flip still surface a moneyline or F5 edge.
 
 **Honest status:** the NRFI model is historically validated but has **zero
-resolved live predictions yet** — the live track record starts now.
+resolved live predictions yet** — the live track record starts now. First full
+auto-scan ran 2026-07-02: 9 games scanned, 7 flagged edges (mostly moneylines),
+1 NRFI LEAN (CIN@MIL 55.9%).
 
 ---
 
@@ -32,6 +37,7 @@ resolved live predictions yet** — the live track record starts now.
 |--------|----------|-------|
 | Moneyline | Who wins the game? | Split Poisson + Elo blend |
 | First 5 innings (F5) | Who leads after 5 innings? | Split Poisson (starter-weighted) |
+| Game Total (O/U) | Over or under X.5 runs? | Split Poisson (lines 6.5–10.5) |
 | NRFI / YRFI | Does *anyone* score in the 1st inning? | XGBoost + calibration |
 
 ---
@@ -41,15 +47,20 @@ resolved live predictions yet** — the live track record starts now.
 | Source | Provides | Status |
 |--------|----------|--------|
 | **ESPN** (primary) | Team records, hitting stats, team ERA, probable starters, park factor, schedule | Live, reliable |
-| **FanGraphs** (pybaseball) | Pitcher SIERA/xFIP/CSW%/O-Swing%, team wRC+/wOBA/ISO | Enrichment; **proxy-blocked in prod** → falls back to ESPN |
-| **Baseball Savant** (pybaseball) | Barrel% against, xwOBA, fastball velo, whiff% | Enrichment; same fallback |
-| **MLB Stats API** | 1st-inning linescores (for grading), confirmed lineups | Used by the daily automation |
-| **The Odds API** | First-inning NRFI/YRFI betting lines (for CLV) | Needs `ODDS_API_KEY`; optional |
+| **Baseball Savant** (feature store) | Barrel%, hard-hit%, whiff%, fastball velo, xwOBA per pitcher | **WORKING** — baked into a committed `data/nrfi_feature_store.json` built locally, read at runtime (see §9d) |
+| **FanGraphs** | SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB | **DEAD for automation** — no API, Cloudflare 403s all scripts. Only obtainable via manual member CSV export (optional, see §9d) |
+| **MLB Stats API** | 1st-inning linescores (for grading), confirmed lineups | Proxy-blocked in CI; ESPN cache used as fallback |
+| **The Odds API** | First-inning NRFI/YRFI betting lines (for CLV) | Needs `ODDS_API_KEY`; **working** |
 | **OpenWeatherMap** | Temperature + wind for outdoor parks | Needs `OPENWEATHER_API_KEY`; optional |
 | **Claude (AI)** | Query parsing; fallback stat estimates when ESPN is down | Live |
 
 Fallback philosophy: if a live source fails, the model degrades gracefully to the
 next-best source and **lowers its confidence** rather than refusing to answer.
+
+**Key architecture change:** live stat-fetching from FanGraphs/Savant fails on
+any datacenter IP (Actions/Railway) — FanGraphs is fully blocked (Cloudflare),
+Savant is blocked live too. So advanced pitcher stats are now **pre-fetched
+locally and committed as a feature store** that the runtime reads. See §9d.
 
 ---
 
@@ -150,20 +161,46 @@ is genuinely ahead of the bulk of same-day line movement.
 
 ## 8. Automation & delivery
 
-- **GitHub Actions** runs daily: predictions at 9 AM ET, closing-line capture at
-  7 PM ET, results graded at 1 AM ET. Everything is committed to the repo as
-  JSON + a Markdown report (auditable, timestamped).
+- **Railway always-on scheduler** (`tasks/nrfi_auto.py`) runs daily — predictions
+  at **9 AM ET**, closing-line capture at **7 PM ET**, results graded at
+  **1 AM ET**. Replaced GitHub Actions `schedule` cron (which was unreliable —
+  delayed/skipped runs — and its `git push` raced with Railway's Contents API
+  pushes, causing non-fast-forward rejections). Railway is now the **single
+  writer** to `main`.
+- Results are committed to the repo as JSON + a Markdown report (auditable,
+  timestamped) via the GitHub Contents API. A fixed-path file
+  `data/nrfi_latest.md` is overwritten every run so the newest scan is always at
+  one known URL.
+- **Manual trigger** available: `GET /nrfi-auto/run?job=predict` (browser-
+  friendly) or `POST`. Check scheduler state at `GET /nrfi-auto/status`.
 - **Public API** (`/v1/...`, API-key gated) serves predictions, plays, CLV, and a
   performance summary from those committed files — for syndicate/media clients.
+- **Odds diagnostics** endpoint: `GET /nrfi-auto/odds-diag` returns raw Odds API
+  status, quota, market availability, and sample Pinnacle prices — for debugging
+  CLV capture without guessing at config issues.
+
+### All-markets report (new)
+
+The daily report now includes an **"All Games — Model Picks"** table covering
+every game across three markets: **moneyline** (full-game winner), **F5**
+(first-5 leader), and **NRFI**. Each cell shows the pick + probability; a ⭐
+marks games where the model flags an edge (BET or LEAN). A "Best play" column
+picks the strongest edge across all three markets, or "no edge — pass."
+
+This addresses the concern that only 1 of 9 games produced a bet — the NRFI
+model is *correct* to be selective (55% gate), but the moneyline/F5 models
+frequently find value the NRFI model doesn't. Now every game gets visibility.
 
 ---
 
 ## 9. Known limitations (be honest with Kimi)
 
 1. **Zero resolved live predictions** — historical validation only; live track
-   record is just starting.
-2. **FanGraphs/Savant blocked in production** — advanced pitcher metrics often
-   fall back to ESPN's simpler FIP.
+   record is just starting. First resolution batch expected 2026-07-03 at 1 AM ET.
+2. **Savant feature store works; FanGraphs dead for automation** — Savant Statcast
+   (barrel%, whiff%, velo, hard-hit%) is live via precomputed feature store (~650
+   pitchers). FanGraphs (SIERA/CSW%/O-Swing%) is dead for scripts (Cloudflare 403
+   even from residential IPs) but available via manual CSV export (optional chore).
 3. **Weather + lineup APIs** need keys and are sometimes proxy-blocked.
 4. **Model retrain pending** — the improved rolling-window feature (below) needs a
    local retrain before it takes effect.
@@ -191,17 +228,25 @@ performance response:
 
 ## 9b. Live Validation Tracker
 
-Rendered at the top of every daily report (cumulative, auto-updated). Current:
+Rendered at the top of every daily report (cumulative, auto-updated). Current
+(from first auto-scan 2026-07-02):
 
 ```
-Resolved predictions : 0
-Win rate             : —
-CLV-quality verdict  : INCONCLUSIVE (awaiting ~30–50 games)
-Avg entry lead time  : 15.3 hrs (n=9, first live capture)
-Avg CLV              : — (first close not yet captured)
-Beat the close       : —
-Stale exclusions     : 0
+Model games resolved  : 0
+Model lean accuracy   : —
+Bet plays resolved    : 0
+Bet win rate          : —
+CLV-quality verdict   : no resolved CLV plays yet
+Avg entry lead time   : — (n=0)
+Avg CLV               : —
+Beat the close        : —
+Stale exclusions      : 0
 ```
+
+*Note:* "Model lean accuracy" tracks ALL games (not just BET/LEAN — every game
+gets a lean_side based on whether p_nrfi > 0.50), so accuracy accumulates even
+when the 55% bet gate rarely fires. This is the metric that will tell us whether
+the model has directional skill across the full slate.
 
 ## 9c. CLV math notes (pre-answers to Kimi's review)
 
@@ -233,12 +278,70 @@ never live-fetches. Refresh locally every few days + commit — same rhythm as
 retraining. Chosen over an ESPN-only retrain because that would discard the
 Statcast signal and force the p=0.0049 edge to be re-proven from scratch.
 
-**Status:** store reader + build script shipped. Awaiting first local build +
-commit to populate real features; next daily run should then show
-`features_enriched: true` and spread p_nrfi across games.
+**RESOLVED (final state):**
+- **Savant features are LIVE.** The local build (`build_feature_store.py`) pulls
+  Baseball Savant (barrel%, hard-hit%, whiff%, velo, xwOBA) for ~650 pitchers,
+  writes the committed store. Verified working: after committing it, model
+  p_nrfi spread went from flat **51.1–51.8 (0.7pp)** to **48.1–55.9 (7.8pp)** and
+  fired its first LEAN. The model differentiates games again.
+- **FanGraphs is a genuine dead end for automation.** Confirmed on the user's own
+  residential machine: `pitching_stats` → 403; the modern `/api/leaders` JSON
+  endpoint → 403 (Cloudflare "Just a moment"); even `cloudscraper` can't pass the
+  challenge. FanGraphs has **no API** — the "membership" is a website login only.
+- **FanGraphs stats are still obtainable, manually.** A member can *export* the
+  pitching leaderboard to CSV in the browser. `build_feature_store.py` now reads
+  any `data/fangraphs*.csv` the user drops in and merges SIERA/xFIP/CSW%/O-Swing%/
+  K%/BB%/GB%/HR-FB, converting "28.5%"→0.285 to match training units. Optional.
+
+**Net:** the model runs on ~10 of its 14 pitcher features (Savant + ESPN FIP +
+fi_rate). The 4 FanGraphs-only features (SIERA/xFIP/CSW%/O-Swing%) default to
+league mean unless the user does the manual CSV export. Open question for Kimi:
+is that 4-feature gap worth a recurring manual chore, or does Savant already
+carry most of the contact-quality signal? (We plan to measure it after ~2 weeks
+of live data — compare model-lean accuracy with vs without the FanGraphs CSV.)
+
+**Ops reliability note:** GitHub Actions cron was removed — Railway is the sole
+scheduler and sole writer to `main`. The old workflow was deleted after it
+raced with Railway's pushes (causing git push rejections). See §8.
 
 ## 10. Recent changes (newest first)
 
+- **2026-07-02 (rev 4)** — **Over/Under (Game Total) market**: the Poisson engine
+  already computed totals probabilities at 6.5–10.5 lines internally; now surfaced
+  as a 4th bet market with BET ≥62% / LEAN ≥57% thresholds. Expected total runs
+  shown per game. Report now has 5 columns: Matchup | Exp. Runs | ML | F5 | O/U | NRFI.
+- **2026-07-02 (rev 4)** — **All-market auto-resolution**: resolve now grades ALL
+  four markets from one MLB linescore fetch: moneyline (final winner), F5 (leader
+  after 5 innings), O/U (total runs vs predicted line), NRFI (first-inning outcome).
+  Results section shows per-market accuracy table. No manual tracking needed.
+- **2026-07-02 (rev 3)** — **Feature store freshness tracking**: daily report
+  shows source, pitcher count, age, ⚠️ STALE (>7d) and ⚠️ EXPIRED (>14d) flags.
+  Prevents silent data-integrity drift from forgotten CSV updates.
+- **2026-07-02 (rev 3)** — **Validation-status separation** in all-markets table:
+  NRFI column labeled ✅ (validated), moneyline/F5 labeled "not yet validated."
+  Header table + footer make the proof hierarchy explicit for buyers.
+- **2026-07-02 (rev 2)** — **Deleted GitHub Actions workflow** (`.github/workflows/
+  nrfi_daily.yml`). Its `git push` raced with Railway's Contents API pushes to
+  main → non-fast-forward rejections. Railway is now the single writer.
+- **2026-07-02 (rev 2)** — **All-markets report table**: every game now shows
+  moneyline, F5, and NRFI picks side by side, with a "Best play" column. Addresses
+  the "1 bet out of 9 games" concern — NRFI is selective by design, but the
+  moneyline/F5 models find value on most games.
+- **2026-07-02 (rev 2)** — **Railway always-on scheduler** (`tasks/nrfi_auto.py`)
+  replaces GitHub Actions cron. Predict 9 AM ET, capture 7 PM ET, resolve 1 AM ET.
+  First auto-scan successful: 9 games, all pushed to GitHub. Manual trigger via
+  `GET /nrfi-auto/run?job=predict` (browser-friendly).
+- **2026-07-02 (rev 2)** — **Odds diagnostics endpoint** (`GET /nrfi-auto/odds-diag`)
+  proves The Odds API connection works: status 200, Pinnacle quoting 1.81/2.03,
+  `totals_1st_1_innings` market returned. CLV capture confirmed functional.
+- **2026-07-02** — Feature store now built on **Baseball Savant** (FanGraphs
+  endpoint confirmed dead — Cloudflare 403 even from residential IP + cloudscraper).
+  Store carries real Savant Statcast for ~650 pitchers; model differentiates
+  games again (p_nrfi 48–56 vs prior flat 51). Added optional FanGraphs member
+  **CSV import** (`data/fangraphs*.csv`) to restore SIERA/CSW%/O-Swing%.
+- **2026-07-02** — Fixed CI keys: ANTHROPIC/OPENWEATHER/ODDS now resolve from
+  either GitHub Secrets or Variables (were read only from Secrets → blank → empty
+  predictions). Root cause of the initial all-SKIP/empty runs.
 - **2026-07-02** — Diagnosed FanGraphs/Savant server-IP block as the cause of
   flat ~51% predictions; shipped a precomputed **feature store** (local build +
   committed JSON, read at runtime) so the model gets real features in CI.
@@ -286,15 +389,44 @@ commit to populate real features; next daily run should then show
 
 ### Watch-items (from Kimi — status)
 1. **9 AM ET actually beats the market** — instrumented (`avg_entry_lead_hrs`,
-   stale-exclusion). Confirm with first week of live data.
+   stale-exclusion). Confirm with first week of live data. *(First entry odds
+   captured 2026-07-02; closing capture fires tonight at 7 PM ET; first CLV
+   computable tomorrow at resolve time.)*
 2. **Rolling-window A/B after retrain** — planned; ~200 live predictions post-retrain.
 3. **CLV actually predicts wins** — instrumented (`/v1/nrfi/clv-quality`,
    significance-tested). Read after ~50–100 resolved games.
 4. **Soccer refuse-to-predict gate** — not started; deferred until soccer is picked back up.
+5. **Moneyline/F5 validation tracker** — DECIDED: defer until NRFI has a live
+   track record. Don't split proof-building across three markets when one isn't
+   proven yet. NRFI stays the flagship.
+6. **Feature store freshness** (Kimi rev 2 feedback) — IMPLEMENTED. Daily report
+   now shows "Feature Store Freshness" section with source, pitcher count, age,
+   and ⚠️ warnings at >7d (STALE, refresh recommended) and >14d (EXPIRED,
+   FanGraphs features silently dropped to league mean). Prevents the "forgot to
+   update CSV for 3 weeks" integrity risk.
+
+### Decisions resolved (Kimi rev 2 feedback)
+
+5. **FanGraphs CSV worth the manual chore?** → DECIDED: **measure for 2 weeks,
+   then decide.** Savant carries ~80% of the contact-quality signal. After 2
+   weeks of live data, compare model-lean accuracy with vs without FanGraphs CSV.
+   If gap < 1pp, drop permanently. If > 2pp, consider automating.
+
+6. **All-markets report dilutes the NRFI edge story?** → DECIDED: **ship it, but
+   visually separate.** Report now has a validation-status table at the top of the
+   all-markets section:
+   - NRFI ✅ = walk-forward validated (54.9%, p=0.0049)
+   - Moneyline & F5 = model-generated, not yet independently validated
+   The footer reinforces this. Buyers see the full slate but understand which
+   model is proven.
 
 ### Still open for Kimi
-- Review the actual CLV math / API JSON for soundness (samples can be shared once
-  `ODDS_API_KEY` is set and real lines flow).
+- Review the first week of closing-line JSON once resolve fires (expected
+  2026-07-03 1 AM ET). The CLV math and devig symmetry are instrumented but
+  unverified against real data.
+- After ~30 resolved games: is the model-lean accuracy (all games, not just
+  BET/LEAN) tracking above 52%? That's the earliest signal that directional
+  skill is real.
 
 ---
 

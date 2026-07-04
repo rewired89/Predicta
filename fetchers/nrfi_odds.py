@@ -155,3 +155,55 @@ def fetch_nrfi_odds(games: list[dict]) -> dict[str, dict]:
             out[f"{g['away_abbr']}@{g['home_abbr']}"] = prices
 
     return out
+
+
+def diagnose() -> dict:
+    """
+    One-shot diagnostic that reports EXACTLY why odds capture works or fails —
+    key present? events endpoint status + quota remaining? does the requested
+    first-inning market come back, or does the API reject it (wrong market /
+    plan not included)? Surfaces the raw status + error body instead of the
+    silent empty-dict the normal path returns.
+    """
+    key = _api_key()
+    if not key:
+        return {"key_present": False,
+                "error": "ODDS_API_KEY not visible to this process. It is set in "
+                         "Railway but the running deploy may predate it — redeploy."}
+    out: dict = {"key_present": True, "market_requested": NRFI_MARKET}
+    try:
+        with httpx.Client(timeout=25) as c:
+            ev = c.get(f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events",
+                       params={"apiKey": key, "dateFormat": "iso"})
+            out["events_status"] = ev.status_code
+            out["requests_remaining"] = ev.headers.get("x-requests-remaining")
+            out["requests_used"] = ev.headers.get("x-requests-used")
+            if ev.status_code != 200:
+                out["events_error_body"] = ev.text[:400]
+                return out
+            events = ev.json()
+            out["n_events"] = len(events) if isinstance(events, list) else 0
+            if not out["n_events"]:
+                out["note"] = "No MLB events returned by The Odds API right now."
+                return out
+            e0 = events[0]
+            out["sample_event"] = {k: e0.get(k) for k in
+                                   ("home_team", "away_team", "commence_time")}
+            od = c.get(f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{e0['id']}/odds",
+                       params={"apiKey": key, "regions": "us,eu",
+                               "markets": NRFI_MARKET, "oddsFormat": "decimal"})
+            out["odds_status"] = od.status_code
+            if od.status_code != 200:
+                # 422 = market not available / not on your plan; 401 = bad key
+                out["odds_error_body"] = od.text[:500]
+                return out
+            data = od.json()
+            markets_seen = sorted({m.get("key")
+                                   for b in data.get("bookmakers", [])
+                                   for m in b.get("markets", [])})
+            out["n_bookmakers"] = len(data.get("bookmakers", []))
+            out["markets_returned"] = markets_seen
+            out["nrfi_prices_parsed"] = _extract_nrfi_prices(data)
+    except Exception as exc:
+        out["exception"] = f"{type(exc).__name__}: {exc}"
+    return out
