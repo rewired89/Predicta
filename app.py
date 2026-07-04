@@ -1037,12 +1037,27 @@ def player_impact(body: PlayerImpactRequest):
     return result
 
 
+@app.post("/hitter-impact")
+def hitter_impact(body: PlayerImpactRequest):
+    from models.player_impact import compute_hitter_impact
+    result = compute_hitter_impact(body.name.strip(), team_abbr=body.team.strip() or None)
+    if "error" in result:
+        raise HTTPException(404, detail=result["error"])
+    return result
+
+
 @app.get("/player-search")
-def player_search(q: str = ""):
+def player_search(q: str = "", type: str = ""):
     if not q.strip() or len(q.strip()) < 2:
         return {"results": []}
-    from models.player_impact import search_pitchers
-    return {"results": search_pitchers(q.strip())}
+    if type == "hitter":
+        from models.player_impact import search_hitters
+        return {"results": search_hitters(q.strip())}
+    if type == "pitcher":
+        from models.player_impact import search_pitchers
+        return {"results": search_pitchers(q.strip())}
+    from models.player_impact import search_players
+    return {"results": search_players(q.strip())}
 
 
 class TennisRequest(BaseModel):

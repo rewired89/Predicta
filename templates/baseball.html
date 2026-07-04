@@ -326,12 +326,31 @@
     padding: 4px 14px; border-radius: 99px; font-size: .72rem;
     font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
   }
+  .impact-toggle-row {
+    display: flex; gap: 6px; margin-bottom: 14px;
+  }
+  .impact-type-btn {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); font-size: .78rem; font-weight: 600; padding: 6px 18px;
+    cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  .impact-type-btn.active {
+    background: var(--green); color: #000; border-color: var(--green);
+  }
+  .impact-type-btn:hover:not(.active) { background: var(--border); color: var(--text); }
+
   .tier-ACE         { background: #003d1e; color: #4ade80; border: 1px solid #166534; }
   .tier-FRONT-LINE  { background: #1a2e0a; color: #86efac; border: 1px solid #166534; }
   .tier-SOLID       { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
   .tier-AVERAGE     { background: #1a1500; color: var(--amber); border: 1px solid #92400e; }
   .tier-BELOW-AVG   { background: #2a1000; color: #fb923c; border: 1px solid #9a3412; }
   .tier-LIABILITY   { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+
+  .tier-MVP         { background: #003d1e; color: #4ade80; border: 1px solid #166534; }
+  .tier-ALL-STAR    { background: #1a2e0a; color: #86efac; border: 1px solid #166534; }
+  .tier-STARTER     { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
+  .tier-BENCH       { background: #2a1000; color: #fb923c; border: 1px solid #9a3412; }
+  .tier-REPLACEMENT { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
 
   .impact-stats-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -418,11 +437,15 @@
     </div>
     <div class="impact-body" id="impact-body">
       <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px;">
-        How much does a pitcher move the win probability vs a league-average replacement?
+        How much does a player move the win probability vs a league-average replacement?
       </p>
+      <div class="impact-toggle-row">
+        <button class="impact-type-btn active" id="toggle-pitcher" onclick="setImpactType('pitcher')">Pitcher</button>
+        <button class="impact-type-btn" id="toggle-hitter" onclick="setImpactType('hitter')">Hitter</button>
+      </div>
       <div class="impact-search-row">
         <div class="impact-field" style="flex:2;position:relative;">
-          <label>Pitcher name</label>
+          <label id="impact-name-label">Pitcher name</label>
           <input type="text" id="impact-name" placeholder="e.g. Paul Skenes" autocomplete="off">
           <div id="impact-suggestions"></div>
         </div>
@@ -957,9 +980,30 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ── Player Impact Score ────────────────────────────────────── */
+let _impactType = "pitcher";
+
 function toggleImpact() {
   document.querySelector('.impact-header').classList.toggle('open');
   document.getElementById('impact-body').classList.toggle('open');
+}
+
+function setImpactType(type) {
+  _impactType = type;
+  document.getElementById("toggle-pitcher").classList.toggle("active", type === "pitcher");
+  document.getElementById("toggle-hitter").classList.toggle("active", type === "hitter");
+  const label = document.getElementById("impact-name-label");
+  const input = document.getElementById("impact-name");
+  if (type === "hitter") {
+    label.textContent = "Hitter name";
+    input.placeholder = "e.g. Aaron Judge";
+  } else {
+    label.textContent = "Pitcher name";
+    input.placeholder = "e.g. Paul Skenes";
+  }
+  input.value = "";
+  document.getElementById("impact-team").value = "";
+  document.getElementById("impact-result").style.display = "none";
+  document.getElementById("impact-suggestions").style.display = "none";
 }
 
 let _impactDebounce = null;
@@ -971,16 +1015,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (q.length < 2) { document.getElementById("impact-suggestions").style.display = "none"; return; }
     _impactDebounce = setTimeout(async () => {
       try {
-        const res = await fetch(`/player-search?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/player-search?q=${encodeURIComponent(q)}&type=${_impactType}`);
         const data = await res.json();
         const box = document.getElementById("impact-suggestions");
         if (!data.results || data.results.length === 0) { box.style.display = "none"; return; }
-        box.innerHTML = data.results.map(r =>
-          `<div class="suggest-item" onclick="pickSuggestion('${r.display_name.replace(/'/g,"\\'")}','${r.team || ""}')">
+        box.innerHTML = data.results.map(r => {
+          const meta = r.team || "";
+          const extra = r.fip ? ' · FIP ' + r.fip.toFixed(2) : (r.wrc_plus ? ' · wRC+ ' + r.wrc_plus : '');
+          const posTag = r.pos ? ' · ' + r.pos : '';
+          return `<div class="suggest-item" onclick="pickSuggestion('${r.display_name.replace(/'/g,"\\'")}','${r.team || ""}')">
             <span class="s-name">${r.display_name}</span>
-            <span class="s-meta">${r.team || ""} ${r.fip ? '· FIP ' + r.fip.toFixed(2) : ''}</span>
-          </div>`
-        ).join("");
+            <span class="s-meta">${meta}${posTag}${extra}</span>
+          </div>`;
+        }).join("");
         box.style.display = "block";
       } catch(e) { /* ignore */ }
     }, 250);
@@ -1006,18 +1053,24 @@ async function runImpact() {
   btn.disabled = true; btn.textContent = "Loading…";
   document.getElementById("impact-suggestions").style.display = "none";
 
+  const endpoint = _impactType === "hitter" ? "/hitter-impact" : "/player-impact";
+
   try {
-    const res = await fetch("/player-impact", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({name, team}),
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "Pitcher not found");
+      throw new Error(err.detail || "Player not found");
     }
     const d = await res.json();
-    renderImpact(d);
+    if (_impactType === "hitter") {
+      renderHitterImpact(d);
+    } else {
+      renderImpact(d);
+    }
   } catch(e) {
     const box = document.getElementById("impact-result");
     box.style.display = "block";
@@ -1076,6 +1129,58 @@ function renderImpact(d) {
         <div class="runs-bar-label">Runs allowed (F5) — Replacement</div>
         <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${replW}%;background:${replColor}"></div></div>
         <div class="runs-bar-val" style="color:${replColor}">${d.runs_allowed_repl_f5} runs/game</div>
+      </div>
+    </div>
+    ${tradeHtml}`;
+}
+
+function renderHitterImpact(d) {
+  const box = document.getElementById("impact-result");
+  box.style.display = "block";
+  const sign = d.impact_pp >= 0 ? "+" : "";
+  const colorCls = d.impact_pp >= 0.5 ? "positive" : (d.impact_pp <= -0.5 ? "negative" : "neutral");
+  const tierCls = d.tier.replace(/\s+/g, "-");
+
+  const stats = [
+    {v: d.wrc_plus, l: "wRC+"},
+    {v: d.ops ? d.ops.toFixed(3) : null, l: "OPS"},
+    {v: d.avg ? d.avg.toFixed(3) : null, l: "AVG"},
+    {v: d.hr, l: "HR"},
+    {v: d.sb, l: "SB"},
+    {v: d.war ? d.war.toFixed(1) : null, l: "WAR"},
+  ].filter(s => s.v != null);
+  const statsHtml = stats.map(s => `<div class="impact-stat"><div class="impact-stat-val">${s.v}</div><div class="impact-stat-label">${s.l}</div></div>`).join("");
+
+  const maxWrc = 200;
+  const withW = Math.min(100, (d.team_wrc_with / maxWrc) * 100);
+  const withoutW = Math.min(100, (d.team_wrc_without / maxWrc) * 100);
+  const withColor = d.team_wrc_with > d.team_wrc_without ? "var(--green)" : "var(--red)";
+  const withoutColor = "var(--muted)";
+
+  const tradeHtml = d.trade_note
+    ? `<div class="impact-trade-note"><strong>News:</strong> ${d.trade_note}</div>`
+    : "";
+
+  box.innerHTML = `
+    <div class="impact-score-card">
+      <div class="impact-number ${colorCls}">${sign}${d.impact_pp}pp</div>
+      <div class="impact-pitcher-info">
+        <div class="impact-pitcher-name">${d.hitter}</div>
+        <div class="impact-pitcher-meta">${d.team ? d.team + " · " : ""}${d.pos} · Bats ${d.bats} · Win% with: ${d.win_prob_with}% vs replacement: ${d.win_prob_replacement}%</div>
+      </div>
+      <span class="impact-tier tier-${tierCls}">${d.tier}</span>
+    </div>
+    <div class="impact-stats-grid">${statsHtml}</div>
+    <div class="impact-runs-compare">
+      <div class="runs-bar-group">
+        <div class="runs-bar-label">Team wRC+ — With this hitter</div>
+        <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${withW}%;background:${withColor}"></div></div>
+        <div class="runs-bar-val" style="color:${withColor}">${d.team_wrc_with}</div>
+      </div>
+      <div class="runs-bar-group">
+        <div class="runs-bar-label">Team wRC+ — Replacement bat</div>
+        <div class="runs-bar-track"><div class="runs-bar-fill" style="width:${withoutW}%;background:${withoutColor}"></div></div>
+        <div class="runs-bar-val" style="color:${withoutColor}">${d.team_wrc_without}</div>
       </div>
     </div>
     ${tradeHtml}`;

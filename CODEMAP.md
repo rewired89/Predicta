@@ -3512,11 +3512,71 @@ mutates: none
 name: search_pitchers
 type: function
 file: models/player_impact.py
-purpose: Searches for pitchers by name prefix across KNOWN_STARTERS and the feature store. Returns list of {key, display_name, team, fip}. Phase 2 will add a search_hitters counterpart or unify into search_players.
+purpose: Searches for pitchers by name prefix across KNOWN_STARTERS and the feature store. Returns list of {key, display_name, team, fip}.
 inputs: query (str), limit (int)
 outputs: list[dict]
 calls: load_store, _norm
-called_by: app.py /player-search endpoint
+called_by: app.py /player-search endpoint (type=pitcher), search_players
+mutates: none
+---
+
+---
+name: KNOWN_HITTERS
+type: variable
+file: models/player_impact.py
+purpose: Hardcoded dict of ~100 MLB position players with wRC+, OPS, AVG, HR, SB, WAR, bats, pos, team. Primary data source for hitter impact scoring.
+inputs: none
+outputs: dict[str, dict]
+calls: none
+called_by: _get_hitter_data, search_hitters
+mutates: none
+---
+
+---
+name: TEAM_WRC_PLUS
+type: variable
+file: models/player_impact.py
+purpose: Team-level wRC+ averages (2024-25 blend) for all 30 MLB teams. Used to calculate how much a single hitter moves the team's overall wRC+.
+inputs: none
+outputs: dict[str, float]
+calls: none
+called_by: _team_wrc_with_hitter, _team_wrc_without_hitter
+mutates: none
+---
+
+---
+name: compute_hitter_impact
+type: function
+file: models/player_impact.py
+purpose: Computes a hitter's impact on win probability in percentage points. Runs Poisson model with team wRC+ including the hitter vs replacing with league-average bat (wRC+ 100). Returns delta, tier (MVP/ALL-STAR/STARTER/AVERAGE/BENCH/REPLACEMENT), stats, and trade note.
+inputs: hitter_name (str), team_abbr (optional str), park_factor, is_home
+outputs: dict with impact_pp, tier, tier_desc, wrc_plus, ops, avg, hr, sb, war, team_wrc_with, team_wrc_without, win_prob_with, win_prob_replacement, trade_note
+calls: _get_hitter_data, _team_wrc_with_hitter, _team_wrc_without_hitter, _win_prob_for_wrc
+called_by: app.py /hitter-impact endpoint
+mutates: none
+---
+
+---
+name: search_hitters
+type: function
+file: models/player_impact.py
+purpose: Searches for hitters by name prefix across KNOWN_HITTERS. Returns list of {key, display_name, team, wrc_plus, pos, type}.
+inputs: query (str), limit (int)
+outputs: list[dict]
+calls: _norm
+called_by: app.py /player-search endpoint (type=hitter), search_players
+mutates: none
+---
+
+---
+name: search_players
+type: function
+file: models/player_impact.py
+purpose: Unified search across pitchers and hitters. Merges results from search_pitchers and search_hitters, tagging each with type=pitcher or type=hitter.
+inputs: query (str), limit (int)
+outputs: list[dict]
+calls: search_pitchers, search_hitters
+called_by: app.py /player-search endpoint (no type filter)
 mutates: none
 ---
 
