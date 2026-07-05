@@ -46,7 +46,7 @@
 - Results pushed to GitHub via Contents API (needs `GITHUB_TOKEN` + `GITHUB_REPO` env vars on Railway)
 - `data/nrfi_latest.md` is overwritten every run — always holds the newest scan
 - Manual trigger: `GET /nrfi-auto/run?job=predict` (browser-friendly) or POST
-- Status: `GET /nrfi-auto/status`; odds debug: `GET /nrfi-auto/odds-diag`
+- Status: `GET /nrfi-auto/status`; odds debug: `GET /nrfi-auto/odds-diag`; Anthropic query-parse debug: `GET /nrfi-auto/anthropic-diag` (added 2026-07-05 — calls parse_baseball_query live and reports missing-key/rate-limit/invalid-key/unrecognized failure instead of guessing)
 - **Do NOT recreate** `.github/workflows/nrfi_daily.yml` — Railway handles everything
 
 **Railway-down runbook (single point of failure, per Kimi's review):** Railway is the sole scheduler and sole writer to `main`, so a Railway outage stops the daily scan with no automatic fallback. If Railway is down for >24h: run `python tasks/nrfi_auto.py --job predict` (or `capture`/`resolve`) locally with `GITHUB_TOKEN` + `GITHUB_REPO` env vars set — it pushes to `main` via the same GitHub Contents API path Railway uses, so it's safe to run from any machine without creating a competing writer. The `GET /nrfi-auto/run?job=predict` manual trigger only helps if Railway itself is up enough to serve requests; if the whole service is down, the local script is the only path.

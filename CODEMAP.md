@@ -8251,6 +8251,18 @@ called_by: app.startup (start_nrfi_auto); app.py /nrfi-auto/* endpoints
 mutates: data/nrfi_predictions/, data/nrfi_reports/ (via GitHub API), nrfi_bets
 ---
 
+---
+name: nrfi_anthropic_diag
+type: route
+file: app.py
+purpose: GET /nrfi-auto/anthropic-diag — added 2026-07-05 after an entire day's predict run silently produced 11 blank records (see run_predictions error-check fix). Actually calls parse_baseball_query with a trivial query and reports success/failure with the real exception instead of guessing whether the cause was a missing/expired ANTHROPIC_API_KEY, a rate limit, or something else. Mirrors the existing /nrfi-auto/odds-diag pattern.
+inputs: none (reads ANTHROPIC_API_KEY env, calls Anthropic API live)
+outputs: JSON — key_present, status (ok/failed), parsed (on success) or exception + note (on failure, with a best-guess reason: missing key / rate-limit / invalid key / unrecognized)
+calls: ai_agent_baseball.parse_baseball_query
+called_by: GET /nrfi-auto/anthropic-diag
+mutates: none
+---
+
 ## tasks/soccer_auto.py
 
 ---

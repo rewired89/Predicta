@@ -732,6 +732,38 @@ def nrfi_odds_diag():
     return diagnose()
 
 
+@app.get("/nrfi-auto/anthropic-diag")
+def nrfi_anthropic_diag():
+    """
+    Diagnose why run_baseball_analysis silently failed for a whole day's slate
+    (2026-07-05 root-cause: query parsing calls Anthropic first — if that call
+    fails, every downstream game produces a blank record). Actually calls
+    parse_baseball_query with a trivial query and reports success/failure with
+    the real exception, instead of guessing whether it's a missing key, an
+    expired key, a rate limit, or a network egress block.
+    """
+    import os
+    key_present = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    out = {"key_present": key_present}
+    try:
+        from ai_agent_baseball import parse_baseball_query
+        result = parse_baseball_query("Yankees vs Red Sox tonight")
+        out["status"] = "ok"
+        out["parsed"] = result
+    except Exception as exc:
+        out["status"] = "failed"
+        out["exception"] = f"{type(exc).__name__}: {exc}"
+        if not key_present:
+            out["note"] = "ANTHROPIC_API_KEY not set in this environment."
+        elif "rate" in str(exc).lower() or "429" in str(exc):
+            out["note"] = "Looks like a rate limit / quota error — check usage in the Anthropic console."
+        elif "401" in str(exc) or "authentication" in str(exc).lower():
+            out["note"] = "Looks like an invalid/expired key — check ANTHROPIC_API_KEY on Railway."
+        else:
+            out["note"] = "Unrecognized failure — see the raw exception above."
+    return out
+
+
 @app.api_route("/nrfi-auto/run", methods=["GET", "POST"])
 def nrfi_auto_run(job: str = "predict", date: Optional[str] = None,
                   background: bool = True):
