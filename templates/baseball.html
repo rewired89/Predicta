@@ -901,7 +901,7 @@ async function runAnalysis() {
         s.csw_pct         ? `<tr><td>CSW%</td><td class="sig-val">${(s.csw_pct*100).toFixed(1)}%</td></tr>` : "",
         s.avg_fb_velo     ? `<tr><td>FB Velo</td><td class="sig-val">${s.avg_fb_velo.toFixed(1)} mph</td></tr>` : "",
         s.o_swing_pct     ? `<tr><td>O-Swing%</td><td class="sig-val">${(s.o_swing_pct*100).toFixed(1)}%</td></tr>` : "",
-        s.barrel_pct_against ? `<tr><td>Barrel% vs</td><td class="sig-val">${(s.barrel_pct_against*100).toFixed(1)}%</td></tr>` : "",
+        s.barrel_pct_against ? `<tr><td>Barrel% vs</td><td class="sig-val">${s.barrel_pct_against.toFixed(1)}%</td></tr>` : "",
         s.fastball_pct    ? `<tr><td>Fastball%</td><td class="sig-val">${s.fastball_pct.toFixed(0)}%</td></tr>` : "",
       ].filter(Boolean).join("");
       div.innerHTML = `

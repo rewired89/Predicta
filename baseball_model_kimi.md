@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-05 (rev 9 — manual website queries now get graded too, not just the scheduled daily slate)
+> **Last updated:** 2026-07-05 (rev 10 — found and fixed a live unit-scaling bug that flattened the barrel% signal in the run model to a constant, for every pitcher, since the feature store shipped)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -654,6 +654,81 @@ a 7-3 Yankees final, and confirmed all three non-NRFI fields graded correctly
 check it, and that prediction becomes part of the same performance record as
 the scheduled daily games — nothing querying the model "just to look" is
 wasted anymore.
+
+---
+
+## 16. Major finding: barrel% unit mismatch flattened the run model's contact-quality signal (2026-07-05)
+
+Started from a user-reported cosmetic bug (Player Impact Score showing "Barrel%
+1040.0%", "Whiff% 8700.0%") and it led somewhere much bigger than a display fix.
+
+**What was actually happening in the main prediction pipeline** (not just
+Player Impact Score): `pitcher_process_adjustment()` in
+`models/baseball_market.py` — the function that applies barrel%/CSW%/velo/
+O-Swing% adjustments to mu_f5 for every moneyline/F5/O-U prediction — has a
+decimal-scale constant, `LEAGUE_AVG_BARREL_PCT = 0.075`. But the barrel%
+value it actually receives from the Savant feature store is a raw percent
+(e.g. `10.4` meaning 10.4%), never converted to a decimal fraction anywhere
+upstream. Verified directly:
+
+```
+barrel% 4.0%  (elite)  -> adjustment 1.08
+barrel% 5.5%           -> adjustment 1.08
+barrel% 7.5%  (avg)    -> adjustment 1.08
+barrel% 8.5%           -> adjustment 1.08
+barrel% 10.4% (poor)   -> adjustment 1.08
+barrel% 12.0% (poor)   -> adjustment 1.08
+```
+
+Every single pitcher — elite or poor contact-suppression alike — clamped to
+the **exact same +8% run-inflation multiplier**, because any real barrel rate
+(3–15%) blows straight past the tiny 0.075 decimal threshold and hits the ±8%
+cap in the same direction every time. **The barrel% signal has been
+contributing literally zero differentiation between pitchers since the
+feature store went live** — not degraded, not noisy, exactly zero.
+
+**Why the NRFI XGBoost model was NOT affected:** checked the actual trained
+model's tree-split thresholds directly (`booster.get_dump()`) — `home_barrel_pct`
+splits at 4.4, 7.3, 9.5, 9.7, 9.8; `home_hard_hit_pct` splits at 32–44. Those
+are unambiguously percent-scale, meaning the walk-forward-validated NRFI
+model was trained on and correctly expects the same percent-scale values the
+feature store provides. That model's core 54.9%/p=0.0049 validation is
+untouched by this bug — this was purely a moneyline/F5/O-U (split-Poisson run
+model) issue, plus the Player Impact Score tool that shares the same function.
+
+**One remaining candidate issue, deliberately NOT touched today:**
+`models/nrfi_model.py: FEATURE_DEFAULTS` has `barrel_pct: 0.085` (decimal) as
+the fallback used only when a specific pitcher's real value is missing —
+given training data is percent-scale, this default may itself be 100x off
+for the missing-data case specifically (arguably should be `8.5`). Flagging
+rather than fixing: real per-pitcher data (the common, everyday case) is
+unaffected; only the rarer missing-feature fallback path is in question, and
+changing a validated model's feature defaults deserves a proper backtest
+before shipping, not a same-day patch alongside three other fixes.
+
+**Fixed today:**
+1. `pitcher_process_adjustment()` converts barrel_pct_against internally
+   (÷100 when >1.5) — csw_pct/o_swing_pct untouched, already decimal-scale.
+2. `models/player_impact.py: compute_impact()`'s backup FIP-estimate formula
+   (used when a pitcher has no fip/era on file) — was feeding raw percents
+   into a decimal-scale formula, clamping FIP to 6.0 for almost any
+   feature-store-only pitcher regardless of real quality.
+3. Two display spots multiplying already-percent-scale values by 100 again
+   (`templates/baseball.html`, `analyze_baseball.py`'s audit signals table).
+4. Separately: `lookup_batter` (the live ESPN hitter fallback from §5a) now
+   tries every plausible team match instead of one fuzzy guess — "LA" matched
+   both LAD and LAA equally well, so a query for a real Dodgers rookie could
+   silently land on the Angels' roster and report a false "not found."
+
+**How this was found:** a user screenshot showing Emmet Sheehan at -16.3pp
+LIABILITY with Barrel% "1040.0%" — followed the display bug upstream through
+`enrich_starter()` into the shared feature store, then checked whether the
+SAME raw values also reached the main prediction pipeline (they did) before
+touching anything, specifically to avoid the trap Kimi warned about earlier
+in this doc: don't tweak the model reactively without knowing whether it's a
+real bug or noise. This one had a concrete, mechanical, always-reproduces
+cause (verified with 6 different barrel% inputs producing the same output),
+not a single bad game — that's what made it safe to fix same-day.
 
 ---
 

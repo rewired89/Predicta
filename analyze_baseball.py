@@ -1235,7 +1235,11 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         if s.get("o_swing_pct"):
             _add(tm, f"O-Swing% ({nm})", f"{s['o_swing_pct']*100:.1f}%", "fangraphs")
         if s.get("barrel_pct_against"):
-            _add(tm, f"Barrel% vs ({nm})", f"{s['barrel_pct_against']*100:.1f}%", "savant")
+            # Already a raw percent from the Savant feature store (e.g. 10.4
+            # meaning 10.4%) — no *100 needed here, unlike csw_pct/o_swing_pct
+            # above which are decimal-scale. Fixed 2026-07-05 (was showing
+            # e.g. 1040.0% instead of 10.4%).
+            _add(tm, f"Barrel% vs ({nm})", f"{s['barrel_pct_against']:.1f}%", "savant")
         if s.get("fastball_pct"):
             _add(tm, f"Fastball% ({nm})", f"{s['fastball_pct']:.0f}%", "savant")
 

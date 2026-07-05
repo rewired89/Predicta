@@ -187,8 +187,17 @@ def compute_impact(
     team = team_abbr or data.get("team", "")
 
     if not fip:
-        barrel_pct = data.get("barrel_pct_against") or data.get("barrel_pct") or 0.075
-        hard_hit = data.get("hard_hit_pct", 0.35)
+        # barrel_pct/hard_hit_pct from the feature store are raw percents (e.g.
+        # 10.4 meaning 10.4%), not decimal fractions — this formula expects
+        # decimals (see the 0.075/0.35 defaults below), so convert first.
+        # Fixed 2026-07-05: previously fed raw percents straight in, blowing
+        # the formula past its 6.0 clamp for almost every feature-store-only
+        # pitcher regardless of actual quality (e.g. Emmet Sheehan showed
+        # FIP 6.0 / -16.3pp LIABILITY from this alone).
+        barrel_raw = data.get("barrel_pct_against") or data.get("barrel_pct")
+        barrel_pct = (barrel_raw / 100.0) if barrel_raw else 0.075
+        hard_hit_raw = data.get("hard_hit_pct")
+        hard_hit = (hard_hit_raw / 100.0) if hard_hit_raw else 0.35
         avg_velo = data.get("avg_fb_velo") or data.get("avg_velo") or 93.5
         fip = 2.5 + barrel_pct * 20 + (1 - avg_velo / 100) * 5 + hard_hit * 3
         fip = max(2.5, min(fip, 6.0))
@@ -242,10 +251,14 @@ def compute_impact(
         "runs_allowed_f5": round(runs_real_f5, 2),
         "runs_allowed_repl_f5": round(runs_repl_f5, 2),
         "runs_allowed_l4": round(runs_real_l4, 2),
-        "barrel_pct": data.get("barrel_pct_against") or data.get("barrel_pct"),
+        # barrel_pct/whiff_pct are raw percents in the feature store (e.g. 10.4
+        # for 10.4%); the frontend multiplies by 100 to render "%", so convert
+        # to decimal here. csw_pct is already decimal-scale (FanGraphs CSV
+        # import normalizes it), so it's left as-is.
+        "barrel_pct": (lambda v: v / 100.0 if v else None)(data.get("barrel_pct_against") or data.get("barrel_pct")),
         "avg_fb_velo": data.get("avg_fb_velo") or data.get("avg_velo"),
         "csw_pct": data.get("csw_pct"),
-        "whiff_pct": data.get("whiff_pct"),
+        "whiff_pct": (lambda v: v / 100.0 if v else None)(data.get("whiff_pct")),
         "trade_note": trade_note,
     }
 

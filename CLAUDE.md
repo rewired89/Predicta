@@ -68,7 +68,7 @@ Tool for evaluating **any MLB player** — pitchers AND position players (hitter
 - Tiers: MVP (6+pp) / ALL-STAR (3+) / STARTER (1+) / AVERAGE (-0.5+) / BENCH (-2+) / REPLACEMENT
 - 100 hardcoded hitters in KNOWN_HITTERS with wRC+/OPS/AVG/HR/SB/WAR
 - 30 team-level wRC+ averages in TEAM_WRC_PLUS
-- Live ESPN fallback (`fetchers/baseball.py: lookup_batter`) covers any hitter not in KNOWN_HITTERS: resolves team_abbr → ESPN team → roster fuzzy-match → season batting stats → wRC+ derived from 2×OBP+SLG. Requires team_abbr (ESPN has no cross-league player-name search); war is None for these since ESPN doesn't expose it.
+- Live ESPN fallback (`fetchers/baseball.py: lookup_batter`) covers any hitter not in KNOWN_HITTERS: resolves team_abbr → ESPN team → roster fuzzy-match → season batting stats → wRC+ derived from 2×OBP+SLG. Requires team_abbr (ESPN has no cross-league player-name search); war is None for these since ESPN doesn't expose it. **Fixed 2026-07-05:** short team hints like "LA" are genuinely ambiguous (matches LAD and LAA equally) — `lookup_batter` now tries every plausible team match via `_match_teams` (not just one fuzzy guess) until the player is found on one of their rosters, instead of possibly landing on the wrong team and reporting a false "not found."
 
 **Files:** `models/player_impact.py`, `app.py` (POST /player-impact, POST /hitter-impact, GET /player-search?type=pitcher|hitter), `templates/baseball.html`
 
@@ -99,6 +99,16 @@ Tool for evaluating **any MLB player** — pitchers AND position players (hitter
 **Symptom:** Model was recommending BET on games where it had a thin edge, leading to early losses.
 
 **Fix:** Raised Full Game ML BET threshold from 62% → 65%. Raised F5 BET threshold from 60% → 62%. Hard-capped model probability at 72% max (no baseball model should claim >72% confidence). Added 60/40 Poisson/Elo blend so the model doesn't rely solely on pitcher matchup stats — historical team strength (Elo) acts as a sanity check. Added market comparison layer that shows model edge vs sportsbook odds when odds are provided in the query.
+
+### Bug 4 (2026-07-05): barrel% fed to the run model as a raw percent, not a decimal — silently flattened every pitcher's contact-quality signal
+
+**Symptom:** Player Impact Score showed absurd values (Barrel% "1040.0%", Whiff% "8700.0%") and clamped almost any feature-store-only pitcher's FIP to exactly 6.0 regardless of real quality. Investigating that display bug led to a much bigger discovery in the **main prediction pipeline**: `pitcher_process_adjustment()` (models/baseball_market.py), which feeds mu_f5 in every moneyline/F5/O-U prediction, was clamping to the **exact same +8% run-inflation penalty for every single pitcher** with real Savant barrel% data — verified directly: barrel% values from 4.0% (elite) through 12.0% (poor) all produced the identical 1.08 multiplier. The barrel% signal was contributing zero differentiation for months, silently.
+
+**Root cause:** `data/nrfi_feature_store.json` stores barrel_pct/hard_hit_pct/whiff_pct as raw percents (e.g. 10.4 meaning 10.4%) — confirmed this matches what `scripts/enrich_nrfi_savant.py` fetches, and confirmed by inspecting the trained NRFI XGBoost model's actual tree-split thresholds (4.4–9.8 for barrel_pct, 32–44 for hard_hit_pct — clearly percent-scale), so **the deployed, walk-forward-validated NRFI model is correctly calibrated to this percent scale and was NOT affected**. But `pitcher_process_adjustment()`'s `LEAGUE_AVG_BARREL_PCT = 0.075` constant is a decimal fraction, and the value fed into it from `enrich_starter()` was never converted — so `(10.4 - 0.075) * 2.50` always blew past the ±0.08 cap in the same direction, for every pitcher.
+
+**Fix:** `pitcher_process_adjustment()` now converts `barrel_pct_against` internally (÷100 when the value is >1.5, matching the `_to_decimal` convention already used elsewhere in `scripts/build_feature_store.py`). `csw_pct`/`o_swing_pct` were NOT touched — those are already decimal-scale via the feature store's FanGraphs CSV import. Also fixed the same double-scaling in `models/player_impact.py: compute_impact()`'s backup FIP-estimate formula and its returned barrel_pct/whiff_pct display fields, plus two frontend/backend display spots (`templates/baseball.html` line ~904, `analyze_baseball.py`'s audit signals table) that were multiplying already-percent values by 100 again.
+
+**NOTE — NRFI model's own FEATURE_DEFAULTS may have a separate, smaller issue:** `models/nrfi_model.py: FEATURE_DEFAULTS` has `barrel_pct: 0.085` etc. (decimal-scale) as the fallback used ONLY when a specific pitcher's real value is missing — but since the model trained on percent-scale data, this fallback default may itself be wrong-scale (should arguably be `8.5` not `0.085`) for the missing-data case specifically. This was NOT changed — real per-pitcher data (the common case) is unaffected and correct; only the rare missing-data fallback path is a candidate for a follow-up fix, and touching a walk-forward-validated model's feature defaults deserves its own careful review/backtest rather than a same-day patch.
 
 ## Open Calibration Issues
 

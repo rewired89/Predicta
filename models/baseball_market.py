@@ -70,6 +70,18 @@ def pitcher_process_adjustment(
 
     Each signal capped ±8%; combined cap ±15%.
     Returns 1.0 when all inputs are None (no adjustment).
+
+    Unit note (fixed 2026-07-05): barrel_pct_against always arrives here as a
+    raw percent from the Savant feature store (e.g. 10.4 meaning 10.4%), never
+    as a decimal fraction — the store is built via scripts/enrich_nrfi_savant,
+    which is also what the trained NRFI XGBoost model was fit on, so that
+    scale is correct for the NRFI model's own feature vector. But this
+    function's LEAGUE_AVG_BARREL_PCT constant (0.075) is a decimal fraction,
+    so a raw percent value fed straight in always blew past the ±0.08 cap —
+    every pitcher, elite or poor, silently clamped to the exact same +8%
+    run-inflation penalty, destroying the signal entirely. Convert here so
+    csw_pct/o_swing_pct (already decimal-scale from the feature store's
+    FanGraphs CSV import) don't need to change.
     """
     adj = 0.0
     if csw_pct is not None:
@@ -79,8 +91,9 @@ def pitcher_process_adjustment(
     if o_swing_pct is not None:
         adj += max(-0.08, min(0.08, (o_swing_pct - LEAGUE_AVG_CHASE_PCT) * 1.20))
     if barrel_pct_against is not None:
+        barrel_frac = barrel_pct_against / 100.0 if barrel_pct_against > 1.5 else barrel_pct_against
         # High barrel% → pitcher is worse than FIP suggests → positive adj → MORE runs
-        adj -= max(-0.08, min(0.08, (barrel_pct_against - LEAGUE_AVG_BARREL_PCT) * 2.50))
+        adj -= max(-0.08, min(0.08, (barrel_frac - LEAGUE_AVG_BARREL_PCT) * 2.50))
     return max(0.85, min(1.15, 1.0 - adj))
 
 

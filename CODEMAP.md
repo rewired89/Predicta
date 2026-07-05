@@ -3338,11 +3338,23 @@ mutates: none
 name: _match_team
 type: function
 file: fetchers/baseball.py
-purpose: Fuzzy-matches a user-supplied team name to an ESPN MLB team object using multiple name fields and difflib (cutoff 0.45).
+purpose: Fuzzy-matches a user-supplied team name to a single ESPN MLB team object using multiple name fields and difflib (cutoff 0.45).
 inputs: name: str, teams: list[dict]
 outputs: Optional[dict]
 calls: difflib.get_close_matches
 called_by: fetch_baseball_context
+mutates: none
+---
+
+---
+name: _match_teams
+type: function
+file: fetchers/baseball.py
+purpose: Added 2026-07-05. Like _match_team but returns ALL plausible candidates ranked by closeness, not just the single best guess — needed because short city hints are genuinely ambiguous ("LA" matches both LAD and LAA equally well, "NY" matches NYY and NYM, "CHI" matches CHC and CWS). lookup_batter tries each candidate's roster in turn instead of committing to one fuzzy guess that might silently be the wrong team. Fixed the "Andy Pages" + "LA" bug where the player exists on LAD but the lookup could land on LAA and report a false "not found."
+inputs: name: str, teams: list[dict], limit: int = 3
+outputs: list[dict] (deduped by team id)
+calls: difflib.get_close_matches
+called_by: lookup_batter
 mutates: none
 ---
 
@@ -3470,10 +3482,10 @@ mutates: none
 name: lookup_batter
 type: function
 file: fetchers/baseball.py
-purpose: Live ESPN fallback for individual hitters not in the Player Impact KNOWN_HITTERS table. Resolves team_abbr to an ESPN team, finds the athlete on that team's roster by fuzzy name match, and pulls season batting stats. Requires team_abbr since ESPN has no cross-league player-name search endpoint; returns {} if team_abbr is missing or the player isn't found.
+purpose: Live ESPN fallback for individual hitters not in the Player Impact KNOWN_HITTERS table. Resolves team_abbr to ALL plausible ESPN teams (via _match_teams, not just one best guess — fixed 2026-07-05) and tries each one's roster in turn until the player is found, pulling season batting stats from whichever team actually has them. Requires team_abbr since ESPN has no cross-league player-name search endpoint; returns {} if team_abbr is missing or the player isn't found on any matched team.
 inputs: name (str), team_abbr (optional str)
 outputs: dict (display_name, team, bats, pos, war=None, avg, ops, hr, sb, wrc_plus) or {}
-calls: _match_team, _all_teams, _find_roster_athlete, _get_batter_stats
+calls: _match_teams, _all_teams, _find_roster_athlete, _get_batter_stats
 called_by: models/player_impact.py _get_hitter_data
 mutates: none
 ---
@@ -3542,6 +3554,7 @@ outputs: dict with impact_pp, tier, tier_desc, fip, era, avg_ip, win_prob_with, 
 calls: _get_pitcher_data, _win_prob_for_fip, expected_runs_split
 called_by: app.py /player-impact endpoint
 mutates: none
+note: Fixed 2026-07-05 — barrel_pct/hard_hit_pct from the feature store are raw percents (e.g. 10.4 meaning 10.4%), not decimals. The backup FIP-estimate formula (used when a pitcher has no fip/era from KNOWN_STARTERS or the store) and the returned barrel_pct/whiff_pct display fields now convert to decimal before use — previously fed raw percents into decimal-scale formulas/frontend math, blowing FIP to the 6.0 clamp for almost any feature-store-only pitcher (e.g. Emmet Sheehan) and showing e.g. "1040.0%"/"8700.0%" for barrel%/whiff% in the UI.
 ---
 
 ---
@@ -6931,6 +6944,7 @@ outputs: float (0.85–1.15)
 calls: none
 called_by: expected_runs_split
 mutates: none
+note: Fixed 2026-07-05 (major bug) — barrel_pct_against always arrives as a raw percent from the Savant feature store (e.g. 10.4), never a decimal, but LEAGUE_AVG_BARREL_PCT (0.075) is a decimal fraction. A raw percent always blew past the ±0.08 cap, so EVERY pitcher — elite or poor contact suppression alike — silently clamped to the exact same +8% run-inflation adjustment, destroying the signal's differentiation entirely (verified: barrel% 4.0 through 12.0 all produced the identical 1.08 multiplier before the fix). Now converts internally (÷100 when >1.5) so real barrel-rate variation actually differentiates pitchers again. csw_pct/o_swing_pct were NOT affected — they're already decimal-scale via the feature store's FanGraphs CSV import (_to_decimal in scripts/build_feature_store.py).
 ---
 
 

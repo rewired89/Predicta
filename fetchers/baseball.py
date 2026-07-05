@@ -218,6 +218,49 @@ def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
     return None
 
 
+def _match_teams(name: str, teams: list[dict], limit: int = 3) -> list[dict]:
+    """
+    Like _match_team but returns multiple plausible candidates, ranked by
+    closeness. Needed because short city hints are genuinely ambiguous in
+    ESPN's data — "LA" fuzzy-matches both LAD (Dodgers) and LAA (Angels)
+    equally well, "NY" matches both NYY and NYM, "CHI" matches CHC and CWS.
+    A single best-guess match can silently pick the wrong team and report
+    "player not found" even though the player exists on the OTHER team that
+    shares the hint. Callers should try each candidate's roster in turn.
+    """
+    candidates: dict[str, dict] = {}
+    for t in teams:
+        for key in ("displayName", "shortDisplayName", "abbreviation",
+                    "location", "name", "nickname"):
+            val = t.get(key, "")
+            if val:
+                candidates.setdefault(val.lower(), t)
+
+    q = name.lower().strip()
+    if q in candidates:
+        return [candidates[q]]
+
+    close = difflib.get_close_matches(q, candidates.keys(), n=limit, cutoff=0.45)
+    if close:
+        seen_ids: set = set()
+        out = []
+        for k in close:
+            t = candidates[k]
+            tid = t.get("id")
+            if tid not in seen_ids:
+                seen_ids.add(tid)
+                out.append(t)
+        return out
+
+    out = []
+    seen_ids = set()
+    for k, t in candidates.items():
+        if (q in k or k in q) and t.get("id") not in seen_ids:
+            seen_ids.add(t.get("id"))
+            out.append(t)
+    return out
+
+
 # ── Standings ─────────────────────────────────────────────────────────────────
 
 def _get_all_records() -> dict[str, dict]:
@@ -566,14 +609,29 @@ def lookup_batter(name: str, team_abbr: Optional[str] = None) -> dict:
     Live ESPN fallback for hitters not in the Player Impact hardcoded table.
     ESPN has no public cross-league name search, so this requires a team hint
     (abbreviation, city, or nickname) to find the athlete on that team's roster.
-    Returns {} if team_abbr is missing/unmatched or the player isn't found.
+
+    Tries every plausible team match, not just the single best guess — a short
+    hint like "LA" fuzzy-matches both LAD and LAA equally well, so picking only
+    one risks a false "not found" when the player is actually on the other
+    team sharing that hint. Fixed 2026-07-05 (was: "Andy Pages" + "LA" failed
+    because the fuzzy match could land on either LA team and only one root was
+    ever tried).
+
+    Returns {} if team_abbr is missing, no team matches at all, or the player
+    isn't found on any matched team's roster.
     """
     if not name or not team_abbr:
         return {}
-    team = _match_team(team_abbr, _all_teams())
-    if not team:
+    candidates = _match_teams(team_abbr, _all_teams())
+    if not candidates:
         return {}
-    athlete = _find_roster_athlete(str(team.get("id", "")), name)
+
+    team = athlete = None
+    for t in candidates:
+        a = _find_roster_athlete(str(t.get("id", "")), name)
+        if a:
+            team, athlete = t, a
+            break
     if not athlete:
         return {}
     batting = _get_batter_stats(athlete["id"])
