@@ -110,6 +110,18 @@ Tool for evaluating **any MLB player** — pitchers AND position players (hitter
 
 **NOTE — NRFI model's own FEATURE_DEFAULTS may have a separate, smaller issue:** `models/nrfi_model.py: FEATURE_DEFAULTS` has `barrel_pct: 0.085` etc. (decimal-scale) as the fallback used ONLY when a specific pitcher's real value is missing — but since the model trained on percent-scale data, this fallback default may itself be wrong-scale (should arguably be `8.5` not `0.085`) for the missing-data case specifically. This was NOT changed — real per-pitcher data (the common case) is unaffected and correct; only the rare missing-data fallback path is a candidate for a follow-up fix, and touching a walk-forward-validated model's feature defaults deserves its own careful review/backtest rather than a same-day patch.
 
+## Starter Injury Gate (added 2026-07-05, per Kimi's review)
+
+A **data-quality gate**, not a new predictive signal — the model doesn't adjust its inputs, it flags when it can't trust them.
+
+- `fetchers/baseball.py: fetch_team_injuries(team_id)` pulls ESPN's team injury report; fails open (returns `{}`) on any error so an ESPN hiccup never blocks/downgrades a whole slate.
+- `_build_starter()` checks the probable starter's athlete id against the injury report. If he appears at all (Out/DTD/Questionable/IL-anything), sets `injury_status`/`injury_detail` on the starter dict — appearing on the injury report while also being listed as the probable starter is inherently notable, unlike a position player's routine DTD.
+- `run_baseball_analysis()` force-downgrades `data_confidence` to `"low"` when either starter has `injury_status` set, which already suppresses BET/LEAN verdicts throughout the pipeline (existing `data_confidence != "low"` gating, unchanged).
+- Deliberately does **NOT** try to swap in a replacement starter's stats — an unnamed replacement usually has no real FIP/Savant data anyway, so guessing would just inject league-average numbers under the wrong pitcher's name. Downgrade and move on.
+- Diagnostics logged per Kimi's "instrument it, don't just trust it" advice: `starter_injury_flag`, `home_starter_injury`, `away_starter_injury` are saved to `data/nrfi_predictions/*.json` every day — after ~50 more games, check whether injury-flagged games actually had worse accuracy before assuming the gate is doing real work.
+
+**Explicitly deferred — hitter/lineup injury check (Kimi's Tier 1, hitter half):** Kimi recommended downgrading confidence one level when a top-3 lineup bat is Out (and ignoring routine DTD hitter listings as noise). Not implemented yet — the model only tracks team-aggregate wRC+, not individual lineup-slot assignments, and confirmed lineups aren't reliably available until ~3-4h before first pitch anyway (well after the 9 AM ET predict run). Would need a lineup-fetch prerequisite this pipeline doesn't have. Tracked as a follow-up, not built today.
+
 ## Open Calibration Issues
 
 - `logistic_scale = 40` in analyze_tennis.py may be too aggressive (see tests/validate_tennis_scale.py output — ~80pp hold-rate gap vs ATP reference of ~20-25pp); needs real match data to confirm

@@ -765,10 +765,26 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     data_confidence = _baseball_data_confidence(
         ai_fallback, starter_a, starter_b, hitting_a, hitting_b, record_a, record_b,
     )
+
+    # Injury gate (Kimi's rev): a probable starter appearing on the injury
+    # report at all — any status — means we're likely pricing a game around a
+    # pitcher who won't actually throw. Downgrade rather than guess at a
+    # replacement's stats (an unnamed replacement has no real FIP/Savant data
+    # anyway, so we'd just be feeding league-average numbers under a wrong
+    # name). This is a data-quality gate, not a new predictive signal — it
+    # only ever pushes confidence down, never up, and never touches the run
+    # model's inputs directly.
+    starter_injury_flag = bool(starter_a.get("injury_status") or starter_b.get("injury_status"))
+    if starter_injury_flag and data_confidence != "low":
+        data_confidence = "low"
+
     steps.append({"step": "data_confidence", "status": "ok",
                   "level": data_confidence,
                   "starter_a": starter_a.get("name", "TBD"),
-                  "starter_b": starter_b.get("name", "TBD")})
+                  "starter_b": starter_b.get("name", "TBD"),
+                  "starter_a_injury": starter_a.get("injury_status"),
+                  "starter_b_injury": starter_b.get("injury_status"),
+                  "injury_downgrade": starter_injury_flag})
 
     # ── 2.6. Weather fetch + fatigue / rest ──────────────────────────────────
     # Weather is now applied to the run model (not just logged).
@@ -1284,6 +1300,9 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "venue":      context["game"].get("venue", ""),
         "park_factor": park_factor,
         "data_confidence": data_confidence,
+        "starter_injury_flag": starter_injury_flag,
+        "starter_a_injury": starter_a.get("injury_status"),
+        "starter_b_injury": starter_b.get("injury_status"),
         "plain_summary": _build_plain_summary(
             team_home, team_away,
             (prob_a if team_a == team_home else prob_b),
@@ -1326,6 +1345,8 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 "fastball_pct":         home_starter.get("fastball_pct"),
                 "breaking_pct":         home_starter.get("breaking_pct"),
                 "pitch_details":        home_starter.get("pitch_details", []),
+                "injury_status":        home_starter.get("injury_status"),
+                "injury_detail":        home_starter.get("injury_detail"),
             },
             "away": {
                 "team":                 team_away,
@@ -1352,6 +1373,8 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
                 "fastball_pct":         away_starter.get("fastball_pct"),
                 "breaking_pct":         away_starter.get("breaking_pct"),
                 "pitch_details":        away_starter.get("pitch_details", []),
+                "injury_status":        away_starter.get("injury_status"),
+                "injury_detail":        away_starter.get("injury_detail"),
             },
         },
         "team_stats": {

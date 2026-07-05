@@ -649,7 +649,42 @@ def lookup_batter(name: str, team_abbr: Optional[str] = None) -> dict:
 
 # ── Starter builder ───────────────────────────────────────────────────────────
 
-def _build_starter(probable: Optional[dict]) -> dict:
+def fetch_team_injuries(team_id: str) -> dict[str, dict]:
+    """
+    Fetch a team's current injury report from ESPN. Returns {athlete_id: {status,
+    detail}} keyed by athlete id string. Fails open (returns {}) on any error —
+    an ESPN injuries-endpoint hiccup should mean "no injury info available for
+    this game," not "block/downgrade the whole slate." This is a data-quality
+    gate, not a core input, so absence of data must never cascade into a
+    pipeline failure (see 2026-07-05 Anthropic-outage incident for why that
+    matters here).
+    """
+    if not team_id:
+        return {}
+    try:
+        data = _espn_get(f"/teams/{team_id}/injuries")
+    except Exception:
+        return {}
+    out: dict[str, dict] = {}
+    items = data.get("injuries", data.get("items", []))
+    if isinstance(items, dict):
+        items = items.get("items", [])
+    for entry in items or []:
+        athlete = entry.get("athlete", {})
+        aid = str(athlete.get("id") or entry.get("id") or "")
+        if not aid:
+            continue
+        status = (entry.get("status") or entry.get("type", {}).get("description")
+                  or "").strip()
+        detail = entry.get("details", {}) if isinstance(entry.get("details"), dict) else {}
+        out[aid] = {
+            "status": status,
+            "detail": detail.get("detail") or entry.get("longComment", ""),
+        }
+    return out
+
+
+def _build_starter(probable: Optional[dict], team_id: str = "") -> dict:
     """Build complete starter dict, fetching detailed stats and handedness if we have an athlete ID."""
     _default = {
         "name": "TBD",
@@ -658,6 +693,7 @@ def _build_starter(probable: Optional[dict]) -> dict:
         "whip": 0.0, "k9": 0.0, "bb9": 0.0,
         "innings_pitched": 0, "games_started": 0, "recent_games": [],
         "throws": "R",
+        "injury_status": None,
     }
     if not probable:
         return _default
@@ -681,6 +717,19 @@ def _build_starter(probable: Optional[dict]) -> dict:
                 "games_started":   detailed.get("games_started", 0),
             })
         result["throws"] = _get_pitcher_handedness(athlete_id)
+
+    # A probable starter appearing on the team's injury report AT ALL — any
+    # status (Out/DTD/Questionable/IL-nn) — is inherently notable, unlike a
+    # position player's routine DTD listing. Flag it; analyze_baseball.py
+    # downgrades data_confidence to "low" when this is set, per Kimi's
+    # recommendation: don't try to guess a replacement's stats, just flag
+    # the prediction as unreliable.
+    if athlete_id and team_id:
+        injuries = fetch_team_injuries(team_id)
+        info = injuries.get(str(athlete_id))
+        if info:
+            result["injury_status"] = info.get("status") or "Listed"
+            result["injury_detail"] = info.get("detail", "")
 
     return result
 
@@ -776,8 +825,8 @@ def fetch_baseball_context(
     if comp:
         side_a = "home" if is_home_a else "away"
         side_b = "away" if is_home_a else "home"
-        starter_a = _build_starter(_extract_probable(comp, side_a))
-        starter_b = _build_starter(_extract_probable(comp, side_b))
+        starter_a = _build_starter(_extract_probable(comp, side_a), id_a)
+        starter_b = _build_starter(_extract_probable(comp, side_b), id_b)
     else:
         starter_a = _build_starter(None)
         starter_b = _build_starter(None)

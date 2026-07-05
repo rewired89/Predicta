@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-05 (rev 10 — found and fixed a live unit-scaling bug that flattened the barrel% signal in the run model to a constant, for every pitcher, since the feature store shipped)
+> **Last updated:** 2026-07-05 (rev 11 — shipped the starter injury gate per Kimi's Tier-1 recommendation; hitter/lineup half deferred, no lineup-slot data yet)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -729,6 +729,45 @@ in this doc: don't tweak the model reactively without knowing whether it's a
 real bug or noise. This one had a concrete, mechanical, always-reproduces
 cause (verified with 6 different barrel% inputs producing the same output),
 not a single bad game — that's what made it safe to fix same-day.
+
+---
+
+## 17. Starter injury gate shipped, per Kimi's Tier-1 recommendation (2026-07-05)
+
+Kimi's guidance was specific and actionable, so implemented as-is rather than
+a watered-down version:
+
+- **Downgrade, don't adjust inputs.** `fetch_team_injuries(team_id)` pulls
+  ESPN's team injury report; `_build_starter()` checks the probable starter's
+  athlete id against it. If he appears at all (Out/DTD/Questionable/anything),
+  `run_baseball_analysis()` force-downgrades `data_confidence` to `"low"` —
+  which already suppresses BET/LEAN throughout the pipeline via the existing
+  `data_confidence != "low"` gates. No attempt to rebuild team wRC+ or guess
+  a replacement starter's stats, exactly per the "exhaustion error" warning.
+- **Fail open, not closed** (the API-fragility point): `fetch_team_injuries`
+  returns `{}` on any ESPN error — an injuries-endpoint hiccup means "no
+  injury info this call," never "downgrade/block the whole slate." Explicitly
+  designed this way after the 07-04 Anthropic-outage incident (§9c/§14) —
+  didn't want to introduce a second subsystem with the same silent-failure
+  shape.
+- **Instrumented, not just trusted**: `starter_injury_flag`,
+  `home_starter_injury`, `away_starter_injury` are saved to every day's
+  prediction JSON now. Per Kimi's 30-minute sanity-check suggestion — once
+  more games accumulate, compare accuracy on injury-flagged vs. clean games
+  before treating this as validated rather than just "seems reasonable."
+
+**Deferred, not built:** the hitter/lineup half (downgrade one level for a
+top-3 bat Out, ignore routine DTD). The pipeline only has team-aggregate
+wRC+, not per-player lineup-slot data, and confirmed lineups aren't reliably
+known until 3-4h before first pitch — well after the 9 AM ET predict run
+Kimi flagged as the same timing problem. Building this properly needs a
+lineup-fetch step this pipeline doesn't have yet; flagging as a real
+follow-up rather than faking it with a partial signal.
+
+**Not done, per Kimi's explicit "not required" call:** a full walk-forward
+backtest before shipping. This is a data-quality gate, not a new predictive
+feature, so it ships now; the 30-minute retrospective sanity check happens
+once there's a larger resolved sample, using the newly-instrumented fields.
 
 ---
 

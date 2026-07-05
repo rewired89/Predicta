@@ -3458,11 +3458,23 @@ mutates: none
 name: _build_starter
 type: function
 file: fetchers/baseball.py
-purpose: Builds a complete starter profile dict from a probable-pitcher stub; fetches detailed stats via _get_pitcher_stats and throwing hand via _get_pitcher_handedness; returns league-average defaults if pitcher is TBD or unknown.
-inputs: probable: Optional[dict]
-outputs: dict {name, fip, era, whip, k9, bb9, innings_pitched, games_started, recent_games, throws}
-calls: _get_pitcher_stats, _get_pitcher_handedness
+purpose: Builds a complete starter profile dict from a probable-pitcher stub; fetches detailed stats via _get_pitcher_stats and throwing hand via _get_pitcher_handedness; returns league-average defaults if pitcher is TBD or unknown. Added 2026-07-05 (Kimi's injury-gate review): also checks fetch_team_injuries(team_id) for the probable starter's athlete id — if he appears on the team's injury report at all (any status), sets injury_status/injury_detail so analyze_baseball.py can downgrade data_confidence to low instead of guessing at a replacement's stats.
+inputs: probable: Optional[dict], team_id: str = ""
+outputs: dict {name, fip, era, whip, k9, bb9, innings_pitched, games_started, recent_games, throws, injury_status, injury_detail}
+calls: _get_pitcher_stats, _get_pitcher_handedness, fetch_team_injuries
 called_by: fetch_baseball_context
+mutates: none
+---
+
+---
+name: fetch_team_injuries
+type: function
+file: fetchers/baseball.py
+purpose: Added 2026-07-05 per Kimi's review. Fetches a team's current injury report from ESPN (/teams/{id}/injuries). Fails open (returns {} on any error) since this is a data-quality gate, not a core input — an ESPN injuries-endpoint hiccup must mean "no injury info available," never "block/downgrade the whole slate" (explicitly designed to avoid repeating the 2026-07-04 silent-failure pattern in a new subsystem).
+inputs: team_id: str
+outputs: dict[str, dict] — {athlete_id: {status, detail}}
+calls: _espn_get
+called_by: _build_starter
 mutates: none
 ---
 
@@ -3943,7 +3955,7 @@ mutates: none
 name: _baseball_data_confidence
 type: function
 file: analyze_baseball.py
-purpose: Computes data confidence (low/medium/high) for a baseball prediction from how much input is real live data vs defaults — mirrors the other sports' pipelines. low = ESPN unreachable (AI-estimated) OR both probable starters unknown/TBD (common for next-day games before lineups post); medium = one starter TBD, missing team wRC+, or thin sample (<10 GP); high = both starters named with FIP + real wRC+ + ≥10 GP. Fixes the bug where baseball never returned data_confidence so the UI always showed its hardcoded "medium" default (baseball.html:737).
+purpose: Computes data confidence (low/medium/high) for a baseball prediction from how much input is real live data vs defaults — mirrors the other sports' pipelines. low = ESPN unreachable (AI-estimated) OR both probable starters unknown/TBD (common for next-day games before lineups post); medium = one starter TBD, missing team wRC+, or thin sample (<10 GP); high = both starters named with FIP + real wRC+ + ≥10 GP. Fixes the bug where baseball never returned data_confidence so the UI always showed its hardcoded "medium" default (baseball.html:737). run_baseball_analysis applies an ADDITIONAL override after calling this (2026-07-05, Kimi's review): if either starter has injury_status set (appears on the team's injury report despite being the probable starter), confidence is force-downgraded to "low" regardless of what this function returns — a data-quality gate layered on top, not a change to this function itself.
 inputs: ai_fallback: bool, starter_a, starter_b, hitting_a, hitting_b, record_a, record_b: dict
 outputs: str ("low"|"medium"|"high")
 calls: none

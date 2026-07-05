@@ -463,6 +463,13 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 "expected_total": round((result.get("mu_home", 0) or 0)
                                         + (result.get("mu_away", 0) or 0), 2),
                 "data_confidence": result.get("data_confidence"),
+                # Injury gate diagnostics (added 2026-07-05, per Kimi's review) —
+                # tracks how often the starter-injury downgrade fires, so it can
+                # be sanity-checked against real accuracy after ~50+ more games
+                # instead of just trusting the gate blindly.
+                "starter_injury_flag": result.get("starter_injury_flag", False),
+                "home_starter_injury": result.get("starters", {}).get("home", {}).get("injury_status"),
+                "away_starter_injury": result.get("starters", {}).get("away", {}).get("injury_status"),
                 "features_enriched": _enriched,   # any advanced stat present?
                 "feat_home":    _feat_home,
                 "feat_away":    _feat_away,
