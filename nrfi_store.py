@@ -168,6 +168,56 @@ def aggregate_performance(days: int = 3650) -> dict:
     }
 
 
+def aggregate_market_performance(days: int = 3650) -> dict:
+    """
+    Rolls up moneyline / F5 / Over-Under grading across all committed daily
+    prediction files. resolve_predictions() (scripts/daily_nrfi.py) already
+    grades these three markets into ml_correct/f5_correct/ou_correct on every
+    record each night at resolve time — but until now nothing aggregated them
+    across days, so the only way to see "are we losing money on moneyline
+    picks" was to open each day's JSON by hand. This closes that gap.
+
+    Unlike NRFI, these markets are NOT walk-forward validated (see CLAUDE.md
+    "Open Calibration Issues") — this is a diagnostic view for tuning, not a
+    proof-of-edge claim.
+    """
+    records: list[dict] = []
+    for d in _recent_dates(days):
+        records += [r for r in load_date(d) if not r.get("error")]
+
+    def _market_stats(field: str) -> dict:
+        graded = [r for r in records if r.get(field) in (0, 1)]
+        n = len(graded)
+        if n == 0:
+            return {"n_graded": 0, "n_correct": 0, "accuracy_pct": None}
+        correct = sum(1 for r in graded if r[field] == 1)
+        # Only count as a "bet" when the market's own verdict cleared its threshold.
+        verdict_field = {"ml_correct": "ml_verdict", "f5_correct": "f5_verdict",
+                          "ou_correct": "ou_verdict"}[field]
+        bets = [r for r in graded if r.get(verdict_field) == "BET"]
+        bet_correct = sum(1 for r in bets if r[field] == 1)
+        return {
+            "n_graded":       n,
+            "n_correct":      correct,
+            "accuracy_pct":   round(correct / n * 100, 1),
+            "n_bets":         len(bets),
+            "bet_correct":    bet_correct,
+            "bet_win_pct":    round(bet_correct / len(bets) * 100, 1) if bets else None,
+        }
+
+    return {
+        "n_games_tracked": len(records),
+        "moneyline": _market_stats("ml_correct"),
+        "first_five": _market_stats("f5_correct"),
+        "over_under": _market_stats("ou_correct"),
+        "window_days": days,
+        "note": ("Moneyline/F5/O-U are model-generated but not yet independently "
+                 "validated (unlike NRFI's walk-forward 54.9%/p=0.0049). Use this "
+                 "to spot systematic issues after ~50 games per market, not to "
+                 "claim an edge."),
+    }
+
+
 def aggregate_clv(days: int = 3650) -> dict:
     """
     Closing Line Value summary across plays that have both entry + closing lines.

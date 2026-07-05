@@ -7379,7 +7379,7 @@ mutates: none
 name: run_predictions
 type: function
 file: scripts/daily_nrfi.py
-purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, starters, and all-market picks (ml_pick/ml_prob/ml_verdict for moneyline, f5_pick/f5_prob/f5_verdict for F5) from bet_recs. Also captures lean_side (NRFI or YRFI based on p_nrfi vs 0.50) and feature-source diagnostics. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting.
+purpose: Loops over schedule games, calls run_baseball_analysis() for each, extracts NRFI market probabilities, verdict, Kelly staking, starters, and all-market picks (ml_pick/ml_prob/ml_verdict for moneyline, f5_pick/f5_prob/f5_verdict for F5) from bet_recs. Also captures lean_side (NRFI or YRFI based on p_nrfi vs 0.50) and feature-source diagnostics. Returns list of prediction records. Sleeps 0.5s between games to avoid rate limiting. Checks `result.get("error")` immediately after the call (added 2026-07-05) and raises so it lands in the except block as a flagged error record — previously a failed run_baseball_analysis call (e.g. Anthropic query-parse API error) fell through silently into building a record with every field None but no "error" key, indistinguishable in the report from a genuine model SKIP. Root-caused after a live run on 2026-07-04 produced 11 blank games with no error indication.
 inputs: games: list[dict], game_date: str
 outputs: list[dict]
 calls: run_baseball_analysis (analyze_baseball.py)
@@ -7499,7 +7499,7 @@ mutates: none
 name: nrfi_store
 type: module
 file: nrfi_store.py
-purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE) plus a state-aware honesty `disclaimer` (no profit claim before edge proven), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct, avg_entry_lead_hrs, n_stale_excluded (headline CLV excludes entry_stale plays so it measures leading the market, not moving with it), clv_vs_winrate(days) → buckets resolved plays by CLV + Pearson corr + t-test verdict (detects whether positive CLV predicts winners or is just line-chasing), validation_tracker(days) → one-glance proof snapshot rendered atop every daily report. Tracking operates over TWO universes: _plays() = actual BET/LEAN plays (staking ROI/P&L); _tracked() = every game with a model probability (any verdict incl. SKIP), scored on the model's lean_side/lean_correct so a predictive-accuracy + CLV record accumulates even while verdicts are SKIP (the 55% bet gate rarely fires when features default to league-average). aggregate_performance adds model_lean{n_games,n_resolved,lean_accuracy_pct}; aggregate_clv + clv_vs_winrate use _tracked.
+purpose: Read + aggregate helpers over the committed daily NRFI prediction files (data/nrfi_predictions/YYYY-MM-DD.json) — the persistent, auditable source of truth for the public /v1 API (git-versioned, survives redeploys, unlike the ephemeral CI database). Functions: list_dates(), latest_date(), load_date(date), aggregate_performance(days) → W/L+ROI+CI+p-value+CLV summary with verdict (EDGE PROVEN / BEATING THE CLOSE / EDGE EXISTS / TOO EARLY / NO EDGE) plus a state-aware honesty `disclaimer` (no profit claim before edge proven), aggregate_clv(days) → n, avg_clv_pp, beat_close_pct, avg_entry_lead_hrs, n_stale_excluded (headline CLV excludes entry_stale plays so it measures leading the market, not moving with it), clv_vs_winrate(days) → buckets resolved plays by CLV + Pearson corr + t-test verdict (detects whether positive CLV predicts winners or is just line-chasing), validation_tracker(days) → one-glance proof snapshot rendered atop every daily report, aggregate_market_performance(days) → moneyline/F5/O-U win-rate rollup (added 2026-07-04 — resolve_predictions already grades ml_correct/f5_correct/ou_correct into each day's JSON, but nothing aggregated them across days before this; closes the "losses aren't being collected" gap for the three non-NRFI markets). Tracking operates over TWO universes: _plays() = actual BET/LEAN plays (staking ROI/P&L); _tracked() = every game with a model probability (any verdict incl. SKIP), scored on the model's lean_side/lean_correct so a predictive-accuracy + CLV record accumulates even while verdicts are SKIP (the 55% bet gate rarely fires when features default to league-average). aggregate_performance adds model_lean{n_games,n_resolved,lean_accuracy_pct}; aggregate_clv + clv_vs_winrate use _tracked.
 inputs: game_date/days args
 outputs: list[str] / list[dict] / dict summaries
 calls: json, scipy.stats (optional)
@@ -7630,6 +7630,18 @@ inputs: none (reads DB)
 outputs: JSON — verdict, note, n_total, n_resolved, n_pending, threshold_55, threshold_57, all_bets
 calls: get_db, scipy.stats.norm
 called_by: GET /nrfi-performance
+mutates: none
+---
+
+---
+name: market_performance
+type: route
+file: app.py
+purpose: GET /market-performance?days= — moneyline/F5/O-U win-rate rollup across all committed daily prediction files. Added 2026-07-04 so these three markets' resolved outcomes (already graded nightly by resolve_predictions but never aggregated before) don't have to be tallied by hand from individual JSON files. Diagnostic only — these markets aren't walk-forward validated like NRFI.
+inputs: days (int, query param, default 3650)
+outputs: JSON — n_games_tracked, moneyline{n_graded,n_correct,accuracy_pct,n_bets,bet_correct,bet_win_pct}, first_five{...}, over_under{...}, window_days, note
+calls: nrfi_store.aggregate_market_performance
+called_by: GET /market-performance
 mutates: none
 ---
 

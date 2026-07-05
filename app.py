@@ -642,6 +642,20 @@ def nrfi_performance():
     }
 
 
+@app.get("/market-performance")
+def market_performance(days: int = 3650):
+    """
+    Moneyline / F5 / Over-Under win-rate rollup across all committed daily
+    prediction files. resolve_predictions() already grades these markets into
+    ml_correct/f5_correct/ou_correct every night — this aggregates them across
+    days automatically so losses don't need to be tallied by hand from
+    individual data/nrfi_predictions/*.json files. Diagnostic only: unlike
+    NRFI, these markets aren't walk-forward validated yet.
+    """
+    import nrfi_store
+    return nrfi_store.aggregate_market_performance(days)
+
+
 @app.post("/nrfi-resolve")
 def nrfi_resolve(body: dict):
     """

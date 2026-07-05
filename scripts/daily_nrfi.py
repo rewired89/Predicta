@@ -386,6 +386,14 @@ def run_predictions(games: list[dict], game_date: str) -> list[dict]:
                 f"{home} vs {away} {game_date}",
                 bankroll=1000.0,
             )
+            if result.get("error"):
+                # run_baseball_analysis failed outright (e.g. query-parse step hit an
+                # Anthropic API error) — without this check the code below silently
+                # pulls .get() off empty dicts and produces a record that looks like
+                # a normal SKIP (verdict/model set, every stat None) instead of a
+                # flagged failure. Raise so it lands in the except block and shows
+                # up in the report's Errors section instead of vanishing silently.
+                raise RuntimeError(result["error"])
             nrfi_market = result.get("markets", {}).get("nrfi", {})
             opts   = nrfi_market.get("options", [])
             p_nrfi = opts[0].get("prob") if opts else None

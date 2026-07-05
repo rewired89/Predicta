@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-04 (rev 6 — actioned Kimi's rev-5 engineering findings: sklearn pin, Kelly stripped from public output, Railway runbook)
+> **Last updated:** 2026-07-05 (rev 8 — found and fixed a silent-failure bug: a hard pipeline error on 07-04 produced 11 blank "SKIP" records with no error flag)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -514,6 +514,93 @@ needs live data before it can move.
 - 9 AM entry-lead-time check, model-lean accuracy after resolved games,
   FanGraphs-CSV A/B — all require the live prediction/resolution cycle to run
   for real, per Kimi's own timeline (§7 table).
+
+---
+
+## 13. Closed a real gap: moneyline/F5/O-U results weren't being aggregated (2026-07-04)
+
+User question: "Are the losses being collected? It doesn't make sense to do it
+manually if we can fetch them." Investigated end-to-end and found a genuine
+gap, separate from the NRFI pipeline (which was already fully automated).
+
+**What was already working:** `resolve_predictions()` in `scripts/daily_nrfi.py`
+fetches final linescores every night and grades ALL FOUR markets per game —
+NRFI outcome, `ml_correct`, `f5_correct`, `ou_correct` — writing the graded
+result into that day's committed `data/nrfi_predictions/YYYY-MM-DD.json`. So
+no losses were being silently dropped; every game's moneyline/F5/O-U result
+was already being captured automatically.
+
+**The actual gap:** nothing aggregated those three fields *across* days. NRFI
+had `nrfi_store.aggregate_performance()` (DB-mirrored, exposed via
+`/v1/nrfi/performance`), but moneyline/F5/O-U had no equivalent — the only way
+to see "are we losing on moneyline picks over the last 2 weeks" was opening
+each day's JSON file by hand and tallying `ml_correct` yourself. Confirmed by
+grep: zero references to `ml_correct`/`f5_correct`/`ou_correct` existed
+outside the single per-game grading step.
+
+**Fix:** added `nrfi_store.aggregate_market_performance(days)` — same pattern
+as the NRFI aggregator, reads every committed prediction file and rolls up
+n_graded/n_correct/accuracy_pct/bet_win_pct for each of the three markets.
+Exposed via `GET /market-performance`. Tested against the real committed data
+right now (32 tracked games across 3 days): moneyline 76.5% graded-accuracy
+(4 BET picks, 100% win — small sample, not a claim), F5 73.3%, O/U 77.8%
+(18/18 games cleared the BET gate — expected, since O/U runs a wider set of
+lines and clears its threshold more often than NRFI's single 55% gate).
+
+**While investigating, resolved the user's specific loss questions with real
+data (see §11-style spot-check):** the MIN@NYY game on 2026-07-03 (not the
+in-progress 07-04 game) was a Yankees moneyline pick at 65.7%, final 5-2
+Yankees — correct. No Cubs (CHC) game with a resolved 14-run margin exists in
+the tracked history; the closest blowout loss is SF@COL on 07-03 (Giants
+picked 57.1%, lost 3-15) — a real, correctly-graded loss, evidence the
+pipeline works as intended even on bad outcomes.
+
+**Note for Kimi:** this is diagnostic tooling, not a validation claim —
+moneyline/F5/O-U stay unvalidated per the §11 decision to keep NRFI as the
+sole proof-of-edge story. The rollup exists so the user can *watch* these
+markets for systematic problems after ~50 games each, without manual
+bookkeeping, not to advertise them.
+
+---
+
+## 14. Silent-failure bug found and fixed (2026-07-05)
+
+While pulling live data to answer the user's "are losses being collected"
+question, found that `data/nrfi_predictions/2026-07-04.json` had **11 games
+with zero real predictions** — every field null (p_nrfi, ml_prob, mu_home,
+everything), `model: "unknown"`, `verdict: "SKIP"`, and critically **no
+`error` key** — so nothing in the report distinguished these from genuine
+model SKIPs. Earlier the same day, this file had held real analysis (e.g. a
+Yankees moneyline BET at 67%), so something overwrote good data with blank
+data later in the day.
+
+**Root cause:** `run_predictions()` in `scripts/daily_nrfi.py` calls
+`run_baseball_analysis()` and immediately starts pulling `.get()` off its
+return value without checking whether the call actually succeeded.
+`run_baseball_analysis()` returns `{"error": "..."}` (not an exception) when
+its first step — parsing the query via the Anthropic API — fails. Every
+downstream `.get("markets", {}).get("nrfi", {})` etc. on that error dict
+silently resolves to `{}` → `None`, producing a record that looks exactly
+like a computed, confident SKIP. The `except Exception` block that properly
+flags `pred["error"]` never fires, because no exception was ever raised.
+
+**Fix:** added a check immediately after the call —
+`if result.get("error"): raise RuntimeError(result["error"])` — so a failed
+analysis now flows into the existing exception handler and gets a flagged
+`error` field, which already surfaces in the report's dedicated "Errors"
+section and is already excluded from every aggregate (both `_tracked()` in
+nrfi_store.py and `aggregate_market_performance()` filter on real
+`p_nrfi`/`*_correct` values, so blank records were never polluting the
+stats — they were just invisible instead of flagged). Verified with a
+mocked failing `run_baseball_analysis()` call: the record now carries
+`error` instead of silently looking valid.
+
+**Unresolved:** what caused the underlying Anthropic API call to fail for
+all 11 games on 07-04 (rate limit? transient outage? key issue?) — that's
+now diagnosable going forward since it'll show up in the Errors section,
+but the specific 07-04 root trigger wasn't captured because it wasn't
+logged as an error at the time. That day's 11 games are unrecoverable data
+loss; going forward, silent data loss of this shape isn't possible anymore.
 
 ---
 
