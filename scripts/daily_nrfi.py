@@ -636,6 +636,75 @@ def resolve_predictions(game_date: str) -> list[dict]:
     return predictions
 
 
+def resolve_pending_bets(max_age_days: int = 14) -> dict:
+    """
+    Grades nrfi_bets DB rows that have a game_pk but no outcome yet — this is
+    what closes the loop for ad-hoc manual website queries (e.g. someone
+    typing "Yankees vs Red Sox tonight" in the browser), which _log_prediction
+    persists to the DB on every call but which the JSON-file pipeline never
+    sees (that pipeline only covers the scheduled daily slate it fetched
+    itself). Reuses fetch_linescore, the same MLB Stats API call the JSON
+    pipeline's resolve_predictions() uses, so both paths grade identically.
+
+    Skips rows whose game_date is too recent (game may still be in progress)
+    or too old (max_age_days — avoids hammering the API for stale unresolved
+    rows from data issues; those show up as still-pending in /nrfi-performance).
+    """
+    from db.database import get_db
+
+    cutoff_old   = (date.today() - timedelta(days=max_age_days)).isoformat()
+    cutoff_recent = date.today().isoformat()
+
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT * FROM nrfi_bets
+               WHERE outcome IS NULL AND game_pk IS NOT NULL
+                 AND game_date < ? AND game_date >= ?""",
+            (cutoff_recent, cutoff_old),
+        ).fetchall()
+
+        graded = 0
+        for row in rows:
+            ls = fetch_linescore(row["game_pk"])
+            if ls is None:
+                continue
+
+            h1, a1 = ls["home_1st"], ls["away_1st"]
+            outcome = 1 if (h1 == 0 and a1 == 0) else 0   # 1=NRFI, 0=YRFI
+            bet_side = "NRFI" if row["p_nrfi"] >= 50 else "YRFI"
+            actual_side = "NRFI" if outcome == 1 else "YRFI"
+            won = 1 if (row["verdict"] in ("BET", "LEAN") and bet_side == actual_side) else None
+            pnl = (round(100 / 110, 4) if won else -1.0) if won is not None else None
+
+            home_runs, away_runs = ls.get("home_runs"), ls.get("away_runs")
+            ml_correct = f5_correct = ou_correct = None
+            if home_runs is not None and away_runs is not None and home_runs != away_runs:
+                home_won = home_runs > away_runs
+                if row["ml_pick"]:
+                    ml_correct = 1 if ((row["home_team"].lower() in row["ml_pick"].lower()) == home_won) else 0
+                home_f5, away_f5 = ls.get("home_f5"), ls.get("away_f5")
+                if row["f5_pick"] and home_f5 is not None and away_f5 is not None and home_f5 != away_f5:
+                    f5_correct = 1 if ((row["home_team"].lower() in row["f5_pick"].lower()) == (home_f5 > away_f5)) else 0
+                if row["ou_pick"] and row["ou_line"] is not None:
+                    total = home_runs + away_runs
+                    if total != row["ou_line"]:
+                        ou_correct = 1 if (("over" in row["ou_pick"].lower()) == (total > row["ou_line"])) else 0
+
+            db.execute(
+                """UPDATE nrfi_bets SET
+                     outcome=?, home_1st_runs=?, away_1st_runs=?, won=?, pnl_units=?,
+                     home_runs=?, away_runs=?, ml_correct=?, f5_correct=?, ou_correct=?,
+                     resolved_at=?
+                   WHERE id=?""",
+                (outcome, h1, a1, won, pnl, home_runs, away_runs,
+                 ml_correct, f5_correct, ou_correct,
+                 datetime.now(timezone.utc).isoformat(), row["id"]),
+            )
+            graded += 1
+
+    return {"checked": len(rows), "graded": graded}
+
+
 # ── Report writer ─────────────────────────────────────────────────────────────
 
 def write_report(predictions: list[dict], game_date: str, is_resolve: bool = False) -> Path:

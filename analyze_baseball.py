@@ -24,13 +24,20 @@ from models.kelly import kelly_stake, american_to_decimal, market_edge_summary
 from models.nrfi_model import predict_nrfi, model_available as nrfi_model_available
 
 
-def _log_nrfi_prediction(result: dict, game_date: str, home_team: str,
-                          away_team: str, home_starter: dict,
-                          away_starter: dict, bankroll: float) -> None:
+def _log_prediction(result: dict, game_date: str, home_team: str,
+                     away_team: str, home_starter: dict,
+                     away_starter: dict, bankroll: float) -> None:
     """
-    Persist every NRFI bet recommendation to the nrfi_bets table so we can
-    track live performance and compute win rate / ROI over time.
-    Only logs when the NRFI market is available (XGBoost model loaded).
+    Persist every prediction to the nrfi_bets table so live performance can be
+    tracked and compared to real outcomes later — this fires for BOTH the
+    automated daily pipeline AND ad-hoc manual website queries, so a one-off
+    "Yankees vs Red Sox tonight" query is graded the same as a scheduled game.
+
+    Captures NRFI (required — only logs if the NRFI market is available) plus
+    moneyline/F5/O-U picks when present, and game_pk so resolve_pending_bets()
+    (scripts/daily_nrfi.py) can fetch the real linescore later and grade all
+    four markets, not just NRFI. Before this, moneyline/F5/O-U picks from
+    manual queries were computed, shown once, and never persisted anywhere.
     """
     try:
         bet_recs = result.get("bet_recommendations", [])
@@ -43,14 +50,22 @@ def _log_nrfi_prediction(result: dict, game_date: str, home_team: str,
             return
         p_nrfi = opts[0].get("prob", 50.0)
         kelly_d = nrfi_rec.get("kelly") or {}
+
+        ml_rec = next((r for r in bet_recs if r.get("market") == "Full Game"), {})
+        f5_rec = next((r for r in bet_recs if r.get("market") == "F5"), {})
+        ou_rec = next((r for r in bet_recs if r.get("market") == "Game Total"), {})
+
         with get_db() as db:
             db.execute(
                 """
                 INSERT INTO nrfi_bets
                   (game_date, home_team, away_team, home_starter, away_starter,
                    p_nrfi, verdict, confidence,
-                   kelly_full_pct, kelly_half_pct, recommended_stake, bankroll)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                   kelly_full_pct, kelly_half_pct, recommended_stake, bankroll,
+                   game_pk, ml_pick, ml_prob, ml_verdict,
+                   f5_pick, f5_prob, f5_verdict,
+                   ou_pick, ou_prob, ou_verdict, ou_line)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     game_date, home_team, away_team,
@@ -62,6 +77,11 @@ def _log_nrfi_prediction(result: dict, game_date: str, home_team: str,
                     kelly_d.get("half_kelly_pct"),
                     kelly_d.get("recommended_stake"),
                     bankroll,
+                    result.get("game_pk"),
+                    ml_rec.get("bet"), ml_rec.get("model_prob"), ml_rec.get("verdict"),
+                    f5_rec.get("bet"), f5_rec.get("model_prob"), f5_rec.get("verdict"),
+                    ou_rec.get("bet"), ou_rec.get("model_prob"), ou_rec.get("verdict"),
+                    ou_rec.get("line"),
                 ),
             )
     except Exception:
@@ -1367,10 +1387,14 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         "ai_signals":        ai_signals,
         "market_comparison": market_comparison,
         "raw_sources":       context.get("sources", []),
+        "game_pk":           context.get("game", {}).get("game_pk"),
         "steps":             steps,
     }
 
-    # ── Log NRFI prediction to DB for performance tracking ────────────────────
-    _log_nrfi_prediction(result, game_date, team_home, team_away,
-                         home_starter, away_starter, bankroll)
+    # ── Log every market's prediction to DB for performance tracking ─────────
+    # Fires on every call — manual website queries AND the automated daily
+    # pipeline — so ad-hoc "just checking a matchup" queries get graded later
+    # too, not just the scheduled slate. See resolve_pending_bets().
+    _log_prediction(result, game_date, team_home, team_away,
+                    home_starter, away_starter, bankroll)
     return result

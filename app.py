@@ -625,6 +625,12 @@ def nrfi_performance():
             "outcome":      "NRFI" if r["outcome"] == 1 else ("YRFI" if r["outcome"] == 0 else "pending"),
             "won":          r["won"],
             "pnl_units":    r["pnl_units"],
+            "ml_pick":      r["ml_pick"],
+            "ml_correct":   r["ml_correct"],
+            "f5_pick":      r["f5_pick"],
+            "f5_correct":   r["f5_correct"],
+            "ou_pick":      r["ou_pick"],
+            "ou_correct":   r["ou_correct"],
         }
         for r in rows
     ]

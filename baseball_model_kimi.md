@@ -5,7 +5,7 @@
 > document — we update it every time we change the model. Paste this whole file
 > into a fresh Kimi chat.
 >
-> **Last updated:** 2026-07-05 (rev 8 — found and fixed a silent-failure bug: a hard pipeline error on 07-04 produced 11 blank "SKIP" records with no error flag)
+> **Last updated:** 2026-07-05 (rev 9 — manual website queries now get graded too, not just the scheduled daily slate)
 > **Repo:** rewired89/Predicta · branch `main`
 
 ---
@@ -601,6 +601,59 @@ now diagnosable going forward since it'll show up in the Errors section,
 but the specific 07-04 root trigger wasn't captured because it wasn't
 logged as an error at the time. That day's 11 games are unrecoverable data
 loss; going forward, silent data loss of this shape isn't possible anymore.
+Also added `GET /nrfi-auto/anthropic-diag`, which actually calls the
+query-parse step live and reports whether the Anthropic key is missing,
+rate-limited, invalid, or working — instead of guessing from outside.
+
+---
+
+## 15. Manual website queries now get graded, not just the scheduled slate (2026-07-05)
+
+User question: when a game is queried manually through the website (not part
+of the automated daily scan), does that prediction get saved and later
+compared to the real outcome? Checked the code — the honest answer was
+**partially, and not usefully**:
+
+- `run_baseball_analysis()` already called `_log_nrfi_prediction()`
+  unconditionally at the end of every run (manual queries included), so an
+  NRFI row DID get written to the `nrfi_bets` DB table every time.
+- But that function only ever captured the NRFI market — a manual query's
+  moneyline/F5/O-U pick (the markets this user actually cares most about, per
+  §11/§13) was computed, returned to the browser, and never persisted
+  anywhere.
+- Worse: even the NRFI row that DID get saved had no automatic path to
+  resolution. `resolve_predictions()` only operates on the JSON files built by
+  the scheduled daily pipeline (`fetch_schedule` → `run_predictions`), which
+  has no knowledge of ad-hoc DB rows from manual queries. A manual query's
+  logged row would sit with `outcome = NULL` forever unless someone manually
+  called `POST /nrfi-resolve` for that exact row.
+
+**Fix, four pieces:**
+1. `run_baseball_analysis()` now returns `game_pk` (previously only lived in
+   the internal `context` dict, never surfaced to the caller).
+2. `_log_nrfi_prediction` renamed to `_log_prediction` and extended to also
+   persist `ml_pick/ml_prob/ml_verdict`, `f5_pick/f5_prob/f5_verdict`,
+   `ou_pick/ou_prob/ou_verdict/ou_line`, and `game_pk` — same field names
+   `daily_nrfi.py`'s `run_predictions()` already uses for the JSON pipeline,
+   so both paths are consistent.
+3. `db/database.py` migration `_migrate_nrfi_all_markets` adds these columns
+   to `nrfi_bets` (idempotent, same pattern as the existing CLV migration).
+4. New `scripts/daily_nrfi.resolve_pending_bets()` finds DB rows with a
+   `game_pk` but no `outcome`, fetches the real linescore (same
+   `fetch_linescore` call the JSON pipeline uses), and grades all four
+   markets. Wired into the nightly `tasks/nrfi_auto.run_resolve` job
+   automatically — no manual trigger needed, it runs every night alongside
+   the scheduled-slate resolution.
+
+Verified end-to-end with a mocked linescore: logged a fake manual-query row
+(Yankees ML pick 67%, F5 pick, O/U 6.5), ran `resolve_pending_bets()` against
+a 7-3 Yankees final, and confirmed all three non-NRFI fields graded correctly
+(`ml_correct=1`, `f5_correct=1`, `ou_correct=1`).
+
+**Net effect:** the user can now type any matchup into the website just to
+check it, and that prediction becomes part of the same performance record as
+the scheduled daily games — nothing querying the model "just to look" is
+wasted anymore.
 
 ---
 

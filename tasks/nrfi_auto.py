@@ -141,15 +141,22 @@ def run_capture(target_date: str | None = None) -> dict:
 
 
 def run_resolve(target_date: str | None = None) -> dict:
-    from scripts.daily_nrfi import resolve_predictions, write_report, PRED_DIR
+    from scripts.daily_nrfi import resolve_predictions, resolve_pending_bets, write_report, PRED_DIR
     td = target_date or (date.today() - timedelta(days=1)).isoformat()
+
+    # Grade ad-hoc manual website queries logged to the DB (not part of the
+    # scheduled JSON-file slate) — closes the loop for "just checking a
+    # matchup" queries so they get compared to real outcomes too, not just
+    # the automated daily scan.
+    pending = resolve_pending_bets()
+
     preds = resolve_predictions(td)
     if not preds:
-        return {"date": td, "resolved": 0}
+        return {"date": td, "resolved": 0, "pending_bets": pending}
     (PRED_DIR / f"{td}.json").write_text(json.dumps(preds, indent=2))
     write_report(preds, td, is_resolve=True)
     pushed = _push_day(td, "resolve")
-    return {"date": td, "resolved": len(preds), "pushed": pushed}
+    return {"date": td, "resolved": len(preds), "pushed": pushed, "pending_bets": pending}
 
 
 # ── Scheduler ────────────────────────────────────────────────────────────────

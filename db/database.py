@@ -321,6 +321,52 @@ def _migrate_nrfi_clv(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_nrfi_all_markets(conn: sqlite3.Connection) -> None:
+    """
+    Idempotent: add game_pk + moneyline/F5/O-U columns to nrfi_bets.
+
+    Every call to run_baseball_analysis() (manual website query OR the
+    automated daily pipeline) logs one row here via _log_prediction, but until
+    this migration only the NRFI market was captured — a manual query's
+    moneyline/F5/O-U pick was computed, shown once, and never persisted or
+    graded. game_pk lets resolve_pending_bets() (scripts/daily_nrfi.py) fetch
+    the real final linescore later and grade all four markets, the same way
+    the automated pipeline's JSON files already do.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='nrfi_bets'"
+    ).fetchone()
+    if not row:
+        return
+
+    cols = [
+        ("game_pk",      "INTEGER"),
+        ("ml_pick",      "TEXT"),
+        ("ml_prob",      "REAL"),
+        ("ml_verdict",   "TEXT"),
+        ("ml_correct",   "INTEGER"),
+        ("f5_pick",      "TEXT"),
+        ("f5_prob",      "REAL"),
+        ("f5_verdict",   "TEXT"),
+        ("f5_correct",   "INTEGER"),
+        ("ou_pick",      "TEXT"),
+        ("ou_prob",      "REAL"),
+        ("ou_verdict",   "TEXT"),
+        ("ou_line",      "REAL"),
+        ("ou_correct",   "INTEGER"),
+        ("home_runs",    "INTEGER"),
+        ("away_runs",    "INTEGER"),
+    ]
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(nrfi_bets)").fetchall()}
+    for col, coltype in cols:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE nrfi_bets ADD COLUMN {col} {coltype}")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_nrfi_bets_game_pk ON nrfi_bets(game_pk)"
+    )
+    conn.commit()
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)  # ensure volume dir exists on Railway
     schema = SCHEMA_PATH.read_text()
@@ -331,6 +377,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
     _migrate_intraday_trades(conn)
     _migrate_new_tables(conn)
     _migrate_nrfi_clv(conn)
+    _migrate_nrfi_all_markets(conn)
     conn.close()
 
 
