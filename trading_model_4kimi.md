@@ -585,6 +585,55 @@ across P0-P2. Six items were built; nine were declined with reasoning.
 
 ---
 
+### 8.10 Round-6 review — Kimi overrode two round-5 declinations, plus a new
+human review queue
+
+Kimi pushed back on two of round 5's declines and clarified the actual spec
+for each; both are now built. A third item (declined in round 5 as low-value)
+was re-proposed with tighter scoping and also built.
+
+**Built:**
+1. **Bridgewater "Four Boxes" macro tags** — round 5 declined this citing no
+   free source for GDP/CPI *surprise-vs-consensus* data. Kimi's correction:
+   the actual ask was lagging, read-only *raw-series* tags, not real-time
+   consensus-beating signals — FRED's free API covers that fine.
+   `fetchers/fred.py` (new file) wraps `api.stlouisfed.org`, gated behind
+   `FRED_API_KEY` (fails safe to None/empty, same convention as
+   `OPENWEATHER_API_KEY`). `_fetch_macro_tags()` in `paper_runner.py` logs
+   `yield_curve_slope` (10Y-2Y), `fed_rate`, `credit_spread_oas`, and
+   `debt_to_gdp_pct` on every regime check. No trading logic changes.
+2. **Dalio 3-force overlay** — round 5 declined this because Kimi's original
+   spec had it *gate the score threshold* directly, risking corrupted
+   collection from a rough proxy. Kimi's round-6 clarification: make it
+   **additive** to the existing SPY-gap EXTREME classification, the same
+   mechanism the intraday-escalation check (round 3) already uses — not a new
+   independent gate. Built exactly that: `long_term_force_contraction` (True
+   when HY-OAS credit spread is >2 std devs above its ~1yr mean, OR debt/GDP
+   is >1 std dev above its ~5yr mean — Dalio's own thresholds) now ORs into
+   the same `regime == "EXTREME"` classification `_fetch_market_regime()`
+   already produces. Zero new gates, zero threshold changes — one more way to
+   arrive at a classification that already existed.
+3. **Human review queue for EXTREME days** (D.E. Shaw hybrid model) — round 5
+   declined this as reintroducing a manual step into an automation-first
+   pipeline. Kimi's round-6 framing made it explicitly *optional, not
+   mandatory*: a new `review_queue` table holds `AWAITING_REVIEW` signals
+   that fire during EXTREME-regime days; `check_review_queue_timeouts()` runs
+   on every 60s runner tick (regardless of market hours) and auto-resolves
+   any row older than 5 minutes to `SKIPPED` — the conservative default. A
+   human can instead call `approve_review(id)`, which replays the originally
+   stored signal/levels payload (not a re-fetch — avoids reacting to a price
+   that's since moved) into `log_hypothetical_trade()`. `GET
+   /trade/review-queue`, `POST /trade/review-queue/{id}/approve`, `POST
+   /trade/review-queue/{id}/skip` expose this. NORMAL-regime days are
+   completely unaffected — direct logging continues exactly as before.
+
+**Not re-litigated:** all six round-5 built items continue unchanged; the
+remaining round-5 declines (NLP/sentiment, ML feature store, CI static
+analysis, multi-timeframe overlay, HRT-style overnight hold) were not
+reopened by Kimi's round-6 feedback and stand as declined.
+
+---
+
 ## 9. What We're Asking Kimi to Review Now
 
 1. **Section 8.1** — is confidence-gating via MA-spread compression (vs. a

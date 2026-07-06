@@ -111,6 +111,18 @@ mutates: none (DDL)
 ---
 
 ---
+name: review_queue
+type: table
+file: db/schema.sql
+purpose: Kimi review round 6 — D.E. Shaw hybrid model: an optional human safety valve for EXTREME-regime days. Stores the full signal/levels/regime-tags payload at queue-time so an approval can replay the original model call. Auto-skips after REVIEW_QUEUE_TIMEOUT_SEC (5 min) so it never blocks automated collection.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: _queue_for_review, check_review_queue_timeouts, get_review_queue, approve_review, skip_review (paper_runner.py)
+mutates: none (DDL)
+---
+
+---
 name: suspended_pairs
 type: table
 file: db/schema.sql
@@ -388,11 +400,23 @@ mutates: none
 name: _fetch_market_regime
 type: function
 file: fetchers/paper_runner.py
-purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3: an intraday SPY move caught by _check_intraday_regime_escalation carries forward to any later same-day call). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3) and macro_event_today via _is_macro_event_day (round 4) — both logged only. Fails safe to NORMAL on any API error (still honors the intraday override and macro tag).
+purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3), OR if _fetch_macro_tags()'s long_term_force_contraction is True (round 6, Dalio 3-force overlay — additive to this gate, never a replacement). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3), macro_event_today via _is_macro_event_day (round 4), and the FRED macro tags (round 6) — all logged only. Fails safe to NORMAL on any API error (still honors the intraday override and macro-contraction tag).
 inputs: none
-outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH", macro_event_today: bool}
-calls: get_snapshots, _spy_realized_vol_pct, _vol_regime_bucket, _reset_regime_override_if_new_day, _is_macro_event_day
+outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH", macro_event_today: bool, yield_curve_slope: float|None, fed_rate: float|None, credit_spread_oas: float|None, debt_to_gdp_pct: float|None, long_term_force_contraction: bool}
+calls: get_snapshots, _spy_realized_vol_pct, _vol_regime_bucket, _reset_regime_override_if_new_day, _is_macro_event_day, _fetch_macro_tags
 called_by: run_open_scan
+mutates: none
+---
+
+---
+name: _fetch_macro_tags
+type: function
+file: fetchers/paper_runner.py
+purpose: Bridgewater "Four Boxes" + Dalio 3-force overlay (Kimi review, round 6). Pulls FRED's most recently published values for 10Y/2Y yield (yield_curve_slope), Fed funds rate, HY credit spread (BAMLH0A0HYM2), and federal debt/GDP (GFDEGDQ188S). long_term_force_contraction is True when HY-OAS is >2 std devs above its ~1yr mean OR debt/GDP is >1 std dev above its ~5yr mean (Dalio-specified thresholds) — read-only tag; see _fetch_market_regime for how it additively elevates the regime. Fails safe to all-None/False when FRED_API_KEY is absent or any request fails.
+inputs: none
+outputs: dict {yield_curve_slope: float|None, fed_rate: float|None, credit_spread_oas: float|None, debt_to_gdp_pct: float|None, long_term_force_contraction: bool}
+calls: fetchers.fred.get_latest_value, fetchers.fred.get_series_stats
+called_by: _fetch_market_regime
 mutates: none
 ---
 
@@ -466,6 +490,138 @@ outputs: Optional[str]
 calls: none
 called_by: _fetch_market_regime, _check_intraday_regime_escalation, _reset_regime_override_if_new_day
 mutates: none (module global, set by _check_intraday_regime_escalation / _reset_regime_override_if_new_day)
+---
+
+---
+name: FRED_SERIES_10Y
+type: variable
+file: fetchers/paper_runner.py
+purpose: FRED series id "GS10" (10-year Treasury yield), used with FRED_SERIES_2Y to compute yield_curve_slope (Kimi review, round 6).
+inputs: none
+outputs: str ("GS10")
+calls: none
+called_by: _fetch_macro_tags
+mutates: none
+---
+
+---
+name: FRED_SERIES_2Y
+type: variable
+file: fetchers/paper_runner.py
+purpose: FRED series id "GS2" (2-year Treasury yield), used with FRED_SERIES_10Y to compute yield_curve_slope.
+inputs: none
+outputs: str ("GS2")
+calls: none
+called_by: _fetch_macro_tags
+mutates: none
+---
+
+---
+name: FRED_SERIES_FEDFUNDS
+type: variable
+file: fetchers/paper_runner.py
+purpose: FRED series id "FEDFUNDS" (effective federal funds rate), logged as fed_rate.
+inputs: none
+outputs: str ("FEDFUNDS")
+calls: none
+called_by: _fetch_macro_tags
+mutates: none
+---
+
+---
+name: FRED_SERIES_HY_OAS
+type: variable
+file: fetchers/paper_runner.py
+purpose: FRED series id "BAMLH0A0HYM2" (ICE BofA US High Yield OAS) — short-term debt cycle proxy for the Dalio 3-force overlay's credit-spread-contraction check.
+inputs: none
+outputs: str ("BAMLH0A0HYM2")
+calls: none
+called_by: _fetch_macro_tags
+mutates: none
+---
+
+---
+name: FRED_SERIES_DEBT_GDP
+type: variable
+file: fetchers/paper_runner.py
+purpose: FRED series id "GFDEGDQ188S" (federal debt held by public, % of GDP) — long-term debt cycle proxy for the Dalio 3-force overlay's debt/GDP-contraction check.
+inputs: none
+outputs: str ("GFDEGDQ188S")
+calls: none
+called_by: _fetch_macro_tags
+mutates: none
+---
+
+---
+name: REVIEW_QUEUE_TIMEOUT_SEC
+type: variable
+file: fetchers/paper_runner.py
+purpose: Seconds (300 = 5 min) an AWAITING_REVIEW row can sit before check_review_queue_timeouts auto-skips it (D.E. Shaw hybrid model, round 6) — the human review safety valve is optional, never a blocking dependency.
+inputs: none
+outputs: int (300)
+calls: none
+called_by: check_review_queue_timeouts
+mutates: none
+---
+
+---
+name: _queue_for_review
+type: function
+file: fetchers/paper_runner.py
+purpose: Queues a qualifying EXTREME-day signal for human review instead of auto-logging it (Kimi review, round 6). Serializes the full compute_intraday_signals() result, levels dict, and regime tags to JSON at queue-time so approve_review can replay the ORIGINAL model call later rather than re-fetching market data that may have moved.
+inputs: symbol: str, side: str, score_value: float, result: dict, levels: dict, hold_bars: int, regime_tags: dict
+outputs: int (review_queue.id of the inserted row)
+calls: db.database.get_db
+called_by: run_open_scan
+mutates: review_queue table (INSERT)
+---
+
+---
+name: check_review_queue_timeouts
+type: function
+file: fetchers/paper_runner.py
+purpose: Auto-skips any AWAITING_REVIEW row older than REVIEW_QUEUE_TIMEOUT_SEC, defaulting un-reviewed signals to the conservative outcome (skip) instead of accumulating indefinitely. Called unconditionally on every 60s _runner_loop tick, regardless of market hours.
+inputs: none
+outputs: int (count of rows timed out)
+calls: db.database.get_db
+called_by: _runner_loop, GET /trade/review-queue
+mutates: review_queue table (UPDATE status='SKIPPED' WHERE stale AWAITING_REVIEW)
+---
+
+---
+name: get_review_queue
+type: function
+file: fetchers/paper_runner.py
+purpose: Read-only view of recent review_queue rows, optionally filtered by status, within a trailing window (default 7 days).
+inputs: status: Optional[str], days: int = 7
+outputs: list[dict] (review_queue rows)
+calls: db.database.get_db
+called_by: get_runner_status, GET /trade/review-queue
+mutates: none
+---
+
+---
+name: approve_review
+type: function
+file: fetchers/paper_runner.py
+purpose: Manually approves a queued EXTREME-day signal. Replays the originally-stored signals_json/levels_json payload into log_hypothetical_trade (the ORIGINAL model call, not a re-fetch), marks the row APPROVED, and appends a REVIEW_APPROVED entry to _run_log.
+inputs: review_id: int
+outputs: dict {review_id, approved: bool, trade_id} or {error} if not found/already resolved
+calls: db.database.get_db, fetchers.trading_logger.log_hypothetical_trade
+called_by: POST /trade/review-queue/{review_id}/approve
+mutates: review_queue table (UPDATE status='APPROVED'), intraday_trades table (via log_hypothetical_trade), _run_log
+---
+
+---
+name: skip_review
+type: function
+file: fetchers/paper_runner.py
+purpose: Manually skips a queued EXTREME-day signal (reviewer judged it not tradeable).
+inputs: review_id: int
+outputs: dict {review_id, skipped: bool} or {error} if not found/already resolved
+calls: db.database.get_db
+called_by: POST /trade/review-queue/{review_id}/skip
+mutates: review_queue table (UPDATE status='SKIPPED')
 ---
 
 ---
@@ -616,10 +772,10 @@ mutates: none
 name: run_open_scan
 type: function
 file: fetchers/paper_runner.py
-purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= effective min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Three pre-trade gates applied (Kimi review): (1) market regime gate — calls _fetch_market_regime() once per scan; on EXTREME days raises effective min_score to REGIME_EXTREME_MIN_SCORE (60); (2) earnings blackout — skips symbols matching EARNINGS_BLACKOUT for today via _is_earnings_blackout; (3) portfolio cap — stops logging once (already-open + logged-this-scan) reaches MAX_CONCURRENT_POSITIONS (3). Passes regime_tags (spy_gap_pct, xlk_change_pct, regime) into log_hypothetical_trade for every entry. Returns list of trade_ids created.
+purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= effective min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Three pre-trade gates applied (Kimi review): (1) market regime gate — calls _fetch_market_regime() once per scan; on EXTREME days raises effective min_score to REGIME_EXTREME_MIN_SCORE (60); (2) earnings blackout — skips symbols matching EARNINGS_BLACKOUT for today via _is_earnings_blackout; (3) portfolio cap — stops logging once (already-open + logged-this-scan) reaches MAX_CONCURRENT_POSITIONS (3). Passes regime_tags (spy_gap_pct, xlk_change_pct, regime, macro tags) into log_hypothetical_trade for every entry. Round 6: on EXTREME-regime days, a qualifying signal is routed to _queue_for_review (D.E. Shaw hybrid model human safety valve) instead of being logged directly — the direct log_hypothetical_trade call only fires on NORMAL-regime days. Returns list of trade_ids created (does not include queued-for-review ids, since those aren't logged until approved).
 inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
 outputs: list[int] (trade_ids)
-calls: _fetch_market_regime, _is_earnings_blackout, get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _load_open_positions, _et_now, _HOLD_BARS
+calls: _fetch_market_regime, _is_earnings_blackout, get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _queue_for_review, _load_open_positions, _et_now, _HOLD_BARS
 called_by: _runner_loop, paper_runner_scan_now (app.py)
 mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
 ---
@@ -664,12 +820,12 @@ mutates: intraday_trades table (UPDATE via log_trade_exit), _run_log
 name: _runner_loop
 type: function
 file: fetchers/paper_runner.py
-purpose: Background thread body. Runs every 60s; on weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min (also runs _check_intraday_regime_escalation each time — Kimi review round 3), and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
+purpose: Background thread body. Runs every 60s; calls check_review_queue_timeouts() unconditionally at the top of every tick regardless of market hours (round 6, so the review-queue safety valve can never accumulate indefinitely even outside trading hours). On weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min (also runs _check_intraday_regime_escalation each time — Kimi review round 3), and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
 inputs: symbols: list[str], min_score: int
 outputs: none
-calls: _et_now, _is_market_open, _in_scan_window, _near_close, run_open_scan, _check_intraday_regime_escalation, check_and_close_positions
+calls: check_review_queue_timeouts, _et_now, _is_market_open, _in_scan_window, _near_close, run_open_scan, _check_intraday_regime_escalation, check_and_close_positions
 called_by: start_runner (thread target)
-mutates: _runner_active (reads), today_scanned (local), _run_log (via calls)
+mutates: _runner_active (reads), today_scanned (local), _run_log (via calls), review_queue table (via check_review_queue_timeouts)
 ---
 
 ---
@@ -700,10 +856,10 @@ mutates: _runner_active
 name: get_runner_status
 type: function
 file: fetchers/paper_runner.py
-purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), and last 20 _run_log events (newest first).
+purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), pending_review count of AWAITING_REVIEW rows in the last day (round 6), and last 20 _run_log events (newest first).
 inputs: none
 outputs: dict
-calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions, get_suppression_stats
+calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions, get_suppression_stats, get_review_queue
 called_by: paper_runner_status (app.py)
 mutates: none
 ---
@@ -9079,4 +9235,88 @@ outputs: dict {filename, content}
 calls: REPORTS_DIR.glob, Path.read_text
 called_by: FastAPI (HTTP GET)
 mutates: none
+---
+
+---
+name: FRED_BASE_URL
+type: variable
+file: fetchers/fred.py
+purpose: FRED API base URL for the series/observations endpoint.
+inputs: none
+outputs: str
+calls: none
+called_by: _fred_get
+mutates: none
+---
+
+---
+name: _fred_get
+type: function
+file: fetchers/fred.py
+purpose: Low-level FRED API call. Reads FRED_API_KEY from env; returns [] immediately if the key is absent or the `requests` package isn't installed. Filters out missing/placeholder ('.') observation values. Fails safe (returns []) on any request exception.
+inputs: series_id: str, limit: int = 1
+outputs: list[dict] (raw FRED observation records)
+calls: requests.get
+called_by: get_latest_value, get_series_stats
+mutates: none
+---
+
+---
+name: get_latest_value
+type: function
+file: fetchers/fred.py
+purpose: Most recent published value for a FRED series, or None if unavailable (no key, request failure, or unparsable value).
+inputs: series_id: str
+outputs: Optional[float]
+calls: _fred_get
+called_by: _fetch_macro_tags (paper_runner.py)
+mutates: none
+---
+
+---
+name: get_series_stats
+type: function
+file: fetchers/fred.py
+purpose: Mean/std/latest over the last n_obs observations of a FRED series, for "N std devs above mean" checks (Dalio 3-force overlay). Returns all-None/0 fields if the series can't be fetched.
+inputs: series_id: str, n_obs: int = 252
+outputs: dict {mean: float|None, std: float|None, n: int, latest: float|None}
+calls: _fred_get
+called_by: _fetch_macro_tags (paper_runner.py)
+mutates: none
+---
+
+---
+name: trade_review_queue
+type: function
+file: app.py
+purpose: GET /trade/review-queue — D.E. Shaw hybrid-model human review queue (Kimi review, round 6). Runs check_review_queue_timeouts() first to resolve any stale rows, then returns the current queue optionally filtered by status.
+inputs: status: Optional[str] (query param), days: int = 7 (query param)
+outputs: dict {queue: list[dict]}
+calls: check_review_queue_timeouts, get_review_queue (paper_runner.py)
+called_by: FastAPI (HTTP GET)
+mutates: review_queue table (via check_review_queue_timeouts)
+---
+
+---
+name: trade_review_queue_approve
+type: function
+file: app.py
+purpose: POST /trade/review-queue/{review_id}/approve — manually approve a queued EXTREME-day signal, replaying the original model call into a logged hypothetical trade.
+inputs: review_id: int (path param)
+outputs: dict {review_id, approved, trade_id} or {error}
+calls: approve_review (paper_runner.py)
+called_by: FastAPI (HTTP POST)
+mutates: review_queue table, intraday_trades table
+---
+
+---
+name: trade_review_queue_skip
+type: function
+file: app.py
+purpose: POST /trade/review-queue/{review_id}/skip — manually skip a queued EXTREME-day signal.
+inputs: review_id: int (path param)
+outputs: dict {review_id, skipped} or {error}
+calls: skip_review (paper_runner.py)
+called_by: FastAPI (HTTP POST)
+mutates: review_queue table
 ---

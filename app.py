@@ -2036,6 +2036,32 @@ def calibration_resurrect_signal(signal: str):
     return resurrect_signal(signal)
 
 
+@app.get("/trade/review-queue")
+def trade_review_queue(status: Optional[str] = None, days: int = 7):
+    """
+    D.E. Shaw hybrid-model human review queue (Kimi review, round 6) — optional
+    safety valve for EXTREME-regime days. Auto-skips after 5 min if not
+    reviewed, so this is diagnostic/action, never a blocking dependency.
+    """
+    from fetchers.paper_runner import check_review_queue_timeouts, get_review_queue
+    check_review_queue_timeouts()
+    return {"queue": get_review_queue(status=status, days=days)}
+
+
+@app.post("/trade/review-queue/{review_id}/approve")
+def trade_review_queue_approve(review_id: int):
+    """Approve a queued EXTREME-day signal — replays the original model call into a logged trade."""
+    from fetchers.paper_runner import approve_review
+    return approve_review(review_id)
+
+
+@app.post("/trade/review-queue/{review_id}/skip")
+def trade_review_queue_skip(review_id: int):
+    """Manually skip a queued EXTREME-day signal."""
+    from fetchers.paper_runner import skip_review
+    return skip_review(review_id)
+
+
 class PairsSuspendRequest(BaseModel):
     reason: str = ""
     reinstate_after: Optional[str] = None   # ISO datetime UTC, or omit for indefinite

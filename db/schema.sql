@@ -236,3 +236,23 @@ CREATE TABLE IF NOT EXISTS signal_kill_switches (
     resurrected INTEGER DEFAULT 0,
     resurrected_at TEXT
 );
+
+-- Kimi review round 6 — D.E. Shaw hybrid model: an optional human safety
+-- valve for EXTREME-regime days. Not mandatory — auto-skips after a timeout
+-- so it never blocks automated collection.
+CREATE TABLE IF NOT EXISTS review_queue (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    side TEXT NOT NULL,
+    score_value REAL NOT NULL,
+    signals_json TEXT NOT NULL,
+    levels_json TEXT NOT NULL,
+    hold_bars INTEGER,
+    regime_tags_json TEXT,
+    status TEXT NOT NULL DEFAULT 'AWAITING_REVIEW',
+    queued_at TEXT NOT NULL DEFAULT (datetime('now')),
+    resolved_at TEXT,
+    resolved_by TEXT,
+    trade_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_review_queue_status ON review_queue(status, queued_at);
