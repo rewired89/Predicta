@@ -1194,14 +1194,35 @@ class TradeRequest(BaseModel):
     bankroll: float = 10000.0
 
 
+# Phrases that mean "scan the watchlist" rather than "analyze this one ticker".
+# Multi-word phrases only (not bare "scan"/"watchlist") to avoid mis-firing on
+# an actual ticker query. Checked before ticker parsing so there's no fallback
+# risk of these being misread as a symbol.
+_BRIEF_TRIGGERS = (
+    "brief", "scan the market", "scan market", "market scan", "market brief",
+    "any signals", "check the market", "today's picks", "todays picks",
+    "scan watchlist", "scan my watchlist",
+)
+
+
 @app.post("/analyze-trade")
 def analyze_trade(body: TradeRequest):
     if not body.query.strip():
         raise HTTPException(400, "Query cannot be empty")
+
+    q_lower = body.query.strip().lower()
+    if any(trig in q_lower for trig in _BRIEF_TRIGGERS):
+        from models.trading.screener import run_screener
+        from fetchers.paper_runner import RUNNER_SYMBOLS
+        result = run_screener(symbols=RUNNER_SYMBOLS)
+        result["mode"] = "brief"
+        return result
+
     from analyze_trading import run_trade_analysis
     result = run_trade_analysis(body.query, body.bankroll)
     if "error" in result:
         raise HTTPException(500, detail=result["error"])
+    result["mode"] = "single"
     return result
 
 

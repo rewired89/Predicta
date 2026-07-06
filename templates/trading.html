@@ -270,9 +270,9 @@
   <div class="tab-pane active" id="tab-analyze">
 
   <div class="prompt-card">
-    <div class="prompt-label">Ticker or company name</div>
+    <div class="prompt-label">Ticker or company name — or type "brief" / "scan the market" for a watchlist scan</div>
     <div class="input-row">
-      <input type="text" id="query-input" placeholder="e.g. AAPL, Tesla, BTC-USD, SPY, EUR/USD" />
+      <input type="text" id="query-input" placeholder="e.g. AAPL, Tesla, SPY, or 'give me a brief'" />
       <div class="bankroll-wrap">
         <span>Bankroll $</span>
         <input type="number" id="bankroll-input" value="10000" min="100" step="100" />
@@ -288,7 +288,7 @@
       <span class="example-chip" onclick="fill('BTC-USD')">BTC-USD</span>
       <span class="example-chip" onclick="fill('SPY')">SPY (S&P 500)</span>
       <span class="example-chip" onclick="fill('NVDA')">NVDA</span>
-      <span class="example-chip" onclick="fill('GLD')">GLD (Gold)</span>
+      <span class="example-chip" onclick="fill('give me a brief')">Give me a brief</span>
     </div>
   </div>
 
@@ -541,7 +541,13 @@ async function runAnalysis() {
     }
     const d = await res.json();
     stepIds.forEach(id => setStep(id, "done"));
-    renderResults(d);
+    if (d.mode === "brief") {
+      document.getElementById("status-bar").style.display = "none";
+      switchTab("scanner");
+      renderScanResults(d);
+    } else {
+      renderResults(d);
+    }
   } catch (err) {
     clearInterval(timer);
     stepIds.forEach(id => setStep(id, "error"));

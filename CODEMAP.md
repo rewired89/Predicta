@@ -3000,11 +3000,23 @@ mutates: matches, signals, predictions tables
 name: analyze_trade
 type: function
 file: app.py
-purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query.
+purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query. Checks body.query against _BRIEF_TRIGGERS first (case-insensitive substring match); if matched, runs run_screener(symbols=RUNNER_SYMBOLS) instead of the single-ticker pipeline and returns {"mode": "brief", ...scan result...} so the frontend can render the watchlist scan (with entry/stop/target1/rr_ratio per symbol) instead of the single-ticker card. Non-brief queries return {"mode": "single", ...run_trade_analysis result...}.
 inputs: body: TradeRequest
-outputs: dict (trading analysis result)
-calls: run_trade_analysis
+outputs: dict (trading analysis result, or scan result with mode="brief")
+calls: run_trade_analysis, run_screener (screener.py), RUNNER_SYMBOLS (paper_runner.py)
 called_by: HTTP POST /analyze-trade
+mutates: none
+---
+
+---
+name: _BRIEF_TRIGGERS
+type: variable
+file: app.py
+purpose: Multi-word phrases (e.g. "brief", "scan the market", "any signals") that route a query typed into the Analyze-tab text box to a watchlist scan instead of single-ticker analysis. Deliberately excludes bare "scan"/"watchlist" to avoid mis-firing on an actual ticker symbol.
+inputs: none
+outputs: tuple[str, ...]
+calls: none
+called_by: analyze_trade
 mutates: none
 ---
 
