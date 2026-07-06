@@ -190,6 +190,8 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         # v5b: market vol regime tag (Kimi review, round 3) — logged only
         ("spy_realized_vol_pct", "REAL"),
         ("market_vol_regime",   "TEXT"),
+        # v5c: macro event tag (Kimi review, round 4) — logged only
+        ("macro_event_today",   "INTEGER"),
     ]
 
     existing_cols = {

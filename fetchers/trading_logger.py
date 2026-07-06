@@ -280,9 +280,10 @@ def log_hypothetical_trade(
 
     regime_tags: optional dict from paper_runner's market-regime gate — keys
     spy_gap_pct, xlk_change_pct, regime ("NORMAL"/"EXTREME"), spy_realized_vol_pct,
-    market_vol_regime ("LOW"/"NORMAL"/"HIGH"). Logged only, for post-hoc analysis
-    of which market conditions produced which outcomes (Kimi review) — never
-    fed back into live scoring.
+    market_vol_regime ("LOW"/"NORMAL"/"HIGH"), macro_event_today (bool, FOMC
+    decision day). Logged only, for post-hoc analysis of which market
+    conditions produced which outcomes (Kimi review) — never fed back into
+    live scoring.
 
     Resolve outcomes via log_trade_exit() when stop/target/time exit would have hit.
     """
@@ -310,7 +311,7 @@ def log_hypothetical_trade(
                 relvol_score, gap_score, trend_score, bollinger_score,
                 volsurge_score, ngram_signal, ngram_confidence,
                 spy_gap_pct, xlk_change_pct, market_regime,
-                spy_realized_vol_pct, market_vol_regime,
+                spy_realized_vol_pct, market_vol_regime, macro_event_today,
                 logged_at
             ) VALUES (
                 ?, ?, ?, ?,
@@ -325,7 +326,7 @@ def log_hypothetical_trade(
                 ?, ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?,
-                ?, ?,
+                ?, ?, ?,
                 datetime('now')
             )
             """,
@@ -347,6 +348,7 @@ def log_hypothetical_trade(
                 ss.get("ngram_signal"), ss.get("ngram_confidence"),
                 rt.get("spy_gap_pct"), rt.get("xlk_change_pct"), rt.get("regime"),
                 rt.get("spy_realized_vol_pct"), rt.get("market_vol_regime"),
+                int(rt["macro_event_today"]) if rt.get("macro_event_today") is not None else None,
             ),
         )
         return cur.lastrowid

@@ -278,7 +278,9 @@ automatically on server boot — no manual triggering required.
   avoid mixing incompatible volatility regimes into one calibration set.
 - **9:35 AM ET weekdays:** scans all 8 symbols, logs every signal with
   \|score\| ≥ 20 as a hypothetical trade (no real order placed) — raised to 60
-  on EXTREME market-regime days (see Section 8.5)
+  on EXTREME market-regime days (see Section 8.5). Temporarily lowered to
+  ≥10 while `DATA_COLLECTION_SPRINT_MODE = True` (see Section 8.8) — reversible,
+  entry_score is always stored so post-hoc filtering back to ≥20 stays possible
 - **Every 30 min:** checks all open hypothetical positions against actual 5-min
   bar highs/lows (not just the current price) so a stop or target touched
   between checks isn't missed
@@ -291,8 +293,13 @@ automatically on server boot — no manual triggering required.
   a volatility-regime proxy; on EXTREME days (gap ≥2%), the logging threshold
   rises to 60 (see Section 8.5)
 - **Earnings blackout mechanism (added after round-1 review):** a manually-
-  populated per-symbol date list to skip known earnings days — currently empty
-  (no live earnings-calendar API wired in yet), mechanism only
+  populated per-symbol date list to skip known earnings days. Round 4: populated
+  with AAPL's confirmed 2026-07-30 Q3 release (only company-confirmed dates are
+  added — the other 7 tickers haven't announced theirs yet, and guessing would
+  be worse than no filter)
+- **Macro event tag (added round 4):** logs macro_event_today (FOMC decision
+  days, sourced from federalreserve.gov's 2026 calendar) on every hypothetical
+  trade — read-only, not used to filter or size trades yet
 - Known gap: does not yet account for US market holidays (e.g. would still
   attempt a scan on July 4th observance) — harmless since Alpaca simply returns
   no fresh data, but not yet clean
@@ -460,6 +467,54 @@ All three verified: vol bucketing against synthetic low/high-vol SPY series,
 intraday escalation carrying an EXTREME classification into a later same-day
 scan despite a flat overnight gap, and the veto's reason text reflecting the
 named constant.
+
+### 8.8 Round-4 review — data velocity + instrumentation
+
+Kimi's round-4 feedback centered on one core point: at the pre-round-4 rate
+(≤8 trades logged/day, 3-position cap, |score|≥20 floor), reaching the
+100-trade validation floor could take 6-12 months. Four items came out of it:
+
+1. **`DATA_COLLECTION_SPRINT_MODE` (P0).** Lowers the effective logging floor
+   from 20 to `SPRINT_MIN_SCORE = 10` for `run_open_scan()`, explicitly flagged
+   and reversible (flip the constant back to `False`). This does not change
+   what's *measured* — `entry_score` is stored on every row regardless, so any
+   later analysis can still filter back to ≥20. It only changes how many rows
+   get collected while waiting.
+2. **Macro event tag.** `MACRO_EVENT_DATES` — a static set of 2026 FOMC
+   decision days, sourced from federalreserve.gov (not guessed) — logged via
+   `macro_event_today` on every trade. Kimi's weather-condition suggestion
+   (OpenWeatherMap, sunny/cloudy/rainy in NYC) was declined: there's no
+   established mechanism linking local weather to AAPL/NVDA/TSLA intraday
+   moves the way there is for agricultural commodities — adding it would be
+   noise dressed as a feature, not a real hypothesis.
+3. **Earnings blackout populated (partially).** Only AAPL's Q3 2026 date
+   (July 30) is actually confirmed by the company as of this writing; the
+   other 7 tickers haven't announced theirs. Rather than estimate/guess dates
+   for them (which Kimi's own framing correctly flagged as worse than no
+   filter in round 1), only the one verified date was added. Add the rest as
+   each company confirms.
+4. **Suppression-rate instrumentation.** `_record_suppression_stat()` tallies
+   every scan (not just logged ones) into `weak_regime_inside_or_scans` /
+   `total_scans`, surfaced via `GET /trade/paper-runner/status`. This is pure
+   counting — no scoring change — and answers Kimi's round-2 question
+   (Section 8.1's open item) about how often `regime_confidence == "weak"` and
+   price-inside-opening-range co-occur. If it clears 60%, that's the trigger
+   to let Opening Range fire independently on unusually wide ranges; not built
+   yet since there's no data to justify it.
+
+**Declined, with reasoning:**
+- **HMM-based regime detection** replacing the MA20/MA50 trend signal — this
+  would swap a simple, interpretable heuristic for an unvalidated ML model
+  with a new dependency (`hmmlearn`) and training-data requirements, before
+  the *simple* version has any real trade data behind it. Same principle Kimi
+  used to argue against tuning weights pre-data, applied to architecture
+  instead of thresholds.
+- **Spread velocity check** — still deferred; would require repeated
+  intra-scan quote sampling the runner doesn't currently do, and the payoff is
+  unclear before real trade data exists to show whether execution quality is
+  actually a problem.
+- **Cloud backtesting infrastructure** — Kimi's own dependency graph gates
+  this at 100+ trades; not building spend-incurring infra ahead of that.
 
 ---
 

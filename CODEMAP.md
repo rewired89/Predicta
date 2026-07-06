@@ -78,7 +78,7 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. v5b (Kimi review, round 3) adds: spy_realized_vol_pct, market_vol_regime (LOW/NORMAL/HIGH) — same logged-only convention, enables asking "is the model profitable in LOW vol but not HIGH vol" post-hoc. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. v5b (round 3) adds: spy_realized_vol_pct, market_vol_regime (LOW/NORMAL/HIGH) — enables asking "is the model profitable in LOW vol but not HIGH vol" post-hoc. v5c (round 4) adds: macro_event_today (1 = known FOMC decision day) — same logged-only convention. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
@@ -170,7 +170,7 @@ mutates: none
 name: log_hypothetical_trade
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). v5/v5b (Kimi review): optional regime_tags dict (spy_gap_pct, xlk_change_pct, regime, spy_realized_vol_pct, market_vol_regime) stored for post-hoc analysis of which market conditions produced which outcomes — logged only, never fed back into live scoring. Outcomes resolved later via log_trade_exit.
+purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). v5/v5b/v5c (Kimi review): optional regime_tags dict (spy_gap_pct, xlk_change_pct, regime, spy_realized_vol_pct, market_vol_regime, macro_event_today) stored for post-hoc analysis of which market conditions produced which outcomes — logged only, never fed back into live scoring. Outcomes resolved later via log_trade_exit.
 inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3", regime_tags: Optional[dict] = None
 outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
@@ -198,11 +198,33 @@ mutates: none
 name: RUNNER_MIN_SCORE
 type: variable
 file: fetchers/paper_runner.py
-purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40. Overridden to REGIME_EXTREME_MIN_SCORE (60) for the current scan when _fetch_market_regime() reports EXTREME.
+purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40. Overridden to REGIME_EXTREME_MIN_SCORE (60) for the current scan when _fetch_market_regime() reports EXTREME, or lowered to SPRINT_MIN_SCORE when DATA_COLLECTION_SPRINT_MODE is on (round 4).
 inputs: none
 outputs: int
 calls: none
 called_by: run_open_scan, _runner_loop, get_runner_status
+---
+
+---
+name: DATA_COLLECTION_SPRINT_MODE
+type: variable
+file: fetchers/paper_runner.py
+purpose: Kimi review round 4 (P0): temporarily lowers the effective logging floor to SPRINT_MIN_SCORE to accelerate reaching 100 closed trades (Kimi's estimate: 6-12 months at the normal 20-point floor vs 4-6 weeks at 10). Explicit and reversible — flip to False to return to normal. entry_score is stored per trade regardless, so post-hoc analysis can always re-filter to |score|>=20 with this on.
+inputs: none
+outputs: bool (True)
+calls: none
+called_by: run_open_scan
+---
+
+---
+name: SPRINT_MIN_SCORE
+type: variable
+file: fetchers/paper_runner.py
+purpose: Lowered logging floor (10) used by run_open_scan when DATA_COLLECTION_SPRINT_MODE is True. Never raises the floor above what a caller explicitly requested — run_open_scan takes min(min_score, SPRINT_MIN_SCORE).
+inputs: none
+outputs: int (10)
+calls: none
+called_by: run_open_scan
 mutates: none
 ---
 
@@ -246,7 +268,7 @@ mutates: none
 name: EARNINGS_BLACKOUT
 type: variable
 file: fetchers/paper_runner.py
-purpose: Static earnings-blackout calendar (Kimi review, structural gap D — low priority). Empty dict by default; format is {"SYMBOL": ["YYYY-MM-DD", ...]}. No live earnings-calendar API is wired in — dates must be added manually as they're confirmed. Mechanism only, not a populated calendar.
+purpose: Static earnings-blackout calendar (Kimi review, structural gap D). Format {"SYMBOL": ["YYYY-MM-DD", ...]}. Only company-confirmed dates are listed (round 4 populated AAPL's confirmed 2026-07-30 Q3 release) — guessed/estimated dates are deliberately excluded since fabricating them would be worse than no filter. No live earnings-calendar API wired in; add real dates manually as other tickers confirm theirs.
 inputs: none
 outputs: dict[str, list[str]]
 calls: none
@@ -255,13 +277,73 @@ mutates: none
 ---
 
 ---
+name: MACRO_EVENT_DATES
+type: variable
+file: fetchers/paper_runner.py
+purpose: Static set of known FOMC decision days for 2026 (Kimi review, round 4 — logged only, never used to filter/size trades). Sourced directly from federalreserve.gov's published meeting calendar. Second day of each two-day meeting (the announcement/press-conference day) is listed.
+inputs: none
+outputs: set[str] (8 dates for 2026)
+calls: none
+called_by: _is_macro_event_day
+mutates: none
+---
+
+---
+name: _is_macro_event_day
+type: function
+file: fetchers/paper_runner.py
+purpose: True if date_str is a known FOMC decision day in MACRO_EVENT_DATES.
+inputs: date_str: str
+outputs: bool
+calls: none
+called_by: _fetch_market_regime
+mutates: none
+---
+
+---
+name: _suppression_stats
+type: variable
+file: fetchers/paper_runner.py
+purpose: Running tally (Kimi review, round 4, structural gap 7) of every scan vs. scans where regime_confidence=="weak" AND price sits inside the opening range — Kimi's hypothesis is the composite may collapse toward zero here from two conditioning signals going neutral simultaneously, not from lack of edge. Pure counting, no scoring change.
+inputs: none
+outputs: dict {weak_regime_inside_or_scans: int, total_scans: int}
+calls: none
+called_by: _record_suppression_stat, get_suppression_stats
+mutates: none (module global, mutated by _record_suppression_stat)
+---
+
+---
+name: _record_suppression_stat
+type: function
+file: fetchers/paper_runner.py
+purpose: Tallies one scan into _suppression_stats. Counts ALL scans that produced a signal result, not just ones that cleared the score threshold, so the rate reflects the full scanned population.
+inputs: result: dict (compute_intraday_signals() output)
+outputs: none
+calls: none
+called_by: run_open_scan
+mutates: _suppression_stats
+---
+
+---
+name: get_suppression_stats
+type: function
+file: fetchers/paper_runner.py
+purpose: Read-only view of _suppression_stats plus the computed suppression_rate. Kimi's threshold: if >60% of scans hit "weak regime + inside opening range", consider letting Opening Range fire independently when the range is unusually wide (>1.5x average) — not yet built, this instrumentation is what would justify that fix.
+inputs: none
+outputs: dict {total_scans, weak_regime_inside_or_scans, suppression_rate}
+calls: none
+called_by: get_runner_status
+mutates: none
+---
+
+---
 name: _fetch_market_regime
 type: function
 file: fetchers/paper_runner.py
-purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3: an intraday SPY move caught by _check_intraday_regime_escalation carries forward to any later same-day call). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3, logged only). Fails safe to NORMAL on any API error (still honors the intraday override).
+purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3: an intraday SPY move caught by _check_intraday_regime_escalation carries forward to any later same-day call). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3) and macro_event_today via _is_macro_event_day (round 4) — both logged only. Fails safe to NORMAL on any API error (still honors the intraday override and macro tag).
 inputs: none
-outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH"}
-calls: get_snapshots, _spy_realized_vol_pct, _vol_regime_bucket, _reset_regime_override_if_new_day
+outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH", macro_event_today: bool}
+calls: get_snapshots, _spy_realized_vol_pct, _vol_regime_bucket, _reset_regime_override_if_new_day, _is_macro_event_day
 called_by: run_open_scan
 mutates: none
 ---
@@ -570,10 +652,10 @@ mutates: _runner_active
 name: get_runner_status
 type: function
 file: fetchers/paper_runner.py
-purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, market_open status, ET time, count of open positions, their symbols, and last 20 _run_log events (newest first).
+purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), and last 20 _run_log events (newest first).
 inputs: none
 outputs: dict
-calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions
+calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions, get_suppression_stats
 called_by: paper_runner_status (app.py)
 mutates: none
 ---

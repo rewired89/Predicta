@@ -43,6 +43,15 @@ RUNNER_SYMBOLS: list[str] = [
 # Cast wide net for data; the trade endpoint uses 40 as the action threshold
 RUNNER_MIN_SCORE: int = 20
 
+# Data-collection sprint mode (Kimi review, round 4): temporarily lowers the
+# logging threshold to accelerate the path to 100 closed trades (Kimi's math:
+# ~6-12 months at the normal 20-point floor vs 4-6 weeks at 10). Explicit and
+# reversible — flip back to False to return to the normal floor. Nothing is
+# lost by running it: entry_score is stored per trade regardless, so post-hoc
+# analysis can always re-filter to |score|>=20 even with sprint mode on.
+DATA_COLLECTION_SPRINT_MODE: bool = True
+SPRINT_MIN_SCORE: int = 10
+
 # Portfolio risk control (Kimi review, structural gap A): the 8-symbol
 # universe is a single correlated tech cluster, not diversified sectors — cap
 # total simultaneous open positions instead of computing pairwise correlation,
@@ -56,11 +65,23 @@ MAX_CONCURRENT_POSITIONS: int = 3
 REGIME_GAP_THRESHOLD_PCT: float = 2.0
 REGIME_EXTREME_MIN_SCORE: int = 60
 
-# Earnings blackout (Kimi review, structural gap D — low priority). Empty by
-# default; add "SYMBOL": ["YYYY-MM-DD", ...] entries manually as real earnings
-# dates are confirmed. No live earnings-calendar API is wired in yet, so this
-# is a mechanism, not a populated calendar.
-EARNINGS_BLACKOUT: dict[str, list[str]] = {}
+# Earnings blackout (Kimi review, structural gap D). Only dates confirmed by
+# the company itself are listed — guessing dates would be worse than no filter
+# at all. Most of the watchlist has not announced Q3 2026 dates yet; add them
+# here as they're confirmed.
+EARNINGS_BLACKOUT: dict[str, list[str]] = {
+    "AAPL": ["2026-07-30"],   # confirmed by Apple — fiscal Q3 2026 release
+}
+
+# Macro event calendar (Kimi review, round 4 — logged only, never used to
+# filter or size trades). FOMC decision days only, sourced directly from
+# federalreserve.gov's published 2026 meeting calendar — no live FRED API call,
+# avoiding an external dependency for a single boolean tag. Second day of each
+# meeting (the announcement/press-conference day) is the market-moving date.
+MACRO_EVENT_DATES: set[str] = {
+    "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
+    "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
+}
 
 # Market volatility regime tag (Kimi review, round 3, structural gap B — logged
 # only, never used to filter trades yet). Buckets SPY's 20-day annualized
@@ -96,6 +117,14 @@ _run_log: list[dict] = []           # ring buffer — last 100 events
 # Intraday regime escalation state (Kimi review, round 3) — reset on new day
 _intraday_regime_override: Optional[str] = None
 _override_date: Optional[str] = None
+
+# Suppression-rate instrumentation (Kimi review, round 4, structural gap 7):
+# tallies every scan where regime_confidence=="weak" AND price sits inside the
+# opening range — Kimi's hypothesis is the composite may collapse toward zero
+# here not from lack of edge but because two conditioning signals go neutral
+# simultaneously. Pure counting, no scoring change; if the rate exceeds 60%,
+# that's the trigger to let Opening Range fire independently on wide ranges.
+_suppression_stats: dict[str, int] = {"weak_regime_inside_or_scans": 0, "total_scans": 0}
 
 
 # ── ET time helpers ───────────────────────────────────────────────────────────
@@ -231,12 +260,16 @@ def _fetch_market_regime() -> dict:
     and honors any same-day intraday escalation set by
     _check_intraday_regime_escalation().
 
+    Also tags macro_event_today (FOMC decision days, round 4 — logged only).
+
     Returns {"regime": "NORMAL"|"EXTREME", "spy_gap_pct": float,
              "xlk_change_pct": float, "spy_realized_vol_pct": float,
-             "market_vol_regime": "LOW"|"NORMAL"|"HIGH"}.
+             "market_vol_regime": "LOW"|"NORMAL"|"HIGH", "macro_event_today": bool}.
     Fails safe to NORMAL on any API error so a data hiccup never blocks the scan.
     """
     _reset_regime_override_if_new_day()
+    today_str = _et_now().strftime("%Y-%m-%d")
+    macro_today = _is_macro_event_day(today_str)
     try:
         snaps = get_snapshots(["SPY", "XLK"])
         spy = snaps.get("SPY", {})
@@ -253,18 +286,58 @@ def _fetch_market_regime() -> dict:
         return {
             "regime": regime, "spy_gap_pct": spy_gap_pct, "xlk_change_pct": xlk_change_pct,
             "spy_realized_vol_pct": spy_vol_pct, "market_vol_regime": vol_regime,
+            "macro_event_today": macro_today,
         }
     except Exception:
         return {
             "regime": "EXTREME" if _intraday_regime_override == "EXTREME" else "NORMAL",
             "spy_gap_pct": 0.0, "xlk_change_pct": 0.0,
             "spy_realized_vol_pct": 0.0, "market_vol_regime": "NORMAL",
+            "macro_event_today": macro_today,
         }
 
 
 def _is_earnings_blackout(symbol: str, date_str: str) -> bool:
     """True if symbol has a manually-confirmed earnings date matching today."""
     return date_str in EARNINGS_BLACKOUT.get(symbol, [])
+
+
+def _is_macro_event_day(date_str: str) -> bool:
+    """True if date_str is a known FOMC decision day."""
+    return date_str in MACRO_EVENT_DATES
+
+
+def _record_suppression_stat(result: dict) -> None:
+    """
+    Tallies every scan into _suppression_stats, flagging the "weak regime +
+    inside opening range" state Kimi's round-4 review asked us to monitor
+    (Section 8's suppression-rate question). Counts ALL scans that produced a
+    result, not just ones that cleared the score threshold, so the rate
+    reflects the full population.
+    """
+    _suppression_stats["total_scans"] += 1
+    sigs = result.get("signals", {})
+    trend_conf = sigs.get("trend", {}).get("regime_confidence")
+    or_label   = sigs.get("or", {}).get("label")
+    if trend_conf == "weak" and or_label == "Inside range":
+        _suppression_stats["weak_regime_inside_or_scans"] += 1
+
+
+def get_suppression_stats() -> dict:
+    """
+    Read-only view of _suppression_stats plus the computed rate. Kimi's
+    threshold: if >60% of scans hit "weak regime + inside opening range",
+    consider letting Opening Range fire independently when the range is
+    unusually wide (>1.5x average) — not yet built, this is the instrumentation
+    to decide whether that fix is warranted.
+    """
+    total = _suppression_stats["total_scans"]
+    flagged = _suppression_stats["weak_regime_inside_or_scans"]
+    return {
+        "total_scans": total,
+        "weak_regime_inside_or_scans": flagged,
+        "suppression_rate": round(flagged / total, 3) if total else None,
+    }
 
 
 def run_open_scan(
@@ -291,9 +364,10 @@ def run_open_scan(
     syms = symbols or RUNNER_SYMBOLS
     trade_ids: list[int] = []
 
+    base_min_score = min(min_score, SPRINT_MIN_SCORE) if DATA_COLLECTION_SPRINT_MODE else min_score
     market_regime = _fetch_market_regime()
     effective_min_score = (
-        REGIME_EXTREME_MIN_SCORE if market_regime["regime"] == "EXTREME" else min_score
+        REGIME_EXTREME_MIN_SCORE if market_regime["regime"] == "EXTREME" else base_min_score
     )
     if market_regime["regime"] == "EXTREME":
         log.info(
@@ -335,6 +409,8 @@ def run_open_scan(
             )
             if "error" in result:
                 continue
+
+            _record_suppression_stat(result)
 
             score_val = result["score"]["value"]
             if abs(score_val) < effective_min_score:
@@ -613,16 +689,21 @@ def stop_runner() -> None:
 def get_runner_status() -> dict:
     """
     Current runner state for the /trade/paper-runner/status endpoint.
-    Returns activity flag, config, open position count, and last 20 log events.
+    Returns activity flag, config, open position count, last 20 log events,
+    data-collection-sprint-mode state, and the weak-regime/opening-range
+    suppression stats (Kimi review, round 4).
     """
     open_pos = _load_open_positions()
     return {
         "active":         _runner_active and bool(_runner_thread and _runner_thread.is_alive()),
         "symbols":        RUNNER_SYMBOLS,
         "min_score":      RUNNER_MIN_SCORE,
+        "data_collection_sprint_mode": DATA_COLLECTION_SPRINT_MODE,
+        "sprint_min_score": SPRINT_MIN_SCORE if DATA_COLLECTION_SPRINT_MODE else None,
         "market_open":    _is_market_open(),
         "et_now":         _et_now().isoformat(),
         "open_positions": len(open_pos),
         "open_symbols":   [p["symbol"] for p in open_pos],
+        "suppression_stats": get_suppression_stats(),
         "recent_log":     list(reversed(_run_log[-20:])),
     }

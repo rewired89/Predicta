@@ -125,6 +125,8 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     -- v5b: market vol regime tag (Kimi review, round 3) — logged only, not applied to scoring
     spy_realized_vol_pct REAL,                -- SPY 20-day annualized realized vol pct
     market_vol_regime TEXT,                  -- LOW / NORMAL / HIGH
+    -- v5c: macro event tag (Kimi review, round 4) — logged only, not applied to scoring
+    macro_event_today INTEGER,               -- 1 = known FOMC decision day, 0/NULL otherwise
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);
