@@ -121,7 +121,10 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     -- separate results by market condition, not applied to live scoring
     spy_gap_pct REAL,                        -- SPY overnight gap pct at scan time
     xlk_change_pct REAL,                     -- XLK (tech sector ETF) day change pct — sector-rotation proxy
-    market_regime TEXT,                      -- NORMAL / EXTREME (abs(spy_gap_pct) >= 2 pct)
+    market_regime TEXT,                      -- NORMAL / EXTREME (abs(spy_gap_pct) >= 2 pct, or intraday escalation)
+    -- v5b: market vol regime tag (Kimi review, round 3) — logged only, not applied to scoring
+    spy_realized_vol_pct REAL,                -- SPY 20-day annualized realized vol pct
+    market_vol_regime TEXT,                  -- LOW / NORMAL / HIGH
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);

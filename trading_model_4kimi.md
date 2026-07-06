@@ -404,12 +404,9 @@ hypothetical trade now also stores `spy_gap_pct`, `xlk_change_pct`, and
 `market_regime` (v5 schema columns) — logged for future post-hoc analysis,
 never fed back into live scoring.
 
-**Not implemented — portfolio-level volatility targeting (Kimi's structural gap
-B):** scaling all position sizes by inverse realized market volatility. Since
-paper-mode trades don't deploy real capital, `pnl_r` (already normalized to
-risk) wouldn't change from a hypothetical size adjustment — this only becomes
-meaningful once real capital sizing is live, so it's deferred rather than
-built as an inert no-op today.
+**Round-3 update:** Kimi pushed back on the "wait until live capital" call for
+the *tagging* half of this — see Section 8.7. Position-size scaling itself is
+still deferred (unchanged reasoning: no effect on paper-mode `pnl_r`).
 
 ### 8.6 Deferred, not built (with reasons)
 
@@ -433,6 +430,36 @@ built as an inert no-op today.
   active trades per signal) will show empirically whether Bollinger is actually
   redundant with VWAP — that's the point at which reallocating weight is a
   data-driven decision instead of a guess.
+
+### 8.7 Round-3 review — three items built
+
+Kimi's round-2 review of Sections 8.1/8.3/8.5 came back positive, with three
+concrete additions:
+
+1. **Market vol regime tag (LOW/NORMAL/HIGH).** New `_spy_realized_vol_pct()`
+   computes SPY's 20-day annualized realized vol (log-return based);
+   `_vol_regime_bucket()` sorts it into LOW (<12%), NORMAL, or HIGH (>25%).
+   Logged as `spy_realized_vol_pct`/`market_vol_regime` (v5b schema columns)
+   on every hypothetical trade — read-only, same convention as the other
+   regime tags. Kimi's point: without this, the first 100 trades mix high-vol
+   and low-vol regimes with no way to separate "bad signal" from "bad market"
+   after the fact.
+2. **Intraday SPY re-check.** The 9:35 AM scan only sees the overnight gap —
+   a stock that opens flat and sells off 3%+ intraday would never trip the
+   EXTREME gate. New `_check_intraday_regime_escalation()` runs at every
+   30-min position check, and if SPY's cumulative change from prior close
+   hits ±3%, sets a same-day override that `_fetch_market_regime()` honors for
+   any later manual re-scan. Reset at day rollover via
+   `_reset_regime_override_if_new_day()`.
+3. **`WILSON_CONFIDENCE` named constant.** `_wilson_ci`'s confidence level was
+   a hardcoded `0.80` default; now a module constant in
+   `signal_calibration.py` so tightening it later (e.g. to 0.90/0.95 past 500
+   trades) is a one-line change instead of re-auditing the veto function.
+
+All three verified: vol bucketing against synthetic low/high-vol SPY series,
+intraday escalation carrying an EXTREME classification into a later same-day
+scan despite a flat overnight gap, and the veto's reason text reflecting the
+named constant.
 
 ---
 

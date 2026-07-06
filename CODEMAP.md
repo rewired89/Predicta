@@ -78,7 +78,7 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis of which conditions produced which outcomes, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. v5b (Kimi review, round 3) adds: spy_realized_vol_pct, market_vol_regime (LOW/NORMAL/HIGH) — same logged-only convention, enables asking "is the model profitable in LOW vol but not HIGH vol" post-hoc. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
@@ -170,12 +170,12 @@ mutates: none
 name: log_hypothetical_trade
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). v5 (Kimi review): optional regime_tags dict (spy_gap_pct, xlk_change_pct, regime) stored for post-hoc analysis of which market conditions produced which outcomes — logged only, never fed back into live scoring. Outcomes resolved later via log_trade_exit.
+purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). v5/v5b (Kimi review): optional regime_tags dict (spy_gap_pct, xlk_change_pct, regime, spy_realized_vol_pct, market_vol_regime) stored for post-hoc analysis of which market conditions produced which outcomes — logged only, never fed back into live scoring. Outcomes resolved later via log_trade_exit.
 inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3", regime_tags: Optional[dict] = None
 outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
 called_by: signal_only (app.py), run_open_scan (paper_runner.py)
-mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols, v5 regime tag cols)
+mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols, v5/v5b regime tag cols)
 ---
 
 ---
@@ -258,12 +258,120 @@ mutates: none
 name: _fetch_market_regime
 type: function
 file: fetchers/paper_runner.py
-purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT. Fails safe to NORMAL/0.0 on any API error.
+purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3: an intraday SPY move caught by _check_intraday_regime_escalation carries forward to any later same-day call). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3, logged only). Fails safe to NORMAL on any API error (still honors the intraday override).
 inputs: none
-outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float}
-calls: get_snapshots
+outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH"}
+calls: get_snapshots, _spy_realized_vol_pct, _vol_regime_bucket, _reset_regime_override_if_new_day
 called_by: run_open_scan
 mutates: none
+---
+
+---
+name: _spy_realized_vol_pct
+type: function
+file: fetchers/paper_runner.py
+purpose: 20-day annualized realized volatility of SPY daily closes (log-return based, stdlib math). Feeds the LOW/NORMAL/HIGH market_vol_regime tag (Kimi review, round 3) — logged only, not used to filter trades yet. Returns 0.0 on error or insufficient history.
+inputs: none
+outputs: float (annualized vol %)
+calls: get_daily_bars
+called_by: _fetch_market_regime
+mutates: none
+---
+
+---
+name: _vol_regime_bucket
+type: function
+file: fetchers/paper_runner.py
+purpose: Buckets an annualized realized-vol % into LOW (<VOL_REGIME_LOW_PCT), HIGH (>VOL_REGIME_HIGH_PCT), or NORMAL (between, or on computation failure — fail-safe default).
+inputs: vol_pct: float
+outputs: str ("LOW"|"NORMAL"|"HIGH")
+calls: none
+called_by: _fetch_market_regime
+mutates: none
+---
+
+---
+name: VOL_REGIME_LOW_PCT
+type: variable
+file: fetchers/paper_runner.py
+purpose: Annualized SPY realized-vol threshold (12.0%) below which market_vol_regime is tagged LOW.
+inputs: none
+outputs: float (12.0)
+calls: none
+called_by: _vol_regime_bucket
+mutates: none
+---
+
+---
+name: VOL_REGIME_HIGH_PCT
+type: variable
+file: fetchers/paper_runner.py
+purpose: Annualized SPY realized-vol threshold (25.0%) above which market_vol_regime is tagged HIGH.
+inputs: none
+outputs: float (25.0)
+calls: none
+called_by: _vol_regime_bucket
+mutates: none
+---
+
+---
+name: INTRADAY_REGIME_ESCALATION_PCT
+type: variable
+file: fetchers/paper_runner.py
+purpose: SPY cumulative change-from-prior-close threshold (3.0%) that, if exceeded at any 30-min position check, escalates the day to EXTREME for the rest of the session (Kimi review, round 3) — catches intraday regime breaks the 9:35 AM overnight-gap check misses.
+inputs: none
+outputs: float (3.0)
+calls: none
+called_by: _check_intraday_regime_escalation
+mutates: none
+---
+
+---
+name: _intraday_regime_override
+type: variable
+file: fetchers/paper_runner.py
+purpose: None, or "EXTREME" once _check_intraday_regime_escalation detects a >=3% SPY intraday move. Reset to None at the start of each new trading day via _reset_regime_override_if_new_day.
+inputs: none
+outputs: Optional[str]
+calls: none
+called_by: _fetch_market_regime, _check_intraday_regime_escalation, _reset_regime_override_if_new_day
+mutates: none (module global, set by _check_intraday_regime_escalation / _reset_regime_override_if_new_day)
+---
+
+---
+name: _override_date
+type: variable
+file: fetchers/paper_runner.py
+purpose: Date string (YYYY-MM-DD) the current _intraday_regime_override applies to. Used to detect day rollover so the override doesn't leak into the next trading day's morning scan.
+inputs: none
+outputs: Optional[str]
+calls: none
+called_by: _reset_regime_override_if_new_day
+mutates: none (module global)
+---
+
+---
+name: _reset_regime_override_if_new_day
+type: function
+file: fetchers/paper_runner.py
+purpose: Clears _intraday_regime_override (and updates _override_date) at the start of each new trading day. Called from both _fetch_market_regime and _check_intraday_regime_escalation so the override can never leak from one day into the next regardless of which one runs first that day.
+inputs: none
+outputs: none
+calls: _et_now
+called_by: _fetch_market_regime, _check_intraday_regime_escalation
+mutates: _intraday_regime_override, _override_date
+---
+
+---
+name: _check_intraday_regime_escalation
+type: function
+file: fetchers/paper_runner.py
+purpose: Re-checks SPY's cumulative change from prior close at each 30-min position check (Kimi review, round 3). The 9:35 AM scan only sees the overnight gap — a stock that opens flat and sells off 3%+ intraday would otherwise never get flagged EXTREME. Sets _intraday_regime_override so a later same-day manual re-scan (paper_runner_scan_now) honors it too. Logs a REGIME_ESCALATION event to _run_log on first trigger each day.
+inputs: none
+outputs: none
+calls: _reset_regime_override_if_new_day, get_snapshots, _et_now
+called_by: _runner_loop (30-min position-check branch)
+mutates: _intraday_regime_override, _run_log
 ---
 
 ---
@@ -426,10 +534,10 @@ mutates: intraday_trades table (UPDATE via log_trade_exit), _run_log
 name: _runner_loop
 type: function
 file: fetchers/paper_runner.py
-purpose: Background thread body. Runs every 60s; on weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min, and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
+purpose: Background thread body. Runs every 60s; on weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min (also runs _check_intraday_regime_escalation each time — Kimi review round 3), and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
 inputs: symbols: list[str], min_score: int
 outputs: none
-calls: _et_now, _is_market_open, _in_scan_window, _near_close, run_open_scan, check_and_close_positions
+calls: _et_now, _is_market_open, _in_scan_window, _near_close, run_open_scan, _check_intraday_regime_escalation, check_and_close_positions
 called_by: start_runner (thread target)
 mutates: _runner_active (reads), today_scanned (local), _run_log (via calls)
 ---
@@ -6414,11 +6522,23 @@ mutates: none
 ---
 
 ---
+name: WILSON_CONFIDENCE
+type: variable
+file: models/trading/signal_calibration.py
+purpose: Named confidence level (0.80) for veto_decision's CI test (Kimi review, round 3) — was a hardcoded default; now a one-line change to tighten later (e.g. 0.90/0.95 once 500+ trades exist) instead of a re-audit of the veto function.
+inputs: none
+outputs: float (0.80)
+calls: none
+called_by: _wilson_ci (default), veto_decision
+mutates: none
+---
+
+---
 name: _wilson_ci
 type: function
 file: models/trading/signal_calibration.py
-purpose: Wilson score interval for a binomial proportion — better small-sample behavior than a normal approximation. Used by veto_decision to compute an 80%-confidence range for the true win rate given wins/n.
-inputs: wins: int, n: int, confidence: float = 0.80
+purpose: Wilson score interval for a binomial proportion — better small-sample behavior than a normal approximation. Used by veto_decision to compute a WILSON_CONFIDENCE-level range for the true win rate given wins/n.
+inputs: wins: int, n: int, confidence: float = WILSON_CONFIDENCE
 outputs: tuple[float, float] (ci_lower, ci_upper)
 calls: math.sqrt
 called_by: veto_decision
@@ -6429,7 +6549,7 @@ mutates: none
 name: veto_decision
 type: function
 file: models/trading/signal_calibration.py
-purpose: Statistically-gated trade veto (Kimi review, round 1). Replaces a naive point-estimate check ("win rate < 45%") with an 80% confidence-interval test via _wilson_ci, and refuses to veto below min_trades in the score's bucket — a 45% observed win rate at n=15 could easily be a true 55% rate with bad variance. Only vetoes when the bucket's 80% CI upper bound sits entirely below ci_floor (default 0.48), which in practice requires ~25-30+ trades in the bucket.
+purpose: Statistically-gated trade veto (Kimi review, round 1). Replaces a naive point-estimate check ("win rate < 45%") with a WILSON_CONFIDENCE-level confidence-interval test via _wilson_ci, and refuses to veto below min_trades in the score's bucket — a 45% observed win rate at n=15 could easily be a true 55% rate with bad variance. Only vetoes when the bucket's CI upper bound sits entirely below ci_floor (default 0.48), which in practice requires ~25-30+ trades in the bucket.
 inputs: score: float, min_trades: int = 30, ci_floor: float = 0.48
 outputs: dict {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
 calls: _load_closed_trades, _wilson_ci, _is_winner, _BUCKETS

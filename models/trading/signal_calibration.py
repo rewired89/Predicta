@@ -195,7 +195,14 @@ def calibration_globally_active() -> bool:
     return len(_load_closed_trades()) >= MIN_TRADES_FOR_ANY_CALIBRATION
 
 
-def _wilson_ci(wins: int, n: int, confidence: float = 0.80) -> tuple[float, float]:
+# Confidence level for veto_decision's CI test (Kimi review, round 3): named
+# constant instead of a hardcoded default so tightening it later (e.g. to 0.90
+# or 0.95 once 500+ trades exist) is a one-line change, not a re-audit of the
+# veto function.
+WILSON_CONFIDENCE = 0.80
+
+
+def _wilson_ci(wins: int, n: int, confidence: float = WILSON_CONFIDENCE) -> tuple[float, float]:
     """
     Wilson score interval for a binomial proportion — much better small-sample
     behavior than a normal approximation, which is why the CI-gated veto below
@@ -214,13 +221,13 @@ def _wilson_ci(wins: int, n: int, confidence: float = 0.80) -> tuple[float, floa
 def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) -> dict:
     """
     Statistically-gated trade veto (Kimi review): replaces a naive point-estimate
-    check (e.g. "win rate < 45%") with an 80% confidence-interval test, and
-    refuses to veto at all below min_trades in the score's bucket.
+    check (e.g. "win rate < 45%") with a WILSON_CONFIDENCE-level confidence-interval
+    test, and refuses to veto at all below min_trades in the score's bucket.
 
     Rationale: a 45% observed win rate at n=15 could easily be a true 55% rate
     with bad variance, or a true 35% rate with good variance — vetoing on the
     point estimate alone is noise responding to noise. This only vetoes when
-    the bucket's 80% CI upper bound sits entirely below ci_floor, which in
+    the bucket's CI upper bound sits entirely below ci_floor, which in
     practice requires roughly 25-30+ trades in the bucket to ever trigger.
 
     Returns: {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
@@ -253,13 +260,14 @@ def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) ->
 
     wins = sum(1 for t in bt if _is_winner(t))
     win_rate = round(wins / n, 3)
-    ci_lower, ci_upper = _wilson_ci(wins, n)
+    ci_lower, ci_upper = _wilson_ci(wins, n, WILSON_CONFIDENCE)
 
+    ci_pct = f"{WILSON_CONFIDENCE:.0%}"
     veto = ci_upper < ci_floor
     reason = (
-        f"80% CI upper bound {ci_upper:.1%} < {ci_floor:.0%} floor — edge statistically gone"
+        f"{ci_pct} CI upper bound {ci_upper:.1%} < {ci_floor:.0%} floor — edge statistically gone"
         if veto else
-        f"80% CI [{ci_lower:.1%}, {ci_upper:.1%}] does not confirm the edge is gone"
+        f"{ci_pct} CI [{ci_lower:.1%}, {ci_upper:.1%}] does not confirm the edge is gone"
     )
     return {
         "veto": veto, "reason": reason, "n": n, "win_rate": win_rate,

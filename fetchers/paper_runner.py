@@ -62,6 +62,21 @@ REGIME_EXTREME_MIN_SCORE: int = 60
 # is a mechanism, not a populated calendar.
 EARNINGS_BLACKOUT: dict[str, list[str]] = {}
 
+# Market volatility regime tag (Kimi review, round 3, structural gap B — logged
+# only, never used to filter trades yet). Buckets SPY's 20-day annualized
+# realized vol into LOW/NORMAL/HIGH so post-hoc analysis can ask "is the model
+# profitable in LOW vol but not HIGH vol" — impossible to answer retroactively
+# without the tag.
+VOL_REGIME_LOW_PCT: float = 12.0
+VOL_REGIME_HIGH_PCT: float = 25.0
+
+# Intraday regime escalation (Kimi review, round 3): the 9:35 AM scan only sees
+# SPY's overnight gap. A stock that opens flat and then sells off intraday
+# would otherwise never get flagged EXTREME. If SPY's cumulative change from
+# prior close exceeds this at any 30-min check, today is reclassified EXTREME
+# for the rest of the day (affects any later manual re-scan).
+INTRADAY_REGIME_ESCALATION_PCT: float = 3.0
+
 # Hold duration per time-of-day label, in 5-min bars
 _HOLD_BARS: dict[str, int] = {
     "MORNING_TREND":   12,   # 60 min — ride the morning move
@@ -77,6 +92,10 @@ _DEFAULT_HOLD_BARS: int = 6
 _runner_thread: Optional[threading.Thread] = None
 _runner_active: bool = False
 _run_log: list[dict] = []           # ring buffer — last 100 events
+
+# Intraday regime escalation state (Kimi review, round 3) — reset on new day
+_intraday_regime_override: Optional[str] = None
+_override_date: Optional[str] = None
 
 
 # ── ET time helpers ───────────────────────────────────────────────────────────
@@ -128,17 +147,96 @@ def _avg_daily_vol(daily_bars: list[dict]) -> float:
     return sum(vols) / len(vols) if vols else 1_000_000
 
 
+def _spy_realized_vol_pct() -> float:
+    """
+    20-day annualized realized volatility of SPY daily closes (log-return
+    based, stdlib math only). Feeds the LOW/NORMAL/HIGH market_vol_regime tag.
+    Returns 0.0 on any error or insufficient history (fail-safe → NORMAL bucket).
+    """
+    try:
+        import math
+        daily  = get_daily_bars("SPY", days=30)
+        closes = [b["c"] for b in daily if b.get("c")]
+        if len(closes) < 21:
+            return 0.0
+        window = closes[-21:]
+        rets = [
+            math.log(window[i] / window[i - 1])
+            for i in range(1, len(window)) if window[i - 1] > 0
+        ]
+        if not rets:
+            return 0.0
+        mean_r = sum(rets) / len(rets)
+        var_r  = sum((r - mean_r) ** 2 for r in rets) / len(rets)
+        return round(math.sqrt(var_r) * math.sqrt(252) * 100, 2)
+    except Exception:
+        return 0.0
+
+
+def _vol_regime_bucket(vol_pct: float) -> str:
+    """Buckets annualized realized vol % into LOW/NORMAL/HIGH."""
+    if vol_pct <= 0:
+        return "NORMAL"
+    if vol_pct < VOL_REGIME_LOW_PCT:
+        return "LOW"
+    if vol_pct > VOL_REGIME_HIGH_PCT:
+        return "HIGH"
+    return "NORMAL"
+
+
+def _reset_regime_override_if_new_day() -> None:
+    """Clears _intraday_regime_override at the start of each new trading day."""
+    global _intraday_regime_override, _override_date
+    today = _et_now().strftime("%Y-%m-%d")
+    if _override_date != today:
+        _intraday_regime_override = None
+        _override_date = today
+
+
+def _check_intraday_regime_escalation() -> None:
+    """
+    Re-checks SPY's cumulative change from prior close at each 30-min position
+    check (Kimi review, round 3). The 9:35 AM scan only sees the overnight gap
+    — a stock that opens flat and sells off 3%+ intraday would otherwise never
+    get flagged EXTREME. Sets _intraday_regime_override for the rest of today
+    so a later manual re-scan (paper_runner_scan_now) honors it too.
+    """
+    global _intraday_regime_override
+    _reset_regime_override_if_new_day()
+    try:
+        snap = get_snapshots(["SPY"]).get("SPY", {})
+        change_pct = snap.get("change_pct", 0.0)
+        if abs(change_pct) >= INTRADAY_REGIME_ESCALATION_PCT and _intraday_regime_override != "EXTREME":
+            _intraday_regime_override = "EXTREME"
+            log.info(
+                f"[RUNNER] Intraday regime escalation — SPY cumulative change "
+                f"{change_pct:+.2f}%, marking today EXTREME"
+            )
+            _run_log.append({
+                "ts": _et_now().isoformat(), "event": "REGIME_ESCALATION",
+                "note": f"SPY cumulative change {change_pct:+.2f}% — today marked "
+                        f"EXTREME for remaining scans",
+            })
+    except Exception:
+        pass
+
+
 def _fetch_market_regime() -> dict:
     """
     Coarse "should we even be trading today" gate (Kimi review, structural
     gap E). Uses SPY's overnight gap as a volatility-regime proxy — no VIX
     access on the Alpaca free tier — and XLK's daily change as a simple
-    sector-rotation tag for the (all-tech) watchlist.
+    sector-rotation tag for the (all-tech) watchlist. Also tags SPY's 20-day
+    realized vol bucket (LOW/NORMAL/HIGH) for post-hoc analysis (round 3),
+    and honors any same-day intraday escalation set by
+    _check_intraday_regime_escalation().
 
-    Returns {"regime": "NORMAL"|"EXTREME", "spy_gap_pct": float, "xlk_change_pct": float}.
-    Fails safe to NORMAL/0.0 on any API error so a data hiccup never blocks
-    the whole scan.
+    Returns {"regime": "NORMAL"|"EXTREME", "spy_gap_pct": float,
+             "xlk_change_pct": float, "spy_realized_vol_pct": float,
+             "market_vol_regime": "LOW"|"NORMAL"|"HIGH"}.
+    Fails safe to NORMAL on any API error so a data hiccup never blocks the scan.
     """
+    _reset_regime_override_if_new_day()
     try:
         snaps = get_snapshots(["SPY", "XLK"])
         spy = snaps.get("SPY", {})
@@ -148,9 +246,20 @@ def _fetch_market_regime() -> dict:
         spy_gap_pct = round((spy_open - spy_prev) / spy_prev * 100, 3) if spy_prev else 0.0
         xlk_change_pct = xlk.get("change_pct", 0.0)
         regime = "EXTREME" if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT else "NORMAL"
-        return {"regime": regime, "spy_gap_pct": spy_gap_pct, "xlk_change_pct": xlk_change_pct}
+        if _intraday_regime_override == "EXTREME":
+            regime = "EXTREME"
+        spy_vol_pct = _spy_realized_vol_pct()
+        vol_regime  = _vol_regime_bucket(spy_vol_pct)
+        return {
+            "regime": regime, "spy_gap_pct": spy_gap_pct, "xlk_change_pct": xlk_change_pct,
+            "spy_realized_vol_pct": spy_vol_pct, "market_vol_regime": vol_regime,
+        }
     except Exception:
-        return {"regime": "NORMAL", "spy_gap_pct": 0.0, "xlk_change_pct": 0.0}
+        return {
+            "regime": "EXTREME" if _intraday_regime_override == "EXTREME" else "NORMAL",
+            "spy_gap_pct": 0.0, "xlk_change_pct": 0.0,
+            "spy_realized_vol_pct": 0.0, "market_vol_regime": "NORMAL",
+        }
 
 
 def _is_earnings_blackout(symbol: str, date_str: str) -> bool:
@@ -458,6 +567,7 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
                 today_scanned == today
                 and time.monotonic() - last_check_mono >= CHECK_INTERVAL_SEC
             ):
+                _check_intraday_regime_escalation()
                 summary = check_and_close_positions()
                 log.info(f"[RUNNER] Position check — {summary}")
                 last_check_mono = time.monotonic()
