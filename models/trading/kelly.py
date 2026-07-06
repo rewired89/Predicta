@@ -99,9 +99,14 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
     with win rate until calibration reaches "stable" quality (50+ trades).
     Score gate: no position when |score| < 20.
 
-    When calibrated_win_rate() returns a value, it's reported in win_rate and
-    win_rate_source for transparency. If edge is negative (win_rate < 0.45),
-    the function vetoes the trade regardless of score.
+    Empirical win rate and the veto are both gated behind
+    calibration_globally_active() — 100+ total closed trades (Kimi review,
+    round 2). Below that floor the base ensemble's edge is unvalidated, so
+    acting on 30-50 trade calibration data risks tuning noise, not real edge.
+    Once active, the veto itself uses a confidence-interval test
+    (veto_decision) rather than a raw point-estimate cutoff — a naive
+    "win rate < 45%" check at n=15 is noise responding to noise (Kimi review,
+    round 1).
     """
     if atr_pct <= 0:
         return {
@@ -121,24 +126,30 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
             "paper_mode": True,
         }
 
-    # Look up empirical win rate for this score (returns None if data insufficient)
+    # Empirical win rate + CI-gated veto — both no-op until 100 total closed trades
     empirical_wr     = None
     win_rate_source  = "unavailable"
+    veto_info: dict  = {"veto": False}
     try:
-        from models.trading.signal_calibration import calibrated_win_rate
-        empirical_wr = calibrated_win_rate(score)
-        if empirical_wr is not None:
-            win_rate_source = "empirical"
+        from models.trading.signal_calibration import (
+            calibrated_win_rate, veto_decision, calibration_globally_active,
+        )
+        if calibration_globally_active():
+            empirical_wr = calibrated_win_rate(score)
+            if empirical_wr is not None:
+                win_rate_source = "empirical"
+            veto_info = veto_decision(score, min_trades=30, ci_floor=0.48)
+        else:
+            win_rate_source = "gated_pending_100_trades"
     except Exception:
         pass
 
-    # Veto trade if empirical data shows negative edge (< 45% win rate)
-    if empirical_wr is not None and empirical_wr < 0.45:
+    if veto_info.get("veto"):
         return {
             "full_kelly": 0, "kelly_fraction": 0, "position_size": 0,
             "bankroll": bankroll, "edge_pct": 0,
             "win_rate": empirical_wr, "win_rate_source": win_rate_source,
-            "note": f"Empirical win rate {empirical_wr:.1%} < 45% threshold — no trade.",
+            "note": f"Vetoed: {veto_info.get('reason')}",
             "paper_mode": True,
         }
 

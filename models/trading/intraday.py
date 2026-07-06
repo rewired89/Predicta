@@ -104,11 +104,22 @@ def _bollinger(closes: list[float], period: int = 20) -> dict:
 
 # ── Individual signals ────────────────────────────────────────────────────────
 
-def _sig_vwap(bars: list[dict], snapshot: dict, trend_label: str = "neutral") -> dict:
+def _sig_vwap(
+    bars: list[dict],
+    snapshot: dict,
+    trend_label: str = "neutral",
+    trend_confidence: str = "strong",
+) -> dict:
     """
     VWAP deviation signal. Regime-conditioned: in a strong uptrend, extreme
     deviation above VWAP is momentum (not fade); in a strong downtrend, extreme
     deviation below VWAP is momentum too.
+
+    trend_confidence gates the flip (Kimi review): _sig_trend_bias flags the
+    regime "weak" when MA20/MA50 are compressed (<2% apart) — a "weak uptrend"
+    shouldn't get the same full ±15/±20 conditioning as a strong one with wide
+    MA separation. When confidence is "weak", fall back to the default fade
+    logic instead of trusting an ambiguous regime label.
     """
     vwaps = _vwap(bars)
     if not vwaps:
@@ -117,8 +128,8 @@ def _sig_vwap(bars: list[dict], snapshot: dict, trend_label: str = "neutral") ->
     price = snapshot.get("price", bars[-1]["c"] if bars else 0)
     dev_pct = (price - vwap_now) / vwap_now * 100 if vwap_now else 0
     label_lower = trend_label.lower()
-    is_strong_up   = "strong uptrend" in label_lower
-    is_strong_down = "downtrend" in label_lower
+    is_strong_up   = trend_confidence == "strong" and "strong uptrend" in label_lower
+    is_strong_down = trend_confidence == "strong" and "downtrend" in label_lower
     if dev_pct > 1.5:
         if is_strong_up:
             score, label = 15, "Momentum: above VWAP in uptrend"
@@ -248,12 +259,21 @@ def _sig_relative_volume(bars: list[dict], daily_avg_volume: float) -> dict:
     }
 
 
-def _sig_gap(snapshot: dict, trend_label: str = "neutral") -> dict:
+def _sig_gap(
+    snapshot: dict,
+    trend_label: str = "neutral",
+    trend_confidence: str = "strong",
+) -> dict:
     """
     Pre-market / open gap vs previous close, regime-conditioned.
     Large gaps (>2%) are faded in all regimes — they fill ~65% of the time.
     Small gaps (0.5–2%) follow the trend: gap-down in uptrend = buy the dip (+10),
     gap-up in downtrend = dead-cat bounce to fade (-10).
+
+    trend_confidence gates the trend-following branch (Kimi review): when
+    MA20/MA50 are compressed (<2% apart, "weak" confidence), the daily trend
+    label is unreliable, so small gaps fall back to the regime-neutral
+    default instead of trusting an ambiguous label.
     """
     open_price = snapshot.get("open", 0)
     prev_close = snapshot.get("prev_close", 0)
@@ -261,8 +281,8 @@ def _sig_gap(snapshot: dict, trend_label: str = "neutral") -> dict:
         return {"gap_pct": 0, "direction": "none", "fill_prob": 0.5, "score": 0}
     gap_pct    = (open_price - prev_close) / prev_close * 100
     fill_prob  = 0.65 if abs(gap_pct) > 2 else 0.45 if abs(gap_pct) > 0.5 else 0.3
-    is_uptrend   = "uptrend" in trend_label.lower()
-    is_downtrend = "downtrend" in trend_label.lower()
+    is_uptrend   = trend_confidence == "strong" and "uptrend" in trend_label.lower()
+    is_downtrend = trend_confidence == "strong" and "downtrend" in trend_label.lower()
     if gap_pct > 2:
         score, direction = -10, "gap_up_large"       # fade large gap up always
     elif gap_pct > 0.5:
@@ -286,15 +306,31 @@ def _sig_gap(snapshot: dict, trend_label: str = "neutral") -> dict:
 
 
 def _sig_trend_bias(daily_bars: list[dict]) -> dict:
-    """Daily MA20 context — are we in a bullish or bearish regime?"""
+    """
+    Daily MA20 context — are we in a bullish or bearish regime?
+
+    Also computes regime_confidence (Kimi review): "strong" when MA20/MA50 are
+    separated by >=2%, "weak" when compressed. VWAP/gap use this to decide
+    whether to trust the label enough to flip their conditioning logic — a
+    compressed spread means the regime itself could flip on the next session,
+    so downstream signals shouldn't apply full conditioning amplitude.
+    """
     if len(daily_bars) < 20:
-        return {"ma20": 0, "above_ma20": None, "score": 0, "label": "Insufficient data"}
+        return {
+            "ma20": 0, "above_ma20": None, "score": 0, "label": "Insufficient data",
+            "regime_confidence": "unknown",
+        }
     closes = [b["c"] for b in daily_bars]
     ma20 = sum(closes[-20:]) / 20
     ma50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else ma20
     price = closes[-1]
     above_ma20 = price > ma20
     above_ma50 = price > ma50
+
+    mid = (ma20 + ma50) / 2 if (ma20 + ma50) else 0
+    ma_spread_pct = abs(ma20 - ma50) / mid * 100 if mid else 0.0
+    regime_confidence = "strong" if ma_spread_pct >= 2.0 else "weak"
+
     if above_ma20 and above_ma50:
         score, label = 20, "Strong uptrend"
     elif above_ma20:
@@ -306,6 +342,8 @@ def _sig_trend_bias(daily_bars: list[dict]) -> dict:
     return {
         "ma20": round(ma20, 4),
         "ma50": round(ma50, 4),
+        "ma_spread_pct": round(ma_spread_pct, 3),
+        "regime_confidence": regime_confidence,
         "above_ma20": above_ma20,
         "above_ma50": above_ma50,
         "label": label,
@@ -681,15 +719,18 @@ def compute_intraday_signals(
     liquidity = _sig_liquidity(snapshot)
 
     # ── Eight-signal ensemble ──────────────────────────────────────────────────
-    # trend_sig computed first so its label can regime-condition vwap and gap
+    # trend_sig computed first so its label + confidence can regime-condition
+    # vwap and gap (confidence gates whether the conditioning flip applies —
+    # see _sig_trend_bias / _sig_vwap / _sig_gap docstrings)
     trend_sig  = _sig_trend_bias(daily_bars)
     trend_label = trend_sig.get("label", "neutral")
+    trend_confidence = trend_sig.get("regime_confidence", "strong")
     sigs = {
-        "vwap":      _sig_vwap(intraday_bars, snapshot, trend_label),
+        "vwap":      _sig_vwap(intraday_bars, snapshot, trend_label, trend_confidence),
         "or":        _sig_opening_range(intraday_bars),
         "rsi":       _sig_rsi(intraday_bars),
         "relvol":    _sig_relative_volume(intraday_bars, daily_avg_volume),
-        "gap":       _sig_gap(snapshot, trend_label),
+        "gap":       _sig_gap(snapshot, trend_label, trend_confidence),
         "trend":     trend_sig,
         "bollinger": _sig_bollinger(intraday_bars),
         "volsurge":  _sig_volume_surge(intraday_bars),

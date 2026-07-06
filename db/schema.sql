@@ -117,6 +117,11 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     volsurge_score REAL,
     ngram_signal TEXT,                       -- UP / DOWN / NONE
     ngram_confidence REAL,
+    -- v5: market regime tags (Kimi review) — logged so post-hoc analysis can
+    -- separate results by market condition, not applied to live scoring
+    spy_gap_pct REAL,                        -- SPY overnight gap pct at scan time
+    xlk_change_pct REAL,                     -- XLK (tech sector ETF) day change pct — sector-rotation proxy
+    market_regime TEXT,                      -- NORMAL / EXTREME (abs(spy_gap_pct) >= 2 pct)
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);

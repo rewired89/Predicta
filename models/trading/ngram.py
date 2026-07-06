@@ -11,8 +11,15 @@ Inspired by Peter Brown and Robert Mercer's IBM speech recognition work:
 Requires 6+ months of 5-min bar history to build the frequency table.
 Build once per week via build_ngram_from_alpaca; load from DB at signal time.
 
-Signal is intentionally conservative: only fires at >55% historical edge
+Signal is intentionally conservative: only fires at >52% historical edge
 with at least min_samples occurrences — avoids false positives from sparse patterns.
+
+Context window: 4 bars = 20 minutes (Kimi review — 3 bars/15 min showed weak
+directional autocorrelation, ~0.05-0.12 in large-cap 5-min bars, too close to
+the 50% baseline to be reliably distinguishable from noise at only slightly
+elevated thresholds; 4 bars is closer to the model's 30-60 min intended hold
+and still leaves ~115 expected occurrences per pattern over 6 months of data,
+comfortably above the min_samples floor).
 """
 from __future__ import annotations
 import json
@@ -21,7 +28,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
-PATTERN_LENGTH = 3   # 3-bar context → 3^3 = 27 possible patterns (U/D/E each bar)
+PATTERN_LENGTH = 4   # 4-bar context → 3^4 = 81 possible patterns (U/D/E each bar)
 _THRESHOLD_PCT = 0.52  # minimum directional frequency to call a signal
 _UP_THRESH = 1.0001    # >0.01% move = "Up"
 _DN_THRESH = 0.9999    # <-0.01% move = "Down"; otherwise "Equal"
@@ -133,7 +140,7 @@ def load_pattern_table(symbol: str, max_age_days: int = 7) -> Optional[dict]:
 def ngram_signal(
     symbol: str,
     recent_closes: list[float],
-    min_samples: int = 30,
+    min_samples: int = 40,
 ) -> dict:
     """
     Generate an n-gram pattern signal for the current bar context.

@@ -183,6 +183,10 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         ("volsurge_score",      "REAL"),
         ("ngram_signal",        "TEXT"),
         ("ngram_confidence",    "REAL"),
+        # v5: market regime tags (Kimi review) — logged only, not applied to scoring
+        ("spy_gap_pct",         "REAL"),
+        ("xlk_change_pct",      "REAL"),
+        ("market_regime",       "TEXT"),
     ]
 
     existing_cols = {

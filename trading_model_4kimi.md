@@ -1,6 +1,6 @@
 # Predicta Trading Model — Technical Overview for Kimi
 
-Date: 2026-07-03
+Date: 2026-07-06 (updated after round-1 review — see Section 8)
 Purpose: Full technical dump of the current trading system for feedback review.
 
 ---
@@ -129,6 +129,9 @@ Rationale: without regime-conditioning, the model was fighting strong trends —
 treating "extended above VWAP" as a sell signal even during a genuine breakout,
 and fading dip-buying opportunities in healthy uptrends.
 
+**Update after round-1 review:** both flips are now gated by a `regime_confidence`
+field ("strong"/"weak") computed alongside the trend label — see Section 8.1.
+
 ### Post-composite adjustment layer 1: Liquidity filter
 
 Computed from live bid/ask spread:
@@ -162,13 +165,14 @@ signals through while still killing weak noise.
 ### Optional 9th layer: N-gram pattern matching (`models/trading/ngram.py`)
 
 Treats sequences of 5-min bar directions (Up/Down/Equal) like a language model
-treats words — a 3-bar pattern (e.g. "UUD") has a historical frequency of what
-comes next, built from 6+ months of bar history. 27 possible 3-bar patterns
-(3^3, since each bar is U/D/E).
+treats words — a 4-bar pattern (e.g. "UUDU") has a historical frequency of what
+comes next, built from 6+ months of bar history. 81 possible 4-bar patterns
+(3^4, since each bar is U/D/E). **Extended from 3→4 bars after round-1 review**
+— see Section 8.4.
 
 - Only fires when historical frequency exceeds 52% in one direction with at least
-  30 historical occurrences (recently lowered from 55%/50 samples — the stricter
-  thresholds meant it almost never fired)
+  40 historical occurrences (raised from 30 to maintain statistical power for the
+  larger 81-pattern space)
 - If n-gram agrees with the composite score's direction: score boosted up to +20%
   (scaled by n-gram confidence)
 - If it disagrees: composite score reduced 30%
@@ -219,11 +223,14 @@ Two sizing methods, both always in "paper mode":
   1.5×ATR stop distance
 - `kelly_from_signals()` — the entry point actually used by the pipelines. Always
   ATR-based for now (does not scale by win rate); reports an empirical win rate
-  when available for transparency, and **vetoes the trade entirely if the
-  empirical win rate for that score bucket drops below 45%.** Classical
-  quarter-Kelly sizing (`trading_kelly()`) exists as a separate function but is
-  not yet wired into the live pipeline — it's waiting on `calibrated_win_rate()`
-  to have enough data to be trustworthy.
+  when available for transparency. **Veto logic rebuilt after round-1 review** —
+  see Section 8.3: the naive "win rate < 45%" point-estimate check is replaced
+  with a confidence-interval test, and both the empirical win rate and the veto
+  are now gated behind 100 total closed trades globally (was previously usable
+  once a single bucket had 10+ trades). Classical quarter-Kelly sizing
+  (`trading_kelly()`) exists as a separate function but is not yet wired into
+  the live pipeline — it's waiting on `calibrated_win_rate()` to have enough
+  data to be trustworthy.
 
 ### Calibration feedback loop (`models/trading/signal_calibration.py`)
 
@@ -270,11 +277,22 @@ automatically on server boot — no manual triggering required.
   GOOGL, TSLA. Deliberately excludes small-cap/high-beta names and index ETFs to
   avoid mixing incompatible volatility regimes into one calibration set.
 - **9:35 AM ET weekdays:** scans all 8 symbols, logs every signal with
-  \|score\| ≥ 20 as a hypothetical trade (no real order placed)
+  \|score\| ≥ 20 as a hypothetical trade (no real order placed) — raised to 60
+  on EXTREME market-regime days (see Section 8.5)
 - **Every 30 min:** checks all open hypothetical positions against actual 5-min
   bar highs/lows (not just the current price) so a stop or target touched
   between checks isn't missed
 - **3:50 PM ET:** force-closes any remaining open positions at market price
+- **Portfolio cap (added after round-1 review):** stops logging new entries once
+  3 hypothetical positions are open simultaneously (see Section 8.2) — the
+  8-symbol universe is one correlated tech cluster, so this replaces a
+  pairwise-correlation check that isn't meaningful across a single cluster
+- **Market regime gate (added after round-1 review):** SPY overnight gap used as
+  a volatility-regime proxy; on EXTREME days (gap ≥2%), the logging threshold
+  rises to 60 (see Section 8.5)
+- **Earnings blackout mechanism (added after round-1 review):** a manually-
+  populated per-symbol date list to skip known earnings days — currently empty
+  (no live earnings-calendar API wired in yet), mechanism only
 - Known gap: does not yet account for US market holidays (e.g. would still
   attempt a scan on July 4th observance) — harmless since Alpaca simply returns
   no fresh data, but not yet clean
@@ -290,20 +308,149 @@ automatically on server boot — no manual triggering required.
 
 ---
 
-## 7. What We're Asking Kimi to Review
+## 7. Data Sources (cont'd — regime proxies)
 
-1. **Regime-conditioning logic for VWAP and gap** — is flipping interpretation
-   based on daily trend label a sound approach, or does it risk overfitting to
-   recent regime and lagging on regime changes?
-2. **Weight allocation across the 8 intraday signals** — any of the 8 signals
-   look structurally redundant (i.e., measuring the same underlying thing twice)?
-3. **The 45% win-rate veto threshold in `kelly_from_signals`** — reasonable
-   cutoff, or too permissive/conservative given it will trigger on small sample
-   sizes early on?
-4. **N-gram overlay** — is a 3-bar pattern with 52%/30-sample threshold likely to
-   find real edge, or is 3 bars too short a context window for 5-min data?
-5. **Anything structurally missing** from the ensemble that would be considered
-   standard for a systematic intraday strategy at this scale?
+The market-regime gate (Section 8.5) adds two more read-only Alpaca calls per
+scan day: SPY (overnight gap, volatility-regime proxy) and XLK (tech sector ETF,
+day-change sector-rotation tag). Both come from the existing `get_snapshots()`
+batch endpoint already used for the 8-symbol watchlist — one extra API call per
+day, negligible against the free-tier rate limit.
 
-Reminder: there is no real performance data yet. This is purely a request for
-review of the *design*, not the results.
+---
+
+## 8. Changes Implemented After Round-1 Review
+
+Kimi's round-1 review (5 direct questions + 5 structural gaps) and round-2
+follow-up ("bridge from mechanism to validated edge") produced a prioritized
+list. Here's what was built, in the order of Kimi's own priority table:
+
+### 8.1 Regime-conditioning lag (Kimi's Q1 — "sound but with execution risk")
+
+`_sig_trend_bias()` now also computes `ma_spread_pct` (`abs(ma20-ma50)/mid*100`)
+and a `regime_confidence` field: `"strong"` when the two MAs are ≥2% apart,
+`"weak"` when compressed. `_sig_vwap()` and `_sig_gap()` both take a new
+`trend_confidence` parameter — the conditioning flip (the ±15/-20 VWAP swap, the
+trend-following gap branch) only applies when confidence is `"strong"`; a
+compressed/ambiguous MA spread falls back to the original regime-neutral logic
+instead of trusting a label that could flip on the next session.
+
+**Not implemented:** Kimi's other suggestion — a faster pre-market/overnight
+regime detector as a tie-breaker — was not built. The MA-spread confidence gate
+addresses the core risk (acting on an unreliable label) more directly than a
+second detector would, and adding a second regime signal before the first one
+has any real-world validation risked compounding unvalidated assumptions.
+
+### 8.2 Portfolio/correlation risk (Kimi's structural gap A — High priority)
+
+`fetchers/paper_runner.py` now caps simultaneous open hypothetical positions at
+`MAX_CONCURRENT_POSITIONS = 3` across the whole 8-symbol universe. Kimi's
+original framing (pairwise correlation, sector exposure caps) doesn't map
+cleanly onto this watchlist since all 8 symbols are one correlated tech
+cluster, not diversified sectors — so instead of computing pairwise
+correlations, `run_open_scan()` just refuses to log a new entry once
+(already-open + logged-this-scan) reaches the cap. This directly prevents the
+scenario Kimi flagged: 6+ correlated shorts firing simultaneously on a
+sector-wide move, each sized to 25% of account.
+
+### 8.3 The 45% win-rate veto (Kimi's Q3 — "too permissive, statistical trap")
+
+`models/trading/signal_calibration.py` gained `veto_decision()`, which computes
+an 80% Wilson-score confidence interval for the bucket's true win rate and
+vetoes only when the CI's upper bound sits entirely below 48% — replacing the
+old point-estimate check (`win_rate < 0.45`). This requires roughly 25-30+
+trades in a bucket to ever fire, exactly matching Kimi's estimate. Verified with
+synthetic data: n=40 at a 25% observed win rate vetoes; n=40 at a 40% observed
+win rate does not (CI too wide to be confident the edge is gone); n=15 never
+vetoes regardless of win rate (below the 30-trade floor).
+
+Additionally — per Kimi's round-2 ask to "block all calibration, Kelly sizing,
+and weight changes until closed_trades_count >= 100" — both the empirical win
+rate lookup and the veto are now gated behind a new
+`calibration_globally_active()` check (`MIN_TRADES_FOR_ANY_CALIBRATION = 100`).
+Below 100 total closed trades, `kelly_from_signals()` reports
+`win_rate_source: "gated_pending_100_trades"` and sizes purely on ATR, with no
+empirical overlay at all. `compute_dynamic_weights()` (the 30-trade-gated
+diagnostic weight calculator) was left as-is — it's read-only, exposed via a
+status endpoint, and never automatically applied to the live `WEIGHTS` constant
+in `intraday.py`, so "blocking weight changes" was already structurally true.
+
+### 8.4 N-gram context window (Kimi's Q4 — "3 bars likely noise")
+
+`PATTERN_LENGTH` extended from 3 to 4 bars (81 patterns instead of 27),
+`min_samples` raised from 30 to 40 to hold statistical power constant across
+the larger pattern space. 4 bars = 20 minutes of context, closer to the
+model's 30-60 minute intended hold than the previous 15-minute window.
+
+**Not implemented:** Kimi's two enhancement ideas — recency-decayed pattern
+weighting, and magnitude-encoded states (Strong/Weak × Up/Down instead of
+plain U/D/E) — were left as future work. Both are legitimate upgrades but add
+real complexity/parameters to a component that has zero live validation yet;
+building them now would be tuning an unmeasured system, which is the exact
+failure mode Kimi's round-2 feedback warns against.
+
+### 8.5 Market regime gate (Kimi's structural gap E — High priority)
+
+New `_fetch_market_regime()` in `paper_runner.py`: fetches SPY + XLK snapshots
+once per scan, computes SPY's overnight gap % as a volatility-regime proxy (no
+VIX access on the Alpaca free tier) and XLK's day-change % as a simple
+sector-rotation tag. When `abs(spy_gap_pct) >= 2.0`, the day is classified
+EXTREME and `run_open_scan()`'s effective logging threshold rises from 20 to 60,
+so the dataset isn't contaminated by signals fired during untradeable
+volatility. Fails safe to NORMAL on any API error.
+
+Per Kimi's round-2 ask ("add regime tags to the v4 schema... you'll need to
+know which market conditions produced the 55% vs 45% results"), every
+hypothetical trade now also stores `spy_gap_pct`, `xlk_change_pct`, and
+`market_regime` (v5 schema columns) — logged for future post-hoc analysis,
+never fed back into live scoring.
+
+**Not implemented — portfolio-level volatility targeting (Kimi's structural gap
+B):** scaling all position sizes by inverse realized market volatility. Since
+paper-mode trades don't deploy real capital, `pnl_r` (already normalized to
+risk) wouldn't change from a hypothetical size adjustment — this only becomes
+meaningful once real capital sizing is live, so it's deferred rather than
+built as an inert no-op today.
+
+### 8.6 Deferred, not built (with reasons)
+
+- **Earnings/event filter (structural gap D, Low priority):** mechanism built
+  (`EARNINGS_BLACKOUT` dict + `_is_earnings_blackout()` check in
+  `paper_runner.py`), but the calendar itself is empty — no live earnings-date
+  API is wired in, and fabricating specific dates without a real source would
+  be worse than no filter at all. Add real dates manually as they're confirmed.
+- **Spread velocity check (structural gap C, Low priority):** would require
+  tracking bid/ask spread across repeated intra-session snapshots, which the
+  runner doesn't currently sample (it only reads spread once per position
+  check). Building real spread-history tracking is a bigger addition than its
+  Low-priority ranking justified this round.
+- **Bollinger/VWAP weight redundancy (Q2, Low priority):** Kimi's own
+  meta-observation explicitly cautioned against tuning existing signal weights
+  before real data exists — "the biggest risk at this stage is that Claude will
+  suggest optimizing weights or thresholds that should remain fixed until you
+  have 100+ closed trades per bucket." Given that instruction and the item's own
+  Low-priority tag, `WEIGHTS` in `intraday.py` was left untouched. Once 100+
+  trades exist, `per_signal_accuracy_report()` (already built, gated at 10
+  active trades per signal) will show empirically whether Bollinger is actually
+  redundant with VWAP — that's the point at which reallocating weight is a
+  data-driven decision instead of a guess.
+
+---
+
+## 9. What We're Asking Kimi to Review Now
+
+1. **Section 8.1** — is confidence-gating via MA-spread compression (vs. a
+   second faster regime detector) a sufficient fix for the lag risk, or does
+   the compressed-regime fallback (treating it as regime-neutral) need its own
+   tie-breaker?
+2. **Section 8.3** — is an 80% Wilson CI with a 48% floor the right
+   statistical strictness, or should the confidence level / floor be adjusted?
+3. **Section 8.5** — is a single SPY-gap threshold (2%) a reasonable one-signal
+   proxy for "abnormal market day" given no VIX access, or is it too coarse
+   (e.g., should intraday realized vol of SPY also factor in)?
+4. Anything in Section 8.6's deferred list that should be reprioritized higher
+   despite the reasoning given?
+
+Reminder: there is still no real performance data. All of the above are
+architecture changes made in response to review, not results — the system
+still needs its first 100 closed trades before any of this can be empirically
+validated.

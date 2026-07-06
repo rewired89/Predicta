@@ -78,7 +78,7 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis of which conditions produced which outcomes, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
@@ -170,12 +170,12 @@ mutates: none
 name: log_hypothetical_trade
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). Outcomes resolved later via log_trade_exit.
-inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3"
+purpose: Logs what WOULD have happened without placing an order — signal-only dry-run mode for Week 1-2 validation. Sets is_hypothetical=1, theoretical_entry=entry. Also stores per-signal scores (v4: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence) via _extract_signal_scores(). v5 (Kimi review): optional regime_tags dict (spy_gap_pct, xlk_change_pct, regime) stored for post-hoc analysis of which market conditions produced which outcomes — logged only, never fed back into live scoring. Outcomes resolved later via log_trade_exit.
+inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3", regime_tags: Optional[dict] = None
 outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
 called_by: signal_only (app.py), run_open_scan (paper_runner.py)
-mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols)
+mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols, v5 regime tag cols)
 ---
 
 ---
@@ -198,11 +198,83 @@ mutates: none
 name: RUNNER_MIN_SCORE
 type: variable
 file: fetchers/paper_runner.py
-purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40.
+purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40. Overridden to REGIME_EXTREME_MIN_SCORE (60) for the current scan when _fetch_market_regime() reports EXTREME.
 inputs: none
 outputs: int
 calls: none
 called_by: run_open_scan, _runner_loop, get_runner_status
+mutates: none
+---
+
+---
+name: MAX_CONCURRENT_POSITIONS
+type: variable
+file: fetchers/paper_runner.py
+purpose: Portfolio risk cap (Kimi review) — max simultaneous open hypothetical positions across the whole 8-symbol universe. Since all 8 symbols are a single correlated tech cluster (not diversified sectors), caps total exposure at 3x1% risk instead of computing pairwise correlation. run_open_scan stops logging new entries once (already-open + logged-this-scan) reaches this cap.
+inputs: none
+outputs: int (3)
+calls: none
+called_by: run_open_scan
+mutates: none
+---
+
+---
+name: REGIME_GAP_THRESHOLD_PCT
+type: variable
+file: fetchers/paper_runner.py
+purpose: SPY overnight gap % threshold (2.0) above which _fetch_market_regime() classifies the day as EXTREME. Used as a volatility-regime proxy since VIX isn't available on the Alpaca free tier (Kimi review, structural gap E).
+inputs: none
+outputs: float (2.0)
+calls: none
+called_by: _fetch_market_regime
+mutates: none
+---
+
+---
+name: REGIME_EXTREME_MIN_SCORE
+type: variable
+file: fetchers/paper_runner.py
+purpose: Elevated min_score (60) applied by run_open_scan on EXTREME-regime days, replacing RUNNER_MIN_SCORE (20) so the paper-trading dataset isn't contaminated with signals fired during untradeable volatility.
+inputs: none
+outputs: int (60)
+calls: none
+called_by: run_open_scan
+mutates: none
+---
+
+---
+name: EARNINGS_BLACKOUT
+type: variable
+file: fetchers/paper_runner.py
+purpose: Static earnings-blackout calendar (Kimi review, structural gap D — low priority). Empty dict by default; format is {"SYMBOL": ["YYYY-MM-DD", ...]}. No live earnings-calendar API is wired in — dates must be added manually as they're confirmed. Mechanism only, not a populated calendar.
+inputs: none
+outputs: dict[str, list[str]]
+calls: none
+called_by: _is_earnings_blackout
+mutates: none
+---
+
+---
+name: _fetch_market_regime
+type: function
+file: fetchers/paper_runner.py
+purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT. Fails safe to NORMAL/0.0 on any API error.
+inputs: none
+outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float}
+calls: get_snapshots
+called_by: run_open_scan
+mutates: none
+---
+
+---
+name: _is_earnings_blackout
+type: function
+file: fetchers/paper_runner.py
+purpose: Returns True if symbol has a manually-confirmed earnings date matching date_str in EARNINGS_BLACKOUT.
+inputs: symbol: str, date_str: str
+outputs: bool
+calls: EARNINGS_BLACKOUT
+called_by: run_open_scan
 mutates: none
 ---
 
@@ -306,10 +378,10 @@ mutates: none
 name: run_open_scan
 type: function
 file: fetchers/paper_runner.py
-purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Returns list of trade_ids created.
+purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= effective min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Three pre-trade gates applied (Kimi review): (1) market regime gate — calls _fetch_market_regime() once per scan; on EXTREME days raises effective min_score to REGIME_EXTREME_MIN_SCORE (60); (2) earnings blackout — skips symbols matching EARNINGS_BLACKOUT for today via _is_earnings_blackout; (3) portfolio cap — stops logging once (already-open + logged-this-scan) reaches MAX_CONCURRENT_POSITIONS (3). Passes regime_tags (spy_gap_pct, xlk_change_pct, regime) into log_hypothetical_trade for every entry. Returns list of trade_ids created.
 inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
 outputs: list[int] (trade_ids)
-calls: get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _et_now, _HOLD_BARS
+calls: _fetch_market_regime, _is_earnings_blackout, get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _load_open_positions, _et_now, _HOLD_BARS
 called_by: _runner_loop, paper_runner_scan_now (app.py)
 mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
 ---
@@ -1540,10 +1612,10 @@ mutates: none
 name: kelly_from_signals
 type: function
 file: models/trading/kelly.py
-purpose: ATR-based position sizing with empirical win rate overlay. Risks 1% per trade (1.5× ATR stop). Score gate: no position when |score| < 20. Calls calibrated_win_rate() — if empirical win rate < 0.45, vetoes trade. Reports win_rate and win_rate_source ("empirical" or "unavailable") for transparency. Position sizing stays ATR-based until calibration reaches "stable" (50+ trades).
+purpose: ATR-based position sizing with empirical win rate overlay. Risks 1% per trade (1.5× ATR stop). Score gate: no position when |score| < 20. Kimi review (round 2): empirical win rate + veto are both gated behind calibration_globally_active() — no-op until 100 total closed trades exist, since the base ensemble's edge is unvalidated below that floor. Once active, veto uses veto_decision() — an 80% confidence-interval test on the score bucket's win rate (min 30 trades in-bucket, vetoes only if CI upper bound < 48%) — replacing the old naive "win rate < 45%" point-estimate check (Kimi review, round 1), which was noise-prone at small sample sizes. Reports win_rate and win_rate_source ("empirical", "unavailable", or "gated_pending_100_trades") for transparency.
 inputs: score: float, atr_pct: float, bankroll: float = 10000.0
 outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, win_rate_source, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
-calls: calibrated_win_rate (signal_calibration.py)
+calls: calibrated_win_rate, veto_decision, calibration_globally_active (signal_calibration.py)
 called_by: run_trade_analysis, intraday_analysis (app.py)
 mutates: none
 ---
@@ -1640,8 +1712,8 @@ mutates: none
 name: _sig_vwap
 type: function
 file: models/trading/intraday.py
-purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20. trend_label sourced from _sig_trend_bias, pre-computed in compute_intraday_signals.
-inputs: bars: list[dict], snapshot: dict, trend_label: str = "neutral"
+purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20. trend_label sourced from _sig_trend_bias, pre-computed in compute_intraday_signals. Kimi review addition: trend_confidence gates the flip — only applies when "strong" (MA20/MA50 spread >=2%, from _sig_trend_bias's regime_confidence); when "weak" (compressed/ambiguous MA spread), falls back to the default fade logic instead of trusting an unreliable regime label.
+inputs: bars: list[dict], snapshot: dict, trend_label: str = "neutral", trend_confidence: str = "strong"
 outputs: dict {vwap, deviation_pct, label, score}
 calls: _vwap
 called_by: compute_intraday_signals
@@ -1652,8 +1724,8 @@ mutates: none
 name: _sig_gap
 type: function
 file: models/trading/intraday.py
-purpose: Regime-conditioned pre-market gap signal. Large gaps (>2%) are always faded. Small gaps (0.5–2%): gap-down in uptrend scores +10 (buy the dip); gap-up in downtrend scores -10 (fade the bounce). Neutral regime follows momentum direction.
-inputs: snapshot: dict, trend_label: str = "neutral"
+purpose: Regime-conditioned pre-market gap signal. Large gaps (>2%) are always faded. Small gaps (0.5–2%): gap-down in uptrend scores +10 (buy the dip); gap-up in downtrend scores -10 (fade the bounce). Neutral regime follows momentum direction. Kimi review addition: trend_confidence gates the trend-following branch — only applies when "strong" (MA20/MA50 spread >=2%); "weak" confidence falls back to regime-neutral default.
+inputs: snapshot: dict, trend_label: str = "neutral", trend_confidence: str = "strong"
 outputs: dict {gap_pct, direction, fill_prob, score}
 calls: none
 called_by: compute_intraday_signals
@@ -1712,9 +1784,9 @@ mutates: none
 name: _sig_trend_bias
 type: function
 file: models/trading/intraday.py
-purpose: Assesses daily trend regime by checking whether price is above MA20 and MA50, scoring bullish or bearish bias.
+purpose: Assesses daily trend regime by checking whether price is above MA20 and MA50, scoring bullish or bearish bias. Kimi review addition: also computes ma_spread_pct (abs(ma20-ma50)/mid*100) and regime_confidence ("strong" if spread >=2%, else "weak") — downstream _sig_vwap/_sig_gap use this to decide whether to trust the label enough to flip their regime-conditioning logic, since a compressed spread means the regime could flip on the next session.
 inputs: daily_bars: list[dict]
-outputs: dict {ma20, ma50, above_ma20, above_ma50, label, score}
+outputs: dict {ma20, ma50, ma_spread_pct, regime_confidence, above_ma20, above_ma50, label, score}
 calls: none
 called_by: compute_intraday_signals
 mutates: none
@@ -1820,7 +1892,7 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap, runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
+purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap (passing both trend_label and trend_confidence — Kimi review addition — so the conditioning flip is suppressed when the daily MA20/MA50 spread is compressed/ambiguous), runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
 outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
 calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
@@ -6301,7 +6373,55 @@ purpose: Returns empirical win rate for a composite score. Returns None when dat
 inputs: score: float
 outputs: Optional[float]
 calls: score_accuracy_report
-called_by: kelly_from_signals (once 50+ trades exist)
+called_by: kelly_from_signals (only when calibration_globally_active() is True — 100+ total closed trades)
+mutates: none
+---
+
+---
+name: MIN_TRADES_FOR_ANY_CALIBRATION
+type: variable
+file: models/trading/signal_calibration.py
+purpose: Hard floor (100) before any calibration output — empirical win rate, veto, dynamic weights — is allowed to influence a live decision (Kimi review, round 2). Below this, acting on 30-50 trade calibration data risks tuning noise rather than validated edge.
+inputs: none
+outputs: int (100)
+calls: none
+called_by: calibration_globally_active
+mutates: none
+---
+
+---
+name: calibration_globally_active
+type: function
+file: models/trading/signal_calibration.py
+purpose: True once total closed trades >= MIN_TRADES_FOR_ANY_CALIBRATION (100). kelly_from_signals checks this before using calibrated_win_rate() or veto_decision() for a real decision — below the floor, falls back to static ATR sizing with no empirical overlay.
+inputs: none
+outputs: bool
+calls: _load_closed_trades
+called_by: kelly_from_signals
+mutates: none
+---
+
+---
+name: _wilson_ci
+type: function
+file: models/trading/signal_calibration.py
+purpose: Wilson score interval for a binomial proportion — better small-sample behavior than a normal approximation. Used by veto_decision to compute an 80%-confidence range for the true win rate given wins/n.
+inputs: wins: int, n: int, confidence: float = 0.80
+outputs: tuple[float, float] (ci_lower, ci_upper)
+calls: math.sqrt
+called_by: veto_decision
+mutates: none
+---
+
+---
+name: veto_decision
+type: function
+file: models/trading/signal_calibration.py
+purpose: Statistically-gated trade veto (Kimi review, round 1). Replaces a naive point-estimate check ("win rate < 45%") with an 80% confidence-interval test via _wilson_ci, and refuses to veto below min_trades in the score's bucket — a 45% observed win rate at n=15 could easily be a true 55% rate with bad variance. Only vetoes when the bucket's 80% CI upper bound sits entirely below ci_floor (default 0.48), which in practice requires ~25-30+ trades in the bucket.
+inputs: score: float, min_trades: int = 30, ci_floor: float = 0.48
+outputs: dict {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
+calls: _load_closed_trades, _wilson_ci, _is_winner, _BUCKETS
+called_by: kelly_from_signals (only when calibration_globally_active() is True)
 mutates: none
 ---
 
@@ -6409,9 +6529,9 @@ mutates: none
 name: PATTERN_LENGTH
 type: variable
 file: models/trading/ngram.py
-purpose: N-gram context window length (3 bars). 3-bar patterns → 3^3 = 27 possible sequences (U/D/E per bar). 6 months of 5-min data gives ~120 samples per pattern on average — enough for 50-sample minimum.
+purpose: N-gram context window length. Extended 3→4 bars (Kimi review): 3 bars (15 min) showed weak directional autocorrelation (~0.05-0.12 in large-cap 5-min bars) — too close to the 50% baseline given only a slightly-elevated 52% threshold. 4-bar patterns → 3^4 = 81 possible sequences (U/D/E per bar), ~20 min of context (closer to the model's 30-60 min intended hold), still ~115 expected occurrences per pattern over 6 months — comfortably above the 40-sample floor.
 inputs: none
-outputs: int (3)
+outputs: int (4)
 calls: none
 called_by: encode_sequence, build_pattern_table, ngram_signal, save/load_pattern_table
 mutates: none
@@ -6481,8 +6601,8 @@ mutates: none
 name: ngram_signal
 type: function
 file: models/trading/ngram.py
-purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table. Returns UP (p_up>0.52, conf=(p-0.5)×200), DOWN (p_down>0.52), or NONE. Confidence is on 0–100 scale. Requires min_samples=30 historical occurrences (lowered from 50 to activate on more patterns).
-inputs: symbol: str, recent_closes: list[float], min_samples: int = 30
+purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table — now 5 bars (4-bar pattern + 1) since PATTERN_LENGTH extended 3→4 (Kimi review). Returns UP (p_up>0.52, conf=(p-0.5)×200), DOWN (p_down>0.52), or NONE. Confidence is on 0–100 scale. Requires min_samples=40 historical occurrences (raised from 30 to maintain statistical power for the larger 81-pattern space).
+inputs: symbol: str, recent_closes: list[float], min_samples: int = 40
 outputs: dict {signal, confidence, historical_win_rate?, pattern?, n_historical?, expected_edge?, reason?}
 calls: encode_sequence, load_pattern_table
 called_by: compute_intraday_signals (intraday.py)

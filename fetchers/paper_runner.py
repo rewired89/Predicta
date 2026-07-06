@@ -43,6 +43,25 @@ RUNNER_SYMBOLS: list[str] = [
 # Cast wide net for data; the trade endpoint uses 40 as the action threshold
 RUNNER_MIN_SCORE: int = 20
 
+# Portfolio risk control (Kimi review, structural gap A): the 8-symbol
+# universe is a single correlated tech cluster, not diversified sectors — cap
+# total simultaneous open positions instead of computing pairwise correlation,
+# since a sector-wide move could otherwise stack N x 25%-sized positions at once.
+MAX_CONCURRENT_POSITIONS: int = 3
+
+# Market regime gate (Kimi review, structural gap E): SPY overnight gap is used
+# as a volatility-regime proxy (no VIX access on the Alpaca free tier). On
+# extreme days, raise the logging threshold so the paper-trading dataset isn't
+# contaminated with signals fired during untradeable volatility.
+REGIME_GAP_THRESHOLD_PCT: float = 2.0
+REGIME_EXTREME_MIN_SCORE: int = 60
+
+# Earnings blackout (Kimi review, structural gap D — low priority). Empty by
+# default; add "SYMBOL": ["YYYY-MM-DD", ...] entries manually as real earnings
+# dates are confirmed. No live earnings-calendar API is wired in yet, so this
+# is a mechanism, not a populated calendar.
+EARNINGS_BLACKOUT: dict[str, list[str]] = {}
+
 # Hold duration per time-of-day label, in 5-min bars
 _HOLD_BARS: dict[str, int] = {
     "MORNING_TREND":   12,   # 60 min — ride the morning move
@@ -109,6 +128,36 @@ def _avg_daily_vol(daily_bars: list[dict]) -> float:
     return sum(vols) / len(vols) if vols else 1_000_000
 
 
+def _fetch_market_regime() -> dict:
+    """
+    Coarse "should we even be trading today" gate (Kimi review, structural
+    gap E). Uses SPY's overnight gap as a volatility-regime proxy — no VIX
+    access on the Alpaca free tier — and XLK's daily change as a simple
+    sector-rotation tag for the (all-tech) watchlist.
+
+    Returns {"regime": "NORMAL"|"EXTREME", "spy_gap_pct": float, "xlk_change_pct": float}.
+    Fails safe to NORMAL/0.0 on any API error so a data hiccup never blocks
+    the whole scan.
+    """
+    try:
+        snaps = get_snapshots(["SPY", "XLK"])
+        spy = snaps.get("SPY", {})
+        xlk = snaps.get("XLK", {})
+        spy_open = spy.get("open", 0)
+        spy_prev = spy.get("prev_close", 0)
+        spy_gap_pct = round((spy_open - spy_prev) / spy_prev * 100, 3) if spy_prev else 0.0
+        xlk_change_pct = xlk.get("change_pct", 0.0)
+        regime = "EXTREME" if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT else "NORMAL"
+        return {"regime": regime, "spy_gap_pct": spy_gap_pct, "xlk_change_pct": xlk_change_pct}
+    except Exception:
+        return {"regime": "NORMAL", "spy_gap_pct": 0.0, "xlk_change_pct": 0.0}
+
+
+def _is_earnings_blackout(symbol: str, date_str: str) -> bool:
+    """True if symbol has a manually-confirmed earnings date matching today."""
+    return date_str in EARNINGS_BLACKOUT.get(symbol, [])
+
+
 def run_open_scan(
     symbols: Optional[list[str]] = None,
     min_score: int = RUNNER_MIN_SCORE,
@@ -118,13 +167,47 @@ def run_open_scan(
     abs(score) >= min_score as hypothetical trades (is_hypothetical=1,
     no Alpaca order placed). Returns list of trade_ids created.
     Throttles Alpaca API calls to stay under the free-tier limit.
+
+    Applies three pre-trade gates (Kimi review) before logging any entry:
+      market regime gate  — on EXTREME days (SPY gap >= 2%), raise the
+                             effective threshold to REGIME_EXTREME_MIN_SCORE
+                             so the dataset isn't contaminated with signals
+                             fired during untradeable volatility
+      portfolio cap       — stop logging once (already-open + logged-this-scan)
+                             positions reach MAX_CONCURRENT_POSITIONS, since
+                             the 8-symbol universe is one correlated tech cluster
+      earnings blackout    — skip any symbol with a manually-confirmed earnings
+                             date matching today (EARNINGS_BLACKOUT)
     """
     syms = symbols or RUNNER_SYMBOLS
     trade_ids: list[int] = []
 
-    snapshots = get_snapshots(syms)
+    market_regime = _fetch_market_regime()
+    effective_min_score = (
+        REGIME_EXTREME_MIN_SCORE if market_regime["regime"] == "EXTREME" else min_score
+    )
+    if market_regime["regime"] == "EXTREME":
+        log.info(
+            f"[RUNNER] EXTREME market regime — SPY gap {market_regime['spy_gap_pct']:+.2f}%, "
+            f"raising min_score to {effective_min_score}"
+        )
+        _run_log.append({
+            "ts": _et_now().isoformat(), "event": "REGIME_GATE",
+            "note": f"EXTREME regime (SPY gap {market_regime['spy_gap_pct']:+.2f}%) — "
+                    f"min_score raised to {effective_min_score}",
+        })
+
+    today_str     = _et_now().strftime("%Y-%m-%d")
+    existing_open = len(_load_open_positions())
+    snapshots     = get_snapshots(syms)
 
     for sym in syms:
+        if _is_earnings_blackout(sym, today_str):
+            _run_log.append({
+                "ts": _et_now().isoformat(), "event": "EARNINGS_BLACKOUT_SKIP", "sym": sym,
+            })
+            continue
+
         snap = snapshots.get(sym, {})
         if not snap or snap.get("price", 0) <= 0:
             continue
@@ -145,7 +228,14 @@ def run_open_scan(
                 continue
 
             score_val = result["score"]["value"]
-            if abs(score_val) < min_score:
+            if abs(score_val) < effective_min_score:
+                continue
+
+            if existing_open + len(trade_ids) >= MAX_CONCURRENT_POSITIONS:
+                _run_log.append({
+                    "ts": _et_now().isoformat(), "event": "PORTFOLIO_CAP_SKIP", "sym": sym,
+                    "note": f"Cap ({MAX_CONCURRENT_POSITIONS}) reached — skipping",
+                })
                 continue
 
             levels   = result.get("levels", {})
@@ -161,6 +251,7 @@ def run_open_scan(
                 levels       = levels,
                 hold_bars    = hold_b,
                 model_version= "v4",
+                regime_tags  = market_regime,
             )
             trade_ids.append(tid)
             _run_log.append({

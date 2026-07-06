@@ -268,6 +268,7 @@ def log_hypothetical_trade(
     levels: dict,
     hold_bars: int = 6,
     model_version: str = "v3",
+    regime_tags: Optional[dict] = None,
 ) -> int:
     """
     Log what WOULD have happened without placing an Alpaca order.
@@ -277,6 +278,11 @@ def log_hypothetical_trade(
     model predicted — critical for validating direction, stop distance, and ToD bias
     before any capital is at risk.
 
+    regime_tags: optional dict from paper_runner's market-regime gate — keys
+    spy_gap_pct, xlk_change_pct, regime ("NORMAL"/"EXTREME"). Logged only, for
+    post-hoc analysis of which market conditions produced which outcomes
+    (Kimi review) — never fed back into live scoring.
+
     Resolve outcomes via log_trade_exit() when stop/target/time exit would have hit.
     """
     entry_time = datetime.now(timezone.utc).isoformat()
@@ -285,6 +291,7 @@ def log_hypothetical_trade(
     em     = signals.get("intraday_expected_move", {})
     relvol = (signals.get("signals") or {}).get("relvol", {})
     ss     = _extract_signal_scores(signals)
+    rt     = regime_tags or {}
 
     with get_db() as conn:
         cur = conn.execute(
@@ -301,6 +308,7 @@ def log_hypothetical_trade(
                 composite_raw, vwap_score, or_score, rsi_score,
                 relvol_score, gap_score, trend_score, bollinger_score,
                 volsurge_score, ngram_signal, ngram_confidence,
+                spy_gap_pct, xlk_change_pct, market_regime,
                 logged_at
             ) VALUES (
                 ?, ?, ?, ?,
@@ -313,6 +321,7 @@ def log_hypothetical_trade(
                 ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?,
+                ?, ?, ?,
                 ?, ?, ?,
                 datetime('now')
             )
@@ -333,6 +342,7 @@ def log_hypothetical_trade(
                 ss.get("rsi_score"), ss.get("relvol_score"), ss.get("gap_score"),
                 ss.get("trend_score"), ss.get("bollinger_score"), ss.get("volsurge_score"),
                 ss.get("ngram_signal"), ss.get("ngram_confidence"),
+                rt.get("spy_gap_pct"), rt.get("xlk_change_pct"), rt.get("regime"),
             ),
         )
         return cur.lastrowid

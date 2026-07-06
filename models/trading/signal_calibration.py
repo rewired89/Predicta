@@ -178,6 +178,96 @@ def calibrated_win_rate(score: float) -> Optional[float]:
     return None
 
 
+# Hard floor before ANY calibration output (empirical win rate, veto, dynamic
+# weights) is allowed to influence a live decision (Kimi review, round 2): the
+# base ensemble's edge hasn't been validated yet, so acting on 30-50 trade
+# calibration data risks tuning noise rather than a real signal.
+MIN_TRADES_FOR_ANY_CALIBRATION = 100
+
+
+def calibration_globally_active() -> bool:
+    """
+    True once total closed trades >= MIN_TRADES_FOR_ANY_CALIBRATION (100).
+    Callers (e.g. kelly_from_signals) must check this before using
+    calibrated_win_rate() or veto_decision() for a real decision — below the
+    floor, fall back to static behavior instead.
+    """
+    return len(_load_closed_trades()) >= MIN_TRADES_FOR_ANY_CALIBRATION
+
+
+def _wilson_ci(wins: int, n: int, confidence: float = 0.80) -> tuple[float, float]:
+    """
+    Wilson score interval for a binomial proportion — much better small-sample
+    behavior than a normal approximation, which is why the CI-gated veto below
+    uses it instead of a raw point estimate.
+    """
+    if n == 0:
+        return (0.0, 1.0)
+    p = wins / n
+    z = {0.80: 1.2816, 0.90: 1.6449, 0.95: 1.96}.get(confidence, 1.2816)
+    denom  = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    margin = (z * math.sqrt((p * (1 - p) / n) + (z * z / (4 * n * n)))) / denom
+    return (max(0.0, center - margin), min(1.0, center + margin))
+
+
+def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) -> dict:
+    """
+    Statistically-gated trade veto (Kimi review): replaces a naive point-estimate
+    check (e.g. "win rate < 45%") with an 80% confidence-interval test, and
+    refuses to veto at all below min_trades in the score's bucket.
+
+    Rationale: a 45% observed win rate at n=15 could easily be a true 55% rate
+    with bad variance, or a true 35% rate with good variance — vetoing on the
+    point estimate alone is noise responding to noise. This only vetoes when
+    the bucket's 80% CI upper bound sits entirely below ci_floor, which in
+    practice requires roughly 25-30+ trades in the bucket to ever trigger.
+
+    Returns: {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
+    """
+    trades = _load_closed_trades()
+    bucket = next(
+        ((lo, hi, label) for lo, hi, label in _BUCKETS if lo <= score < hi), None
+    )
+    if bucket is None:
+        return {
+            "veto": False, "reason": "score out of bucket range", "n": 0,
+            "win_rate": None, "ci_lower": None, "ci_upper": None,
+            "min_trades": min_trades,
+        }
+
+    lo, hi, label = bucket
+    bt = [
+        t for t in trades
+        if t.get("entry_score") is not None and lo <= t["entry_score"] < hi
+    ]
+    n = len(bt)
+
+    if n < min_trades:
+        return {
+            "veto": False,
+            "reason": f"Only {n} trade(s) in '{label}' bucket — need {min_trades} before vetoing",
+            "n": n, "win_rate": None, "ci_lower": None, "ci_upper": None,
+            "min_trades": min_trades,
+        }
+
+    wins = sum(1 for t in bt if _is_winner(t))
+    win_rate = round(wins / n, 3)
+    ci_lower, ci_upper = _wilson_ci(wins, n)
+
+    veto = ci_upper < ci_floor
+    reason = (
+        f"80% CI upper bound {ci_upper:.1%} < {ci_floor:.0%} floor — edge statistically gone"
+        if veto else
+        f"80% CI [{ci_lower:.1%}, {ci_upper:.1%}] does not confirm the edge is gone"
+    )
+    return {
+        "veto": veto, "reason": reason, "n": n, "win_rate": win_rate,
+        "ci_lower": round(ci_lower, 3), "ci_upper": round(ci_upper, 3),
+        "min_trades": min_trades,
+    }
+
+
 def calibration_summary() -> dict:
     """
     One-call readiness check: trade count, Kelly eligibility, empirical score
