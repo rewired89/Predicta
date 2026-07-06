@@ -589,6 +589,122 @@ def compute_ngram_blend_weight(min_samples: int = 20) -> Optional[dict]:
     }
 
 
+# Signal kill switch (Kimi review, round 5 — Citadel "pod" model: small teams,
+# tight risk limits, kill underperformers). Diagnostic + persisted flag only —
+# does NOT itself zero out WEIGHTS in intraday.py; the live ensemble stays
+# untouched until dynamic weights are actually wired to production, per the
+# same "don't tune pre-data" principle applied everywhere else this session.
+SIGNAL_KILL_MIN_TRADES     = 50
+SIGNAL_KILL_CI_FLOOR       = 0.48
+SIGNAL_KILL_RESURRECT_N    = 20
+
+
+def _per_signal_wilson_ci(trades: list[dict], col: str, active_threshold: float = 10.0) -> dict:
+    """Win rate + Wilson CI for one signal column, mirroring veto_decision's math."""
+    active = [
+        t for t in trades
+        if t.get(col) is not None and abs(t[col]) >= active_threshold
+    ]
+    n = len(active)
+    if n == 0:
+        return {"n": 0, "win_rate": None, "ci_lower": None, "ci_upper": None}
+    wins = sum(1 for t in active if _is_winner(t))
+    win_rate = round(wins / n, 3)
+    ci_lower, ci_upper = _wilson_ci(wins, n, WILSON_CONFIDENCE)
+    return {
+        "n": n, "win_rate": win_rate,
+        "ci_lower": round(ci_lower, 3), "ci_upper": round(ci_upper, 3),
+    }
+
+
+def _persist_kill_switch(signal: str, stats: dict) -> None:
+    """Upserts a kill record; no-op if already killed and not yet resurrected."""
+    from db.database import get_db
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT resurrected FROM signal_kill_switches WHERE signal = ?", (signal,)
+        ).fetchone()
+        if existing and not existing[0]:
+            return
+        conn.execute(
+            """
+            INSERT INTO signal_kill_switches
+                (signal, killed_at, n_trades_at_kill, win_rate_at_kill, ci_upper_at_kill, resurrected)
+            VALUES (?, datetime('now'), ?, ?, ?, 0)
+            ON CONFLICT(signal) DO UPDATE SET
+                killed_at=excluded.killed_at, n_trades_at_kill=excluded.n_trades_at_kill,
+                win_rate_at_kill=excluded.win_rate_at_kill, ci_upper_at_kill=excluded.ci_upper_at_kill,
+                resurrected=0, resurrected_at=NULL
+            """,
+            (signal, stats["n"], stats["win_rate"], stats["ci_upper"]),
+        )
+
+
+def check_signal_kill_switches() -> dict:
+    """
+    After SIGNAL_KILL_MIN_TRADES (50) active trades for an individual signal,
+    if its Wilson CI upper bound sits below SIGNAL_KILL_CI_FLOOR (48%), marks
+    it BUCKET_KILLED and persists the event to signal_kill_switches. Requires
+    a manual resurrect_signal() call plus SIGNAL_KILL_RESURRECT_N (20) new
+    active trades before it can requalify (see get_signal_kill_status).
+    """
+    trades = _load_closed_trades_full()
+    results = {}
+    for sig, col in _SIGNAL_COLS.items():
+        stats = _per_signal_wilson_ci(trades, col, active_threshold=10.0)
+        if stats["n"] < SIGNAL_KILL_MIN_TRADES:
+            results[sig] = {
+                **stats, "killed": False,
+                "reason": f"Only {stats['n']} trades — need {SIGNAL_KILL_MIN_TRADES}",
+            }
+            continue
+        killed = stats["ci_upper"] is not None and stats["ci_upper"] < SIGNAL_KILL_CI_FLOOR
+        results[sig] = {**stats, "killed": killed}
+        if killed:
+            _persist_kill_switch(sig, stats)
+    return results
+
+
+def get_signal_kill_status() -> list[dict]:
+    """
+    All persisted kill-switch rows, each flagged with whether it's eligible
+    for a manual resurrection review (SIGNAL_KILL_RESURRECT_N new active
+    trades since the kill).
+    """
+    from db.database import get_db
+    trades = _load_closed_trades_full()
+    with get_db() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM signal_kill_switches").fetchall()]
+    out = []
+    for row in rows:
+        sig = row["signal"]
+        col = _SIGNAL_COLS.get(sig)
+        current_n = (
+            sum(1 for t in trades if t.get(col) is not None and abs(t[col]) >= 10.0)
+            if col else 0
+        )
+        eligible = (
+            not row["resurrected"]
+            and current_n >= row["n_trades_at_kill"] + SIGNAL_KILL_RESURRECT_N
+        )
+        out.append({
+            **row, "current_active_trades": current_n,
+            "eligible_for_resurrection_review": eligible,
+        })
+    return out
+
+
+def resurrect_signal(signal: str) -> dict:
+    """Manually resurrects a killed signal (human-in-the-loop, Citadel pod model)."""
+    from db.database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE signal_kill_switches SET resurrected=1, resurrected_at=datetime('now') WHERE signal=?",
+            (signal,),
+        )
+    return {"signal": signal, "resurrected": True}
+
+
 def calibration_readiness_status() -> dict:
     """
     Per-feature readiness check with threshold targets.

@@ -1292,6 +1292,7 @@ class OrderRequest(BaseModel):
 @app.post("/trade/order", status_code=201)
 def place_trade(body: OrderRequest):
     from fetchers.alpaca import place_order, place_bracket_order
+    from fetchers.trading_logger import log_manual_override
     if body.use_bracket and body.take_profit and body.stop_loss:
         result = place_bracket_order(
             body.symbol, body.qty, body.side,
@@ -1302,9 +1303,21 @@ def place_trade(body: OrderRequest):
             body.symbol, body.qty, body.side, body.order_type,
             body.limit_price, body.stop_price,
         )
+    try:
+        log_manual_override("MANUAL_ORDER", body.symbol, body.dict())
+    except Exception:
+        pass  # logging the override must never block the actual order
     if "error" in result:
         raise HTTPException(400, result.get("detail") or result["error"])
     return result
+
+
+@app.get("/trade/manual-overrides")
+def manual_overrides(days: int = 30):
+    """Jane Street 'never override the computer' visibility — every manual order, logged."""
+    from fetchers.trading_logger import get_manual_overrides
+    overrides = get_manual_overrides(days)
+    return {"period_days": days, "count": len(overrides), "overrides": overrides}
 
 
 @app.get("/trade/orders")
@@ -2001,6 +2014,28 @@ def calibration_readiness():
     return status
 
 
+@app.get("/trade/calibration/kill-switches")
+def calibration_kill_switches():
+    """
+    Citadel 'pod kill switch' status (Kimi review, round 5). Runs
+    check_signal_kill_switches() to evaluate current data, then returns
+    get_signal_kill_status() for the persisted history — including which
+    killed signals are now eligible for a manual resurrection review.
+    """
+    from models.trading.signal_calibration import (
+        check_signal_kill_switches, get_signal_kill_status,
+    )
+    live_check = check_signal_kill_switches()
+    return {"live_check": live_check, "persisted": get_signal_kill_status()}
+
+
+@app.post("/trade/calibration/resurrect/{signal}")
+def calibration_resurrect_signal(signal: str):
+    """Manually resurrect a killed signal — human-in-the-loop per the Citadel pod model."""
+    from models.trading.signal_calibration import resurrect_signal
+    return resurrect_signal(signal)
+
+
 class PairsSuspendRequest(BaseModel):
     reason: str = ""
     reinstate_after: Optional[str] = None   # ISO datetime UTC, or omit for indefinite
@@ -2127,6 +2162,52 @@ def trade_dashboard():
     open_t  = [dict(r) for r in open_rows]
     n_closed = len(trades)
     n_open   = len(open_t)
+
+    # ── Inventory / exposure snapshot (Kimi review, Jane Street "inventory
+    # risk" concept — round 5) ──────────────────────────────────────────────
+    try:
+        from fetchers.paper_runner import RUNNER_SYMBOLS
+        with get_db() as conn:
+            last_seen_rows = conn.execute(
+                """
+                SELECT symbol, MAX(entry_time) as last_entry
+                FROM intraday_trades WHERE is_hypothetical = 1
+                GROUP BY symbol
+                """
+            ).fetchall()
+        last_seen = {r["symbol"]: r["last_entry"] for r in last_seen_rows}
+        now_utc = datetime.now(timezone.utc)
+        inventory_rows = []
+        for sym in RUNNER_SYMBOLS:
+            last_entry = last_seen.get(sym)
+            days_since = None
+            if last_entry:
+                try:
+                    dt = datetime.fromisoformat(last_entry.replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    days_since = (now_utc - dt).days
+                except Exception:
+                    days_since = None
+            open_pos = next((t for t in open_t if t.get("symbol") == sym), None)
+            inventory_rows.append({
+                "symbol": sym,
+                "open": open_pos is not None,
+                "side": open_pos.get("side") if open_pos else None,
+                "days_since_last_trade": days_since,
+            })
+        long_count  = sum(1 for t in open_t if t.get("side") == "long")
+        short_count = sum(1 for t in open_t if t.get("side") == "short")
+    except Exception:
+        inventory_rows = []
+        long_count = short_count = 0
+
+    # ── Per-signal P&L attribution (Kimi review, Citadel "pod" concept — round 5)
+    try:
+        from models.trading.signal_calibration import per_signal_accuracy_report
+        signal_report = per_signal_accuracy_report(min_trades=10, active_threshold=10.0)
+    except Exception:
+        signal_report = {"by_signal": [], "note": "Unavailable"}
 
     # ── Compute stats ──────────────────────────────────────────────────────
     win_rate = avg_pnl = avg_r = adj_pnl_total = None
@@ -2269,7 +2350,6 @@ def trade_dashboard():
         runner_open   = 0
         market_is_open = False
 
-    from datetime import datetime, timezone
     try:
         from fetchers.paper_runner import _et_now
         now_str = _et_now().strftime("%I:%M %p ET, %b %d")
@@ -2337,6 +2417,36 @@ def trade_dashboard():
     for reason, count in sorted(exit_counts.items(), key=lambda x: -x[1]):
         pct = count / n_closed * 100 if n_closed else 0
         exit_html += f"<div class='exit-item'><span>{_exit_plain(reason)}</span><span class='exit-count'>{count}× ({pct:.0f}%)</span></div>"
+
+    inventory_html = ""
+    for row in inventory_rows:
+        status = f"OPEN ({row['side'].upper()})" if row["open"] else "flat"
+        days   = row["days_since_last_trade"]
+        days_str = f"{days}d ago" if days is not None else "never"
+        color = "#22c55e" if row["open"] and row["side"] == "long" else "#ef4444" if row["open"] else "#64748b"
+        inventory_html += f"""
+        <div class="exit-item">
+          <span><strong>{row['symbol']}</strong> — {status}</span>
+          <span class="exit-count" style="color:{color}">last trade: {days_str}</span>
+        </div>"""
+    exposure_line = f"{long_count} long · {short_count} short · {n_open} open of {len(inventory_rows) or 8}"
+
+    signal_html = ""
+    for s in signal_report.get("by_signal", []):
+        wr = s.get("win_rate")
+        if wr is None:
+            signal_html += f"<div class='exit-item'><span>{s['signal']}</span><span class='exit-count'>{s.get('note', 'insufficient data')}</span></div>"
+            continue
+        color = "#22c55e" if wr >= 0.54 else "#f59e0b" if wr >= 0.48 else "#ef4444"
+        avg_r_s = s.get("avg_r")
+        avg_r_str = f"{avg_r_s:+.2f}R" if avg_r_s is not None else "—"
+        signal_html += f"""
+        <div class="exit-item">
+          <span>{s['signal']}</span>
+          <span class="exit-count" style="color:{color}">{wr*100:.0f}% WR · {avg_r_str} · n={s['n']}</span>
+        </div>"""
+    if not signal_html:
+        signal_html = "<p class='muted-note'>No per-signal data yet — need 10+ active trades per signal.</p>"
 
     wr_display  = f"{win_rate*100:.1f}%" if win_rate is not None else "—"
     r_display   = f"{avg_r:.2f}R" if avg_r is not None else "—"
@@ -2473,6 +2583,18 @@ def trade_dashboard():
   <div class="card">
     <div class="card-title">Open Right Now ({n_open} positions)</div>
     {open_html if open_html else "<p class='muted-note'>No open positions. The next scan runs at 9:35 AM ET on weekdays.</p>"}
+  </div>
+
+  <!-- Inventory / exposure snapshot -->
+  <div class="card">
+    <div class="card-title">Inventory — Exposure by Ticker ({exposure_line})</div>
+    {inventory_html if inventory_html else "<p class='muted-note'>No data yet.</p>"}
+  </div>
+
+  <!-- Per-signal P&L attribution -->
+  <div class="card">
+    <div class="card-title">Which Signals Are Actually Working</div>
+    {signal_html}
   </div>
 
   <!-- Recent trades -->

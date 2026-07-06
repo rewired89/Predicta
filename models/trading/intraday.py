@@ -427,6 +427,42 @@ def _sig_liquidity(snapshot: dict) -> dict:
     }
 
 
+# Effective-cost diagnostic threshold (Kimi review, round 5 — Citadel Securities'
+# spread-discipline lesson: "they profit on 0.01% edges because they have 0.002%
+# costs; you don't"). Diagnostic only for now — does NOT hard-reject trades yet,
+# since the existing spread tiers (LIQUID/ELEVATED_SPREAD/WIDE_SPREAD/UNTRADEABLE)
+# already gate on spread alone, and folding this in as a second hard reject would
+# silently swallow most of the ELEVATED_SPREAD tier the sprint-mode data
+# collection is relying on. Logged so post-hoc analysis can check whether cost
+# alone explains any losses before turning this into a real gate.
+EFFECTIVE_COST_THRESHOLD_PCT: float = 0.15
+
+
+def _effective_cost_diagnostic(
+    liquidity: dict,
+    shares: float,
+    avg_daily_volume: float,
+) -> dict:
+    """
+    effective_cost_pct = spread + estimated_slippage (already in liquidity) +
+    a simple square-root market-impact proxy based on participation rate
+    (shares / avg_daily_volume). At retail position sizes against large-cap
+    ADV, the impact term is expected to be ~0 — that's the point: it shows
+    market impact isn't our binding cost the way it is for Citadel Securities
+    at billions of dollars; spread/slippage is.
+    """
+    spread_pct   = liquidity.get("spread_pct", 0.0) or 0.0
+    slippage_pct = liquidity.get("estimated_slippage_pct", 0.0) or 0.0
+    participation = (shares / avg_daily_volume) if (shares and avg_daily_volume) else 0.0
+    market_impact_pct = math.sqrt(max(0.0, participation)) * 100
+    effective_cost_pct = round(spread_pct + slippage_pct + market_impact_pct, 4)
+    return {
+        "effective_cost_pct": effective_cost_pct,
+        "market_impact_pct": round(market_impact_pct, 6),
+        "margin_too_thin": effective_cost_pct > EFFECTIVE_COST_THRESHOLD_PCT,
+    }
+
+
 # ── Time-of-day regime ────────────────────────────────────────────────────────
 
 def _time_of_day_modifier(bar_timestamp: str) -> dict:
@@ -825,6 +861,12 @@ def compute_intraday_signals(
         intraday_em=intraday_em,
         liquidity=liquidity,
     )
+
+    # Effective-cost diagnostic (Kimi review, round 5) — logged only, see
+    # _effective_cost_diagnostic docstring for why this isn't a hard reject yet
+    liquidity.update(_effective_cost_diagnostic(
+        liquidity, levels.get("shares", 0), daily_avg_volume
+    ))
 
     # ── exit_template: seed dict for compute_exit_action calls ────────────────
     exit_template = {

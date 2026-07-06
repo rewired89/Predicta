@@ -516,6 +516,73 @@ Kimi's round-4 feedback centered on one core point: at the pre-round-4 rate
 - **Cloud backtesting infrastructure** — Kimi's own dependency graph gates
   this at 100+ trades; not building spend-incurring infra ahead of that.
 
+### 8.9 Round-5 review — cross-firm methodology sweep (Bridgewater, Two Sigma,
+Jane Street, HRT, D.E. Shaw, Citadel, Citadel Securities)
+
+Kimi's round-5 feedback surveyed seven quant firms for stealable ideas, scored
+across P0-P2. Six items were built; nine were declined with reasoning.
+
+**Built:**
+1. **Risk-parity position sizing** (`risk_parity_position_size()` in
+   `kelly.py`) — inverse-volatility sizing as an alternative to fixed 1% risk,
+   gated behind `RISK_PARITY_MODE = False`. Inert by default.
+2. **Manual override log** — `manual_override_log` table + `log_manual_override()`,
+   wired into `POST /trade/order` (the one endpoint that bypasses signal
+   generation entirely). Jane Street's "never override the computer" rule
+   applied structurally: overrides aren't forbidden, just never silent.
+   `GET /trade/manual-overrides` surfaces the history.
+3. **Signal bucket kill switch** — `check_signal_kill_switches()` in
+   `signal_calibration.py`: after 50 active trades for an individual signal,
+   if its Wilson CI upper bound sits below 48%, it's marked `BUCKET_KILLED`
+   and persisted to a new `signal_kill_switches` table (survives restarts).
+   Requires a manual `resurrect_signal()` call plus 20 new active trades to
+   requalify. Diagnostic + persisted flag only — does not itself zero out
+   `WEIGHTS`, since dynamic weights aren't wired to the live ensemble yet.
+4. **Per-signal P&L on the dashboard** — `/trade/dashboard` now has a "Which
+   Signals Are Actually Working" card, reusing the already-built
+   `per_signal_accuracy_report()` rather than building a separate view.
+5. **Effective-cost diagnostic** — `_effective_cost_diagnostic()` in
+   `intraday.py` computes `effective_cost_pct` (spread + slippage + a
+   square-root market-impact proxy) and flags `margin_too_thin` above 0.15%.
+   **Kept diagnostic-only, not a hard reject** — the existing 4-tier spread
+   system already gates trades, and folding this in as a second hard reject
+   would silently swallow most of the ELEVATED_SPREAD tier the sprint-mode
+   data collection depends on. Verified: retail-size positions against
+   large-cap ADV show market impact isn't the binding cost (confirms Kimi's
+   own framing — that's Citadel Securities' problem at billions of dollars,
+   not ours at $10k).
+6. **Inventory/exposure snapshot on the dashboard** — per-ticker open/flat
+   status, side, and days-since-last-trade for all 8 watchlist symbols, plus
+   long/short/open counts. Skipped the correlation heatmap Kimi also
+   suggested — real added complexity for marginal value with 0 real trades.
+
+**Declined, with reasoning:**
+- **Bridgewater's "Four Boxes" macro tags** and **Dalio's 3-force regime
+  gate** — both need real GDP/CPI *surprise-vs-consensus* and credit-spread
+  data with no free source (FRED gives raw series, not consensus estimates).
+  Approximating would produce misleading regime labels, not informative ones.
+  The 3-force version is worse: Kimi's spec has it actually *gate the score
+  threshold*, so bad proxies would corrupt the collection process this whole
+  session has been trying to accelerate.
+- **NLP + social sentiment logging** — both require new rate-limited external
+  APIs living inside the critical 9:35 AM scan path, for signals with no
+  established validation yet. Revisit after simpler signals are validated at
+  100 trades.
+- **ML feature store** — `intraday_trades` already *is* the feature store
+  (all v4/v5/v5b/v5c tags land there); a separate store would just
+  duplicate it.
+- **Static analysis in CI** (mypy/pylint/bandit) — this repo has a documented
+  CI landmine (Railway/GitHub Actions race, see CLAUDE.md's NRFI automation
+  section); not touching that surface for tooling hygiene. Also, this sandbox
+  can't even install the dependencies to test it.
+- **15-min multi-timeframe overlay** and **HRT-style overnight hold** — both
+  are core signal-behavior changes before any real trade data exists, same
+  "don't tune what's unmeasured" logic used to decline HMM in round 4.
+- **D.E. Shaw-style human review queue for extreme days** — Kimi's own table
+  rates this Low impact, and it reintroduces a manual step into a pipeline
+  this session already optimized for automated collection speed
+  (`DATA_COLLECTION_SPRINT_MODE`).
+
 ---
 
 ## 9. What We're Asking Kimi to Review Now

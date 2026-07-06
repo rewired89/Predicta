@@ -87,6 +87,30 @@ mutates: none (DDL)
 ---
 
 ---
+name: manual_override_log
+type: table
+file: db/schema.sql
+purpose: Kimi review round 5 — Jane Street "never override the computer" enforcement. Every manually-placed order (bypassing the automated signal pipeline) is logged here so overrides are visible, not silent.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: log_manual_override, get_manual_overrides (trading_logger.py)
+mutates: none (DDL)
+---
+
+---
+name: signal_kill_switches
+type: table
+file: db/schema.sql
+purpose: Kimi review round 5 — Citadel "pod kill switch" applied to individual signals. Persists which signals have been auto-flagged for underperformance (Wilson CI upper bound < 48% at 50+ active trades) so the state survives restarts. Requires manual resurrect_signal() call plus 20 new active trades to requalify.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: check_signal_kill_switches, get_signal_kill_status, resurrect_signal, _persist_kill_switch (signal_calibration.py)
+mutates: none (DDL)
+---
+
+---
 name: suspended_pairs
 type: table
 file: db/schema.sql
@@ -176,6 +200,30 @@ outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
 called_by: signal_only (app.py), run_open_scan (paper_runner.py)
 mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols, v5/v5b regime tag cols)
+---
+
+---
+name: log_manual_override
+type: function
+file: fetchers/trading_logger.py
+purpose: Records any manual order placed outside the automated signal pipeline (Kimi review, round 5 — Jane Street's "never override the computer" rule applied structurally: overrides aren't forbidden, but can't be silent). details stored as a JSON string.
+inputs: action: str, symbol: Optional[str] = None, details: Optional[dict] = None
+outputs: int (row id)
+calls: db.database.get_db, json.dumps
+called_by: place_trade (app.py)
+mutates: manual_override_log table (INSERT)
+---
+
+---
+name: get_manual_overrides
+type: function
+file: fetchers/trading_logger.py
+purpose: Recent manual overrides for review.
+inputs: days: int = 30
+outputs: list[dict]
+calls: db.database.get_db
+called_by: manual_overrides (app.py)
+mutates: none
 ---
 
 ---
@@ -1799,6 +1847,30 @@ mutates: none
 ---
 
 ---
+name: RISK_PARITY_MODE
+type: variable
+file: models/trading/kelly.py
+purpose: Gate for risk_parity_position_size (Kimi review, round 5). Off by default — kelly_from_signals still uses fixed-1% ATR sizing until real trade data validates whether inverse-vol sizing improves outcomes.
+inputs: none
+outputs: bool (False)
+calls: none
+called_by: none (documents intent; not yet consulted by any pipeline)
+mutates: none
+---
+
+---
+name: risk_parity_position_size
+type: function
+file: models/trading/kelly.py
+purpose: Bridgewater-style inverse-volatility position sizing (Kimi review, round 5). Sizes inversely to a ticker's realized vol vs a reference level — 2x reference vol halves the risk budget (and position size), 0.5x reference vol doubles it. Alternative to atr_position_size's fixed 1% risk; not wired into kelly_from_signals or any live pipeline yet.
+inputs: price: float, atr: float, realized_vol_pct: float, account_value: float = 10000.0, base_risk_pct: float = 0.01, reference_vol_pct: float = 20.0, stop_mult: float = 1.5, max_position_pct: float = 0.25
+outputs: dict {shares, position_size, risk_pct_used, vol_scalar, realized_vol_pct, reference_vol_pct, note, paper_mode}
+calls: none
+called_by: none (available, not yet wired into a live pipeline)
+mutates: none
+---
+
+---
 name: kelly_from_signals
 type: function
 file: models/trading/kelly.py
@@ -2010,10 +2082,34 @@ mutates: none
 name: _sig_liquidity
 type: function
 file: models/trading/intraday.py
-purpose: Spread-based liquidity filter. Hard reject (pass=False) at >0.3% spread because day trading edge is 10–30 bps. UNTRADEABLE (>0.5%): score zeroed. WIDE_SPREAD (>0.3%): pass=False. ELEVATED_SPREAD (>0.1%): pass=True but 50% score haircut + 10% position reduction. LIQUID: no penalty. Includes estimated_slippage_pct = spread/2 for market order cost modelling.
+purpose: Spread-based liquidity filter. Hard reject (pass=False) at >0.3% spread because day trading edge is 10–30 bps. UNTRADEABLE (>0.5%): score zeroed. WIDE_SPREAD (>0.3%): pass=False. ELEVATED_SPREAD (>0.1%): pass=True but 50% score haircut + 10% position reduction. LIQUID: no penalty. Includes estimated_slippage_pct = spread/2 for market order cost modelling. compute_intraday_signals later mutates this dict in place via _effective_cost_diagnostic (round 5) to add effective_cost_pct/market_impact_pct/margin_too_thin.
 inputs: snapshot: dict (requires bid, ask, price keys)
 outputs: dict {score, label, bid, ask, spread_pct, estimated_slippage_pct, pass}
 calls: none
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: EFFECTIVE_COST_THRESHOLD_PCT
+type: variable
+file: models/trading/intraday.py
+purpose: Diagnostic threshold (0.15%) for _effective_cost_diagnostic's margin_too_thin flag (Kimi review, round 5 — Citadel Securities spread-discipline lesson). Not yet a hard reject: the existing spread tiers already gate trades, and adding this as a second hard reject would silently swallow most of the ELEVATED_SPREAD tier the sprint-mode data collection relies on.
+inputs: none
+outputs: float (0.15)
+calls: none
+called_by: _effective_cost_diagnostic
+mutates: none
+---
+
+---
+name: _effective_cost_diagnostic
+type: function
+file: models/trading/intraday.py
+purpose: Computes effective_cost_pct = spread_pct + estimated_slippage_pct + a square-root market-impact proxy (sqrt(shares/avg_daily_volume) * 100). Logged only for now — flags margin_too_thin when effective_cost_pct > EFFECTIVE_COST_THRESHOLD_PCT but does not reject the trade. At retail position sizes against large-cap ADV, market_impact_pct is small (confirms spread/slippage, not market impact, is the binding cost at this scale — unlike Citadel Securities at billions of dollars).
+inputs: liquidity: dict, shares: float, avg_daily_volume: float
+outputs: dict {effective_cost_pct, market_impact_pct, margin_too_thin}
+calls: math.sqrt
 called_by: compute_intraday_signals
 mutates: none
 ---
@@ -2082,10 +2178,10 @@ mutates: none
 name: compute_intraday_signals
 type: function
 file: models/trading/intraday.py
-purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap (passing both trend_label and trend_confidence — Kimi review addition — so the conditioning flip is suppressed when the daily MA20/MA50 spread is compressed/ambiguous), runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management.
+purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap (passing both trend_label and trend_confidence — Kimi review addition — so the conditioning flip is suppressed when the daily MA20/MA50 spread is compressed/ambiguous), runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management. Round 5: after levels are computed, mutates the liquidity dict in place via _effective_cost_diagnostic to add effective_cost_pct/market_impact_pct/margin_too_thin (diagnostic only, not a reject).
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
 outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
-calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move
+calls: _sig_liquidity, _sig_trend_bias, _sig_vwap, _sig_opening_range, _sig_rsi, _sig_relative_volume, _sig_gap, _sig_bollinger, _sig_volume_surge, _composite, _time_of_day_modifier, _trade_levels, _intraday_expected_move, _effective_cost_diagnostic
 called_by: intraday_analysis (app.py), _analyze_one (screener.py)
 mutates: none
 ---
@@ -3238,12 +3334,24 @@ mutates: none
 name: place_trade
 type: function
 file: app.py
-purpose: POST /trade/order — places a paper trading order or bracket order on Alpaca.
+purpose: POST /trade/order — places a paper trading order or bracket order on Alpaca. Round 5 (Kimi review, Jane Street "never override the computer" rule): logs every call via log_manual_override, since this is the one endpoint that bypasses the automated signal pipeline entirely and lets a human place an arbitrary order. Logging failure never blocks the actual order (wrapped in try/except).
 inputs: body: OrderRequest
 outputs: dict (Alpaca order response)
-calls: place_order, place_bracket_order
+calls: place_order, place_bracket_order, log_manual_override
 called_by: HTTP POST /trade/order
-mutates: Alpaca paper account
+mutates: Alpaca paper account, manual_override_log table
+---
+
+---
+name: manual_overrides
+type: function
+file: app.py
+purpose: GET /trade/manual-overrides — visibility into every manual order placed outside the automated pipeline (Kimi review, round 5).
+inputs: days: int = 30 (query)
+outputs: dict {period_days, count, overrides: list[dict]}
+calls: get_manual_overrides (trading_logger.py)
+called_by: GET /trade/manual-overrides
+mutates: none
 ---
 
 ---
@@ -6331,10 +6439,10 @@ mutates: _runner_active (paper_runner.py global)
 name: trade_dashboard
 type: function
 file: app.py
-purpose: GET /trade/dashboard — self-contained HTML page that translates paper trading data into plain English. Shows: current phase (Watching/Collecting/Calibrating/Sizing), win rate with interpretation text, avg R with interpretation text, total adjusted P&L, best time-of-day breakdown, how trades are closing (exit reasons), open positions, recent 8 trades, and a readiness verdict ("Ready for real money" / "Not yet — why"). Auto-refreshes every 5 minutes. Mobile-friendly.
+purpose: GET /trade/dashboard — self-contained HTML page that translates paper trading data into plain English. Shows: current phase (Watching/Collecting/Calibrating/Sizing), win rate with interpretation text, avg R with interpretation text, total adjusted P&L, best time-of-day breakdown, how trades are closing (exit reasons), open positions, an inventory/exposure snapshot per ticker (round 5, Jane Street "inventory risk" concept — open/flat status, side, days since last trade for each of the 8 watchlist symbols, plus long/short/open counts), a per-signal P&L attribution section (round 5, Citadel "pod P&L" concept, reusing per_signal_accuracy_report), recent 8 trades, and a readiness verdict ("Ready for real money" / "Not yet — why"). Auto-refreshes every 5 minutes. Mobile-friendly.
 inputs: none
 outputs: HTMLResponse
-calls: db.database.get_db, get_runner_status (paper_runner.py), _et_now (paper_runner.py)
+calls: db.database.get_db, get_runner_status (paper_runner.py), _et_now (paper_runner.py), RUNNER_SYMBOLS (paper_runner.py), per_signal_accuracy_report (signal_calibration.py)
 called_by: GET /trade/dashboard
 mutates: none
 ---
@@ -6721,6 +6829,122 @@ outputs: Optional[dict {agree_multiplier, disagree_multiplier, n_agree, n_disagr
 calls: _load_closed_trades_full, _avg_r (internal)
 called_by: calibration_readiness endpoint (app.py)
 mutates: none
+---
+
+---
+name: SIGNAL_KILL_MIN_TRADES
+type: variable
+file: models/trading/signal_calibration.py
+purpose: Trades-per-signal floor (50) before check_signal_kill_switches() will evaluate a signal for killing (Kimi review, round 5 — Citadel pod model).
+inputs: none
+outputs: int (50)
+calls: none
+called_by: check_signal_kill_switches
+---
+
+---
+name: SIGNAL_KILL_CI_FLOOR
+type: variable
+file: models/trading/signal_calibration.py
+purpose: Wilson CI upper-bound floor (0.48) below which a signal with SIGNAL_KILL_MIN_TRADES+ active trades gets marked BUCKET_KILLED.
+inputs: none
+outputs: float (0.48)
+calls: none
+called_by: check_signal_kill_switches
+---
+
+---
+name: SIGNAL_KILL_RESURRECT_N
+type: variable
+file: models/trading/signal_calibration.py
+purpose: New active trades required (20) after a kill before get_signal_kill_status flags the signal eligible for a manual resurrection review.
+inputs: none
+outputs: int (20)
+calls: none
+called_by: get_signal_kill_status
+---
+
+---
+name: _per_signal_wilson_ci
+type: function
+file: models/trading/signal_calibration.py
+purpose: Win rate + Wilson CI for one signal column, mirroring veto_decision's math but scoped to a single signal rather than a composite-score bucket.
+inputs: trades: list[dict], col: str, active_threshold: float = 10.0
+outputs: dict {n, win_rate, ci_lower, ci_upper}
+calls: _is_winner, _wilson_ci
+called_by: check_signal_kill_switches
+---
+
+---
+name: _persist_kill_switch
+type: function
+file: models/trading/signal_calibration.py
+purpose: Upserts a kill record into signal_kill_switches. No-op if the signal is already killed and not yet resurrected (prevents repeatedly resetting killed_at on every check_signal_kill_switches() call).
+inputs: signal: str, stats: dict
+outputs: none
+calls: db.database.get_db
+called_by: check_signal_kill_switches
+mutates: signal_kill_switches table (INSERT/UPDATE)
+---
+
+---
+name: check_signal_kill_switches
+type: function
+file: models/trading/signal_calibration.py
+purpose: Citadel "pod kill switch" applied to individual signals (Kimi review, round 5). After SIGNAL_KILL_MIN_TRADES active trades for a signal, if its Wilson CI upper bound sits below SIGNAL_KILL_CI_FLOOR, marks it BUCKET_KILLED and persists via _persist_kill_switch. Diagnostic + persisted flag only — does NOT itself zero out WEIGHTS in intraday.py; the live ensemble stays untouched until dynamic weights are wired to production.
+inputs: none
+outputs: dict {signal_key: {n, win_rate, ci_lower, ci_upper, killed, reason?}}
+calls: _load_closed_trades_full, _per_signal_wilson_ci, _persist_kill_switch
+called_by: calibration_kill_switches (app.py)
+mutates: signal_kill_switches table (via _persist_kill_switch)
+---
+
+---
+name: get_signal_kill_status
+type: function
+file: models/trading/signal_calibration.py
+purpose: All persisted kill-switch rows, each flagged with whether it's eligible for a manual resurrection review (SIGNAL_KILL_RESURRECT_N new active trades since the kill).
+inputs: none
+outputs: list[dict]
+calls: db.database.get_db, _load_closed_trades_full
+called_by: calibration_kill_switches (app.py)
+mutates: none
+---
+
+---
+name: resurrect_signal
+type: function
+file: models/trading/signal_calibration.py
+purpose: Manually resurrects a killed signal (human-in-the-loop, Citadel pod model). Sets resurrected=1 so the signal can be re-evaluated fresh.
+inputs: signal: str
+outputs: dict {signal, resurrected}
+calls: db.database.get_db
+called_by: calibration_resurrect_signal (app.py)
+mutates: signal_kill_switches table (UPDATE)
+---
+
+---
+name: calibration_kill_switches
+type: function
+file: app.py
+purpose: GET /trade/calibration/kill-switches — runs check_signal_kill_switches() against current data, returns both the live check and the persisted history from get_signal_kill_status().
+inputs: none
+outputs: dict {live_check, persisted}
+calls: check_signal_kill_switches, get_signal_kill_status
+called_by: GET /trade/calibration/kill-switches
+mutates: signal_kill_switches table (via check_signal_kill_switches)
+---
+
+---
+name: calibration_resurrect_signal
+type: function
+file: app.py
+purpose: POST /trade/calibration/resurrect/{signal} — manually resurrect a killed signal.
+inputs: signal: str (path param)
+outputs: dict {signal, resurrected}
+calls: resurrect_signal
+called_by: POST /trade/calibration/resurrect/{signal}
+mutates: signal_kill_switches table
 ---
 
 ---

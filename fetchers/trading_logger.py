@@ -352,3 +352,34 @@ def log_hypothetical_trade(
             ),
         )
         return cur.lastrowid
+
+
+def log_manual_override(action: str, symbol: Optional[str] = None, details: Optional[dict] = None) -> int:
+    """
+    Records any manual order placed outside the automated signal pipeline
+    (Kimi review, round 5 — Jane Street's "never override the computer" rule
+    applied structurally: overrides aren't forbidden, but they can't be silent).
+
+    details is stored as a JSON string. Called from place_trade() (app.py)
+    on every POST /trade/order — the only path that bypasses signal generation
+    entirely and lets a human place an arbitrary order.
+    """
+    import json
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO manual_override_log (action, symbol, details, logged_at) "
+            "VALUES (?, ?, ?, datetime('now'))",
+            (action, symbol, json.dumps(details or {})),
+        )
+        return cur.lastrowid
+
+
+def get_manual_overrides(days: int = 30) -> list[dict]:
+    """Recent manual overrides for review — GET /trade/manual-overrides."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM manual_override_log WHERE logged_at >= datetime('now', ? || ' days') "
+            "ORDER BY logged_at DESC",
+            (f"-{days}",),
+        ).fetchall()
+    return [dict(r) for r in rows]

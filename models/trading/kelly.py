@@ -3,9 +3,18 @@ Trading position sizing.
 - trading_kelly: classical Kelly when historical win/loss stats exist.
 - atr_position_size: volatility-targeting sizing (preferred; risks 1% of capital).
 - kelly_from_signals: entry point used by pipelines — wraps ATR sizing.
+- risk_parity_position_size: Bridgewater-style inverse-vol sizing, gated off
+  by default (Kimi review, round 5) — not yet wired into any live pipeline.
 Always paper mode only.
 """
 from __future__ import annotations
+
+# Gate for risk_parity_position_size (Kimi review, round 5 — Bridgewater's
+# core insight: size inversely to volatility so each position contributes
+# roughly equal risk, not equal dollars). Off by default: kelly_from_signals
+# still uses fixed-1% ATR sizing until real trade data shows risk-parity
+# actually improves outcomes vs. the simpler approach.
+RISK_PARITY_MODE: bool = False
 
 
 def trading_kelly(
@@ -88,6 +97,55 @@ def atr_position_size(
         "risk_amount":         round(risk_amount, 2),
         "risk_pct_of_account": risk_per_trade,
         "paper_mode":          True,
+    }
+
+
+def risk_parity_position_size(
+    price: float,
+    atr: float,
+    realized_vol_pct: float,
+    account_value: float = 10000.0,
+    base_risk_pct: float = 0.01,
+    reference_vol_pct: float = 20.0,
+    stop_mult: float = 1.5,
+    max_position_pct: float = 0.25,
+) -> dict:
+    """
+    Risk-parity position sizing (Kimi review, round 5 — Bridgewater's core
+    insight): size inversely to a ticker's realized volatility so each
+    position contributes roughly equal risk instead of equal dollars. If a
+    ticker's realized vol is 2x the reference level, its risk budget (and
+    therefore size) is halved; half the reference vol doubles it.
+
+    An alternative to atr_position_size's fixed 1% risk — not wired into
+    kelly_from_signals or any live pipeline. Gated behind RISK_PARITY_MODE
+    (default False) until real trade data validates whether risk-parity
+    sizing actually improves outcomes vs. the simpler fixed-risk approach.
+    """
+    if price <= 0 or atr <= 0 or realized_vol_pct <= 0:
+        return {"error": "Invalid price, ATR, or volatility", "paper_mode": True}
+
+    vol_scalar    = round(reference_vol_pct / realized_vol_pct, 3)
+    risk_pct      = base_risk_pct * vol_scalar
+    stop_distance = stop_mult * atr
+    risk_amount   = account_value * risk_pct
+    shares        = risk_amount / stop_distance
+    pos_dollars   = min(shares * price, account_value * max_position_pct)
+    shares        = round(pos_dollars / price, 4) if price else 0
+
+    return {
+        "shares":            shares,
+        "position_size":     round(pos_dollars, 2),
+        "risk_pct_used":     round(risk_pct, 4),
+        "vol_scalar":        vol_scalar,
+        "realized_vol_pct":  realized_vol_pct,
+        "reference_vol_pct": reference_vol_pct,
+        "note": (
+            f"Risk-parity: {realized_vol_pct:.1f}% vol vs {reference_vol_pct:.1f}% "
+            f"reference -> {vol_scalar:.2f}x risk scalar -> {risk_pct*100:.2f}% "
+            f"risk (${risk_amount:.0f})"
+        ),
+        "paper_mode": True,
     }
 
 

@@ -211,3 +211,28 @@ CREATE TABLE IF NOT EXISTS nrfi_bets (
 );
 CREATE INDEX IF NOT EXISTS idx_nrfi_bets_date    ON nrfi_bets(game_date);
 CREATE INDEX IF NOT EXISTS idx_nrfi_bets_verdict ON nrfi_bets(verdict, game_date);
+
+-- Kimi review round 5 — Jane Street "never override the computer" enforcement:
+-- every manually-placed order (bypassing the automated signal pipeline) is
+-- logged here so overrides are visible, not silent.
+CREATE TABLE IF NOT EXISTS manual_override_log (
+    id INTEGER PRIMARY KEY,
+    action TEXT NOT NULL,
+    symbol TEXT,
+    details TEXT,
+    logged_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_manual_override_logged ON manual_override_log(logged_at);
+
+-- Kimi review round 5 — Citadel "pod kill switch" applied to individual
+-- signals: persists which signals have been auto-flagged for underperformance
+-- so the state survives restarts. Requires manual resurrect_signal() call.
+CREATE TABLE IF NOT EXISTS signal_kill_switches (
+    signal TEXT PRIMARY KEY,
+    killed_at TEXT NOT NULL,
+    n_trades_at_kill INTEGER NOT NULL,
+    win_rate_at_kill REAL,
+    ci_upper_at_kill REAL,
+    resurrected INTEGER DEFAULT 0,
+    resurrected_at TEXT
+);
