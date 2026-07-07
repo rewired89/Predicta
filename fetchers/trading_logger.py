@@ -380,6 +380,12 @@ def log_low_value_trade(
     output. thesis_type: dominant_thesis_type() output, stored for per-thesis
     win-rate calibration. news_result: news_overlay.score_symbol_news() output
     or None.
+
+    Also logs (Kimi review, round-2 follow-up): lv_missing_signals — the
+    signals compute_thesis_score() couldn't compute for this symbol, so a
+    post-hoc query can check "did missing-data trades underperform" without
+    guessing; lv_short_interest_asof — the settlement date behind
+    short_interest_pct, so staleness is always visible.
     """
     import json
     from models.trading.shared.kelly import low_value_position_size
@@ -387,6 +393,9 @@ def log_low_value_trade(
     entry_time = datetime.now(timezone.utc).isoformat()
     sizing = low_value_position_size(entry_price)
     nr = news_result or {}
+    missing_signals = thesis_result.get("missing_signals", [])
+    si_detail = thesis_result.get("signals", {}).get("short_interest_pct", {}).get("detail", {})
+    short_interest_asof = si_detail.get("short_interest_as_of")
 
     with get_db() as conn:
         cur = conn.execute(
@@ -398,6 +407,7 @@ def log_low_value_trade(
                 qty, position_value,
                 entry_score, model_version, is_hypothetical, notes,
                 engine, lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
+                lv_missing_signals, lv_short_interest_asof,
                 logged_at
             ) VALUES (
                 ?, ?, ?, ?,
@@ -406,6 +416,7 @@ def log_low_value_trade(
                 ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
+                ?, ?,
                 datetime('now')
             )
             """,
@@ -418,6 +429,7 @@ def log_low_value_trade(
                 "HYPOTHETICAL: Low Value engine, no order placed",
                 "low_value", thesis_type,
                 json.dumps(nr.get("flags", [])), nr.get("sentiment"), nr.get("headline_count"),
+                json.dumps(missing_signals), short_interest_asof,
             ),
         )
         return cur.lastrowid

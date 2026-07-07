@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fetchers.openinsider import has_insider_buying
-from fetchers.finra import get_short_interest_pct
+from fetchers.finra import get_short_interest
 from fetchers.finnhub import get_company_profile, get_basic_financials
 
 SIGNAL_WEIGHTS: dict[str, float] = {
@@ -144,13 +144,16 @@ def _score_insider_buying(symbol: str) -> tuple[float, dict]:
 
 
 def _score_short_interest(symbol: str) -> Optional[tuple[float, dict]]:
-    pct = get_short_interest_pct(symbol)
+    si = get_short_interest(symbol)
+    pct = si.get("pct")
     if pct is None:
         return None
     # Squeeze-potential framing (contrarian, not risk-flag): 10% short interest
     # -> +40, 25%+ -> capped at +100.
     score = max(0.0, min(100.0, pct * 4.0))
-    return round(score, 2), {"short_interest_pct": pct}
+    # as_of_date logged (Kimi round-2 review) so staleness is always visible —
+    # FINRA's settlement cycle means this can be ~2wk old, expected not a bug.
+    return round(score, 2), {"short_interest_pct": pct, "short_interest_as_of": si.get("as_of_date")}
 
 
 def _score_sector_relative_strength(symbol_bars: list[dict], sector_bars: list[dict]) -> Optional[tuple[float, dict]]:

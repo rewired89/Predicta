@@ -21,13 +21,16 @@ except ImportError:
 NASDAQ_SHORT_INTEREST_URL = "https://api.nasdaq.com/api/quote/{symbol}/short-interest"
 
 
-def get_short_interest_pct(symbol: str) -> Optional[float]:
+def get_short_interest(symbol: str) -> dict:
     """
-    Most recent short-interest as a percent of float, or None if unavailable
-    (missing data, rate limit, or request failure — never fabricated).
+    Most recent short-interest pct-of-float plus its settlement date, or {}
+    if unavailable. as_of_date is logged (Kimi review round-2 follow-up)
+    so it's always visible how stale a given short_interest_pct reading is
+    — FINRA's settlement cycle means this can be up to ~2 weeks old, which
+    is expected/acceptable for this signal, not a bug to fix.
     """
     if not _HAS_REQUESTS:
-        return None
+        return {}
     try:
         r = requests.get(
             NASDAQ_SHORT_INTEREST_URL.format(symbol=symbol.upper()),
@@ -38,11 +41,18 @@ def get_short_interest_pct(symbol: str) -> Optional[float]:
         data = r.json()
         rows = (((data.get("data") or {}).get("shortInterestTable") or {}).get("rows")) or []
         if not rows:
-            return None
+            return {}
         latest = rows[0]
         pct_str = latest.get("percentFloat") or latest.get("daysToCoverShares")
         if pct_str in (None, "", "N/A"):
-            return None
-        return float(str(pct_str).replace("%", "").replace(",", ""))
+            return {}
+        pct = float(str(pct_str).replace("%", "").replace(",", ""))
+        as_of_date = latest.get("settlementDate") or None
+        return {"pct": pct, "as_of_date": as_of_date}
     except Exception:
-        return None
+        return {}
+
+
+def get_short_interest_pct(symbol: str) -> Optional[float]:
+    """Backward-compatible pct-only accessor. Prefer get_short_interest() for the as_of_date too."""
+    return get_short_interest(symbol).get("pct")

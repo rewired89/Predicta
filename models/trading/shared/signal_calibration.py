@@ -852,7 +852,8 @@ def _load_closed_low_value_trades() -> list[dict]:
                 """
                 SELECT entry_score, pnl_r, pnl_dollars, pnl_pct,
                        symbol, exit_reason, is_hypothetical,
-                       lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count
+                       lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
+                       lv_missing_signals, lv_short_interest_asof
                 FROM intraday_trades
                 WHERE exit_price IS NOT NULL AND engine = 'low_value'
                 ORDER BY logged_at DESC
@@ -923,3 +924,59 @@ def low_value_calibration_readiness() -> dict:
             else "insufficient"
         ),
     }
+
+
+def missing_signal_impact_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES) -> dict:
+    """
+    Kimi review, round-2 follow-up: "did trades with missing data underperform
+    trades with full data?" For each of the 8 Low Value signals, splits closed
+    trades into "signal was missing at entry" vs "signal was present" and
+    compares win rate / avg P&L — answers whether the missing-signal
+    reweighting (Section 5 of low_value_trading4kimi.md) is hiding a real
+    risk, or whether thinly-covered names perform fine on the signals that
+    ARE available. Below min_trades in either cohort for a given signal,
+    that signal's comparison is None — never faked.
+    """
+    import json as _json
+    trades = _load_closed_low_value_trades()
+    if not trades:
+        return {"total_closed": 0, "by_signal": [], "note": "No closed Low Value trades yet"}
+
+    signal_names = [
+        "price_vs_20d_low", "rsi_14", "volume_spike", "insider_buying_30d",
+        "short_interest_pct", "sector_relative_strength", "cash_burn_months", "news_sentiment",
+    ]
+
+    def _stats(cohort: list[dict]) -> dict:
+        n = len(cohort)
+        if n == 0:
+            return {"n": 0, "win_rate": None, "avg_pnl_r": None}
+        wins = sum(1 for t in cohort if _is_winner(t))
+        pnl_rs = [t["pnl_r"] for t in cohort if t.get("pnl_r") is not None]
+        return {
+            "n": n, "win_rate": round(wins / n, 3),
+            "avg_pnl_r": round(sum(pnl_rs) / len(pnl_rs), 3) if pnl_rs else None,
+        }
+
+    by_signal = []
+    for sig in signal_names:
+        missing_cohort, present_cohort = [], []
+        for t in trades:
+            try:
+                missing_list = _json.loads(t.get("lv_missing_signals") or "[]")
+            except Exception:
+                missing_list = []
+            (missing_cohort if sig in missing_list else present_cohort).append(t)
+
+        missing_stats = _stats(missing_cohort)
+        present_stats = _stats(present_cohort)
+        ready = missing_stats["n"] >= min_trades and present_stats["n"] >= min_trades
+        by_signal.append({
+            "signal": sig,
+            "missing": missing_stats,
+            "present": present_stats,
+            "ready": ready,
+            "note": None if ready else f"Need {min_trades}+ trades in both cohorts (have missing={missing_stats['n']}, present={present_stats['n']})",
+        })
+
+    return {"total_closed": len(trades), "by_signal": by_signal}

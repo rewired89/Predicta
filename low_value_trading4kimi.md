@@ -328,3 +328,68 @@ Verified with a stubbed test that explicitly asserts `render_low_value_dashboard
 raises if it ever calls `get_daily_universe()` again (regression guard for
 the exact bug above), plus a real-schema test of `get_low_value_brief()`
 against inserted universe-snapshot and closed-trade rows.
+
+---
+
+## 13. Round-2 Review Response (2026-07-07)
+
+Kimi's round-2 read-through confirmed the architecture, endorsed the
+missing-signal reweighting design, and gave five prioritized follow-ups
+(P1/P1/P2/P2/P3). All five are built:
+
+1. **P1 — `lv_missing_signals` logging.** `intraday_trades` gained
+   `lv_missing_signals` (JSON list from `compute_thesis_score()`'s
+   `missing_signals`) and a new `models.trading.shared.signal_calibration
+   .missing_signal_impact_report()` — splits closed trades per signal into
+   "missing at entry" vs "present at entry" cohorts and compares win
+   rate/avg P&L. Exposed on `GET /trade/low-value/calibration`. Answers
+   Kimi's exact question ("did missing `cash_burn_months` trades perform
+   worse?") once enough trades exist per cohort (same `min_trades` gate as
+   everything else — no faking below threshold).
+2. **P1 — Scan-cost confirmation.** The query box now shows a
+   `window.confirm()` ("~200 stocks, 2-10 minutes") before firing any
+   scan-trigger query, via a client-side trigger list mirroring `app.py`'s
+   `_LV_SCAN_TRIGGERS`. Applies uniformly whether typed or clicked from an
+   example chip — no path bypasses the warning.
+3. **P2 — 7-day Finnhub cache.** New `finnhub_cache` table (added via
+   `_migrate_new_tables`, not `schema.sql` — deliberately, see the note
+   below) caches `get_company_profile`/`get_basic_financials` for 7 days,
+   same pattern as the existing `fbref_cache`. News stays uncached (fetched
+   fresh daily, per Kimi's framing of it as "the fast-moving piece"). Cuts
+   the ~10-minute cold-scan estimate roughly in half after the first week,
+   once most of the universe's cap/fundamentals are cached.
+4. **P2 — US market holiday calendar.** `fetchers/low_value_runner.py`
+   gained `US_MARKET_HOLIDAYS` (real NYSE holiday dates, 2026-2027 — same
+   convention as `MACRO_EVENT_DATES`), and `_trading_days_elapsed()` now
+   skips them in addition to weekends. Verified with a synthetic case
+   spanning the Jul 3, 2026 Independence Day observance: holiday-aware
+   count is one trading day fewer than the old weekday-only approximation.
+5. **P3 — `short_interest_as_of_date` logging.** `fetchers/finra.py` now
+   exposes `get_short_interest()` returning `{pct, as_of_date}` (the
+   settlement date from Nasdaq's response); `get_short_interest_pct()`
+   stays as a backward-compatible wrapper. `_score_short_interest()` logs
+   `short_interest_as_of` in its detail dict, threaded through to a new
+   `lv_short_interest_asof` column. Not a fix — the 2-week lag is expected
+   and, per Kimi, "a feature, not a bug" for this thesis — just makes the
+   staleness visible instead of implicit.
+
+**On P3's "build `LOW_VALUE_README.md`"**: already existed (created
+alongside the initial engine build) — Kimi's summary table assumed it
+didn't. No action needed.
+
+**One note on the caching table's placement**: `finnhub_cache` was added
+via `db/database.py`'s `_migrate_new_tables()` (Python, `CREATE TABLE IF
+NOT EXISTS`), not `schema.sql`. This is deliberate, not an oversight — the
+production crash earlier the same day (documented in the main session, not
+duplicated here) was caused by an index on a new column living directly in
+`schema.sql`, which runs via `executescript()` on every boot *before* the
+Python migration that actually adds the column to an existing production
+DB. Keeping new tables/columns in the Python migration path (which already
+has the idempotent "does this exist yet" checks) avoids that whole class
+of bug going forward — `fbref_cache` already followed this convention;
+`finnhub_cache` now does too.
+
+Also fixed the same day, unrelated to Kimi's list: Alpaca deprecated
+`pattern_day_trader`/`daytrade_count` (FINRA replaced the PDT rule with an
+intraday margin framework on 2026-06-04) — `get_account()` and the
+Positions & Orders account bar no longer reference them.

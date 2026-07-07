@@ -9384,15 +9384,63 @@ mutates: none
 ---
 
 ---
+name: CACHE_TTL_DAYS (finnhub)
+type: variable
+file: fetchers/finnhub.py
+purpose: Finnhub cap/fundamentals cache TTL (7 days, Kimi round-2 review). News stays uncached (fetched fresh daily); only the slow-moving profile/fundamentals data is cached, cutting a ~200-symbol scan's Finnhub call count roughly in half after the first week.
+inputs: none
+outputs: int (7)
+calls: none
+called_by: _cache_read
+mutates: none
+---
+
+---
+name: _cache_read (finnhub)
+type: function
+file: fetchers/finnhub.py
+purpose: Reads a finnhub_cache row for (symbol, kind); returns {data, fresh, cached_at} or None. Same shape/pattern as fbref.py's response cache.
+inputs: symbol: str, kind: str
+outputs: Optional[dict]
+calls: db.database.get_db
+called_by: _cached_or_fetch
+mutates: none
+---
+
+---
+name: _cache_write (finnhub)
+type: function
+file: fetchers/finnhub.py
+purpose: Upserts a finnhub_cache row. Empty dicts aren't cached — only successful fetches are persisted.
+inputs: symbol: str, kind: str, data: dict
+outputs: none
+calls: db.database.get_db
+called_by: _cached_or_fetch
+mutates: finnhub_cache table (INSERT/UPDATE)
+---
+
+---
+name: _cached_or_fetch
+type: function
+file: fetchers/finnhub.py
+purpose: Fresh cache -> return it. Else live fetch -> cache + return. Else stale cache (better than nothing) -> return. Else {}.
+inputs: symbol: str, kind: str, fetch_fn: Callable[[], dict]
+outputs: dict
+calls: _cache_read, _cache_write
+called_by: get_company_profile, get_basic_financials
+mutates: finnhub_cache table (via _cache_write)
+---
+
+---
 name: get_company_profile
 type: function
 file: fetchers/finnhub.py
-purpose: Raw Finnhub company-profile record (marketCapitalization, finnhubIndustry, etc). {} on failure.
+purpose: Raw Finnhub company-profile record (marketCapitalization, finnhubIndustry, etc). {} on failure. Cached 7 days (CACHE_TTL_DAYS, Kimi round-2 review) via _cached_or_fetch — profile/market-cap data doesn't move daily, cutting the daily universe scan's Finnhub call count roughly in half after the first week.
 inputs: symbol: str
 outputs: dict
-calls: _finnhub_get
+calls: _cached_or_fetch, _finnhub_get
 called_by: get_market_cap (finnhub.py), sector_etf_for_symbol (thesis_tracker.py)
-mutates: none
+mutates: finnhub_cache table (via _cached_or_fetch/_cache_write)
 ---
 
 ---
@@ -9411,12 +9459,12 @@ mutates: none
 name: get_basic_financials
 type: function
 file: fetchers/finnhub.py
-purpose: Finnhub 'metric' fundamentals block (cash, burn-rate proxies) for the cash_burn_months signal. {} on failure — caller must treat missing fields as None, never fabricate.
+purpose: Finnhub 'metric' fundamentals block (cash, burn-rate proxies) for the cash_burn_months signal. {} on failure — caller must treat missing fields as None, never fabricate. Cached 7 days (CACHE_TTL_DAYS, Kimi round-2 review) via _cached_or_fetch.
 inputs: symbol: str
 outputs: dict
-calls: _finnhub_get
+calls: _cached_or_fetch, _finnhub_get
 called_by: _score_cash_burn (thesis_tracker.py)
-mutates: none
+mutates: finnhub_cache table (via _cached_or_fetch/_cache_write)
 ---
 
 ---
@@ -9552,14 +9600,26 @@ mutates: none
 ---
 
 ---
+name: get_short_interest
+type: function
+file: fetchers/finra.py
+purpose: Most recent short-interest pct-of-float plus its settlement date. {} if unavailable. as_of_date added (Kimi round-2 review) so short_interest_pct's staleness (FINRA's settlement cycle, ~2wk lag) is always visible in logged trades, not just implied.
+inputs: symbol: str
+outputs: dict {pct: float, as_of_date: str|None} or {}
+calls: requests.get
+called_by: get_short_interest_pct, _score_short_interest (thesis_tracker.py)
+mutates: none
+---
+
+---
 name: get_short_interest_pct
 type: function
 file: fetchers/finra.py
-purpose: Most recent short-interest as a percent of float, or None if unavailable. FINRA has no per-symbol endpoint of its own; this uses Nasdaq's public republication of the same data.
+purpose: Backward-compatible pct-only accessor. Prefer get_short_interest() for the as_of_date too.
 inputs: symbol: str
 outputs: Optional[float]
-calls: requests.get
-called_by: _score_short_interest (thesis_tracker.py)
+calls: get_short_interest
+called_by: none currently (kept for API stability; thesis_tracker.py now calls get_short_interest directly)
 mutates: none
 ---
 
@@ -9867,10 +9927,10 @@ mutates: none
 name: _score_short_interest
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: Short interest % mapped to a squeeze-potential score (positive framing, not risk) — pct * 4, clamped to 100. None if unavailable.
+purpose: Short interest % mapped to a squeeze-potential score (positive framing, not risk) — pct * 4, clamped to 100. None if unavailable. Detail dict now includes short_interest_as_of (Kimi round-2 review) so the FINRA settlement-cycle staleness is always visible downstream.
 inputs: symbol: str
 outputs: Optional[tuple[float, dict]]
-calls: fetchers.finra.get_short_interest_pct
+calls: fetchers.finra.get_short_interest
 called_by: compute_thesis_score
 mutates: none
 ---
@@ -10056,10 +10116,22 @@ mutates: none
 ---
 
 ---
+name: missing_signal_impact_report
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: Kimi round-2 review — "did trades with missing data underperform?" For each of the 8 Low Value signals, splits closed trades into missing-at-entry vs present-at-entry cohorts (via lv_missing_signals) and compares win rate/avg P&L. Answers whether compute_thesis_score's missing-signal reweighting is hiding a real risk. Below min_trades in either cohort for a signal, that comparison is None.
+inputs: min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES
+outputs: dict {total_closed, by_signal: [{signal, missing, present, ready, note}]}
+calls: _load_closed_low_value_trades, _is_winner
+called_by: low_value_calibration (app.py)
+mutates: none
+---
+
+---
 name: log_low_value_trade
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs a Low Value hypothetical trade (engine='low_value', fixed $25 sizing, lv_thesis_type/lv_news_flags/lv_news_sentiment/lv_headline_count) into the same intraday_trades table High Value uses, scoped by the engine column.
+purpose: Logs a Low Value hypothetical trade (engine='low_value', fixed $25 sizing, lv_thesis_type/lv_news_flags/lv_news_sentiment/lv_headline_count) into the same intraday_trades table High Value uses, scoped by the engine column. Also logs lv_missing_signals (thesis_result's missing_signals list, JSON) and lv_short_interest_asof (Kimi round-2 review) so post-hoc queries can check whether missing-data trades underperform, and how stale the short-interest reading was.
 inputs: symbol: str, side: str, entry_price: float, score_value: float, thesis_result: dict, thesis_type: str, news_result: Optional[dict] = None, hold_days: int = 5, model_version: str = "v1"
 outputs: int (trade_id)
 calls: models.trading.shared.kelly.low_value_position_size, db.database.get_db
@@ -10104,6 +10176,18 @@ mutates: none (DDL)
 ---
 
 ---
+name: finnhub_cache
+type: table
+file: db/database.py
+purpose: Kimi round-2 review — 7-day TTL cache of Finnhub company-profile/fundamentals responses, keyed by (symbol, kind). Created via _migrate_new_tables (Python-only, not schema.sql) — same convention as fbref_cache, and deliberately NOT added to schema.sql's executescript block after the 2026-07-07 production crash where a premature CREATE INDEX on a not-yet-migrated column took the app down.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: _cache_read, _cache_write (finnhub.py)
+mutates: none (DDL)
+---
+
+---
 name: intraday_trades.engine (column)
 type: variable
 file: db/schema.sql
@@ -10124,6 +10208,18 @@ inputs: none
 outputs: TEXT / TEXT / REAL / INTEGER
 calls: none
 called_by: log_low_value_trade (trading_logger.py), thesis_type_calibration_report (signal_calibration.py), render_low_value_dashboard (low_value_dashboard.py)
+mutates: none (DDL, migrated via db/database.py:_migrate_intraday_trades)
+---
+
+---
+name: intraday_trades.lv_missing_signals / lv_short_interest_asof (columns)
+type: variable
+file: db/schema.sql
+purpose: Kimi round-2 review (2026-07-07) — lv_missing_signals is the JSON list of thesis_tracker.py signals that couldn't be computed for this trade (enables missing_signal_impact_report's post-hoc "did missing data predict worse outcomes" query); lv_short_interest_asof is the FINRA settlement date behind short_interest_pct, so staleness is always visible. NULL for every High Value row.
+inputs: none
+outputs: TEXT / TEXT
+calls: none
+called_by: log_low_value_trade (trading_logger.py), missing_signal_impact_report (signal_calibration.py)
 mutates: none (DDL, migrated via db/database.py:_migrate_intraday_trades)
 ---
 
@@ -10172,6 +10268,18 @@ inputs: none
 outputs: set[str]
 calls: none
 called_by: check_low_value_exits
+mutates: none
+---
+
+---
+name: US_MARKET_HOLIDAYS
+type: variable
+file: fetchers/low_value_runner.py
+purpose: NYSE market holiday dates for 2026-2027 (Kimi round-2 review) — _trading_days_elapsed skips these in addition to weekends, fixing the prior weekday-only approximation that held a Thursday-before-a-3-day-weekend entry for 7 calendar days instead of 5 trading days. Same real-date-list convention as MACRO_EVENT_DATES in high_value_runner.py; extend yearly.
+inputs: none
+outputs: set[str]
+calls: none
+called_by: _trading_days_elapsed
 mutates: none
 ---
 
@@ -10239,7 +10347,7 @@ mutates: intraday_trades table (via log_low_value_trade), _run_log
 name: _trading_days_elapsed
 type: function
 file: fetchers/low_value_runner.py
-purpose: Weekday-only day count since entry (approximation — no market-holiday calendar), for the TIME exit check.
+purpose: Trading-day count since entry — skips weekends AND US_MARKET_HOLIDAYS (Kimi round-2 review; previously weekday-only). Used for the TIME exit check. Verified against a synthetic Jul 2026 case spanning the Independence Day holiday: holiday-aware count is one less than the naive weekday-only count.
 inputs: entry_time_iso: str, now_et: datetime
 outputs: int
 calls: none
@@ -10383,10 +10491,10 @@ mutates: fetchers.low_value_runner globals (via stop_runner)
 name: low_value_calibration
 type: function
 file: app.py
-purpose: GET /trade/low-value/calibration — per-thesis-type win rate + overall Low Value calibration readiness.
+purpose: GET /trade/low-value/calibration — per-thesis-type win rate, overall Low Value calibration readiness, and per-signal missing-vs-present win-rate comparison (missing_signal_impact_report, added Kimi round-2 review).
 inputs: none
-outputs: dict {readiness, by_thesis_type}
-calls: thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py)
+outputs: dict {readiness, by_thesis_type, missing_signal_impact}
+calls: thesis_type_calibration_report, low_value_calibration_readiness, missing_signal_impact_report (signal_calibration.py)
 called_by: FastAPI (HTTP GET)
 mutates: none
 ---
@@ -10503,7 +10611,7 @@ mutates: none
 name: trading_low_value.html
 type: template
 file: templates/trading_low_value.html
-purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints. Added 2026-07-07: an "Ask" natural-language query box (POST /trade/low-value/query) mirroring the High Value page's ticker/brief input — "scan the market" triggers a live scan, "brief"/"this week"/"yesterday" show a fast read-only recap.
+purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints. Added 2026-07-07: an "Ask" natural-language query box (POST /trade/low-value/query) mirroring the High Value page's ticker/brief input — "scan the market" triggers a live scan, "brief"/"this week"/"yesterday" show a fast read-only recap. Kimi round-2 review: scan-trigger queries now show a window.confirm() cost warning (~200 API calls, 2-10 min) before firing, via a client-side LV_SCAN_TRIGGERS list mirroring app.py's _LV_SCAN_TRIGGERS.
 inputs: none
 outputs: HTML
 calls: /trade/low-value/query (fetch, JS)

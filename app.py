@@ -2714,11 +2714,19 @@ def low_value_runner_stop():
 
 @app.get("/trade/low-value/calibration")
 def low_value_calibration():
-    """Per-thesis-type win rate + overall Low Value calibration readiness (20/50/100 trade tiers)."""
-    from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
+    """
+    Per-thesis-type win rate, overall Low Value calibration readiness
+    (20/50/100 trade tiers), and per-signal missing-vs-present win-rate
+    comparison (Kimi review, round-2 follow-up — answers whether the
+    missing-signal reweighting is hiding a real risk).
+    """
+    from models.trading.shared.signal_calibration import (
+        thesis_type_calibration_report, low_value_calibration_readiness, missing_signal_impact_report,
+    )
     return {
         "readiness": low_value_calibration_readiness(),
         "by_thesis_type": thesis_type_calibration_report(),
+        "missing_signal_impact": missing_signal_impact_report(),
     }
 
 

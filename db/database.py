@@ -198,6 +198,10 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         ("lv_news_flags",       "TEXT"),
         ("lv_news_sentiment",   "REAL"),
         ("lv_headline_count",   "INTEGER"),
+        # v6b: Low Value round-2 Kimi review (2026-07-07) — missing-signal
+        # transparency + short-interest staleness, both logged only
+        ("lv_missing_signals",     "TEXT"),
+        ("lv_short_interest_asof", "TEXT"),
     ]
 
     existing_cols = {
@@ -302,6 +306,25 @@ def _migrate_new_tables(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_fbref_cache_lookup ON fbref_cache(league, season, team, kind)"
+    )
+    # Low Value round-2 Kimi review (2026-07-07) — Finnhub market-cap/fundamentals
+    # cache, 7-day TTL, same shape as fbref_cache. Cuts the daily universe scan
+    # from ~10 min to ~3 min by not re-fetching cap/fundamentals for symbols
+    # already scanned this week (only news is fetched fresh every day).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS finnhub_cache (
+            id            INTEGER PRIMARY KEY,
+            symbol        TEXT NOT NULL,
+            kind          TEXT NOT NULL,
+            data_json     TEXT NOT NULL,
+            cached_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(symbol, kind)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_finnhub_cache_lookup ON finnhub_cache(symbol, kind)"
     )
     conn.commit()
 

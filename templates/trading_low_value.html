@@ -101,11 +101,31 @@ function lvFill(text) {
   lvRunQuery();
 }
 
+// Mirrors app.py's _LV_SCAN_TRIGGERS — client-side so we can confirm BEFORE
+// firing an expensive live scan (Kimi review, round-2 follow-up: a scan can
+// be ~200 API calls / several minutes on a cold cache; an accidental tap
+// shouldn't kick that off silently).
+const LV_SCAN_TRIGGERS = [
+  "scan the market", "scan market", "market scan", "any signals",
+  "today's picks", "todays picks", "check the market", "scan today",
+  "scan now", "run the scanner", "run a scan",
+];
+
 async function lvRunQuery() {
   const input = document.getElementById("lv-query-input");
   const out = document.getElementById("lv-query-result");
   const query = input.value.trim();
   if (!query) return;
+
+  const qLower = query.toLowerCase();
+  const isScan = LV_SCAN_TRIGGERS.some(trig => qLower.includes(trig));
+  if (isScan) {
+    const ok = confirm(
+      "This scans the full daily universe (up to ~200 stocks) via live market data, news, and fundamentals APIs — it can take 2-10 minutes, especially on a cold cache. Continue?"
+    );
+    if (!ok) { out.textContent = "Scan cancelled."; return; }
+  }
+
   out.innerHTML = '<span class="lv-loading">Working… a live scan can take a minute or two the first time it runs today.</span>';
   try {
     const res = await fetch("/trade/low-value/query", {

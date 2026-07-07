@@ -43,6 +43,19 @@ LOW_VALUE_TARGET_PCT: float = 0.50    # +50% exit
 LOW_VALUE_STOP_PCT: float = 0.50      # -50% exit
 NEGATIVE_THESES: set[str] = {"EARNINGS_MISS", "ANALYST_DOWNGRADE", "REGULATORY_RISK", "OPERATIONAL_CRISIS"}
 
+# NYSE market holidays (Kimi review, round-2 follow-up — the prior weekday-only
+# approximation held a Thursday-before-a-3-day-weekend entry for 7 calendar
+# days instead of 5 trading days). Real dates, same convention as
+# MACRO_EVENT_DATES in high_value_runner.py — extend yearly as needed.
+US_MARKET_HOLIDAYS: set[str] = {
+    # 2026
+    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+    "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+    # 2027
+    "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31",
+    "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+}
+
 _runner_thread: Optional[threading.Thread] = None
 _runner_active: bool = False
 _run_log: list[dict] = []
@@ -149,7 +162,13 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
 
 
 def _trading_days_elapsed(entry_time_iso: str, now_et: datetime) -> int:
-    """Weekday-only day count since entry — approximation (no market-holiday calendar)."""
+    """
+    Trading-day count since entry — skips weekends AND US_MARKET_HOLIDAYS
+    (Kimi review, round-2 follow-up; previously weekday-only, which held a
+    Thursday-before-a-3-day-weekend entry for 7 calendar days instead of 5
+    trading days). Falls back to counting only known holiday years correctly;
+    a date past the last populated year just isn't skipped as a holiday.
+    """
     try:
         entry_dt = datetime.fromisoformat(entry_time_iso)
         if entry_dt.tzinfo is None:
@@ -161,7 +180,7 @@ def _trading_days_elapsed(entry_time_iso: str, now_et: datetime) -> int:
     today = now_et.date()
     while cursor < today:
         cursor += timedelta(days=1)
-        if cursor.weekday() < 5:
+        if cursor.weekday() < 5 and cursor.isoformat() not in US_MARKET_HOLIDAYS:
             days += 1
     return days
 
