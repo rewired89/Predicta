@@ -192,6 +192,12 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         ("market_vol_regime",   "TEXT"),
         # v5c: macro event tag (Kimi review, round 4) — logged only
         ("macro_event_today",   "INTEGER"),
+        # v6: Low Value contrarian sub-$20 engine (Kimi review, round 6 follow-up)
+        ("engine",              "TEXT DEFAULT 'high_value'"),
+        ("lv_thesis_type",      "TEXT"),
+        ("lv_news_flags",       "TEXT"),
+        ("lv_news_sentiment",   "REAL"),
+        ("lv_headline_count",   "INTEGER"),
     ]
 
     existing_cols = {
@@ -219,6 +225,9 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_trades_hypo ON intraday_trades(is_hypothetical, entry_time)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_trades_engine ON intraday_trades(engine, entry_time)"
     )
     conn.commit()
 

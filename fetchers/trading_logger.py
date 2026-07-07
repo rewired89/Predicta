@@ -354,6 +354,102 @@ def log_hypothetical_trade(
         return cur.lastrowid
 
 
+def log_low_value_trade(
+    symbol: str,
+    side: str,
+    entry_price: float,
+    score_value: float,
+    thesis_result: dict,
+    thesis_type: str,
+    news_result: Optional[dict] = None,
+    hold_days: int = 5,
+    model_version: str = "v1",
+) -> int:
+    """
+    Log a Low Value (sub-$20 contrarian) hypothetical trade — is_hypothetical=1,
+    engine='low_value', same intraday_trades table as High Value but a
+    completely separate signal pipeline (Kimi review, round 6 follow-up).
+
+    Position sizing is fixed $25/trade (models.trading.shared.kelly.
+    low_value_position_size), not the ATR/Kelly sizing High Value uses.
+    planned_hold_bars stores the 1-5 TRADING-DAY hold window (not 5-min bars
+    — Low Value checks once daily, per spec), and stop/target1 store the
+    -50%/+50% exit levels the runner checks against daily closes.
+
+    thesis_result: models.trading.low_value.thesis_tracker.compute_thesis_score()
+    output. thesis_type: dominant_thesis_type() output, stored for per-thesis
+    win-rate calibration. news_result: news_overlay.score_symbol_news() output
+    or None.
+    """
+    import json
+    from models.trading.shared.kelly import low_value_position_size
+
+    entry_time = datetime.now(timezone.utc).isoformat()
+    sizing = low_value_position_size(entry_price)
+    nr = news_result or {}
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO intraday_trades (
+                symbol, side, entry_time, planned_hold_bars,
+                entry_price, theoretical_entry,
+                stop_price, target1_price, target_price,
+                qty, position_value,
+                entry_score, model_version, is_hypothetical, notes,
+                engine, lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
+                logged_at
+            ) VALUES (
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                datetime('now')
+            )
+            """,
+            (
+                symbol, side, entry_time, hold_days,
+                entry_price, entry_price,
+                round(entry_price * 0.5, 4), round(entry_price * 1.5, 4), round(entry_price * 1.5, 4),
+                sizing.get("shares"), sizing.get("position_size"),
+                score_value, model_version, 1,
+                "HYPOTHETICAL: Low Value engine, no order placed",
+                "low_value", thesis_type,
+                json.dumps(nr.get("flags", [])), nr.get("sentiment"), nr.get("headline_count"),
+            ),
+        )
+        return cur.lastrowid
+
+
+def log_universe_snapshot(scan_date: str, symbols: list[str]) -> int:
+    """
+    Logs the Low Value universe scanner's daily output to
+    low_value_universe_snapshot (Kimi review, round 6 follow-up spec:
+    "Log universe composition ... so composition drift/quality is auditable").
+    """
+    import json
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO low_value_universe_snapshot (scan_date, symbols_json, symbol_count, logged_at) "
+            "VALUES (?, ?, ?, datetime('now'))",
+            (scan_date, json.dumps(symbols), len(symbols)),
+        )
+        return cur.lastrowid
+
+
+def get_universe_snapshots(days: int = 30) -> list[dict]:
+    """Recent Low Value universe scans, newest first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM low_value_universe_snapshot WHERE logged_at >= datetime('now', ? || ' days') "
+            "ORDER BY logged_at DESC",
+            (f"-{days}",),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def log_manual_override(action: str, symbol: Optional[str] = None, details: Optional[dict] = None) -> int:
     """
     Records any manual order placed outside the automated signal pipeline

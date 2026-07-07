@@ -23,6 +23,7 @@
 - OpenWeatherMap weather data requires `OPENWEATHER_API_KEY` env var (free tier); model runs fine without it
 - **PandaScore** (via `fetchers/esports.py`) provides e-sports team data, rankings, and H2H; requires `PANDASCORE_API_KEY` env var; falls back to Claude AI estimates when key is absent
 - **FRED** (Federal Reserve Economic Data, via `fetchers/fred.py`) provides read-only macro regime tags (yield curve, Fed funds rate, credit spread, debt/GDP) for the intraday paper-trading model's Dalio 3-force overlay; requires `FRED_API_KEY` env var (free, register at fred.stlouisfed.org); fails safe (returns None/empty) when key is absent
+- **Finnhub** (via `fetchers/finnhub.py`) provides company news, market cap, and basic fundamentals for the Low Value engine (see `LOW_VALUE_README.md`); requires `FINNHUB_API_KEY` env var (free tier, 60 calls/min, register at finnhub.io); fails safe when key is absent. SEC EDGAR (`fetchers/sec_edgar.py`), OpenInsider (`fetchers/openinsider.py`), FINRA-via-Nasdaq (`fetchers/finra.py`), and Yahoo Finance (`fetchers/yahoo_quote.py`, market-cap backup) require no key
 
 ## Active Sports Pipelines
 

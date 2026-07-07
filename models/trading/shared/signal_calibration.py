@@ -54,8 +54,16 @@ def _is_winner(t: dict) -> bool:
     return False
 
 
-def _load_closed_trades() -> list[dict]:
-    """All closed trades (exit_price IS NOT NULL), newest first."""
+def _load_closed_trades(engine: str = "high_value") -> list[dict]:
+    """
+    All closed trades (exit_price IS NOT NULL) for one engine, newest first.
+
+    engine (Kimi review round 6 follow-up — Low Value contrarian engine):
+    every calibration query is scoped to a single engine's rows so Low Value's
+    thin, early data can never dilute or corrupt High Value's calibration
+    stats (and vice versa). Defaults to 'high_value' so every pre-existing
+    caller that doesn't pass engine behaves exactly as before.
+    """
     try:
         from db.database import get_db
         with get_db() as conn:
@@ -65,16 +73,17 @@ def _load_closed_trades() -> list[dict]:
                        time_of_day_label, side, symbol, exit_reason,
                        liquidity_label, relative_volume, is_hypothetical
                 FROM intraday_trades
-                WHERE exit_price IS NOT NULL
+                WHERE exit_price IS NOT NULL AND engine = ?
                 ORDER BY logged_at DESC
-                """
+                """,
+                (engine,),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception:
         return []
 
 
-def score_accuracy_report(min_trades: int = 5) -> dict:
+def score_accuracy_report(min_trades: int = 5, engine: str = "high_value") -> dict:
     """
     Win rate and avg P&L (in R) per composite score bucket.
 
@@ -85,7 +94,7 @@ def score_accuracy_report(min_trades: int = 5) -> dict:
         buckets          — list of per-bucket stats
         note             — calibration quality flag
     """
-    trades = _load_closed_trades()
+    trades = _load_closed_trades(engine=engine)
     n_total = len(trades)
 
     if n_total == 0:
@@ -138,9 +147,9 @@ def score_accuracy_report(min_trades: int = 5) -> dict:
     }
 
 
-def time_accuracy_report(min_trades: int = 5) -> dict:
+def time_accuracy_report(min_trades: int = 5, engine: str = "high_value") -> dict:
     """Win rate and avg P&L per time-of-day session."""
-    trades = _load_closed_trades()
+    trades = _load_closed_trades(engine=engine)
     sessions: dict[str, list[dict]] = {}
     for t in trades:
         key = t.get("time_of_day_label") or "UNKNOWN"
@@ -165,13 +174,13 @@ def time_accuracy_report(min_trades: int = 5) -> dict:
     }
 
 
-def calibrated_win_rate(score: float) -> Optional[float]:
+def calibrated_win_rate(score: float, engine: str = "high_value") -> Optional[float]:
     """
     Empirical win rate for a composite score value.
     Returns None when the score's bucket has insufficient data.
     Does NOT fall back to any formula — None means "unknown."
     """
-    report = score_accuracy_report(min_trades=10)
+    report = score_accuracy_report(min_trades=10, engine=engine)
     for b in report["buckets"]:
         if b["min_score"] <= score < b["max_score"]:
             return b.get("win_rate")  # None if insufficient data for this bucket
@@ -185,14 +194,14 @@ def calibrated_win_rate(score: float) -> Optional[float]:
 MIN_TRADES_FOR_ANY_CALIBRATION = 100
 
 
-def calibration_globally_active() -> bool:
+def calibration_globally_active(engine: str = "high_value") -> bool:
     """
     True once total closed trades >= MIN_TRADES_FOR_ANY_CALIBRATION (100).
     Callers (e.g. kelly_from_signals) must check this before using
     calibrated_win_rate() or veto_decision() for a real decision — below the
     floor, fall back to static behavior instead.
     """
-    return len(_load_closed_trades()) >= MIN_TRADES_FOR_ANY_CALIBRATION
+    return len(_load_closed_trades(engine=engine)) >= MIN_TRADES_FOR_ANY_CALIBRATION
 
 
 # Confidence level for veto_decision's CI test (Kimi review, round 3): named
@@ -218,7 +227,7 @@ def _wilson_ci(wins: int, n: int, confidence: float = WILSON_CONFIDENCE) -> tupl
     return (max(0.0, center - margin), min(1.0, center + margin))
 
 
-def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) -> dict:
+def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48, engine: str = "high_value") -> dict:
     """
     Statistically-gated trade veto (Kimi review): replaces a naive point-estimate
     check (e.g. "win rate < 45%") with a WILSON_CONFIDENCE-level confidence-interval
@@ -232,7 +241,7 @@ def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) ->
 
     Returns: {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
     """
-    trades = _load_closed_trades()
+    trades = _load_closed_trades(engine=engine)
     bucket = next(
         ((lo, hi, label) for lo, hi, label in _BUCKETS if lo <= score < hi), None
     )
@@ -276,15 +285,15 @@ def veto_decision(score: float, min_trades: int = 30, ci_floor: float = 0.48) ->
     }
 
 
-def calibration_summary() -> dict:
+def calibration_summary(engine: str = "high_value") -> dict:
     """
     One-call readiness check: trade count, Kelly eligibility, empirical score
     threshold (lowest score bucket with win_rate > 50%).
     """
-    trades = _load_closed_trades()
+    trades = _load_closed_trades(engine=engine)
     n = len(trades)
 
-    report = score_accuracy_report(min_trades=5)
+    report = score_accuracy_report(min_trades=5, engine=engine)
 
     # Lowest score threshold with confirmed >50% win rate
     profitable_buckets = [
@@ -390,8 +399,13 @@ def pairs_calibration_summary(min_trades: int = 3) -> dict:
     }
 
 
-def _load_closed_trades_full() -> list[dict]:
-    """All closed trades with v4 per-signal score columns."""
+def _load_closed_trades_full(engine: str = "high_value") -> list[dict]:
+    """
+    All closed trades with v4 per-signal score columns, scoped to one engine
+    (these columns — vwap_score, or_score, etc. — are High Value's signal
+    set; Low Value's per-thesis-type calibration uses thesis_type_calibration_report
+    instead, since its 8 signals don't map to these columns).
+    """
     try:
         from db.database import get_db
         with get_db() as conn:
@@ -405,9 +419,10 @@ def _load_closed_trades_full() -> list[dict]:
                        gap_score, trend_score, bollinger_score, volsurge_score,
                        ngram_signal, ngram_confidence
                 FROM intraday_trades
-                WHERE exit_price IS NOT NULL
+                WHERE exit_price IS NOT NULL AND engine = ?
                 ORDER BY logged_at DESC
-                """
+                """,
+                (engine,),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception:
@@ -810,6 +825,101 @@ def calibration_readiness_status() -> dict:
         "overall_status": (
             "fully_calibrated" if pct_ready == 1.0
             else "partially_calibrated" if pct_ready >= 0.5
+            else "insufficient"
+        ),
+    }
+
+
+# ── Low Value engine calibration (Kimi review, round 6 follow-up) ────────────
+#
+# Low Value's signal set (price_vs_20d_low, rsi_14, volume_spike, ...) doesn't
+# map onto _SIGNAL_COLS (High Value's vwap_score/or_score/etc.), so it gets
+# its own calibration axis: per lv_thesis_type, not per numeric signal column.
+# Thresholds are looser-tiered per spec: 20 trades/thesis-type for a
+# preliminary read, 50 for dynamic weight recalibration, 100 for empirical
+# position sizing (vs. High Value's 30/50/100 on the overall pool).
+LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES: int = 20
+LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES: int = 50
+LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES: int = 100
+
+
+def _load_closed_low_value_trades() -> list[dict]:
+    """All closed engine='low_value' trades with the lv_* columns."""
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT entry_score, pnl_r, pnl_dollars, pnl_pct,
+                       symbol, exit_reason, is_hypothetical,
+                       lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count
+                FROM intraday_trades
+                WHERE exit_price IS NOT NULL AND engine = 'low_value'
+                ORDER BY logged_at DESC
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def thesis_type_calibration_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES) -> dict:
+    """
+    Win rate and avg P&L per lv_thesis_type (EARNINGS_MISS, ANALYST_DOWNGRADE,
+    REGULATORY_RISK, OPERATIONAL_CRISIS, POSITIVE_CATALYST, INSIDER_BUYING,
+    TECHNICAL_OVERSOLD). Below min_trades for a given thesis type, that
+    type's win_rate/avg_pnl_r are None — "preliminary" note, never faked.
+    """
+    trades = _load_closed_low_value_trades()
+    n_total = len(trades)
+    if n_total == 0:
+        return {
+            "total_closed": 0, "by_thesis_type": [],
+            "note": "No closed Low Value trades yet",
+        }
+
+    by_type: dict[str, list[dict]] = {}
+    for t in trades:
+        key = t.get("lv_thesis_type") or "UNKNOWN"
+        by_type.setdefault(key, []).append(t)
+
+    rows = []
+    for thesis_type, tt in by_type.items():
+        n = len(tt)
+        if n < min_trades:
+            rows.append({
+                "thesis_type": thesis_type, "n": n, "win_rate": None, "avg_pnl_r": None,
+                "note": f"Only {n} trade(s) — need {min_trades} for a preliminary read",
+            })
+            continue
+        wins   = sum(1 for t in tt if _is_winner(t))
+        pnl_rs = [t["pnl_r"] for t in tt if t.get("pnl_r") is not None]
+        rows.append({
+            "thesis_type": thesis_type,
+            "n":            n,
+            "win_rate":      round(wins / n, 3),
+            "avg_pnl_r":     round(sum(pnl_rs) / len(pnl_rs), 3) if pnl_rs else None,
+        })
+
+    rows.sort(key=lambda x: (x.get("win_rate") or -1), reverse=True)
+    return {"total_closed": n_total, "by_thesis_type": rows}
+
+
+def low_value_calibration_readiness() -> dict:
+    """
+    Overall Low Value readiness: total closed trades vs. the 20/50/100
+    preliminary/dynamic-weight/empirical-sizing thresholds.
+    """
+    n_total = len(_load_closed_low_value_trades())
+    return {
+        "total_closed_trades":      n_total,
+        "preliminary_ready":        n_total >= LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES,
+        "dynamic_weights_ready":    n_total >= LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES,
+        "empirical_sizing_ready":   n_total >= LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES,
+        "calibration_quality": (
+            "empirical_sizing" if n_total >= LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES
+            else "dynamic_weights" if n_total >= LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES
+            else "preliminary" if n_total >= LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES
             else "insufficient"
         ),
     }

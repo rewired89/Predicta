@@ -817,7 +817,7 @@ def compute_intraday_signals(
     ngram = {"signal": "NONE", "confidence": 0}
     if symbol and abs(score_val) > 0 and len(closes) >= 4:
         try:
-            from models.trading.ngram import ngram_signal, ngram_to_composite_score
+            from models.trading.high_value.ngram import ngram_signal, ngram_to_composite_score
             ngram = ngram_signal(symbol, closes)
             ng_score = ngram_to_composite_score(ngram)
             if ngram.get("confidence", 0) > 20:

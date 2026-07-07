@@ -189,7 +189,7 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
     win_rate_source  = "unavailable"
     veto_info: dict  = {"veto": False}
     try:
-        from models.trading.signal_calibration import (
+        from models.trading.shared.signal_calibration import (
             calibrated_win_rate, veto_decision, calibration_globally_active,
         )
         if calibration_globally_active():
@@ -237,5 +237,29 @@ def kelly_from_signals(score: float, atr_pct: float, bankroll: float = 10000.0) 
             f"ATR sizing: 1% risk (${risk_amount:.0f}) ÷ 1.5× ATR stop "
             f"= ${pos_dollars:,.0f} position. Signal: {score:+.0f}.{wr_note}"
         ),
+        "paper_mode": True,
+    }
+
+
+LOW_VALUE_FIXED_POSITION_DOLLARS: float = 25.0
+LOW_VALUE_MAX_CONCURRENT_POSITIONS: int = 3
+
+
+def low_value_position_size(price: float) -> dict:
+    """
+    Fixed $25-per-trade sizing for the Low Value engine (Kimi review round 6
+    follow-up) — deliberately NOT percentage-of-account or volatility-scaled.
+    These are sub-$20, thinly-covered names; a fixed small dollar amount caps
+    the damage of a single bad pick regardless of account size, and keeps
+    kelly_from_signals / atr_position_size / risk_parity_position_size (the
+    High Value engine's sizing logic) completely untouched.
+    """
+    if price <= 0:
+        return {"error": "Invalid price", "paper_mode": True}
+    shares = round(LOW_VALUE_FIXED_POSITION_DOLLARS / price, 4)
+    return {
+        "shares": shares,
+        "position_size": LOW_VALUE_FIXED_POSITION_DOLLARS,
+        "note": f"Low Value fixed sizing: ${LOW_VALUE_FIXED_POSITION_DOLLARS:.0f} / ${price:.2f} = {shares} shares.",
         "paper_mode": True,
     }

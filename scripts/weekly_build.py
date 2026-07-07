@@ -29,7 +29,7 @@ PAIRS_DAYS   = 90  # 90 trading days for cointegration test
 
 
 def build_ngrams():
-    from models.trading.ngram import build_ngram_from_alpaca
+    from models.trading.high_value.ngram import build_ngram_from_alpaca
 
     print(f"\n=== N-gram rebuild ({len(NGRAM_WATCHLIST)} symbols, {NGRAM_MONTHS} months) ===")
     ok_count = 0

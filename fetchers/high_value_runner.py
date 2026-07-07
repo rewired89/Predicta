@@ -27,7 +27,7 @@ except ImportError:
 
 from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars
 from fetchers.trading_logger import log_hypothetical_trade, log_trade_exit
-from models.trading.intraday import compute_intraday_signals
+from models.trading.high_value.intraday import compute_intraday_signals
 from db.database import get_db
 import json
 

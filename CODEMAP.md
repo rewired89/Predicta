@@ -78,7 +78,7 @@ mutates: predicta.db
 name: intraday_trades
 type: table
 file: db/schema.sql
-purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis, logged only via paper_runner.py's _fetch_market_regime, never fed back into live scoring. v5b (round 3) adds: spy_realized_vol_pct, market_vol_regime (LOW/NORMAL/HIGH) — enables asking "is the model profitable in LOW vol but not HIGH vol" post-hoc. v5c (round 4) adds: macro_event_today (1 = known FOMC decision day) — same logged-only convention. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
+purpose: Two-phase trade record supporting real, paper, and hypothetical (signal-only) trades. entry inserted by log_trade_entry/log_hypothetical_trade; exit columns filled by log_trade_exit. is_hypothetical=1 marks signal-only records. v3 adds: target1_price, theoretical_entry, liquidity_label, intraday_vol, relative_volume, model_version, is_hypothetical, notes. v4 adds: composite_raw, vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score, ngram_signal, ngram_confidence for calibration feedback loop. v5 (Kimi review) adds: spy_gap_pct, xlk_change_pct, market_regime — market regime tags for post-hoc analysis, logged only via high_value_runner.py's _fetch_market_regime, never fed back into live scoring. v5b (round 3) adds: spy_realized_vol_pct, market_vol_regime (LOW/NORMAL/HIGH) — enables asking "is the model profitable in LOW vol but not HIGH vol" post-hoc. v5c (round 4) adds: macro_event_today (1 = known FOMC decision day) — same logged-only convention. adjusted_pnl subtracts half-spread cost on both legs for conservative live estimate.
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
@@ -118,7 +118,7 @@ purpose: Kimi review round 6 — D.E. Shaw hybrid model: an optional human safet
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
-called_by: _queue_for_review, check_review_queue_timeouts, get_review_queue, approve_review, skip_review (paper_runner.py)
+called_by: _queue_for_review, check_review_queue_timeouts, get_review_queue, approve_review, skip_review (high_value_runner.py)
 mutates: none (DDL)
 ---
 
@@ -186,7 +186,7 @@ purpose: Updates an open trade record with exit data and computes: pnl_dollars (
 inputs: trade_id, exit_price, exit_reason, actual_hold_bars=None, slippage_exit=0.0, exit_time=None
 outputs: dict {trade_id, exit_price, exit_reason, pnl_dollars, pnl_pct, pnl_r, adjusted_pnl, slippage_cost}
 calls: db.database.get_db
-called_by: sync_trade_exits (app.py), check_and_close_positions (paper_runner.py)
+called_by: sync_trade_exits (app.py), check_and_close_positions (high_value_runner.py)
 mutates: intraday_trades table (UPDATE)
 ---
 
@@ -210,7 +210,7 @@ purpose: Logs what WOULD have happened without placing an order — signal-only 
 inputs: symbol, side, score_value, signals: dict (full compute_intraday_signals result), levels: dict, hold_bars=6, model_version="v3", regime_tags: Optional[dict] = None
 outputs: int (trade_id)
 calls: db.database.get_db, _extract_signal_scores
-called_by: signal_only (app.py), run_open_scan (paper_runner.py)
+called_by: signal_only (app.py), run_open_scan (high_value_runner.py)
 mutates: intraday_trades table (INSERT with is_hypothetical=1, all v4 signal score cols, v5/v5b regime tag cols)
 ---
 
@@ -240,12 +240,12 @@ mutates: none
 
 ---
 
-## fetchers/paper_runner.py
+## fetchers/high_value_runner.py
 
 ---
 name: RUNNER_SYMBOLS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Default watchlist for the automated paper runner — single-tier large-cap liquid names (AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA) per Kimi's recommendation to avoid mixing volatility regimes in the first 30-40 calibration trades.
 inputs: none
 outputs: list[str]
@@ -257,7 +257,7 @@ mutates: none
 ---
 name: RUNNER_MIN_SCORE
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Minimum abs(score) threshold for logging a hypothetical trade during automated scans. Set to 20 (wide net) so weak signals are captured for calibration; the trading endpoint action threshold is 40. Overridden to REGIME_EXTREME_MIN_SCORE (60) for the current scan when _fetch_market_regime() reports EXTREME, or lowered to SPRINT_MIN_SCORE when DATA_COLLECTION_SPRINT_MODE is on (round 4).
 inputs: none
 outputs: int
@@ -268,7 +268,7 @@ called_by: run_open_scan, _runner_loop, get_runner_status
 ---
 name: DATA_COLLECTION_SPRINT_MODE
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Kimi review round 4 (P0): temporarily lowers the effective logging floor to SPRINT_MIN_SCORE to accelerate reaching 100 closed trades (Kimi's estimate: 6-12 months at the normal 20-point floor vs 4-6 weeks at 10). Explicit and reversible — flip to False to return to normal. entry_score is stored per trade regardless, so post-hoc analysis can always re-filter to |score|>=20 with this on.
 inputs: none
 outputs: bool (True)
@@ -279,7 +279,7 @@ called_by: run_open_scan
 ---
 name: SPRINT_MIN_SCORE
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Lowered logging floor (10) used by run_open_scan when DATA_COLLECTION_SPRINT_MODE is True. Never raises the floor above what a caller explicitly requested — run_open_scan takes min(min_score, SPRINT_MIN_SCORE).
 inputs: none
 outputs: int (10)
@@ -291,7 +291,7 @@ mutates: none
 ---
 name: MAX_CONCURRENT_POSITIONS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Portfolio risk cap (Kimi review) — max simultaneous open hypothetical positions across the whole 8-symbol universe. Since all 8 symbols are a single correlated tech cluster (not diversified sectors), caps total exposure at 3x1% risk instead of computing pairwise correlation. run_open_scan stops logging new entries once (already-open + logged-this-scan) reaches this cap.
 inputs: none
 outputs: int (3)
@@ -303,7 +303,7 @@ mutates: none
 ---
 name: REGIME_GAP_THRESHOLD_PCT
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: SPY overnight gap % threshold (2.0) above which _fetch_market_regime() classifies the day as EXTREME. Used as a volatility-regime proxy since VIX isn't available on the Alpaca free tier (Kimi review, structural gap E).
 inputs: none
 outputs: float (2.0)
@@ -315,7 +315,7 @@ mutates: none
 ---
 name: REGIME_EXTREME_MIN_SCORE
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Elevated min_score (60) applied by run_open_scan on EXTREME-regime days, replacing RUNNER_MIN_SCORE (20) so the paper-trading dataset isn't contaminated with signals fired during untradeable volatility.
 inputs: none
 outputs: int (60)
@@ -327,7 +327,7 @@ mutates: none
 ---
 name: EARNINGS_BLACKOUT
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Static earnings-blackout calendar (Kimi review, structural gap D). Format {"SYMBOL": ["YYYY-MM-DD", ...]}. Only company-confirmed dates are listed (round 4 populated AAPL's confirmed 2026-07-30 Q3 release) — guessed/estimated dates are deliberately excluded since fabricating them would be worse than no filter. No live earnings-calendar API wired in; add real dates manually as other tickers confirm theirs.
 inputs: none
 outputs: dict[str, list[str]]
@@ -339,7 +339,7 @@ mutates: none
 ---
 name: MACRO_EVENT_DATES
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Static set of known FOMC decision days for 2026 (Kimi review, round 4 — logged only, never used to filter/size trades). Sourced directly from federalreserve.gov's published meeting calendar. Second day of each two-day meeting (the announcement/press-conference day) is listed.
 inputs: none
 outputs: set[str] (8 dates for 2026)
@@ -351,7 +351,7 @@ mutates: none
 ---
 name: _is_macro_event_day
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: True if date_str is a known FOMC decision day in MACRO_EVENT_DATES.
 inputs: date_str: str
 outputs: bool
@@ -363,7 +363,7 @@ mutates: none
 ---
 name: _suppression_stats
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Running tally (Kimi review, round 4, structural gap 7) of every scan vs. scans where regime_confidence=="weak" AND price sits inside the opening range — Kimi's hypothesis is the composite may collapse toward zero here from two conditioning signals going neutral simultaneously, not from lack of edge. Pure counting, no scoring change.
 inputs: none
 outputs: dict {weak_regime_inside_or_scans: int, total_scans: int}
@@ -375,7 +375,7 @@ mutates: none (module global, mutated by _record_suppression_stat)
 ---
 name: _record_suppression_stat
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Tallies one scan into _suppression_stats. Counts ALL scans that produced a signal result, not just ones that cleared the score threshold, so the rate reflects the full scanned population.
 inputs: result: dict (compute_intraday_signals() output)
 outputs: none
@@ -387,7 +387,7 @@ mutates: _suppression_stats
 ---
 name: get_suppression_stats
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Read-only view of _suppression_stats plus the computed suppression_rate. Kimi's threshold: if >60% of scans hit "weak regime + inside opening range", consider letting Opening Range fire independently when the range is unusually wide (>1.5x average) — not yet built, this instrumentation is what would justify that fix.
 inputs: none
 outputs: dict {total_scans, weak_regime_inside_or_scans, suppression_rate}
@@ -399,7 +399,7 @@ mutates: none
 ---
 name: _fetch_market_regime
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Coarse "should we even be trading today" gate (Kimi review, structural gap E). Fetches SPY + XLK snapshots in one batch call; computes SPY's overnight gap % (open vs prev_close) as a volatility-regime proxy and XLK's daily change % as a sector-rotation tag for the all-tech watchlist. Classifies EXTREME if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT, OR if _intraday_regime_override == "EXTREME" (round 3), OR if _fetch_macro_tags()'s long_term_force_contraction is True (round 6, Dalio 3-force overlay — additive to this gate, never a replacement). Also tags SPY's 20-day realized vol bucket via _spy_realized_vol_pct/_vol_regime_bucket (round 3), macro_event_today via _is_macro_event_day (round 4), and the FRED macro tags (round 6) — all logged only. Fails safe to NORMAL on any API error (still honors the intraday override and macro-contraction tag).
 inputs: none
 outputs: dict {regime: "NORMAL"|"EXTREME", spy_gap_pct: float, xlk_change_pct: float, spy_realized_vol_pct: float, market_vol_regime: "LOW"|"NORMAL"|"HIGH", macro_event_today: bool, yield_curve_slope: float|None, fed_rate: float|None, credit_spread_oas: float|None, debt_to_gdp_pct: float|None, long_term_force_contraction: bool}
@@ -411,7 +411,7 @@ mutates: none
 ---
 name: _fetch_macro_tags
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Bridgewater "Four Boxes" + Dalio 3-force overlay (Kimi review, round 6). Pulls FRED's most recently published values for 10Y/2Y yield (yield_curve_slope), Fed funds rate, HY credit spread (BAMLH0A0HYM2), and federal debt/GDP (GFDEGDQ188S). long_term_force_contraction is True when HY-OAS is >2 std devs above its ~1yr mean OR debt/GDP is >1 std dev above its ~5yr mean (Dalio-specified thresholds) — read-only tag; see _fetch_market_regime for how it additively elevates the regime. Fails safe to all-None/False when FRED_API_KEY is absent or any request fails.
 inputs: none
 outputs: dict {yield_curve_slope: float|None, fed_rate: float|None, credit_spread_oas: float|None, debt_to_gdp_pct: float|None, long_term_force_contraction: bool}
@@ -423,7 +423,7 @@ mutates: none
 ---
 name: _spy_realized_vol_pct
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: 20-day annualized realized volatility of SPY daily closes (log-return based, stdlib math). Feeds the LOW/NORMAL/HIGH market_vol_regime tag (Kimi review, round 3) — logged only, not used to filter trades yet. Returns 0.0 on error or insufficient history.
 inputs: none
 outputs: float (annualized vol %)
@@ -435,7 +435,7 @@ mutates: none
 ---
 name: _vol_regime_bucket
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Buckets an annualized realized-vol % into LOW (<VOL_REGIME_LOW_PCT), HIGH (>VOL_REGIME_HIGH_PCT), or NORMAL (between, or on computation failure — fail-safe default).
 inputs: vol_pct: float
 outputs: str ("LOW"|"NORMAL"|"HIGH")
@@ -447,7 +447,7 @@ mutates: none
 ---
 name: VOL_REGIME_LOW_PCT
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Annualized SPY realized-vol threshold (12.0%) below which market_vol_regime is tagged LOW.
 inputs: none
 outputs: float (12.0)
@@ -459,7 +459,7 @@ mutates: none
 ---
 name: VOL_REGIME_HIGH_PCT
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Annualized SPY realized-vol threshold (25.0%) above which market_vol_regime is tagged HIGH.
 inputs: none
 outputs: float (25.0)
@@ -471,7 +471,7 @@ mutates: none
 ---
 name: INTRADAY_REGIME_ESCALATION_PCT
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: SPY cumulative change-from-prior-close threshold (3.0%) that, if exceeded at any 30-min position check, escalates the day to EXTREME for the rest of the session (Kimi review, round 3) — catches intraday regime breaks the 9:35 AM overnight-gap check misses.
 inputs: none
 outputs: float (3.0)
@@ -483,7 +483,7 @@ mutates: none
 ---
 name: _intraday_regime_override
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: None, or "EXTREME" once _check_intraday_regime_escalation detects a >=3% SPY intraday move. Reset to None at the start of each new trading day via _reset_regime_override_if_new_day.
 inputs: none
 outputs: Optional[str]
@@ -495,7 +495,7 @@ mutates: none (module global, set by _check_intraday_regime_escalation / _reset_
 ---
 name: FRED_SERIES_10Y
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: FRED series id "GS10" (10-year Treasury yield), used with FRED_SERIES_2Y to compute yield_curve_slope (Kimi review, round 6).
 inputs: none
 outputs: str ("GS10")
@@ -507,7 +507,7 @@ mutates: none
 ---
 name: FRED_SERIES_2Y
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: FRED series id "GS2" (2-year Treasury yield), used with FRED_SERIES_10Y to compute yield_curve_slope.
 inputs: none
 outputs: str ("GS2")
@@ -519,7 +519,7 @@ mutates: none
 ---
 name: FRED_SERIES_FEDFUNDS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: FRED series id "FEDFUNDS" (effective federal funds rate), logged as fed_rate.
 inputs: none
 outputs: str ("FEDFUNDS")
@@ -531,7 +531,7 @@ mutates: none
 ---
 name: FRED_SERIES_HY_OAS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: FRED series id "BAMLH0A0HYM2" (ICE BofA US High Yield OAS) — short-term debt cycle proxy for the Dalio 3-force overlay's credit-spread-contraction check.
 inputs: none
 outputs: str ("BAMLH0A0HYM2")
@@ -543,7 +543,7 @@ mutates: none
 ---
 name: FRED_SERIES_DEBT_GDP
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: FRED series id "GFDEGDQ188S" (federal debt held by public, % of GDP) — long-term debt cycle proxy for the Dalio 3-force overlay's debt/GDP-contraction check.
 inputs: none
 outputs: str ("GFDEGDQ188S")
@@ -555,7 +555,7 @@ mutates: none
 ---
 name: REVIEW_QUEUE_TIMEOUT_SEC
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Seconds (300 = 5 min) an AWAITING_REVIEW row can sit before check_review_queue_timeouts auto-skips it (D.E. Shaw hybrid model, round 6) — the human review safety valve is optional, never a blocking dependency.
 inputs: none
 outputs: int (300)
@@ -567,7 +567,7 @@ mutates: none
 ---
 name: _queue_for_review
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Queues a qualifying EXTREME-day signal for human review instead of auto-logging it (Kimi review, round 6). Serializes the full compute_intraday_signals() result, levels dict, and regime tags to JSON at queue-time so approve_review can replay the ORIGINAL model call later rather than re-fetching market data that may have moved.
 inputs: symbol: str, side: str, score_value: float, result: dict, levels: dict, hold_bars: int, regime_tags: dict
 outputs: int (review_queue.id of the inserted row)
@@ -579,7 +579,7 @@ mutates: review_queue table (INSERT)
 ---
 name: check_review_queue_timeouts
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Auto-skips any AWAITING_REVIEW row older than REVIEW_QUEUE_TIMEOUT_SEC, defaulting un-reviewed signals to the conservative outcome (skip) instead of accumulating indefinitely. Called unconditionally on every 60s _runner_loop tick, regardless of market hours.
 inputs: none
 outputs: int (count of rows timed out)
@@ -591,7 +591,7 @@ mutates: review_queue table (UPDATE status='SKIPPED' WHERE stale AWAITING_REVIEW
 ---
 name: get_review_queue
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Read-only view of recent review_queue rows, optionally filtered by status, within a trailing window (default 7 days).
 inputs: status: Optional[str], days: int = 7
 outputs: list[dict] (review_queue rows)
@@ -603,7 +603,7 @@ mutates: none
 ---
 name: approve_review
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Manually approves a queued EXTREME-day signal. Replays the originally-stored signals_json/levels_json payload into log_hypothetical_trade (the ORIGINAL model call, not a re-fetch), marks the row APPROVED, and appends a REVIEW_APPROVED entry to _run_log.
 inputs: review_id: int
 outputs: dict {review_id, approved: bool, trade_id} or {error} if not found/already resolved
@@ -615,7 +615,7 @@ mutates: review_queue table (UPDATE status='APPROVED'), intraday_trades table (v
 ---
 name: skip_review
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Manually skips a queued EXTREME-day signal (reviewer judged it not tradeable).
 inputs: review_id: int
 outputs: dict {review_id, skipped: bool} or {error} if not found/already resolved
@@ -627,7 +627,7 @@ mutates: review_queue table (UPDATE status='SKIPPED')
 ---
 name: _override_date
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Date string (YYYY-MM-DD) the current _intraday_regime_override applies to. Used to detect day rollover so the override doesn't leak into the next trading day's morning scan.
 inputs: none
 outputs: Optional[str]
@@ -639,7 +639,7 @@ mutates: none (module global)
 ---
 name: _reset_regime_override_if_new_day
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Clears _intraday_regime_override (and updates _override_date) at the start of each new trading day. Called from both _fetch_market_regime and _check_intraday_regime_escalation so the override can never leak from one day into the next regardless of which one runs first that day.
 inputs: none
 outputs: none
@@ -651,7 +651,7 @@ mutates: _intraday_regime_override, _override_date
 ---
 name: _check_intraday_regime_escalation
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Re-checks SPY's cumulative change from prior close at each 30-min position check (Kimi review, round 3). The 9:35 AM scan only sees the overnight gap — a stock that opens flat and sells off 3%+ intraday would otherwise never get flagged EXTREME. Sets _intraday_regime_override so a later same-day manual re-scan (paper_runner_scan_now) honors it too. Logs a REGIME_ESCALATION event to _run_log on first trigger each day.
 inputs: none
 outputs: none
@@ -663,7 +663,7 @@ mutates: _intraday_regime_override, _run_log
 ---
 name: _is_earnings_blackout
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Returns True if symbol has a manually-confirmed earnings date matching date_str in EARNINGS_BLACKOUT.
 inputs: symbol: str, date_str: str
 outputs: bool
@@ -675,7 +675,7 @@ mutates: none
 ---
 name: _HOLD_BARS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Hold duration in 5-min bars per time-of-day label. MORNING_TREND/AFTERNOON_TREND=12 (60 min), CLOSE_REVERSAL/OPEN_NOISE/LUNCH_CHOP=6 (30 min).
 inputs: none
 outputs: dict[str, int]
@@ -687,7 +687,7 @@ mutates: none
 ---
 name: _DEFAULT_HOLD_BARS
 type: variable
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Fallback hold duration (6 bars = 30 min) when time_label is not in _HOLD_BARS.
 inputs: none
 outputs: int
@@ -699,7 +699,7 @@ mutates: none
 ---
 name: _et_now
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Returns current datetime in US/Eastern timezone. Uses zoneinfo (DST-aware) when available; falls back to UTC-4/UTC-5 offset approximation based on month.
 inputs: none
 outputs: datetime (ET-aware)
@@ -711,7 +711,7 @@ mutates: none
 ---
 name: _et_minutes
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Current ET time expressed as minutes since midnight (for threshold comparisons like 9:30=570, 16:00=960).
 inputs: none
 outputs: int
@@ -723,7 +723,7 @@ mutates: none
 ---
 name: _is_market_open
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Returns True if current ET time is within NYSE regular session (Mon-Fri 09:30-16:00).
 inputs: none
 outputs: bool
@@ -735,7 +735,7 @@ mutates: none
 ---
 name: _in_scan_window
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Returns True between 09:35-09:59 ET on weekdays — the morning scan window (5 min after open to let price discovery settle).
 inputs: none
 outputs: bool
@@ -747,7 +747,7 @@ mutates: none
 ---
 name: _near_close
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Returns True at or after 15:50 ET — triggers end-of-day force-close of all open positions.
 inputs: none
 outputs: bool
@@ -759,7 +759,7 @@ mutates: none
 ---
 name: _avg_daily_vol
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Compute 20-day average daily volume from daily bars. Returns 1,000,000 if bars are empty (safe default for relative volume calculation).
 inputs: daily_bars: list[dict]
 outputs: float
@@ -771,7 +771,7 @@ mutates: none
 ---
 name: run_open_scan
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Run intraday signal computation on all configured symbols. For each symbol where abs(score) >= effective min_score, calls log_hypothetical_trade() to persist the signal as a hypothetical trade. Uses batch snapshots + per-symbol throttling to stay under Alpaca free-tier rate limits. Three pre-trade gates applied (Kimi review): (1) market regime gate — calls _fetch_market_regime() once per scan; on EXTREME days raises effective min_score to REGIME_EXTREME_MIN_SCORE (60); (2) earnings blackout — skips symbols matching EARNINGS_BLACKOUT for today via _is_earnings_blackout; (3) portfolio cap — stops logging once (already-open + logged-this-scan) reaches MAX_CONCURRENT_POSITIONS (3). Passes regime_tags (spy_gap_pct, xlk_change_pct, regime, macro tags) into log_hypothetical_trade for every entry. Round 6: on EXTREME-regime days, a qualifying signal is routed to _queue_for_review (D.E. Shaw hybrid model human safety valve) instead of being logged directly — the direct log_hypothetical_trade call only fires on NORMAL-regime days. Returns list of trade_ids created (does not include queued-for-review ids, since those aren't logged until approved).
 inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
 outputs: list[int] (trade_ids)
@@ -783,7 +783,7 @@ mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
 ---
 name: _load_open_positions
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Query DB for all open hypothetical trades (is_hypothetical=1, exit_time IS NULL). Returns list of dicts with id, symbol, side, entry_price, entry_time, stop_price, target1_price, target_price, planned_hold_bars.
 inputs: none
 outputs: list[dict]
@@ -795,7 +795,7 @@ mutates: none
 ---
 name: _check_exit
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Evaluate exit conditions for a single open position against recent 5-min bar data. Checks actual bar highs/lows so stop/target touches within a 30-min check interval are not missed. Priority: STOP_LOSS > TARGET_2_HIT > TARGET_1_HIT > TIME_STOP. Returns (reason, exit_price, elapsed_bars) or None if no exit.
 inputs: trade: dict, recent_bars: list[dict], current_price: float, now_utc: datetime
 outputs: Optional[tuple[str, float, int]]
@@ -807,7 +807,7 @@ mutates: none
 ---
 name: check_and_close_positions
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Check all open hypothetical positions and close any that hit stop, target, or time limit. Gets current snapshots + last 6 five-min bars per symbol; evaluates via _check_exit; calls log_trade_exit for each position that exits. force_close=True exits all at current price regardless of levels (used at 15:50 ET). Returns {"checked": N, "closed": M}.
 inputs: force_close: bool = False
 outputs: dict {checked, closed}
@@ -819,7 +819,7 @@ mutates: intraday_trades table (UPDATE via log_trade_exit), _run_log
 ---
 name: _runner_loop
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Background thread body. Runs every 60s; calls check_review_queue_timeouts() unconditionally at the top of every tick regardless of market hours (round 6, so the review-queue safety valve can never accumulate indefinitely even outside trading hours). On weekdays during market hours: triggers morning scan at 9:35 ET (once per day), position checks every 30 min (also runs _check_intraday_regime_escalation each time — Kimi review round 3), and EOD force-close at 15:50 ET. Exits cleanly when _runner_active is set to False.
 inputs: symbols: list[str], min_score: int
 outputs: none
@@ -831,7 +831,7 @@ mutates: _runner_active (reads), today_scanned (local), _run_log (via calls), re
 ---
 name: start_runner
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Start the background paper runner thread (daemon). Returns True if started fresh, False if already running. Called from app.py startup event.
 inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
 outputs: bool
@@ -843,7 +843,7 @@ mutates: _runner_thread, _runner_active
 ---
 name: stop_runner
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Signal the runner loop to stop on its next 60s tick by setting _runner_active=False.
 inputs: none
 outputs: none
@@ -855,7 +855,7 @@ mutates: _runner_active
 ---
 name: get_runner_status
 type: function
-file: fetchers/paper_runner.py
+file: fetchers/high_value_runner.py
 purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), pending_review count of AWAITING_REVIEW rows in the last day (round 6), and last 20 _run_log events (newest first).
 inputs: none
 outputs: dict
@@ -1833,7 +1833,7 @@ mutates: none
 ---
 name: compute_signals
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Entry point for daily trading signal computation — runs all indicators on OHLCV history and returns a unified signals dict.
 inputs: history: list[dict] (OHLCV, oldest first)
 outputs: dict {trend, momentum, volatility, volume, expected_move, support_resistance, score}
@@ -1845,7 +1845,7 @@ mutates: none
 ---
 name: _sma
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Computes simple moving average of the last n values in an array.
 inputs: arr: np.ndarray, n: int
 outputs: float
@@ -1857,7 +1857,7 @@ mutates: none
 ---
 name: _trend
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Determines bull/bear/neutral trend direction and strength from MA20/MA50/MA200 alignment with weighted votes.
 inputs: closes: np.ndarray
 outputs: dict {direction, strength, votes, mas}
@@ -1869,7 +1869,7 @@ mutates: none
 ---
 name: _rsi
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Computes RSI(period) from a closing price array using simple average gain/loss.
 inputs: closes: np.ndarray, period: int = 14
 outputs: float (0–100)
@@ -1881,7 +1881,7 @@ mutates: none
 ---
 name: _macd
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: MACD(12,26,9) with correct EMA warm-up: EMA12 runs from bar 12 through bar 25 before MACD line starts at bar 26. Returns histogram direction and crossover label for composite scoring.
 inputs: closes: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9
 outputs: dict {macd, signal_line, histogram, direction, crossover}
@@ -1893,7 +1893,7 @@ mutates: none
 ---
 name: _momentum
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Returns RSI(14), RSI signal label, 5-day/20-day rate of change, and MACD(12,26,9) dict.
 inputs: closes: np.ndarray
 outputs: dict {rsi, rsi_signal, roc_5d, roc_20d, macd}
@@ -1905,7 +1905,7 @@ mutates: none
 ---
 name: _atr
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Computes Average True Range over the last period bars.
 inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray, period: int = 14
 outputs: float
@@ -1917,7 +1917,7 @@ mutates: none
 ---
 name: _volatility
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Computes ATR, ATR%, annualized historical volatility (20-day), and Bollinger Bands with %B position.
 inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray
 outputs: dict {atr, atr_pct, hv_annual, bollinger}
@@ -1929,7 +1929,7 @@ mutates: none
 ---
 name: _volume
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Computes current volume relative to 20-day average and assigns a signal label.
 inputs: volumes: np.ndarray
 outputs: dict {current, avg_20d, relative, signal}
@@ -1941,7 +1941,7 @@ mutates: none
 ---
 name: _expected_move
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Calculates ±1σ and ±2σ expected price range for the next trading session based on 20-day historical volatility. prob_up uses z-score of recent mean log return divided by daily vol, clamped to [20%, 80%] to avoid overconfidence.
 inputs: closes: np.ndarray, days_ahead: int = 1
 outputs: dict {days, pct_1sigma, upper/lower_1sigma, pct_2sigma, upper/lower_2sigma, prob_up}
@@ -1953,7 +1953,7 @@ mutates: none
 ---
 name: _support_resistance
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Identifies support and resistance levels from 60-day swing highs and lows plus the 25th/75th percentile mid levels.
 inputs: closes: np.ndarray, highs: np.ndarray, lows: np.ndarray
 outputs: dict {resistance, mid_resistance, support, mid_support, pct_to_resistance, pct_to_support}
@@ -1965,7 +1965,7 @@ mutates: none
 ---
 name: _composite_score
 type: function
-file: models/trading/signals.py
+file: models/trading/high_value/signals.py
 purpose: Regime-adaptive composite score -100 to +100 across 5 signals (all weights sum to 1.0). High-vol (HV>30%): trend 15%, RSI 30%, ROC 20%, BB 15%, MACD 20%. Low-vol (<15%): trend 40%, RSI 15%, ROC 15%, BB 10%, MACD 20%. Normal: trend 30%, RSI 25%, ROC 15%, BB 10%, MACD 20%. MACD crossover fires ±100 raw; sustained direction ±50 raw.
 inputs: signals: dict (output of compute_signals)
 outputs: dict {value, label, color, reasons}
@@ -1981,7 +1981,7 @@ mutates: none
 ---
 name: trading_kelly
 type: function
-file: models/trading/kelly.py
+file: models/trading/shared/kelly.py
 purpose: Computes quarter-Kelly position size for a trade using win rate and average win/loss percentages. Use only when historical win/loss stats are available (50+ closed trades).
 inputs: win_rate: float, avg_win_pct: float, avg_loss_pct: float, bankroll: float = 10000.0, fraction: float = 0.25
 outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
@@ -1993,7 +1993,7 @@ mutates: none
 ---
 name: atr_position_size
 type: function
-file: models/trading/kelly.py
+file: models/trading/shared/kelly.py
 purpose: Volatility-targeting position size: risks a fixed % of capital per trade, sized so stop (stop_mult × ATR) = risk_amount. Regime-agnostic alternative to Kelly when win rate is unknown.
 inputs: price: float, atr: float, risk_per_trade: float = 0.01, account_value: float = 10000.0, stop_mult: float = 1.5
 outputs: dict {shares, position_size, stop_distance, risk_amount, risk_pct_of_account, paper_mode}
@@ -2005,7 +2005,7 @@ mutates: none
 ---
 name: RISK_PARITY_MODE
 type: variable
-file: models/trading/kelly.py
+file: models/trading/shared/kelly.py
 purpose: Gate for risk_parity_position_size (Kimi review, round 5). Off by default — kelly_from_signals still uses fixed-1% ATR sizing until real trade data validates whether inverse-vol sizing improves outcomes.
 inputs: none
 outputs: bool (False)
@@ -2017,7 +2017,7 @@ mutates: none
 ---
 name: risk_parity_position_size
 type: function
-file: models/trading/kelly.py
+file: models/trading/shared/kelly.py
 purpose: Bridgewater-style inverse-volatility position sizing (Kimi review, round 5). Sizes inversely to a ticker's realized vol vs a reference level — 2x reference vol halves the risk budget (and position size), 0.5x reference vol doubles it. Alternative to atr_position_size's fixed 1% risk; not wired into kelly_from_signals or any live pipeline yet.
 inputs: price: float, atr: float, realized_vol_pct: float, account_value: float = 10000.0, base_risk_pct: float = 0.01, reference_vol_pct: float = 20.0, stop_mult: float = 1.5, max_position_pct: float = 0.25
 outputs: dict {shares, position_size, risk_pct_used, vol_scalar, realized_vol_pct, reference_vol_pct, note, paper_mode}
@@ -2029,7 +2029,7 @@ mutates: none
 ---
 name: kelly_from_signals
 type: function
-file: models/trading/kelly.py
+file: models/trading/shared/kelly.py
 purpose: ATR-based position sizing with empirical win rate overlay. Risks 1% per trade (1.5× ATR stop). Score gate: no position when |score| < 20. Kimi review (round 2): empirical win rate + veto are both gated behind calibration_globally_active() — no-op until 100 total closed trades exist, since the base ensemble's edge is unvalidated below that floor. Once active, veto uses veto_decision() — an 80% confidence-interval test on the score bucket's win rate (min 30 trades in-bucket, vetoes only if CI upper bound < 48%) — replacing the old naive "win rate < 45%" point-estimate check (Kimi review, round 1), which was noise-prone at small sample sizes. Reports win_rate and win_rate_source ("empirical", "unavailable", or "gated_pending_100_trades") for transparency.
 inputs: score: float, atr_pct: float, bankroll: float = 10000.0
 outputs: dict {full_kelly, kelly_fraction, position_size, bankroll, edge_pct, win_rate, win_rate_source, avg_win_pct, avg_loss_pct, win_loss_ratio, note, paper_mode}
@@ -2045,7 +2045,7 @@ mutates: none
 ---
 name: WEIGHTS
 type: variable
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: 8-signal weight dictionary for the intraday ensemble (sums to 1.00): vwap 0.20, or 0.15, rsi 0.15, relvol 0.10, gap 0.10, trend 0.15, bollinger 0.10, volsurge 0.05.
 inputs: none
 outputs: dict[str, float]
@@ -2057,7 +2057,7 @@ mutates: none
 ---
 name: SCORE_LABELS
 type: variable
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Ordered threshold-to-label pairs for classifying composite intraday score into Strong Buy / Buy / Neutral / Sell / Strong Sell.
 inputs: none
 outputs: list[tuple[int, str]]
@@ -2069,7 +2069,7 @@ mutates: none
 ---
 name: _ema
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes Exponential Moving Average for a list of values and pads the output to match input length.
 inputs: values: list[float], period: int
 outputs: list[float]
@@ -2081,7 +2081,7 @@ mutates: none
 ---
 name: _rsi
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes RSI(period) from a list of closing prices using simple average gain/loss method.
 inputs: closes: list[float], period: int = 9
 outputs: float (0–100)
@@ -2093,7 +2093,7 @@ mutates: none
 ---
 name: _vwap
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes cumulative VWAP from the first bar of the session using typical price × volume.
 inputs: bars: list[dict]
 outputs: list[float]
@@ -2105,7 +2105,7 @@ mutates: none
 ---
 name: _atr
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes Average True Range over the last period bars from intraday OHLCV data.
 inputs: bars: list[dict], period: int = 14
 outputs: float
@@ -2117,7 +2117,7 @@ mutates: none
 ---
 name: _bollinger
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes Bollinger Bands (20-period, 2σ) and %B position for intraday closes.
 inputs: closes: list[float], period: int = 20
 outputs: dict {upper, mid, lower, pct_b}
@@ -2129,7 +2129,7 @@ mutates: none
 ---
 name: _sig_vwap
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Regime-conditioned VWAP deviation signal. In a strong uptrend, deviation >1.5% above VWAP scores +15 (momentum) instead of -20 (mean-reversion). In a downtrend, deviation >1.5% below VWAP scores -15 instead of +20. trend_label sourced from _sig_trend_bias, pre-computed in compute_intraday_signals. Kimi review addition: trend_confidence gates the flip — only applies when "strong" (MA20/MA50 spread >=2%, from _sig_trend_bias's regime_confidence); when "weak" (compressed/ambiguous MA spread), falls back to the default fade logic instead of trusting an unreliable regime label.
 inputs: bars: list[dict], snapshot: dict, trend_label: str = "neutral", trend_confidence: str = "strong"
 outputs: dict {vwap, deviation_pct, label, score}
@@ -2141,7 +2141,7 @@ mutates: none
 ---
 name: _sig_gap
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Regime-conditioned pre-market gap signal. Large gaps (>2%) are always faded. Small gaps (0.5–2%): gap-down in uptrend scores +10 (buy the dip); gap-up in downtrend scores -10 (fade the bounce). Neutral regime follows momentum direction. Kimi review addition: trend_confidence gates the trend-following branch — only applies when "strong" (MA20/MA50 spread >=2%); "weak" confidence falls back to regime-neutral default.
 inputs: snapshot: dict, trend_label: str = "neutral", trend_confidence: str = "strong"
 outputs: dict {gap_pct, direction, fill_prob, score}
@@ -2153,7 +2153,7 @@ mutates: none
 ---
 name: _sig_opening_range
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Determines if price has broken above or below the first-15-minute opening range and scores the breakout strength.
 inputs: bars: list[dict]
 outputs: dict {or_high, or_low, or_range, label, score}
@@ -2165,7 +2165,7 @@ mutates: none
 ---
 name: _sig_rsi
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes RSI-9 signal from intraday bars and labels it overbought/bearish/neutral/bullish/oversold.
 inputs: bars: list[dict]
 outputs: dict {rsi9, label, score}
@@ -2177,7 +2177,7 @@ mutates: none
 ---
 name: _intraday_vol_curve
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Returns the expected fraction of daily volume that has traded by the bar's timestamp, modelling the U-shaped intraday volume seasonality (heavy at open/close, thin at lunch). Used by _sig_relative_volume to avoid comparing raw cumulative volume to a daily average without time adjustment.
 inputs: bar_timestamp: str (ISO 8601)
 outputs: float (0–1; defaults to 1.0 on parse error)
@@ -2189,7 +2189,7 @@ mutates: none
 ---
 name: _sig_relative_volume
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Compares today's session cumulative volume to the time-adjusted expected volume (via _intraday_vol_curve) rather than raw daily average, correcting for intraday volume seasonality. Outputs rel_vol = today_volume / expected_volume_by_now and expected_pct_of_day for transparency.
 inputs: bars: list[dict], daily_avg_volume: float
 outputs: dict {today_volume, avg_volume, rel_vol, expected_pct_of_day, label, score}
@@ -2201,7 +2201,7 @@ mutates: none
 ---
 name: _sig_trend_bias
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Assesses daily trend regime by checking whether price is above MA20 and MA50, scoring bullish or bearish bias. Kimi review addition: also computes ma_spread_pct (abs(ma20-ma50)/mid*100) and regime_confidence ("strong" if spread >=2%, else "weak") — downstream _sig_vwap/_sig_gap use this to decide whether to trust the label enough to flip their regime-conditioning logic, since a compressed spread means the regime could flip on the next session.
 inputs: daily_bars: list[dict]
 outputs: dict {ma20, ma50, ma_spread_pct, regime_confidence, above_ma20, above_ma50, label, score}
@@ -2213,7 +2213,7 @@ mutates: none
 ---
 name: _sig_bollinger
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes Bollinger %B for intraday closes and scores position (near lower band = bullish reversion candidate).
 inputs: bars: list[dict]
 outputs: dict {upper, mid, lower, pct_b, label, score}
@@ -2225,7 +2225,7 @@ mutates: none
 ---
 name: _sig_volume_surge
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Detects whether the last 3 bars show a ≥2× volume spike vs the session average, confirming signal momentum.
 inputs: bars: list[dict]
 outputs: dict {surge, recent_avg_vol, session_avg_vol, ratio, label, score}
@@ -2237,7 +2237,7 @@ mutates: none
 ---
 name: _sig_liquidity
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Spread-based liquidity filter. Hard reject (pass=False) at >0.3% spread because day trading edge is 10–30 bps. UNTRADEABLE (>0.5%): score zeroed. WIDE_SPREAD (>0.3%): pass=False. ELEVATED_SPREAD (>0.1%): pass=True but 50% score haircut + 10% position reduction. LIQUID: no penalty. Includes estimated_slippage_pct = spread/2 for market order cost modelling. compute_intraday_signals later mutates this dict in place via _effective_cost_diagnostic (round 5) to add effective_cost_pct/market_impact_pct/margin_too_thin.
 inputs: snapshot: dict (requires bid, ask, price keys)
 outputs: dict {score, label, bid, ask, spread_pct, estimated_slippage_pct, pass}
@@ -2249,7 +2249,7 @@ mutates: none
 ---
 name: EFFECTIVE_COST_THRESHOLD_PCT
 type: variable
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Diagnostic threshold (0.15%) for _effective_cost_diagnostic's margin_too_thin flag (Kimi review, round 5 — Citadel Securities spread-discipline lesson). Not yet a hard reject: the existing spread tiers already gate trades, and adding this as a second hard reject would silently swallow most of the ELEVATED_SPREAD tier the sprint-mode data collection relies on.
 inputs: none
 outputs: float (0.15)
@@ -2261,7 +2261,7 @@ mutates: none
 ---
 name: _effective_cost_diagnostic
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes effective_cost_pct = spread_pct + estimated_slippage_pct + a square-root market-impact proxy (sqrt(shares/avg_daily_volume) * 100). Logged only for now — flags margin_too_thin when effective_cost_pct > EFFECTIVE_COST_THRESHOLD_PCT but does not reject the trade. At retail position sizes against large-cap ADV, market_impact_pct is small (confirms spread/slippage, not market impact, is the binding cost at this scale — unlike Citadel Securities at billions of dollars).
 inputs: liquidity: dict, shares: float, avg_daily_volume: float
 outputs: dict {effective_cost_pct, market_impact_pct, margin_too_thin}
@@ -2273,7 +2273,7 @@ mutates: none
 ---
 name: _time_of_day_modifier
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Returns session-quality dict based on Eastern Time. MORNING_TREND (10:00–11:30) = 1.0; AFTERNOON_TREND (14:00–15:30) = 1.0; OPEN_NOISE (9:30–10:00) = 0.7; LUNCH_CHOP (11:30–14:00) = 0.4 with hard zero if score < 60; CLOSE_REVERSAL (15:30–16:00) = 0.6; MARKET_CLOSED = 0.0. Returns UNKNOWN with modifier=1.0 on parse failure.
 inputs: bar_timestamp: str (ISO 8601)
 outputs: dict {modifier, label, note}
@@ -2285,7 +2285,7 @@ mutates: none
 ---
 name: _intraday_expected_move
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Computes expected price move for a specific hold period using per-bar volatility. More accurate than daily HV / sqrt(252) for intraday stop placement because daily HV includes overnight gaps. At 5-min bars: hold_bars=6 = 30-min scalp, hold_bars=12 = 1-hour hold.
 inputs: closes: list[float], hold_bars: int = 6
 outputs: dict {hold_bars, hold_minutes, pct_1sigma, dollars_1sigma, bar_vol_pct, suggested_stop_pct}
@@ -2297,7 +2297,7 @@ mutates: none
 ---
 name: compute_exit_action
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Active position management for day trading — call after each new bar while a position is open. Four exit triggers: TIME_STOP (no progress after 10 bars/50 min), TRAIL_1.5R (trail stop 1.5R behind price at 2R profit, locks in 0.5R minimum), BREAKEVEN_LOCK (move stop to entry+1 tick after 1R profit), SIGNAL_REVERSAL (composite score flips sign AND |score| > 40 vs entry direction). Returns action dict for app.py to execute.
 inputs: entry: float, stop: float, target1: float, current_price: float, bars_held: int, current_signals: dict, entry_score: float
 outputs: dict {action: "EXIT"|"MODIFY_STOP"|"HOLD", reason: str, ...}
@@ -2309,7 +2309,7 @@ mutates: none
 ---
 name: _trade_levels
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Entry/stop/target levels + position sizing. Stop uses intraday_em dollars_1sigma (calibrated to hold period) when available, falls back to 1.5×ATR. Targets scale with trend (strong: 2.0× and 3.5×; else 1.5× and 2.5×). Position sizing: risk 1% of account, capped at 25%. ELEVATED_SPREAD reduces size 10% via liquidity_adjustment.
 inputs: bars: list[dict], snapshot: dict, side: str, trend_label: str = "neutral", hold_bars: int = 6, intraday_em: dict = None, liquidity: dict = None, account_value: float = 10000.0, risk_pct: float = 0.01
 outputs: dict {side, entry, stop, target1, target2, atr, stop_basis, risk_per_share, rr_ratio, shares, position_value, risk_dollars, slippage_estimate, liquidity_adjustment}
@@ -2321,7 +2321,7 @@ mutates: none
 ---
 name: _composite
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Combines all 8 intraday signal scores using WEIGHTS into a normalized -100 to +100 ensemble score with label and top reasons.
 inputs: signals: dict (individual signal dicts)
 outputs: dict {value, label, reasons}
@@ -2333,7 +2333,7 @@ mutates: none
 ---
 name: compute_intraday_signals
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Main entry point — pre-computes trend_sig to regime-condition both _sig_vwap and _sig_gap (passing both trend_label and trend_confidence — Kimi review addition — so the conditioning flip is suppressed when the daily MA20/MA50 spread is compressed/ambiguous), runs all 8 signals + ensemble scoring + liquidity filter (hard reject / pass=False if spread >0.3%) + time-of-day modifier (0.4× + hard zero during LUNCH_CHOP if score < 40; 0.7× OPEN_NOISE; 0.0 MARKET_CLOSED) + intraday-EM-based trade levels with position sizing + exit_template for active management. Round 5: after levels are computed, mutates the liquidity dict in place via _effective_cost_diagnostic to add effective_cost_pct/market_impact_pct/margin_too_thin (diagnostic only, not a reject).
 inputs: intraday_bars: list[dict], daily_bars: list[dict], snapshot: dict, daily_avg_volume: float = 0, hold_bars: int = 6
 outputs: dict {signals, score, levels, liquidity, intraday_expected_move, exit_template}
@@ -2345,7 +2345,7 @@ mutates: none
 ---
 name: log_intraday_trade
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: Persists a completed intraday trade to the intraday_trades table for post-trade analysis and slippage tracking. Computes pnl_dollars and pnl_pct from prices when not supplied. Designed to be called after a position closes with actual fill prices. Returns {id, symbol, pnl_dollars} or {error}.
 inputs: symbol, entry_time, exit_time, side, entry_price, exit_price, planned_hold_bars, actual_hold_bars, entry_score, exit_reason, slippage_entry=0.0, slippage_exit=0.0, pnl_dollars=None, pnl_pct=None
 outputs: dict {id, symbol, pnl_dollars} or {error: str}
@@ -3241,9 +3241,9 @@ file: app.py
 purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runner (paper_runner.start_runner).
 inputs: none
 outputs: none
-calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (paper_runner.py)
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py)
 called_by: FastAPI on_event("startup")
-mutates: predicta.db, _runner_thread/_runner_active (paper_runner.py globals)
+mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals)
 ---
 
 ---
@@ -3445,7 +3445,7 @@ file: app.py
 purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query. Checks body.query against _BRIEF_TRIGGERS first (case-insensitive substring match); if matched, runs run_screener(symbols=RUNNER_SYMBOLS) instead of the single-ticker pipeline and returns {"mode": "brief", ...scan result...} so the frontend can render the watchlist scan (with entry/stop/target1/rr_ratio per symbol) instead of the single-ticker card. Non-brief queries return {"mode": "single", ...run_trade_analysis result...}.
 inputs: body: TradeRequest
 outputs: dict (trading analysis result, or scan result with mode="brief")
-calls: run_trade_analysis, run_screener (screener.py), RUNNER_SYMBOLS (paper_runner.py)
+calls: run_trade_analysis, run_screener (screener.py), RUNNER_SYMBOLS (high_value_runner.py)
 called_by: HTTP POST /analyze-trade
 mutates: none
 ---
@@ -6550,7 +6550,7 @@ file: app.py
 purpose: GET /trade/paper-runner/status — returns current state of the automated paper trading runner: active flag, config, open position count, open symbols, market_open status, ET time, last 20 log events.
 inputs: none
 outputs: dict (from get_runner_status)
-calls: get_runner_status (paper_runner.py)
+calls: get_runner_status (high_value_runner.py)
 called_by: GET /trade/paper-runner/status
 mutates: none
 ---
@@ -6562,7 +6562,7 @@ file: app.py
 purpose: POST /trade/paper-runner/scan-now — manually trigger a signal scan outside the scheduled window. Useful for afternoon session or ad-hoc testing.
 inputs: min_score: int = 20 (query)
 outputs: dict {logged, trade_ids}
-calls: run_open_scan (paper_runner.py)
+calls: run_open_scan (high_value_runner.py)
 called_by: POST /trade/paper-runner/scan-now
 mutates: intraday_trades table (INSERT via run_open_scan)
 ---
@@ -6574,9 +6574,9 @@ file: app.py
 purpose: POST /trade/paper-runner/start — start the background runner if not already running.
 inputs: none
 outputs: dict {started: bool}
-calls: start_runner (paper_runner.py)
+calls: start_runner (high_value_runner.py)
 called_by: POST /trade/paper-runner/start
-mutates: _runner_thread, _runner_active (paper_runner.py globals)
+mutates: _runner_thread, _runner_active (high_value_runner.py globals)
 ---
 
 ---
@@ -6586,9 +6586,9 @@ file: app.py
 purpose: POST /trade/paper-runner/stop — signal background runner to stop on its next tick.
 inputs: none
 outputs: dict {ok: true}
-calls: stop_runner (paper_runner.py)
+calls: stop_runner (high_value_runner.py)
 called_by: POST /trade/paper-runner/stop
-mutates: _runner_active (paper_runner.py global)
+mutates: _runner_active (high_value_runner.py global)
 ---
 
 ---
@@ -6598,7 +6598,7 @@ file: app.py
 purpose: GET /trade/dashboard — self-contained HTML page that translates paper trading data into plain English. Shows: current phase (Watching/Collecting/Calibrating/Sizing), win rate with interpretation text, avg R with interpretation text, total adjusted P&L, best time-of-day breakdown, how trades are closing (exit reasons), open positions, an inventory/exposure snapshot per ticker (round 5, Jane Street "inventory risk" concept — open/flat status, side, days since last trade for each of the 8 watchlist symbols, plus long/short/open counts), a per-signal P&L attribution section (round 5, Citadel "pod P&L" concept, reusing per_signal_accuracy_report), recent 8 trades, and a readiness verdict ("Ready for real money" / "Not yet — why"). Auto-refreshes every 5 minutes. Mobile-friendly.
 inputs: none
 outputs: HTMLResponse
-calls: db.database.get_db, get_runner_status (paper_runner.py), _et_now (paper_runner.py), RUNNER_SYMBOLS (paper_runner.py), per_signal_accuracy_report (signal_calibration.py)
+calls: db.database.get_db, get_runner_status (high_value_runner.py), _et_now (high_value_runner.py), RUNNER_SYMBOLS (high_value_runner.py), per_signal_accuracy_report (signal_calibration.py)
 called_by: GET /trade/dashboard
 mutates: none
 ---
@@ -6798,7 +6798,7 @@ mutates: pair_signals table (UPDATE exit_z, exit_time, pnl_pct, exit_reason)
 ---
 name: signal_calibration
 type: module
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Signal accuracy feedback loop. Queries closed intraday_trades to compute per-bucket win rates and avg P&L-in-R per composite score bucket and time-of-day session. calibrated_win_rate() returns empirical win rate with no heuristic fallback (returns None when data insufficient). calibration_summary() checks Kelly readiness and empirical score threshold.
 inputs: none (queries DB internally)
 outputs: see individual functions below
@@ -6810,7 +6810,7 @@ mutates: none (read-only)
 ---
 name: score_accuracy_report
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Win rate and avg P&L-in-R per composite score bucket (Strong Sell / Sell / Neutral / Buy / Strong Buy). Returns None for buckets with fewer than min_trades closed trades.
 inputs: min_trades: int = 5
 outputs: dict {total_closed, overall_win_rate, avg_pnl_r, buckets: [{label, min_score, max_score, n, win_rate, avg_pnl_r}], note}
@@ -6822,7 +6822,7 @@ mutates: none
 ---
 name: time_accuracy_report
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Win rate and avg P&L per time-of-day session. Used to empirically tune time_of_day_modifier thresholds.
 inputs: min_trades: int = 5
 outputs: dict {total_closed, by_session: [{session, n, win_rate, avg_pnl_r}]}
@@ -6834,7 +6834,7 @@ mutates: none
 ---
 name: calibrated_win_rate
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Returns empirical win rate for a composite score. Returns None when data is insufficient — NEVER falls back to the (score+100)/200 heuristic.
 inputs: score: float
 outputs: Optional[float]
@@ -6846,7 +6846,7 @@ mutates: none
 ---
 name: MIN_TRADES_FOR_ANY_CALIBRATION
 type: variable
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Hard floor (100) before any calibration output — empirical win rate, veto, dynamic weights — is allowed to influence a live decision (Kimi review, round 2). Below this, acting on 30-50 trade calibration data risks tuning noise rather than validated edge.
 inputs: none
 outputs: int (100)
@@ -6858,7 +6858,7 @@ mutates: none
 ---
 name: calibration_globally_active
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: True once total closed trades >= MIN_TRADES_FOR_ANY_CALIBRATION (100). kelly_from_signals checks this before using calibrated_win_rate() or veto_decision() for a real decision — below the floor, falls back to static ATR sizing with no empirical overlay.
 inputs: none
 outputs: bool
@@ -6870,7 +6870,7 @@ mutates: none
 ---
 name: WILSON_CONFIDENCE
 type: variable
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Named confidence level (0.80) for veto_decision's CI test (Kimi review, round 3) — was a hardcoded default; now a one-line change to tighten later (e.g. 0.90/0.95 once 500+ trades exist) instead of a re-audit of the veto function.
 inputs: none
 outputs: float (0.80)
@@ -6882,7 +6882,7 @@ mutates: none
 ---
 name: _wilson_ci
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Wilson score interval for a binomial proportion — better small-sample behavior than a normal approximation. Used by veto_decision to compute a WILSON_CONFIDENCE-level range for the true win rate given wins/n.
 inputs: wins: int, n: int, confidence: float = WILSON_CONFIDENCE
 outputs: tuple[float, float] (ci_lower, ci_upper)
@@ -6894,7 +6894,7 @@ mutates: none
 ---
 name: veto_decision
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Statistically-gated trade veto (Kimi review, round 1). Replaces a naive point-estimate check ("win rate < 45%") with a WILSON_CONFIDENCE-level confidence-interval test via _wilson_ci, and refuses to veto below min_trades in the score's bucket — a 45% observed win rate at n=15 could easily be a true 55% rate with bad variance. Only vetoes when the bucket's CI upper bound sits entirely below ci_floor (default 0.48), which in practice requires ~25-30+ trades in the bucket.
 inputs: score: float, min_trades: int = 30, ci_floor: float = 0.48
 outputs: dict {veto, reason, n, win_rate, ci_lower, ci_upper, min_trades}
@@ -6906,7 +6906,7 @@ mutates: none
 ---
 name: calibration_summary
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: One-call readiness check. Returns kelly_ready (n≥50), calibration_quality, empirical_score_threshold (lowest bucket with >50% WR), overall_win_rate, avg_pnl_r.
 inputs: none
 outputs: dict {total_closed_trades, kelly_ready, calibration_quality, empirical_score_threshold, recommended_min_score, overall_win_rate, avg_pnl_r, note}
@@ -6918,7 +6918,7 @@ mutates: none
 ---
 name: pairs_calibration_summary
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Per-pair realized edge from closed pair_signals rows. Returns win_rate, avg_pnl_pct, avg_hold_h, and UNDERPERFORMING flag (win_rate < 0.50 or avg_pnl < 0) for pairs with min_trades or more closed trades. Sorted by avg_pnl_pct descending.
 inputs: min_trades: int = 3
 outputs: dict {total_closed, pairs: [{pair, n, win_rate, avg_pnl_pct, avg_hold_h, flag, note}]}
@@ -6930,7 +6930,7 @@ mutates: none
 ---
 name: _load_closed_trades_full
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: All closed trades with v4 per-signal score columns (composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge scores, ngram_signal, ngram_confidence). Returns empty list on DB error or if no closed trades exist. Used by per_signal_accuracy_report, compute_dynamic_weights, compute_ngram_blend_weight, calibration_readiness_status.
 inputs: none
 outputs: list[dict]
@@ -6942,7 +6942,7 @@ mutates: none
 ---
 name: _per_signal_stats
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Win rate and avg P&L (in R) for one signal column. Only counts trades where |signal_score| >= active_threshold (signal was active/contributing). Returns {n, win_rate, avg_r} with None values when n=0.
 inputs: trades: list[dict], col: str, active_threshold: float = 10.0
 outputs: dict {n, win_rate, avg_r}
@@ -6954,7 +6954,7 @@ mutates: none
 ---
 name: per_signal_accuracy_report
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Win rate and avg P&L per individual signal component. Only counts trades where |signal_score| >= active_threshold. Trades logged pre-v4 schema have NULL signal scores and are excluded silently. Results sorted by win_rate descending.
 inputs: min_trades: int = 10, active_threshold: float = 10.0
 outputs: dict {total_closed, by_signal: [{signal, column, n, win_rate, avg_r, note}], active_threshold, note}
@@ -6966,7 +6966,7 @@ mutates: none
 ---
 name: compute_dynamic_weights
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Empirically-driven signal weights from closed trades. Formula: raw = max(0, (win_rate-0.5)*avg_r) per signal; normalize by total raw. Falls back to _STATIC_WEIGHTS when sum of raws=0 (status="fallback_static"). Returns None when total closed trades < min_trades. Used to replace WEIGHTS in intraday.py once enough data exists.
 inputs: min_trades: int = 30
 outputs: Optional[dict {weights, raw_weights, negative_utility, n_trades, status}]
@@ -6978,7 +6978,7 @@ mutates: none
 ---
 name: compute_ngram_blend_weight
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Calibrate n-gram overlay multiplier. Agree cohort = n-gram direction matches composite_raw direction; disagree cohort = opposes. agree_multiplier = agree_avg_r / baseline_avg_r, clamped to [0.5, 2.0]. Returns None when either cohort < min_samples. When agree_multiplier > 1.0, n-gram adds value; < 1.0 means the agree-direction trades underperform baseline.
 inputs: min_samples: int = 20
 outputs: Optional[dict {agree_multiplier, disagree_multiplier, n_agree, n_disagree, agree_avg_r, disagree_avg_r, baseline_avg_r, status}]
@@ -6990,7 +6990,7 @@ mutates: none
 ---
 name: SIGNAL_KILL_MIN_TRADES
 type: variable
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Trades-per-signal floor (50) before check_signal_kill_switches() will evaluate a signal for killing (Kimi review, round 5 — Citadel pod model).
 inputs: none
 outputs: int (50)
@@ -7001,7 +7001,7 @@ called_by: check_signal_kill_switches
 ---
 name: SIGNAL_KILL_CI_FLOOR
 type: variable
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Wilson CI upper-bound floor (0.48) below which a signal with SIGNAL_KILL_MIN_TRADES+ active trades gets marked BUCKET_KILLED.
 inputs: none
 outputs: float (0.48)
@@ -7012,7 +7012,7 @@ called_by: check_signal_kill_switches
 ---
 name: SIGNAL_KILL_RESURRECT_N
 type: variable
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: New active trades required (20) after a kill before get_signal_kill_status flags the signal eligible for a manual resurrection review.
 inputs: none
 outputs: int (20)
@@ -7023,7 +7023,7 @@ called_by: get_signal_kill_status
 ---
 name: _per_signal_wilson_ci
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Win rate + Wilson CI for one signal column, mirroring veto_decision's math but scoped to a single signal rather than a composite-score bucket.
 inputs: trades: list[dict], col: str, active_threshold: float = 10.0
 outputs: dict {n, win_rate, ci_lower, ci_upper}
@@ -7034,7 +7034,7 @@ called_by: check_signal_kill_switches
 ---
 name: _persist_kill_switch
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Upserts a kill record into signal_kill_switches. No-op if the signal is already killed and not yet resurrected (prevents repeatedly resetting killed_at on every check_signal_kill_switches() call).
 inputs: signal: str, stats: dict
 outputs: none
@@ -7046,7 +7046,7 @@ mutates: signal_kill_switches table (INSERT/UPDATE)
 ---
 name: check_signal_kill_switches
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Citadel "pod kill switch" applied to individual signals (Kimi review, round 5). After SIGNAL_KILL_MIN_TRADES active trades for a signal, if its Wilson CI upper bound sits below SIGNAL_KILL_CI_FLOOR, marks it BUCKET_KILLED and persists via _persist_kill_switch. Diagnostic + persisted flag only — does NOT itself zero out WEIGHTS in intraday.py; the live ensemble stays untouched until dynamic weights are wired to production.
 inputs: none
 outputs: dict {signal_key: {n, win_rate, ci_lower, ci_upper, killed, reason?}}
@@ -7058,7 +7058,7 @@ mutates: signal_kill_switches table (via _persist_kill_switch)
 ---
 name: get_signal_kill_status
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: All persisted kill-switch rows, each flagged with whether it's eligible for a manual resurrection review (SIGNAL_KILL_RESURRECT_N new active trades since the kill).
 inputs: none
 outputs: list[dict]
@@ -7070,7 +7070,7 @@ mutates: none
 ---
 name: resurrect_signal
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Manually resurrects a killed signal (human-in-the-loop, Citadel pod model). Sets resurrected=1 so the signal can be re-evaluated fresh.
 inputs: signal: str
 outputs: dict {signal, resurrected}
@@ -7106,7 +7106,7 @@ mutates: signal_kill_switches table
 ---
 name: calibration_readiness_status
 type: function
-file: models/trading/signal_calibration.py
+file: models/trading/shared/signal_calibration.py
 purpose: Per-feature readiness check with threshold targets. Features: kelly_sizing (50 trades), dynamic_weights (30 trades), per_signal_accuracy (10 active per signal), ngram_blend_weight (20 agree + 20 disagree), time_session_accuracy (20 per session). Returns features list, n_ready/n_total, pct_ready, overall_status (fully_calibrated / partially_calibrated / insufficient).
 inputs: none
 outputs: dict {total_closed_trades, features, n_ready, n_total_features, pct_ready, overall_status}
@@ -7122,7 +7122,7 @@ mutates: none
 ---
 name: PATTERN_LENGTH
 type: variable
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: N-gram context window length. Extended 3→4 bars (Kimi review): 3 bars (15 min) showed weak directional autocorrelation (~0.05-0.12 in large-cap 5-min bars) — too close to the 50% baseline given only a slightly-elevated 52% threshold. 4-bar patterns → 3^4 = 81 possible sequences (U/D/E per bar), ~20 min of context (closer to the model's 30-60 min intended hold), still ~115 expected occurrences per pattern over 6 months — comfortably above the 40-sample floor.
 inputs: none
 outputs: int (4)
@@ -7134,7 +7134,7 @@ mutates: none
 ---
 name: encode_bar
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Classify a single bar direction: U (up, ratio > 1.0001), D (down, ratio < 0.9999), E (equal, within 1bp). The 1bp threshold prevents noise from flat bars polluting the pattern table.
 inputs: current_close: float, previous_close: float
 outputs: str ("U" | "D" | "E")
@@ -7146,7 +7146,7 @@ mutates: none
 ---
 name: encode_sequence
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Encode a list of closes into a direction string. len(closes)≥2 required; returns string of length (len-1). Example: [100, 101, 100.5] → "UD".
 inputs: closes: list[float]
 outputs: str
@@ -7158,7 +7158,7 @@ mutates: none
 ---
 name: build_pattern_table
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Build frequency table from historical closes. For each overlapping (pattern_len+1) window: encode pattern from first pattern_len bars, record next bar direction. Returns {pattern_str: {U: n, D: n, E: n}} covering all observed patterns.
 inputs: closes: list[float], pattern_len: int = PATTERN_LENGTH
 outputs: dict[str, dict[str, int]]
@@ -7170,7 +7170,7 @@ mutates: none
 ---
 name: save_pattern_table
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Upsert pattern frequency table into ngram_models (INSERT OR REPLACE, unique on symbol+pattern_len). Serialises table as JSON.
 inputs: symbol: str, table: dict, bar_count: int
 outputs: none
@@ -7182,7 +7182,7 @@ mutates: ngram_models table
 ---
 name: load_pattern_table
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Load pattern table from DB. Returns None if not found, table is stale (>max_age_days), or DB table doesn't exist yet. Caller should trigger rebuild on None.
 inputs: symbol: str, max_age_days: int = 7
 outputs: Optional[dict]
@@ -7194,7 +7194,7 @@ mutates: none
 ---
 name: ngram_signal
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Generate n-gram pattern signal for current bar context. Looks up encode_sequence(recent_closes[-(PATTERN_LENGTH+1):]) in stored frequency table — now 5 bars (4-bar pattern + 1) since PATTERN_LENGTH extended 3→4 (Kimi review). Returns UP (p_up>0.52, conf=(p-0.5)×200), DOWN (p_down>0.52), or NONE. Confidence is on 0–100 scale. Requires min_samples=40 historical occurrences (raised from 30 to maintain statistical power for the larger 81-pattern space).
 inputs: symbol: str, recent_closes: list[float], min_samples: int = 40
 outputs: dict {signal, confidence, historical_win_rate?, pattern?, n_historical?, expected_edge?, reason?}
@@ -7206,7 +7206,7 @@ mutates: none
 ---
 name: validate_ngram_patterns
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Binomial significance test per pattern. z = (p̂ - 0.5) / sqrt(0.25/n), one-tailed p-value via erfc. Patterns with p < significance (default 0.05) have demonstrated directional edge; others are noise. Call after building tables to audit which patterns the signal engine should trust.
 inputs: symbol: str, significance: float = 0.05
 outputs: dict {symbol, total_patterns, n_validated, n_weak, validated: [{pattern, direction, win_rate, n, z_score, p_value}], weak: [...]}
@@ -7218,7 +7218,7 @@ mutates: none
 ---
 name: ngram_to_composite_score
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Convert ngram signal to -100…+100 scale for ensemble blending. UP → +confidence, DOWN → -confidence, NONE → 0.
 inputs: signal: dict
 outputs: float
@@ -7230,7 +7230,7 @@ mutates: none
 ---
 name: build_ngram_from_alpaca
 type: function
-file: models/trading/ngram.py
+file: models/trading/high_value/ngram.py
 purpose: Fetch historical 5-min bars from Alpaca (up to 10000 bars, ~6 months), build 3-bar pattern table, save to DB. Returns True on success. Takes ~2s per symbol. Call weekly per symbol via scripts/weekly_build.py.
 inputs: symbol: str, months: int = 6
 outputs: bool
@@ -7246,7 +7246,7 @@ mutates: ngram_models table (via save_pattern_table)
 ---
 name: compute_intraday_signals (updated)
 type: function
-file: models/trading/intraday.py
+file: models/trading/high_value/intraday.py
 purpose: [UPDATED] Added symbol: str = None parameter and ngram blend. When symbol provided, loads ngram pattern table and blends result: agreement (same direction) boosts score ≤20% (×(1+conf/500)); disagreement reduces score 30% (×0.7). Only fires when |score_val|>0 (skips MARKET_CLOSED, LUNCH_SUPPRESSED, liquidity-killed scores). ngram added to returned signals dict as signals["ngram"]. Backward compatible — existing callers without symbol param are unaffected.
 inputs: ...(existing)..., symbol: str = None
 outputs: dict {signals (now includes signals["ngram"]), score, levels, liquidity, intraday_expected_move, exit_template}
@@ -7280,7 +7280,7 @@ name: test_ngram.py
 type: pytest test suite
 file: tests/test_ngram.py
 purpose: 13 unit tests for models/trading/ngram.py. Covers: encode_bar U/D/E classification, encode_sequence multi-bar, build_pattern_table counts and edge cases, ngram_signal with no table / too few bars / mock UP table / mock DOWN / score conversion, and full DB round-trip via save_pattern_table + load_pattern_table.
-calls: models.trading.ngram, db.database.init_db
+calls: models.trading.high_value.ngram, db.database.init_db
 called_by: pytest / python tests/test_ngram.py
 mutates: ngram_models table (test symbol "_TEST_NGRAM_SYMBOL_")
 ---
@@ -9269,7 +9269,7 @@ purpose: Most recent published value for a FRED series, or None if unavailable (
 inputs: series_id: str
 outputs: Optional[float]
 calls: _fred_get
-called_by: _fetch_macro_tags (paper_runner.py)
+called_by: _fetch_macro_tags (high_value_runner.py)
 mutates: none
 ---
 
@@ -9281,7 +9281,7 @@ purpose: Mean/std/latest over the last n_obs observations of a FRED series, for 
 inputs: series_id: str, n_obs: int = 252
 outputs: dict {mean: float|None, std: float|None, n: int, latest: float|None}
 calls: _fred_get
-called_by: _fetch_macro_tags (paper_runner.py)
+called_by: _fetch_macro_tags (high_value_runner.py)
 mutates: none
 ---
 
@@ -9292,7 +9292,7 @@ file: app.py
 purpose: GET /trade/review-queue — D.E. Shaw hybrid-model human review queue (Kimi review, round 6). Runs check_review_queue_timeouts() first to resolve any stale rows, then returns the current queue optionally filtered by status.
 inputs: status: Optional[str] (query param), days: int = 7 (query param)
 outputs: dict {queue: list[dict]}
-calls: check_review_queue_timeouts, get_review_queue (paper_runner.py)
+calls: check_review_queue_timeouts, get_review_queue (high_value_runner.py)
 called_by: FastAPI (HTTP GET)
 mutates: review_queue table (via check_review_queue_timeouts)
 ---
@@ -9304,7 +9304,7 @@ file: app.py
 purpose: POST /trade/review-queue/{review_id}/approve — manually approve a queued EXTREME-day signal, replaying the original model call into a logged hypothetical trade.
 inputs: review_id: int (path param)
 outputs: dict {review_id, approved, trade_id} or {error}
-calls: approve_review (paper_runner.py)
+calls: approve_review (high_value_runner.py)
 called_by: FastAPI (HTTP POST)
 mutates: review_queue table, intraday_trades table
 ---
@@ -9316,7 +9316,1161 @@ file: app.py
 purpose: POST /trade/review-queue/{review_id}/skip — manually skip a queued EXTREME-day signal.
 inputs: review_id: int (path param)
 outputs: dict {review_id, skipped} or {error}
-calls: skip_review (paper_runner.py)
+calls: skip_review (high_value_runner.py)
 called_by: FastAPI (HTTP POST)
 mutates: review_queue table
+---
+
+## Low Value engine (Kimi review, round 6 follow-up) — see LOW_VALUE_README.md
+
+---
+name: get_all_active_assets
+type: function
+file: fetchers/alpaca.py
+purpose: All tradable, active, non-OTC US-equity symbols (Alpaca v2/assets) — starting universe for the Low Value scanner. Fails safe to [] on any API error.
+inputs: asset_class: str = "us_equity"
+outputs: list[str]
+calls: _get (fetchers/alpaca.py)
+called_by: build_low_value_universe (scanner.py)
+mutates: none
+---
+
+---
+name: FINNHUB_BASE_URL
+type: variable
+file: fetchers/finnhub.py
+purpose: Finnhub API base URL.
+inputs: none
+outputs: str
+calls: none
+called_by: _finnhub_get
+mutates: none
+---
+
+---
+name: MAX_CALLS_PER_MINUTE
+type: variable
+file: fetchers/finnhub.py
+purpose: Finnhub free-tier rate limit (60 calls/min) — throttle ceiling for fetch_news_batch.
+inputs: none
+outputs: int (60)
+calls: none
+called_by: fetch_news_batch
+mutates: none
+---
+
+---
+name: _finnhub_get
+type: function
+file: fetchers/finnhub.py
+purpose: Low-level Finnhub API call. Returns None immediately if FINNHUB_API_KEY is absent or requests isn't installed; fails safe (None) on any request error.
+inputs: path: str, params: Optional[dict] = None
+outputs: Optional[dict]
+calls: requests.get
+called_by: get_company_news, get_company_profile, get_basic_financials
+mutates: none
+---
+
+---
+name: get_company_news
+type: function
+file: fetchers/finnhub.py
+purpose: Headlines for a symbol over the last N days via Finnhub company-news. Returns [] on missing key/failure.
+inputs: symbol: str, days: int = 7
+outputs: list[dict]
+calls: _finnhub_get
+called_by: fetch_news_batch
+mutates: none
+---
+
+---
+name: get_company_profile
+type: function
+file: fetchers/finnhub.py
+purpose: Raw Finnhub company-profile record (marketCapitalization, finnhubIndustry, etc). {} on failure.
+inputs: symbol: str
+outputs: dict
+calls: _finnhub_get
+called_by: get_market_cap (finnhub.py), sector_etf_for_symbol (thesis_tracker.py)
+mutates: none
+---
+
+---
+name: get_market_cap
+type: function
+file: fetchers/finnhub.py
+purpose: Market cap in dollars (Finnhub reports millions, converted here), or None. Primary market-cap source for the Low Value scanner; fetchers/yahoo_quote.py is the backup.
+inputs: symbol: str
+outputs: Optional[float]
+calls: get_company_profile
+called_by: _get_market_cap (scanner.py)
+mutates: none
+---
+
+---
+name: get_basic_financials
+type: function
+file: fetchers/finnhub.py
+purpose: Finnhub 'metric' fundamentals block (cash, burn-rate proxies) for the cash_burn_months signal. {} on failure — caller must treat missing fields as None, never fabricate.
+inputs: symbol: str
+outputs: dict
+calls: _finnhub_get
+called_by: _score_cash_burn (thesis_tracker.py)
+mutates: none
+---
+
+---
+name: fetch_news_batch
+type: function
+file: fetchers/finnhub.py
+purpose: Fetches company news for a batch of symbols, sleeping 60s every MAX_CALLS_PER_MINUTE calls to stay under Finnhub's free-tier rate limit. Per-symbol failures degrade to [] rather than raising.
+inputs: symbols: list[str], days: int = 7, max_per_minute: int = MAX_CALLS_PER_MINUTE
+outputs: dict[str, list[dict]]
+calls: get_company_news
+called_by: scan_universe_news (news_overlay.py)
+mutates: none
+---
+
+---
+name: SEC_TICKER_MAP_URL
+type: variable
+file: fetchers/sec_edgar.py
+purpose: SEC's public ticker->CIK JSON map URL.
+inputs: none
+outputs: str
+calls: none
+called_by: _load_ticker_cik_map
+mutates: none
+---
+
+---
+name: SEC_SUBMISSIONS_URL
+type: variable
+file: fetchers/sec_edgar.py
+purpose: SEC EDGAR submissions API URL template (per-CIK recent filings, including 8-K item codes).
+inputs: none
+outputs: str
+calls: none
+called_by: has_recent_bankruptcy_filing
+mutates: none
+---
+
+---
+name: _ticker_cik_cache
+type: variable
+file: fetchers/sec_edgar.py
+purpose: Process-lifetime cache of the ticker->CIK map, populated once by _load_ticker_cik_map so repeated per-symbol lookups don't re-fetch SEC's ~10MB ticker file.
+inputs: none
+outputs: Optional[dict[str, str]]
+calls: none
+called_by: _load_ticker_cik_map
+mutates: none (module global, set by _load_ticker_cik_map)
+---
+
+---
+name: _load_ticker_cik_map
+type: function
+file: fetchers/sec_edgar.py
+purpose: Loads and caches SEC's ticker->CIK map for the process lifetime. Returns {} on failure (fails safe — every lookup then returns None/False).
+inputs: none
+outputs: dict[str, str]
+calls: _get_json
+called_by: get_cik
+mutates: _ticker_cik_cache
+---
+
+---
+name: get_cik
+type: function
+file: fetchers/sec_edgar.py
+purpose: 10-digit zero-padded CIK for a ticker, or None if not found/unavailable.
+inputs: symbol: str
+outputs: Optional[str]
+calls: _load_ticker_cik_map
+called_by: has_recent_bankruptcy_filing
+mutates: none
+---
+
+---
+name: has_recent_bankruptcy_filing
+type: function
+file: fetchers/sec_edgar.py
+purpose: True if symbol filed an 8-K with Item 1.03 (Bankruptcy or Receivership) in the last N days. Fails safe to False — a missed flag is a false negative, not a false positive that would corrupt the universe scan.
+inputs: symbol: str, days: int = 90
+outputs: bool
+calls: get_cik, _get_json
+called_by: build_low_value_universe (scanner.py)
+mutates: none
+---
+
+---
+name: OPENINSIDER_URL
+type: variable
+file: fetchers/openinsider.py
+purpose: OpenInsider screener base URL.
+inputs: none
+outputs: str
+calls: none
+called_by: get_recent_insider_purchases
+mutates: none
+---
+
+---
+name: get_recent_insider_purchases
+type: function
+file: fetchers/openinsider.py
+purpose: Filing dates of open-market insider Purchase (code P) transactions for a symbol within the last N days, scraped from OpenInsider's per-ticker screener page. [] on any fetch/parse failure.
+inputs: symbol: str, days: int = 30
+outputs: list[str]
+calls: requests.get
+called_by: has_insider_buying
+mutates: none
+---
+
+---
+name: has_insider_buying
+type: function
+file: fetchers/openinsider.py
+purpose: Boolean convenience wrapper for the insider_buying_30d signal.
+inputs: symbol: str, days: int = 30
+outputs: bool
+calls: get_recent_insider_purchases
+called_by: _score_insider_buying (thesis_tracker.py)
+mutates: none
+---
+
+---
+name: NASDAQ_SHORT_INTEREST_URL
+type: variable
+file: fetchers/finra.py
+purpose: Nasdaq's public short-interest API URL template — republishes FINRA's bi-monthly settlement-cycle data per symbol (~2wk lag).
+inputs: none
+outputs: str
+calls: none
+called_by: get_short_interest_pct
+mutates: none
+---
+
+---
+name: get_short_interest_pct
+type: function
+file: fetchers/finra.py
+purpose: Most recent short-interest as a percent of float, or None if unavailable. FINRA has no per-symbol endpoint of its own; this uses Nasdaq's public republication of the same data.
+inputs: symbol: str
+outputs: Optional[float]
+calls: requests.get
+called_by: _score_short_interest (thesis_tracker.py)
+mutates: none
+---
+
+---
+name: get_market_cap (yahoo_quote)
+type: function
+file: fetchers/yahoo_quote.py
+purpose: Market cap in dollars from Yahoo's public quote endpoint — backup source used only when Finnhub's profile2 misses a symbol. None on any failure.
+inputs: symbol: str
+outputs: Optional[float]
+calls: requests.get
+called_by: _get_market_cap (scanner.py)
+mutates: none
+---
+
+---
+name: PRICE_CEILING
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Universe scanner's max last-close price ($20) — the "sub-$20" filter.
+inputs: none
+outputs: float (20.0)
+calls: none
+called_by: _cheap_price_filter
+mutates: none
+---
+
+---
+name: MIN_AVG_DAILY_VOLUME_20D
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Minimum 20-day average daily volume (100,000 shares) for a symbol to stay in the universe.
+inputs: none
+outputs: int
+calls: none
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: MIN_MARKET_CAP
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Minimum market cap ($50M) for a symbol to stay in the universe.
+inputs: none
+outputs: float
+calls: none
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: UNIVERSE_MAX_SIZE
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Hard cap (200 symbols) on the daily Low Value universe.
+inputs: none
+outputs: int
+calls: none
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: BANKRUPTCY_LOOKBACK_DAYS
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Lookback window (90 days) for the SEC 8-K Item 1.03 bankruptcy exclusion check.
+inputs: none
+outputs: int
+calls: none
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: _cheap_price_filter
+type: function
+file: models/trading/low_value/scanner.py
+purpose: First-pass universe filter — batch Alpaca snapshots for every active symbol, keep only last_close < PRICE_CEILING. Cheap relative to per-symbol daily-bar/fundamentals calls, run before them to shrink the candidate set.
+inputs: symbols: list[str]
+outputs: list[str]
+calls: get_snapshots
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: _avg_daily_volume_20d
+type: function
+file: models/trading/low_value/scanner.py
+purpose: 20-day average daily volume for one symbol via Alpaca daily bars. 0.0 if unavailable.
+inputs: symbol: str
+outputs: float
+calls: get_daily_bars
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: _get_market_cap (scanner)
+type: function
+file: models/trading/low_value/scanner.py
+purpose: Market cap lookup — Finnhub primary, Yahoo Finance backup, per spec.
+inputs: symbol: str
+outputs: Optional[float]
+calls: fetchers.finnhub.get_market_cap, fetchers.yahoo_quote.get_market_cap
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: _is_earnings_blackout (scanner)
+type: function
+file: models/trading/low_value/scanner.py
+purpose: True if symbol has a manually-confirmed earnings date matching today, via a read-only import of High Value's EARNINGS_BLACKOUT constant.
+inputs: symbol: str, date_str: str
+outputs: bool
+calls: fetchers.high_value_runner.EARNINGS_BLACKOUT
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: build_low_value_universe
+type: function
+file: models/trading/low_value/scanner.py
+purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate volume/market-cap/earnings-blackout/bankruptcy checks. Returns a sorted 50-200 symbol list.
+inputs: today_str: str, max_candidates: Optional[int] = None
+outputs: list[str]
+calls: get_all_active_assets, _cheap_price_filter, _is_earnings_blackout, _avg_daily_volume_20d, _get_market_cap, has_recent_bankruptcy_filing
+called_by: get_daily_universe (low_value_runner.py)
+mutates: none
+---
+
+---
+name: NEWS_FLAG_KEYWORDS
+type: variable
+file: models/trading/low_value/news_overlay.py
+purpose: Category -> keyword list mapping (EARNINGS_MISS, ANALYST_DOWNGRADE, REGULATORY_RISK, OPERATIONAL_CRISIS, POSITIVE_CATALYST) for case-insensitive headline flagging.
+inputs: none
+outputs: dict[str, list[str]]
+calls: none
+called_by: _flag_headline
+mutates: none
+---
+
+---
+name: _flag_headline
+type: function
+file: models/trading/low_value/news_overlay.py
+purpose: Case-insensitive keyword match of one headline against NEWS_FLAG_KEYWORDS. A headline can carry multiple flags.
+inputs: headline: str
+outputs: list[str]
+calls: none
+called_by: score_symbol_news
+mutates: none
+---
+
+---
+name: _sentiment_score
+type: function
+file: models/trading/low_value/news_overlay.py
+purpose: VADER compound sentiment (-1..+1) for a text snippet. Returns 0.0 (neutral) if vaderSentiment isn't installed — fails safe, never blocks the scan.
+inputs: text: str
+outputs: float
+calls: vaderSentiment.SentimentIntensityAnalyzer.polarity_scores
+called_by: score_symbol_news
+mutates: none
+---
+
+---
+name: score_symbol_news
+type: function
+file: models/trading/low_value/news_overlay.py
+purpose: Aggregates one symbol's Finnhub news articles into deduped category flags + a mean VADER sentiment score.
+inputs: articles: list[dict]
+outputs: dict {flags, sentiment, headline_count}
+calls: _flag_headline, _sentiment_score
+called_by: scan_universe_news
+mutates: none
+---
+
+---
+name: scan_universe_news
+type: function
+file: models/trading/low_value/news_overlay.py
+purpose: Fetches + scores news for every symbol in the Low Value universe in one rate-limited batch.
+inputs: symbols: list[str], days: int = 7
+outputs: dict[str, dict]
+calls: fetchers.finnhub.fetch_news_batch, score_symbol_news
+called_by: run_low_value_scan, check_low_value_exits (low_value_runner.py)
+mutates: none
+---
+
+---
+name: SIGNAL_WEIGHTS
+type: variable
+file: models/trading/low_value/thesis_tracker.py
+purpose: The 8-signal weight table for the Low Value composite (price_vs_20d_low 20%, rsi_14 15%, volume_spike 10%, insider_buying_30d 20%, short_interest_pct 10%, sector_relative_strength 10%, cash_burn_months 10%, news_sentiment 5%). Sums to 1.0 (asserted at import time).
+inputs: none
+outputs: dict[str, float]
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: ENTRY_THRESHOLD
+type: variable
+file: models/trading/low_value/thesis_tracker.py
+purpose: Minimum |composite score| (40) for a Low Value candidate to be entry_eligible — higher than High Value's threshold since these are less liquid, lower-conviction names.
+inputs: none
+outputs: float (40.0)
+calls: none
+called_by: label_for_score, compute_thesis_score, run_low_value_scan (low_value_runner.py)
+mutates: none
+---
+
+---
+name: SECTOR_ETF_BY_INDUSTRY
+type: variable
+file: models/trading/low_value/thesis_tracker.py
+purpose: Finnhub finnhubIndustry substring -> SPDR sector ETF map, used for the sector_relative_strength signal.
+inputs: none
+outputs: dict[str, str]
+calls: none
+called_by: sector_etf_for_symbol
+mutates: none
+---
+
+---
+name: sector_etf_for_symbol
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Finnhub company-profile industry -> sector ETF, falling back to SPY (broad market) when the industry is unmapped or missing.
+inputs: symbol: str
+outputs: str
+calls: fetchers.finnhub.get_company_profile
+called_by: run_low_value_scan (low_value_runner.py)
+mutates: none
+---
+
+---
+name: _rsi_14
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Standard 14-period RSI from a list of daily closes. None if fewer than 15 closes.
+inputs: closes: list[float]
+outputs: Optional[float]
+calls: none
+called_by: _score_rsi_14
+mutates: none
+---
+
+---
+name: _score_price_vs_20d_low
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: (close - 20d_low)/20d_low mapped to a 0-100 contrarian score — 100 at the 20-day low, 0 at 30%+ above it. Never negative (distance from the low is just less opportunity, not bearish).
+inputs: daily_bars: list[dict]
+outputs: Optional[tuple[float, dict]]
+calls: _closes
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_rsi_14
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: RSI-14 mapped to a contrarian score — oversold (low RSI) scores positive, overbought scores negative: (50 - rsi) * 2, clamped ±100.
+inputs: daily_bars: list[dict]
+outputs: Optional[tuple[float, dict]]
+calls: _rsi_14, _closes
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_volume_spike
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Today's volume vs 20d average, mapped to a 0-100 capitulation-intensity score (magnitude only, never negative — direction comes from the price/RSI signals in the same composite).
+inputs: daily_bars: list[dict]
+outputs: Optional[tuple[float, dict]]
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_insider_buying
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: 100 if an open-market insider Purchase occurred in the last 30 days, else 0 (no penalty for absence).
+inputs: symbol: str
+outputs: tuple[float, dict]
+calls: fetchers.openinsider.has_insider_buying
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_short_interest
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Short interest % mapped to a squeeze-potential score (positive framing, not risk) — pct * 4, clamped to 100. None if unavailable.
+inputs: symbol: str
+outputs: Optional[tuple[float, dict]]
+calls: fetchers.finra.get_short_interest_pct
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_sector_relative_strength
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Symbol's 5-day return minus its sector ETF's 5-day return, mapped to a ±100 score. None if either return can't be computed.
+inputs: symbol_bars: list[dict], sector_bars: list[dict]
+outputs: Optional[tuple[float, dict]]
+calls: _closes, _pct_return
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_cash_burn
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: cash_and_equivalents / avg_monthly_burn mapped to a runway score — (months - 6) * 10, clamped ±100. None when Finnhub doesn't cover the fundamentals (common for micro-caps) — never estimated.
+inputs: symbol: str
+outputs: Optional[tuple[float, dict]]
+calls: fetchers.finnhub.get_basic_financials
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _score_news_sentiment
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: VADER sentiment * 100 as the news_sentiment signal. None if no headlines were scanned.
+inputs: news_result: Optional[dict]
+outputs: Optional[tuple[float, dict]]
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: label_for_score
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Composite score -> STRONG_BUY/BUY/NEUTRAL/SELL/STRONG_SELL label.
+inputs: score: float
+outputs: str
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: dominant_thesis_type
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Single thesis-type tag for per-thesis-type win-rate calibration. Priority: news category flag > insider buying > TECHNICAL_OVERSOLD generic bucket.
+inputs: thesis_result: dict, news_result: Optional[dict]
+outputs: str
+calls: none
+called_by: run_low_value_scan (low_value_runner.py)
+mutates: none
+---
+
+---
+name: compute_thesis_score
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Full 8-signal composite for one Low Value candidate. Missing signals are excluded from the weighted average and their weight redistributed proportionally across available signals — never faked.
+inputs: symbol: str, daily_bars: list[dict], sector_bars: list[dict], news_result: Optional[dict] = None
+outputs: dict {composite, label, entry_eligible, signals, missing_signals}
+calls: _score_price_vs_20d_low, _score_rsi_14, _score_volume_spike, _score_insider_buying, _score_short_interest, _score_sector_relative_strength, _score_cash_burn, _score_news_sentiment
+called_by: run_low_value_scan (low_value_runner.py)
+mutates: none
+---
+
+---
+name: LOW_VALUE_FIXED_POSITION_DOLLARS
+type: variable
+file: models/trading/shared/kelly.py
+purpose: Fixed dollar size ($25) for every Low Value trade, regardless of account size.
+inputs: none
+outputs: float (25.0)
+calls: none
+called_by: low_value_position_size
+mutates: none
+---
+
+---
+name: LOW_VALUE_MAX_CONCURRENT_POSITIONS
+type: variable
+file: models/trading/shared/kelly.py
+purpose: Max concurrent open Low Value positions (3).
+inputs: none
+outputs: int (3)
+calls: none
+called_by: run_low_value_scan (low_value_runner.py)
+mutates: none
+---
+
+---
+name: low_value_position_size
+type: function
+file: models/trading/shared/kelly.py
+purpose: Fixed $25/trade sizing for the Low Value engine — deliberately not percentage-of-account or volatility-scaled. Keeps atr_position_size/kelly_from_signals/risk_parity_position_size (High Value's sizing) completely untouched.
+inputs: price: float
+outputs: dict {shares, position_size, note, paper_mode}
+calls: none
+called_by: log_low_value_trade (trading_logger.py)
+mutates: none
+---
+
+---
+name: LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES
+type: variable
+file: models/trading/shared/signal_calibration.py
+purpose: Trades needed per lv_thesis_type (20) before a preliminary win-rate read is shown.
+inputs: none
+outputs: int (20)
+calls: none
+called_by: thesis_type_calibration_report, low_value_calibration_readiness
+mutates: none
+---
+
+---
+name: LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES
+type: variable
+file: models/trading/shared/signal_calibration.py
+purpose: Total Low Value closed trades needed (50) before dynamic weight recalibration is eligible.
+inputs: none
+outputs: int (50)
+calls: none
+called_by: low_value_calibration_readiness
+mutates: none
+---
+
+---
+name: LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES
+type: variable
+file: models/trading/shared/signal_calibration.py
+purpose: Total Low Value closed trades needed (100) before empirical position sizing is usable.
+inputs: none
+outputs: int (100)
+calls: none
+called_by: low_value_calibration_readiness
+mutates: none
+---
+
+---
+name: _load_closed_low_value_trades
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: All closed engine='low_value' trades with the lv_* columns, for thesis-type calibration.
+inputs: none
+outputs: list[dict]
+calls: db.database.get_db
+called_by: thesis_type_calibration_report, low_value_calibration_readiness
+mutates: none
+---
+
+---
+name: thesis_type_calibration_report
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: Win rate and avg P&L per lv_thesis_type. Below LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES for a given type, its win_rate/avg_pnl_r are None — never faked.
+inputs: min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES
+outputs: dict {total_closed, by_thesis_type}
+calls: _load_closed_low_value_trades, _is_winner
+called_by: low_value_calibration (app.py), render_low_value_dashboard (low_value_dashboard.py)
+mutates: none
+---
+
+---
+name: low_value_calibration_readiness
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: Overall Low Value readiness — total closed trades vs. the 20/50/100 preliminary/dynamic-weight/empirical-sizing thresholds.
+inputs: none
+outputs: dict {total_closed_trades, preliminary_ready, dynamic_weights_ready, empirical_sizing_ready, calibration_quality}
+calls: _load_closed_low_value_trades
+called_by: low_value_calibration (app.py), render_low_value_dashboard (low_value_dashboard.py)
+mutates: none
+---
+
+---
+name: log_low_value_trade
+type: function
+file: fetchers/trading_logger.py
+purpose: Logs a Low Value hypothetical trade (engine='low_value', fixed $25 sizing, lv_thesis_type/lv_news_flags/lv_news_sentiment/lv_headline_count) into the same intraday_trades table High Value uses, scoped by the engine column.
+inputs: symbol: str, side: str, entry_price: float, score_value: float, thesis_result: dict, thesis_type: str, news_result: Optional[dict] = None, hold_days: int = 5, model_version: str = "v1"
+outputs: int (trade_id)
+calls: models.trading.shared.kelly.low_value_position_size, db.database.get_db
+called_by: run_low_value_scan (low_value_runner.py)
+mutates: intraday_trades table (INSERT, engine='low_value')
+---
+
+---
+name: log_universe_snapshot
+type: function
+file: fetchers/trading_logger.py
+purpose: Logs the Low Value universe scanner's daily output to low_value_universe_snapshot for after-the-fact composition auditing.
+inputs: scan_date: str, symbols: list[str]
+outputs: int (row id)
+calls: db.database.get_db
+called_by: get_daily_universe (low_value_runner.py)
+mutates: low_value_universe_snapshot table (INSERT)
+---
+
+---
+name: get_universe_snapshots
+type: function
+file: fetchers/trading_logger.py
+purpose: Recent Low Value universe scans, newest first.
+inputs: days: int = 30
+outputs: list[dict]
+calls: db.database.get_db
+called_by: none yet (available for future dashboard/diagnostic use)
+mutates: none
+---
+
+---
+name: low_value_universe_snapshot
+type: table
+file: db/schema.sql
+purpose: Kimi review round 6 follow-up — daily Low Value universe scanner output, logged so composition drift/quality is auditable after the fact instead of only living in memory for one scan.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: log_universe_snapshot, get_universe_snapshots (trading_logger.py)
+mutates: none (DDL)
+---
+
+---
+name: intraday_trades.engine (column)
+type: variable
+file: db/schema.sql
+purpose: Distinguishes which independent signal pipeline logged a row ('high_value' default | 'low_value'). Existing rows default to 'high_value' so nothing already logged is reclassified. Every signal_calibration.py query is scoped by this column so the two engines' stats can never cross-contaminate.
+inputs: none
+outputs: TEXT
+calls: none
+called_by: _load_closed_trades, _load_closed_trades_full, _load_closed_low_value_trades (signal_calibration.py); log_hypothetical_trade, log_low_value_trade (trading_logger.py)
+mutates: none (DDL, migrated via db/database.py:_migrate_intraday_trades)
+---
+
+---
+name: intraday_trades.lv_thesis_type / lv_news_flags / lv_news_sentiment / lv_headline_count (columns)
+type: variable
+file: db/schema.sql
+purpose: Low Value-only columns — dominant thesis category, JSON news flags, VADER sentiment, and headline count at entry time. NULL for every High Value row.
+inputs: none
+outputs: TEXT / TEXT / REAL / INTEGER
+calls: none
+called_by: log_low_value_trade (trading_logger.py), thesis_type_calibration_report (signal_calibration.py), render_low_value_dashboard (low_value_dashboard.py)
+mutates: none (DDL, migrated via db/database.py:_migrate_intraday_trades)
+---
+
+---
+name: LOW_VALUE_SCAN_HOUR_ET
+type: variable
+file: fetchers/low_value_runner.py
+purpose: Hour (8, ET) the daily Low Value scan window opens.
+inputs: none
+outputs: int (8)
+calls: none
+called_by: _in_scan_window
+mutates: none
+---
+
+---
+name: LOW_VALUE_HOLD_DAYS
+type: variable
+file: fetchers/low_value_runner.py
+purpose: Max hold (5 trading days) before a position gets a TIME exit.
+inputs: none
+outputs: int (5)
+calls: none
+called_by: check_low_value_exits
+mutates: none
+---
+
+---
+name: LOW_VALUE_TARGET_PCT / LOW_VALUE_STOP_PCT
+type: variable
+file: fetchers/low_value_runner.py
+purpose: +50%/-50% exit thresholds from entry price.
+inputs: none
+outputs: float (0.50 each)
+calls: none
+called_by: check_low_value_exits
+mutates: none
+---
+
+---
+name: NEGATIVE_THESES
+type: variable
+file: fetchers/low_value_runner.py
+purpose: Thesis types (EARNINGS_MISS, ANALYST_DOWNGRADE, REGULATORY_RISK, OPERATIONAL_CRISIS) whose "resolution" is a fresh POSITIVE_CATALYST flag appearing in a later news scan — triggers a THESIS_RESOLVED exit.
+inputs: none
+outputs: set[str]
+calls: none
+called_by: check_low_value_exits
+mutates: none
+---
+
+---
+name: _universe_cache
+type: variable
+file: fetchers/low_value_runner.py
+purpose: In-memory {date_str: [symbols]} cache so repeat calls within the same day reuse the morning's universe scan instead of re-scanning.
+inputs: none
+outputs: dict[str, list[str]]
+calls: none
+called_by: get_daily_universe
+mutates: none (module global, set by get_daily_universe)
+---
+
+---
+name: _in_scan_window (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: True between 08:00 and 08:14 ET on weekdays — the daily pre-market scan window.
+inputs: none
+outputs: bool
+calls: _et_now, _et_minutes (high_value_runner.py, read-only import)
+called_by: _runner_loop
+mutates: none
+---
+
+---
+name: get_daily_universe
+type: function
+file: fetchers/low_value_runner.py
+purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot on every fresh scan (not on cache hits).
+inputs: force_refresh: bool = False
+outputs: list[str]
+calls: build_low_value_universe, log_universe_snapshot
+called_by: run_low_value_scan, low_value_universe (app.py)
+mutates: _universe_cache, low_value_universe_snapshot table
+---
+
+---
+name: _load_open_positions (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: Open engine='low_value' hypothetical positions from intraday_trades.
+inputs: none
+outputs: list[dict]
+calls: db.database.get_db
+called_by: run_low_value_scan, check_low_value_exits, get_runner_status
+mutates: none
+---
+
+---
+name: run_low_value_scan
+type: function
+file: fetchers/low_value_runner.py
+purpose: Scans the daily universe (or an override list), logs any |composite| >= ENTRY_THRESHOLD symbol as a hypothetical trade, capped at LOW_VALUE_MAX_CONCURRENT_POSITIONS total open positions.
+inputs: symbols: Optional[list[str]] = None
+outputs: list[int] (trade_ids)
+calls: get_daily_universe, scan_universe_news, get_daily_bars, sector_etf_for_symbol, compute_thesis_score, dominant_thesis_type, log_low_value_trade, _load_open_positions
+called_by: _runner_loop, low_value_scan_now (app.py)
+mutates: intraday_trades table (via log_low_value_trade), _run_log
+---
+
+---
+name: _trading_days_elapsed
+type: function
+file: fetchers/low_value_runner.py
+purpose: Weekday-only day count since entry (approximation — no market-holiday calendar), for the TIME exit check.
+inputs: entry_time_iso: str, now_et: datetime
+outputs: int
+calls: none
+called_by: check_low_value_exits
+mutates: none
+---
+
+---
+name: check_low_value_exits
+type: function
+file: fetchers/low_value_runner.py
+purpose: Daily exit check for all open Low Value positions — thesis resolved (NEGATIVE_THESES entry + fresh POSITIVE_CATALYST flag), +50% target, -50% stop, or 5-trading-day time exit.
+inputs: none
+outputs: dict {checked, closed}
+calls: _load_open_positions, get_snapshots, scan_universe_news, _trading_days_elapsed, log_trade_exit
+called_by: _runner_loop
+mutates: intraday_trades table (via log_trade_exit), _run_log
+---
+
+---
+name: _runner_loop (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: Background thread body — sleeps 60s between ticks, scans once per day in the 8:00-8:14 ET window (exit check then entry scan). No force-close, no intraday checks (Low Value holds multi-day by design).
+inputs: none
+outputs: none
+calls: _et_now, check_low_value_exits, run_low_value_scan
+called_by: start_runner (thread target)
+mutates: _runner_active (reads), today_scanned (local)
+---
+
+---
+name: start_runner (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: Starts the background Low Value runner thread (daemon). Independent thread/globals from high_value_runner.py's runner.
+inputs: none
+outputs: bool (True if started fresh, False if already running)
+calls: threading.Thread
+called_by: low_value_runner_start (app.py)
+mutates: _runner_thread, _runner_active
+---
+
+---
+name: stop_runner (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: Signals the Low Value runner loop to stop on its next tick.
+inputs: none
+outputs: none
+calls: none
+called_by: low_value_runner_stop (app.py)
+mutates: _runner_active
+---
+
+---
+name: get_runner_status (low_value_runner)
+type: function
+file: fetchers/low_value_runner.py
+purpose: Current Low Value runner state — active flag, config, open positions, today's universe cache state, recent log events.
+inputs: none
+outputs: dict
+calls: _load_open_positions, _et_now
+called_by: low_value_runner_status (app.py), render_low_value_dashboard (low_value_dashboard.py)
+mutates: none
+---
+
+---
+name: render_low_value_dashboard
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style.
+inputs: none
+outputs: str (HTML)
+calls: get_runner_status, get_daily_universe (low_value_runner.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
+called_by: low_value_dashboard (app.py)
+mutates: none
+---
+
+---
+name: low_value_universe (app.py)
+type: function
+file: app.py
+purpose: GET /trade/low-value/universe — today's Low Value scanner universe (JSON).
+inputs: force_refresh: bool = False (query param)
+outputs: dict {date, count, symbols}
+calls: get_daily_universe (low_value_runner.py)
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: low_value_scan_now
+type: function
+file: app.py
+purpose: POST /trade/low-value/scan-now — manually trigger a Low Value scan outside the 8 AM ET window.
+inputs: none
+outputs: dict {logged, trade_ids}
+calls: run_low_value_scan (low_value_runner.py)
+called_by: FastAPI (HTTP POST)
+mutates: intraday_trades table (via run_low_value_scan)
+---
+
+---
+name: low_value_runner_status
+type: function
+file: app.py
+purpose: GET /trade/low-value/runner/status — status of the Low Value background runner.
+inputs: none
+outputs: dict
+calls: get_runner_status (low_value_runner.py)
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: low_value_runner_start
+type: function
+file: app.py
+purpose: POST /trade/low-value/runner/start — start the Low Value background runner if not already running.
+inputs: none
+outputs: dict {started: bool}
+calls: start_runner (low_value_runner.py)
+called_by: FastAPI (HTTP POST)
+mutates: fetchers.low_value_runner globals (via start_runner)
+---
+
+---
+name: low_value_runner_stop
+type: function
+file: app.py
+purpose: POST /trade/low-value/runner/stop — signal the Low Value background runner to stop.
+inputs: none
+outputs: dict {ok: true}
+calls: stop_runner (low_value_runner.py)
+called_by: FastAPI (HTTP POST)
+mutates: fetchers.low_value_runner globals (via stop_runner)
+---
+
+---
+name: low_value_calibration
+type: function
+file: app.py
+purpose: GET /trade/low-value/calibration — per-thesis-type win rate + overall Low Value calibration readiness.
+inputs: none
+outputs: dict {readiness, by_thesis_type}
+calls: thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py)
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: low_value_dashboard (app.py)
+type: function
+file: app.py
+purpose: GET /trade/low-value/dashboard — renders the standalone Low Value monitor page.
+inputs: none
+outputs: HTMLResponse
+calls: render_low_value_dashboard (low_value_dashboard.py)
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: trading (app.py)
+type: function
+file: app.py
+purpose: GET /trading — Stock Market hub page, splits into High Value / Low Value cards (Kimi review, round 6 follow-up). Previously served the High Value UI directly; that content moved to /trading/high-value.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: trading_high_value
+type: function
+file: app.py
+purpose: GET /trading/high-value — serves the (renamed, unmodified-content) High Value trading UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: trading_low_value
+type: function
+file: app.py
+purpose: GET /trading/low-value — serves the new Low Value trading UI.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: trading_hub.html
+type: template
+file: templates/trading_hub.html
+purpose: "Stock Market" landing page — two cards linking to High Value and Low Value.
+inputs: none
+outputs: HTML
+calls: none
+called_by: trading (app.py)
+mutates: none
+---
+
+---
+name: trading_high_value.html
+type: template
+file: templates/trading_high_value.html
+purpose: High Value trading UI — renamed from trading.html, content unmodified (intraday/swing analysis form, Alpaca paper-order UI). Breadcrumb and nav updated to reflect the new hub/Low-Value split.
+inputs: none
+outputs: HTML
+calls: none
+called_by: trading_high_value (app.py)
+mutates: none
+---
+
+---
+name: trading_low_value.html
+type: template
+file: templates/trading_low_value.html
+purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints.
+inputs: none
+outputs: HTML
+calls: none
+called_by: trading_low_value (app.py)
+mutates: none
 ---

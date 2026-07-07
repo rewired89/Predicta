@@ -213,7 +213,7 @@ def auto_cull_pairs(min_trades: int = 10, win_rate_floor: float = 0.40) -> list[
     Returns list of dicts describing each action taken.
     """
     from datetime import datetime as _dt, timedelta
-    from models.trading.signal_calibration import pairs_calibration_summary
+    from models.trading.shared.signal_calibration import pairs_calibration_summary
 
     report  = pairs_calibration_summary(min_trades=min_trades)
     culled  = []

@@ -46,7 +46,7 @@ def startup():
     # Runs Mon-Fri during market hours: morning scan at 9:35 ET, position checks
     # every 30 min, force-close at 15:50 ET. No Alpaca orders placed.
     try:
-        from fetchers.paper_runner import start_runner
+        from fetchers.high_value_runner import start_runner
         start_runner()
     except Exception:
         pass
@@ -973,7 +973,18 @@ def esports_ui():
 
 @app.get("/trading", response_class=HTMLResponse)
 def trading():
-    return HTMLResponse(content=(TEMPLATES_DIR / "trading.html").read_text(encoding="utf-8"))
+    """Stock Market hub — splits into High Value / Low Value (Kimi review, round 6 follow-up)."""
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_hub.html").read_text(encoding="utf-8"))
+
+
+@app.get("/trading/high-value", response_class=HTMLResponse)
+def trading_high_value():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_high_value.html").read_text(encoding="utf-8"))
+
+
+@app.get("/trading/low-value", response_class=HTMLResponse)
+def trading_low_value():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_low_value.html").read_text(encoding="utf-8"))
 
 
 # ── Analyze (natural language → full pipeline) ────────────────────────────────
@@ -1213,7 +1224,7 @@ def analyze_trade(body: TradeRequest):
     q_lower = body.query.strip().lower()
     if any(trig in q_lower for trig in _BRIEF_TRIGGERS):
         from models.trading.screener import run_screener
-        from fetchers.paper_runner import RUNNER_SYMBOLS
+        from fetchers.high_value_runner import RUNNER_SYMBOLS
         result = run_screener(symbols=RUNNER_SYMBOLS)
         result["mode"] = "brief"
         return result
@@ -1248,7 +1259,7 @@ class IntradayRequest(BaseModel):
 @app.post("/intraday")
 def intraday_analysis(body: IntradayRequest):
     from fetchers.alpaca import get_bars, get_daily_bars, get_snapshot
-    from models.trading.intraday import compute_intraday_signals, _avg_daily_volume
+    from models.trading.high_value.intraday import compute_intraday_signals, _avg_daily_volume
 
     snap = get_snapshot(body.symbol)
     if "error" in snap:
@@ -1261,7 +1272,7 @@ def intraday_analysis(body: IntradayRequest):
         raise HTTPException(400, result["error"])
 
     # Kelly position sizing
-    from models.trading.kelly import kelly_from_signals
+    from models.trading.shared.kelly import kelly_from_signals
     score = result["score"]["value"]
     atr_pct = result["levels"].get("atr", 0) / snap["price"] * 100 if snap.get("price") else 1.5
     kelly = kelly_from_signals(score, atr_pct, body.bankroll)
@@ -1364,7 +1375,7 @@ def smart_trade(body: SmartOrderRequest):
     weak signal (|score| < min_score), missing trade levels.
     """
     from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars, place_bracket_order
-    from models.trading.intraday import compute_intraday_signals
+    from models.trading.high_value.intraday import compute_intraday_signals
     from fetchers.trading_logger import log_trade_entry
 
     # ── Data fetch ────────────────────────────────────────────────────────────
@@ -1610,7 +1621,7 @@ def signal_only(body: SmartOrderRequest):
     Resolve outcomes at end of session via POST /trade/resolve-hypothetical/{id}.
     """
     from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars
-    from models.trading.intraday import compute_intraday_signals
+    from models.trading.high_value.intraday import compute_intraday_signals
     from fetchers.trading_logger import log_hypothetical_trade
 
     snap = get_snapshot(body.symbol)
@@ -1888,7 +1899,7 @@ def ngram_build(body: NgramBuildRequest):
     Call weekly per symbol. Takes ~2s per symbol (one API fetch each).
     Returns per-symbol success/fail status.
     """
-    from models.trading.ngram import build_ngram_from_alpaca
+    from models.trading.high_value.ngram import build_ngram_from_alpaca
 
     results = {}
     for sym in body.symbols:
@@ -1915,7 +1926,7 @@ def calibration_status():
 
     Re-runs on every call — no caching — so it reflects the latest closed trades.
     """
-    from models.trading.signal_calibration import calibration_summary
+    from models.trading.shared.signal_calibration import calibration_summary
     return calibration_summary()
 
 
@@ -1926,7 +1937,7 @@ def calibration_scores(min_trades: int = 5):
     Buckets: Strong Sell / Sell / Neutral / Buy / Strong Buy.
     Returns None for any bucket with fewer than min_trades closed trades.
     """
-    from models.trading.signal_calibration import score_accuracy_report
+    from models.trading.shared.signal_calibration import score_accuracy_report
     return score_accuracy_report(min_trades=min_trades)
 
 
@@ -1936,7 +1947,7 @@ def calibration_time(min_trades: int = 5):
     Win rate per time-of-day session (MORNING_TREND, LUNCH_CHOP, etc.).
     Useful for tuning the time-of-day modifier in intraday.py.
     """
-    from models.trading.signal_calibration import time_accuracy_report
+    from models.trading.shared.signal_calibration import time_accuracy_report
     return time_accuracy_report(min_trades=min_trades)
 
 
@@ -1947,7 +1958,7 @@ def calibration_pairs(min_trades: int = 3):
     Returns win rate, avg P&L %, avg hold time, and UNDERPERFORMING flag
     for pairs with < 50% win rate or negative avg P&L.
     """
-    from models.trading.signal_calibration import pairs_calibration_summary
+    from models.trading.shared.signal_calibration import pairs_calibration_summary
     return pairs_calibration_summary(min_trades=min_trades)
 
 
@@ -1960,7 +1971,7 @@ def ngram_validate(symbol: str, significance: float = 0.05):
     Call after /trade/ngram-build to audit which patterns are statistically sound
     before trusting their directional signal in the composite score.
     """
-    from models.trading.ngram import validate_ngram_patterns
+    from models.trading.high_value.ngram import validate_ngram_patterns
     return validate_ngram_patterns(symbol.upper(), significance=significance)
 
 
@@ -2001,7 +2012,7 @@ def calibration_readiness():
     Also returns compute_dynamic_weights() and compute_ngram_blend_weight()
     when their thresholds are met.
     """
-    from models.trading.signal_calibration import (
+    from models.trading.shared.signal_calibration import (
         calibration_readiness_status,
         compute_dynamic_weights,
         compute_ngram_blend_weight,
@@ -2022,7 +2033,7 @@ def calibration_kill_switches():
     get_signal_kill_status() for the persisted history — including which
     killed signals are now eligible for a manual resurrection review.
     """
-    from models.trading.signal_calibration import (
+    from models.trading.shared.signal_calibration import (
         check_signal_kill_switches, get_signal_kill_status,
     )
     live_check = check_signal_kill_switches()
@@ -2032,7 +2043,7 @@ def calibration_kill_switches():
 @app.post("/trade/calibration/resurrect/{signal}")
 def calibration_resurrect_signal(signal: str):
     """Manually resurrect a killed signal — human-in-the-loop per the Citadel pod model."""
-    from models.trading.signal_calibration import resurrect_signal
+    from models.trading.shared.signal_calibration import resurrect_signal
     return resurrect_signal(signal)
 
 
@@ -2043,7 +2054,7 @@ def trade_review_queue(status: Optional[str] = None, days: int = 7):
     safety valve for EXTREME-regime days. Auto-skips after 5 min if not
     reviewed, so this is diagnostic/action, never a blocking dependency.
     """
-    from fetchers.paper_runner import check_review_queue_timeouts, get_review_queue
+    from fetchers.high_value_runner import check_review_queue_timeouts, get_review_queue
     check_review_queue_timeouts()
     return {"queue": get_review_queue(status=status, days=days)}
 
@@ -2051,14 +2062,14 @@ def trade_review_queue(status: Optional[str] = None, days: int = 7):
 @app.post("/trade/review-queue/{review_id}/approve")
 def trade_review_queue_approve(review_id: int):
     """Approve a queued EXTREME-day signal — replays the original model call into a logged trade."""
-    from fetchers.paper_runner import approve_review
+    from fetchers.high_value_runner import approve_review
     return approve_review(review_id)
 
 
 @app.post("/trade/review-queue/{review_id}/skip")
 def trade_review_queue_skip(review_id: int):
     """Manually skip a queued EXTREME-day signal."""
-    from fetchers.paper_runner import skip_review
+    from fetchers.high_value_runner import skip_review
     return skip_review(review_id)
 
 
@@ -2124,7 +2135,7 @@ def paper_runner_status():
     Status of the automated paper trading runner.
     Returns: active flag, config, open position count, last 20 log events.
     """
-    from fetchers.paper_runner import get_runner_status
+    from fetchers.high_value_runner import get_runner_status
     return get_runner_status()
 
 
@@ -2134,7 +2145,7 @@ def paper_runner_scan_now(min_score: int = 20):
     Manually trigger a signal scan outside the scheduled window.
     Useful for testing or catching afternoon setups.
     """
-    from fetchers.paper_runner import run_open_scan
+    from fetchers.high_value_runner import run_open_scan
     ids = run_open_scan(min_score=min_score)
     return {"logged": len(ids), "trade_ids": ids}
 
@@ -2142,7 +2153,7 @@ def paper_runner_scan_now(min_score: int = 20):
 @app.post("/trade/paper-runner/start")
 def paper_runner_start():
     """Start the background runner if it is not already running."""
-    from fetchers.paper_runner import start_runner
+    from fetchers.high_value_runner import start_runner
     started = start_runner()
     return {"started": started}
 
@@ -2150,7 +2161,7 @@ def paper_runner_start():
 @app.post("/trade/paper-runner/stop")
 def paper_runner_stop():
     """Signal the background runner to stop on its next tick."""
-    from fetchers.paper_runner import stop_runner
+    from fetchers.high_value_runner import stop_runner
     stop_runner()
     return {"ok": True}
 
@@ -2192,7 +2203,7 @@ def trade_dashboard():
     # ── Inventory / exposure snapshot (Kimi review, Jane Street "inventory
     # risk" concept — round 5) ──────────────────────────────────────────────
     try:
-        from fetchers.paper_runner import RUNNER_SYMBOLS
+        from fetchers.high_value_runner import RUNNER_SYMBOLS
         with get_db() as conn:
             last_seen_rows = conn.execute(
                 """
@@ -2230,7 +2241,7 @@ def trade_dashboard():
 
     # ── Per-signal P&L attribution (Kimi review, Citadel "pod" concept — round 5)
     try:
-        from models.trading.signal_calibration import per_signal_accuracy_report
+        from models.trading.shared.signal_calibration import per_signal_accuracy_report
         signal_report = per_signal_accuracy_report(min_trades=10, active_threshold=10.0)
     except Exception:
         signal_report = {"by_signal": [], "note": "Unavailable"}
@@ -2366,7 +2377,7 @@ def trade_dashboard():
 
     # Runner status
     try:
-        from fetchers.paper_runner import get_runner_status, _is_market_open
+        from fetchers.high_value_runner import get_runner_status, _is_market_open
         rs = get_runner_status()
         runner_active = rs.get("active", False)
         runner_open   = rs.get("open_positions", 0)
@@ -2377,7 +2388,7 @@ def trade_dashboard():
         market_is_open = False
 
     try:
-        from fetchers.paper_runner import _et_now
+        from fetchers.high_value_runner import _et_now
         now_str = _et_now().strftime("%I:%M %p ET, %b %d")
     except Exception:
         now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
@@ -2657,6 +2668,65 @@ def trade_dashboard():
 </body>
 </html>"""
     return html
+
+
+# ── Low Value engine endpoints (Kimi review, round 6 follow-up) ──────────────
+# Independent from the High Value paper-runner endpoints above — separate
+# engine, separate runner, separate dashboard. "Two tabs, two engines."
+
+@app.get("/trade/low-value/universe")
+def low_value_universe(force_refresh: bool = False):
+    """Today's Low Value scanner universe (cached in-memory for the day unless force_refresh)."""
+    from fetchers.low_value_runner import get_daily_universe
+    universe = get_daily_universe(force_refresh=force_refresh)
+    return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "count": len(universe), "symbols": universe}
+
+
+@app.post("/trade/low-value/scan-now")
+def low_value_scan_now():
+    """Manually trigger a Low Value universe + signal scan outside the 8 AM ET window."""
+    from fetchers.low_value_runner import run_low_value_scan
+    ids = run_low_value_scan()
+    return {"logged": len(ids), "trade_ids": ids}
+
+
+@app.get("/trade/low-value/runner/status")
+def low_value_runner_status():
+    """Status of the Low Value background runner."""
+    from fetchers.low_value_runner import get_runner_status
+    return get_runner_status()
+
+
+@app.post("/trade/low-value/runner/start")
+def low_value_runner_start():
+    """Start the Low Value background runner if not already running."""
+    from fetchers.low_value_runner import start_runner
+    return {"started": start_runner()}
+
+
+@app.post("/trade/low-value/runner/stop")
+def low_value_runner_stop():
+    """Signal the Low Value background runner to stop on its next tick."""
+    from fetchers.low_value_runner import stop_runner
+    stop_runner()
+    return {"ok": True}
+
+
+@app.get("/trade/low-value/calibration")
+def low_value_calibration():
+    """Per-thesis-type win rate + overall Low Value calibration readiness (20/50/100 trade tiers)."""
+    from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
+    return {
+        "readiness": low_value_calibration_readiness(),
+        "by_thesis_type": thesis_type_calibration_report(),
+    }
+
+
+@app.get("/trade/low-value/dashboard", response_class=HTMLResponse)
+def low_value_dashboard():
+    """Plain-English Low Value engine monitor — separate page from the High Value /trade/dashboard."""
+    from fetchers.low_value_dashboard import render_low_value_dashboard
+    return HTMLResponse(content=render_low_value_dashboard())
 
 
 @app.get("/trade/paper-data")

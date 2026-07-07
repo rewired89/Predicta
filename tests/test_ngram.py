@@ -13,7 +13,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.trading.ngram import (
+from models.trading.high_value.ngram import (
     encode_bar,
     encode_sequence,
     build_pattern_table,
@@ -109,7 +109,7 @@ def test_ngram_signal_with_mock_table(monkeypatch=None):
     Test with a synthetic table injected via load_pattern_table mock.
     Uses a manual monkey-patch approach without pytest fixtures.
     """
-    import models.trading.ngram as ng_mod
+    import models.trading.high_value.ngram as ng_mod
 
     # Encode the pattern for closes [100, 101, 102, 103, 104] = "UUUU" (PATTERN_LENGTH=4)
     closes = [100.0, 101.0, 102.0, 103.0, 104.0]
@@ -133,7 +133,7 @@ def test_ngram_signal_with_mock_table(monkeypatch=None):
 
 
 def test_ngram_signal_mock_down():
-    import models.trading.ngram as ng_mod
+    import models.trading.high_value.ngram as ng_mod
 
     closes = [100.0, 101.0, 100.5]  # "UD" — only 3 bars, PATTERN_LENGTH=4 needs 5
     pattern = encode_sequence(closes)
@@ -170,7 +170,7 @@ def test_ngram_to_composite_score():
 def test_save_load_round_trip():
     """Test save_pattern_table and load_pattern_table round-trip through DB."""
     from db.database import init_db
-    from models.trading.ngram import save_pattern_table, load_pattern_table
+    from models.trading.high_value.ngram import save_pattern_table, load_pattern_table
 
     init_db()  # Ensure tables exist
 

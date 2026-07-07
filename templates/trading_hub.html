@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta — Stock Market</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b1120; --surface: #131d30; --border: #1e2d47;
+    --blue: #38bdf8; --green: #22c55e; --purple: #a78bfa;
+    --text: #e2e8f0; --muted: #64748b;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 1.2rem; font-weight: 700; color: var(--blue); }
+  header nav a { color: var(--muted); text-decoration: none; margin-left: 16px; font-size: .85rem; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+  .breadcrumb { display:flex; align-items:center; gap:8px; font-size:.78rem; color:var(--muted); margin-bottom:28px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  h1 { font-size: 1.8rem; margin-bottom: 8px; }
+  .sub { color: var(--muted); margin-bottom: 32px; font-size: .95rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; text-decoration: none; display: block; transition: border-color .15s, transform .15s; }
+  .card:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .card-icon { font-size: 2rem; margin-bottom: 12px; }
+  .card-title { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .card-desc { font-size: .85rem; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+  .card-tag { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; }
+  .tag-hv { background: rgba(56,189,248,.15); color: var(--blue); }
+  .tag-lv { background: rgba(167,139,250,.15); color: var(--purple); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Predicta</div>
+  <nav><a href="/">Home</a><a href="/sports">Sports</a></nav>
+</header>
+<main>
+  <div class="breadcrumb">
+    <a href="/">Home</a><span>›</span><span style="color:var(--text);">📈 Stock Market</span>
+  </div>
+  <h1>Stock Market</h1>
+  <p class="sub">Two independent engines, sharing infrastructure but zero signal logic. Pick one.</p>
+  <div class="grid">
+    <a class="card" href="/trading/high-value">
+      <div class="card-icon">📈</div>
+      <span class="card-tag tag-hv">High Value</span>
+      <div class="card-title" style="margin-top:10px;">High Value Trades</div>
+      <div class="card-desc">Intraday + swing signals on liquid large-caps. VWAP, opening range, RSI-9, relative volume, Kelly/ATR sizing. Frozen, documented, built for eventual monetization.</div>
+    </a>
+    <a class="card" href="/trading/low-value">
+      <div class="card-icon">🔎</div>
+      <span class="card-tag tag-lv">Low Value</span>
+      <div class="card-title" style="margin-top:10px;">Low Value Trades</div>
+      <div class="card-desc">Contrarian scanner for sub-$20 stocks. Daily universe scan, news + insider-buying overlay, fixed $25 positions, 1-5 day holds. Built for daily personal use.</div>
+    </a>
+  </div>
+</main>
+</body>
+</html>

@@ -634,6 +634,55 @@ reopened by Kimi's round-6 feedback and stand as declined.
 
 ---
 
+### 8.11 Round-6 follow-up — new engine: Low Value Trades (contrarian sub-$20 scanner)
+
+Kimi's round-6 follow-up asked for a second, fully independent trading
+engine — not a review of the existing one. Built exactly as specified, full
+detail in `LOW_VALUE_README.md`:
+
+- **Directory split**: `models/trading/high_value/` (moved, unmodified:
+  `signals.py`, `intraday.py`, `ngram.py`), `models/trading/low_value/`
+  (new: `scanner.py`, `news_overlay.py`, `thesis_tracker.py`),
+  `models/trading/shared/` (moved + extended: `kelly.py`,
+  `signal_calibration.py`). `fetchers/paper_runner.py` renamed to
+  `fetchers/high_value_runner.py` per the spec's own suggestion.
+- **Universe scanner**: Alpaca active assets → price/volume/market-cap
+  filter → earnings-blackout + 90-day bankruptcy-8-K exclusion → 50-200
+  symbols, logged to a new `low_value_universe_snapshot` table.
+- **News overlay**: Finnhub 7-day headlines, keyword category flags, VADER
+  sentiment — new `fetchers/finnhub.py` (fails safe without
+  `FINNHUB_API_KEY`, same convention as `fred.py`).
+- **Thesis tracker**: 8 signals (price-vs-20d-low, RSI-14, volume spike,
+  insider buying, short interest, sector relative strength, cash-burn
+  runway, news sentiment), weighted composite, entry threshold |40|. Missing
+  signals are excluded and their weight redistributed — never faked.
+- **Runner**: daily 8 AM ET scan + exit check (thesis-resolved / +50% /
+  -50% / 5 trading days), fixed $25 sizing, max 3 positions — completely
+  separate background thread from the High Value runner.
+- **Dashboard + UI split**: `/trading` is now a hub page linking
+  `/trading/high-value` and `/trading/low-value`; `GET
+  /trade/low-value/dashboard` is a standalone monitor, matching the
+  existing High Value dashboard's visual style but built as its own file
+  per spec ("two tabs, two engines, no mixing").
+- **Shared infra, not shared logic**: `intraday_trades` gained an `engine`
+  column (defaults to `'high_value'` — every existing row is unaffected)
+  plus `lv_thesis_type`/`lv_news_flags`/`lv_news_sentiment`/
+  `lv_headline_count`. `signal_calibration.py`'s base loaders gained an
+  `engine` parameter (defaulting to `high_value`, so every pre-existing
+  caller is unchanged); Low Value gets its own calibration axis
+  (`thesis_type_calibration_report`, 20/50/100 trade tiers) since its 8
+  signals don't map onto High Value's per-signal columns.
+
+**One documented deviation**: `trading_logger.py` stayed in `fetchers/`
+rather than moving into `models/trading/shared/` as the spec's directory
+diagram showed — every other DB-writing fetcher in this codebase
+(`fred.py`, `alpaca.py`, `market_data.py`) lives there, and moving it would
+mix I/O concerns into `models/` for no functional gain. The behavioral ask
+(engine-tagged shared logger) is fully met; only the physical file location
+differs from the diagram.
+
+---
+
 ## 9. What We're Asking Kimi to Review Now
 
 (Superseded 2026-07-07 — Rounds 3–6 answered and built the round 1–2

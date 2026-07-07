@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, get_top_movers, get_most_active
-from models.trading.intraday import compute_intraday_signals
+from models.trading.high_value.intraday import compute_intraday_signals
 
 # Default watchlist — large-cap liquid names good for day trading
 DEFAULT_WATCHLIST = [

@@ -11,8 +11,8 @@ import json
 import traceback
 
 from fetchers.market_data import fetch_ticker, search_ticker
-from models.trading.signals import compute_signals
-from models.trading.kelly import kelly_from_signals
+from models.trading.high_value.signals import compute_signals
+from models.trading.shared.kelly import kelly_from_signals
 
 
 def _parse_ticker(query: str) -> str:

@@ -1,0 +1,182 @@
+"""
+Low Value engine — dashboard renderer (Kimi review round 6 follow-up).
+
+Separate from the High Value dashboard (app.py's trade_dashboard()) by
+design — "Two tabs, two engines. No mixing." Returns a standalone HTML page;
+app.py's GET /trade/low-value/dashboard just calls render_low_value_dashboard()
+and wraps it in an HTMLResponse.
+"""
+from __future__ import annotations
+from datetime import datetime, timezone
+
+from db.database import get_db
+from fetchers.low_value_runner import get_runner_status, get_daily_universe
+from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
+
+
+def _pnl_color(val) -> str:
+    if val is None:
+        return "#64748b"
+    return "#22c55e" if val > 0 else ("#ef4444" if val < 0 else "#64748b")
+
+
+def _pnl_sign(val) -> str:
+    if val is None:
+        return "—"
+    return f"+${val:,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
+
+
+def render_low_value_dashboard() -> str:
+    with get_db() as conn:
+        closed_rows = conn.execute(
+            """
+            SELECT symbol, side, entry_time, exit_time, pnl_dollars, pnl_pct,
+                   exit_reason, entry_score, lv_thesis_type
+            FROM intraday_trades
+            WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NOT NULL
+            ORDER BY exit_time DESC LIMIT 50
+            """
+        ).fetchall()
+        open_rows = conn.execute(
+            """
+            SELECT symbol, side, entry_time, entry_price, entry_score, lv_thesis_type, lv_news_flags
+            FROM intraday_trades
+            WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NULL
+            ORDER BY entry_time DESC
+            """
+        ).fetchall()
+
+    closed = [dict(r) for r in closed_rows]
+    open_t = [dict(r) for r in open_rows]
+    n_closed = len(closed)
+
+    win_rate = avg_pnl = total_pnl = None
+    if n_closed:
+        wins = sum(1 for t in closed if (t.get("pnl_dollars") or 0) > 0)
+        win_rate = round(wins / n_closed, 3)
+        total_pnl = round(sum(t.get("pnl_dollars") or 0 for t in closed), 2)
+        avg_pnl = round(total_pnl / n_closed, 2)
+
+    thesis_report = thesis_type_calibration_report(min_trades=3)
+    readiness = low_value_calibration_readiness()
+    runner_status = get_runner_status()
+    universe = get_daily_universe()
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    runner_dot = "#22c55e" if runner_status.get("active") else "#ef4444"
+    runner_lbl = "Running" if runner_status.get("active") else "Stopped"
+
+    open_rows_html = "".join(
+        f"""<div class="trade-row">
+              <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
+              <div class="trade-info">
+                <span class="trade-sym">{t['symbol']}</span>
+                <span class="trade-detail">{t['side'].upper()} · score {t.get('entry_score') or '—'} · {t.get('lv_thesis_type') or 'UNKNOWN'}</span>
+                <span class="trade-time">since {t['entry_time'][:16]}</span>
+              </div>
+            </div>"""
+        for t in open_t
+    ) or '<div class="muted-note">No open Low Value positions.</div>'
+
+    closed_rows_html = "".join(
+        f"""<div class="exit-item">
+              <span>{t['symbol']} · {t.get('lv_thesis_type') or 'UNKNOWN'} · {t.get('exit_reason') or '—'}</span>
+              <span style="color:{_pnl_color(t.get('pnl_dollars'))}">{_pnl_sign(t.get('pnl_dollars'))}</span>
+            </div>"""
+        for t in closed[:15]
+    ) or '<div class="muted-note">No closed Low Value trades yet.</div>'
+
+    thesis_rows_html = "".join(
+        f"""<div class="exit-item">
+              <span>{row['thesis_type']}</span>
+              <span class="exit-count">n={row['n']}{f" · {row['win_rate']:.0%} win" if row.get('win_rate') is not None else ''}</span>
+            </div>"""
+        for row in thesis_report.get("by_thesis_type", [])
+    ) or '<div class="muted-note">No thesis-type data yet.</div>'
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="300">
+<title>Predicta — Low Value Monitor</title>
+<style>
+  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  :root {{
+    --bg: #0b1120; --surface: #131d30; --border: #1e2d47;
+    --blue: #38bdf8; --green: #22c55e; --amber: #f59e0b;
+    --red: #ef4444; --purple: #a78bfa; --text: #e2e8f0; --muted: #64748b;
+  }}
+  body {{ background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; padding-bottom: 60px; }}
+  header {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
+  .logo {{ font-size: 1.2rem; font-weight: 700; color: var(--purple); }}
+  .header-meta {{ margin-left: auto; font-size: .78rem; color: var(--muted); }}
+  .runner-dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: {runner_dot}; margin-right: 4px; vertical-align: middle; }}
+  main {{ max-width: 680px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }}
+  .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }}
+  .card-title {{ font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }}
+  .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  .stat-box {{ background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }}
+  .stat-value {{ font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 4px; }}
+  .stat-label {{ font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }}
+  .trade-row {{ display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }}
+  .trade-row:last-child {{ border-bottom: none; }}
+  .trade-icon {{ font-size: 1.1rem; flex-shrink: 0; width: 22px; text-align: center; }}
+  .trade-info {{ flex: 1; min-width: 0; display: flex; flex-direction: column; }}
+  .trade-sym {{ font-weight: 700; font-size: .95rem; }}
+  .trade-detail {{ font-size: .8rem; color: var(--muted); }}
+  .trade-time {{ font-size: .72rem; color: var(--muted); margin-top: 2px; }}
+  .exit-item {{ display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }}
+  .exit-item:last-child {{ border-bottom: none; }}
+  .exit-count {{ color: var(--muted); }}
+  .muted-note {{ font-size: .82rem; color: var(--muted); font-style: italic; }}
+  footer {{ text-align: center; font-size: .75rem; color: var(--muted); padding: 20px; }}
+  a {{ color: var(--blue); }}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Predicta · Low Value Monitor</div>
+  <div class="header-meta">
+    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {now_str}
+  </div>
+</header>
+<main>
+
+  <div class="card">
+    <div class="card-title">Today's Universe</div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-value">{len(universe)}</div><div class="stat-label">Symbols scanned</div></div>
+      <div class="stat-box"><div class="stat-value">{len(open_t)}</div><div class="stat-label">Open positions (max 3)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Closed P&amp;L ({n_closed} trades)</div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-value" style="color:{_pnl_color(total_pnl)}">{_pnl_sign(total_pnl)}</div><div class="stat-label">Total P&amp;L</div></div>
+      <div class="stat-box"><div class="stat-value">{f"{win_rate:.0%}" if win_rate is not None else "—"}</div><div class="stat-label">Win rate</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Open Positions</div>
+    {open_rows_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent Closed Trades</div>
+    {closed_rows_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Win Rate by Thesis Type ({readiness['calibration_quality']})</div>
+    {thesis_rows_html}
+  </div>
+
+</main>
+<footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/dashboard">High Value dashboard</a></footer>
+</body>
+</html>"""
+    return html

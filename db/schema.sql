@@ -127,10 +127,19 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     market_vol_regime TEXT,                  -- LOW / NORMAL / HIGH
     -- v5c: macro event tag (Kimi review, round 4) — logged only, not applied to scoring
     macro_event_today INTEGER,               -- 1 = known FOMC decision day, 0/NULL otherwise
+    -- v6: Low Value contrarian sub-$20 engine (Kimi review round 6 follow-up).
+    -- engine distinguishes which independent signal pipeline logged this row;
+    -- existing rows default to 'high_value' so nothing already logged is reclassified.
+    engine TEXT NOT NULL DEFAULT 'high_value' CHECK(engine IN ('high_value', 'low_value')),
+    lv_thesis_type TEXT,                     -- e.g. EARNINGS_MISS, INSIDER_BUYING — for per-thesis win-rate calibration
+    lv_news_flags TEXT,                      -- JSON list of news_overlay.py category flags at entry
+    lv_news_sentiment REAL,                  -- VADER compound sentiment (-1..+1) at entry
+    lv_headline_count INTEGER,               -- number of headlines the sentiment/flags were computed from
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON intraday_trades(symbol, entry_time);
+CREATE INDEX IF NOT EXISTS idx_trades_engine ON intraday_trades(engine, entry_time);
 
 CREATE TABLE IF NOT EXISTS pair_signals (
     id INTEGER PRIMARY KEY,
@@ -256,3 +265,15 @@ CREATE TABLE IF NOT EXISTS review_queue (
     trade_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_review_queue_status ON review_queue(status, queued_at);
+
+-- Low Value contrarian sub-$20 engine (Kimi review round 6 follow-up) —
+-- daily universe-scanner output, logged so composition drift/quality is
+-- auditable after the fact instead of only living in memory for one scan.
+CREATE TABLE IF NOT EXISTS low_value_universe_snapshot (
+    id INTEGER PRIMARY KEY,
+    scan_date TEXT NOT NULL,
+    symbols_json TEXT NOT NULL,
+    symbol_count INTEGER NOT NULL,
+    logged_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lv_universe_date ON low_value_universe_snapshot(scan_date);

@@ -198,6 +198,27 @@ def get_most_active(limit: int = 20) -> list[dict]:
     return data.get("most_actives", [])
 
 
+def get_all_active_assets(asset_class: str = "us_equity") -> list[str]:
+    """
+    All tradable, active US-equity symbols on Alpaca (v2/assets), excluding
+    OTC (Low Value universe scanner needs a listed-exchange starting point —
+    OTC tickers have unreliable data and are excluded by the scanner anyway).
+    Returns [] on any API error (fails safe, same convention as every other
+    fetcher in this module).
+    """
+    url = f"{PAPER_BASE_URL}/v2/assets"
+    params = {"status": "active", "asset_class": asset_class}
+    data = _get(url, params)
+    if isinstance(data, dict) and "error" in data:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [
+        a["symbol"] for a in data
+        if a.get("tradable") and a.get("exchange") != "OTC" and a.get("symbol")
+    ]
+
+
 # ── Paper trading orders ──────────────────────────────────────────────────────
 
 def _assert_paper_mode() -> None:
