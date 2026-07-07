@@ -29,6 +29,7 @@ from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars
 from fetchers.trading_logger import log_hypothetical_trade, log_trade_exit
 from models.trading.intraday import compute_intraday_signals
 from db.database import get_db
+import json
 
 log = logging.getLogger("paper_runner")
 
@@ -97,6 +98,25 @@ VOL_REGIME_HIGH_PCT: float = 25.0
 # prior close exceeds this at any 30-min check, today is reclassified EXTREME
 # for the rest of the day (affects any later manual re-scan).
 INTRADAY_REGIME_ESCALATION_PCT: float = 3.0
+
+# Macro regime tags (Kimi review, round 6 — Bridgewater "Four Boxes" + Dalio
+# 3-force overlay). All values come from FRED (requires FRED_API_KEY env var;
+# fails safe/empty when absent, same convention as OPENWEATHER_API_KEY).
+# Read-only logging for growth/inflation/yield-curve/Fed-stance context.
+# The 3-force overlay is the ONE piece that's additive to the score gate — it
+# elevates the logging threshold the same way the SPY-gap regime check does,
+# it never blocks or replaces that existing check.
+FRED_SERIES_10Y = "GS10"
+FRED_SERIES_2Y  = "GS2"
+FRED_SERIES_FEDFUNDS = "FEDFUNDS"
+FRED_SERIES_HY_OAS   = "BAMLH0A0HYM2"   # ICE BofA US High Yield OAS (short-term debt cycle proxy)
+FRED_SERIES_DEBT_GDP = "GFDEGDQ188S"    # Federal debt held by public, % of GDP (long-term debt cycle proxy)
+
+# Human review queue for EXTREME days (Kimi review, round 6 — D.E. Shaw hybrid
+# model: models fail at regime changes, so unprecedented days get a human
+# safety valve instead of auto-logging or auto-skipping). Optional, not
+# mandatory — auto-skips after the timeout so it never blocks collection.
+REVIEW_QUEUE_TIMEOUT_SEC: int = 300
 
 # Hold duration per time-of-day label, in 5-min bars
 _HOLD_BARS: dict[str, int] = {
@@ -260,16 +280,23 @@ def _fetch_market_regime() -> dict:
     and honors any same-day intraday escalation set by
     _check_intraday_regime_escalation().
 
-    Also tags macro_event_today (FOMC decision days, round 4 — logged only).
+    Also tags macro_event_today (FOMC decision days, round 4 — logged only)
+    and the Bridgewater/Dalio macro tags from _fetch_macro_tags (round 6).
+    long_term_force_contraction additively elevates the regime to EXTREME
+    (same effect as the SPY-gap check, never a replacement for it).
 
     Returns {"regime": "NORMAL"|"EXTREME", "spy_gap_pct": float,
              "xlk_change_pct": float, "spy_realized_vol_pct": float,
-             "market_vol_regime": "LOW"|"NORMAL"|"HIGH", "macro_event_today": bool}.
+             "market_vol_regime": "LOW"|"NORMAL"|"HIGH", "macro_event_today": bool,
+             "yield_curve_slope": float|None, "fed_rate": float|None,
+             "credit_spread_oas": float|None, "debt_to_gdp_pct": float|None,
+             "long_term_force_contraction": bool}.
     Fails safe to NORMAL on any API error so a data hiccup never blocks the scan.
     """
     _reset_regime_override_if_new_day()
     today_str = _et_now().strftime("%Y-%m-%d")
     macro_today = _is_macro_event_day(today_str)
+    macro_tags  = _fetch_macro_tags()
     try:
         snaps = get_snapshots(["SPY", "XLK"])
         spy = snaps.get("SPY", {})
@@ -281,19 +308,72 @@ def _fetch_market_regime() -> dict:
         regime = "EXTREME" if abs(spy_gap_pct) >= REGIME_GAP_THRESHOLD_PCT else "NORMAL"
         if _intraday_regime_override == "EXTREME":
             regime = "EXTREME"
+        if macro_tags.get("long_term_force_contraction"):
+            regime = "EXTREME"
         spy_vol_pct = _spy_realized_vol_pct()
         vol_regime  = _vol_regime_bucket(spy_vol_pct)
         return {
             "regime": regime, "spy_gap_pct": spy_gap_pct, "xlk_change_pct": xlk_change_pct,
             "spy_realized_vol_pct": spy_vol_pct, "market_vol_regime": vol_regime,
             "macro_event_today": macro_today,
+            **macro_tags,
         }
     except Exception:
+        forced_extreme = _intraday_regime_override == "EXTREME" or macro_tags.get("long_term_force_contraction")
         return {
-            "regime": "EXTREME" if _intraday_regime_override == "EXTREME" else "NORMAL",
+            "regime": "EXTREME" if forced_extreme else "NORMAL",
             "spy_gap_pct": 0.0, "xlk_change_pct": 0.0,
             "spy_realized_vol_pct": 0.0, "market_vol_regime": "NORMAL",
             "macro_event_today": macro_today,
+            **macro_tags,
+        }
+
+
+def _fetch_macro_tags() -> dict:
+    """
+    Bridgewater "Four Boxes" + Dalio 3-force overlay (Kimi review, round 6).
+    All values are FRED's most recently published figures (lagging, not
+    real-time) — logged for post-hoc regime analysis. Fails safe to all-None
+    when FRED_API_KEY is absent or any request fails; never blocks the scan.
+
+    long_term_force_contraction: True when credit spread OR debt/GDP sits
+    above its historical mean by the Dalio-specified numbers of std devs
+    (HY-OAS: 2 std devs over a ~1yr daily window; debt/GDP: 1 std dev over a
+    ~5yr quarterly window). Read-only — see _fetch_market_regime for how this
+    elevates (not replaces) the existing SPY-gap threshold.
+    """
+    from fetchers.fred import get_latest_value, get_series_stats
+    try:
+        gs10 = get_latest_value(FRED_SERIES_10Y)
+        gs2  = get_latest_value(FRED_SERIES_2Y)
+        yield_curve_slope = round(gs10 - gs2, 3) if (gs10 is not None and gs2 is not None) else None
+        fed_rate = get_latest_value(FRED_SERIES_FEDFUNDS)
+
+        hy_stats   = get_series_stats(FRED_SERIES_HY_OAS, n_obs=252)
+        debt_stats = get_series_stats(FRED_SERIES_DEBT_GDP, n_obs=20)
+
+        hy_contraction = (
+            hy_stats["mean"] is not None and hy_stats["std"] is not None
+            and hy_stats["latest"] is not None
+            and hy_stats["latest"] > hy_stats["mean"] + 2 * hy_stats["std"]
+        )
+        debt_contraction = (
+            debt_stats["mean"] is not None and debt_stats["std"] is not None
+            and debt_stats["latest"] is not None
+            and debt_stats["latest"] > debt_stats["mean"] + 1 * debt_stats["std"]
+        )
+        return {
+            "yield_curve_slope": yield_curve_slope,
+            "fed_rate": fed_rate,
+            "credit_spread_oas": hy_stats["latest"],
+            "debt_to_gdp_pct": debt_stats["latest"],
+            "long_term_force_contraction": bool(hy_contraction or debt_contraction),
+        }
+    except Exception:
+        return {
+            "yield_curve_slope": None, "fed_rate": None,
+            "credit_spread_oas": None, "debt_to_gdp_pct": None,
+            "long_term_force_contraction": False,
         }
 
 
@@ -338,6 +418,118 @@ def get_suppression_stats() -> dict:
         "weak_regime_inside_or_scans": flagged,
         "suppression_rate": round(flagged / total, 3) if total else None,
     }
+
+
+def _queue_for_review(
+    symbol: str, side: str, score_value: float,
+    result: dict, levels: dict, hold_bars: int, regime_tags: dict,
+) -> int:
+    """
+    Queues a qualifying signal for human review instead of auto-logging it
+    (Kimi review, round 6 — D.E. Shaw hybrid model, used only on EXTREME
+    days). Stores the full signal/levels payload so approval can replay the
+    ORIGINAL model call into log_hypothetical_trade rather than re-fetching
+    market data that may have moved since.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO review_queue
+                (symbol, side, score_value, signals_json, levels_json,
+                 hold_bars, regime_tags_json, status, queued_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'AWAITING_REVIEW', datetime('now'))
+            """,
+            (symbol, side, score_value, json.dumps(result), json.dumps(levels),
+             hold_bars, json.dumps(regime_tags)),
+        )
+        return cur.lastrowid
+
+
+def check_review_queue_timeouts() -> int:
+    """
+    Auto-skips any AWAITING_REVIEW row older than REVIEW_QUEUE_TIMEOUT_SEC
+    (5 min) — the safety valve is optional, not a blocking step, so an
+    un-reviewed signal defaults to the conservative outcome (skip) rather
+    than sitting forever. Returns count of rows timed out.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            f"""
+            UPDATE review_queue SET
+                status = 'SKIPPED', resolved_at = datetime('now'), resolved_by = 'auto_timeout'
+            WHERE status = 'AWAITING_REVIEW'
+              AND queued_at <= datetime('now', '-{REVIEW_QUEUE_TIMEOUT_SEC} seconds')
+            """
+        )
+        return cur.rowcount
+
+
+def get_review_queue(status: Optional[str] = None, days: int = 7) -> list[dict]:
+    """Recent review-queue rows, optionally filtered by status."""
+    with get_db() as conn:
+        if status:
+            rows = conn.execute(
+                "SELECT * FROM review_queue WHERE status = ? "
+                "AND queued_at >= datetime('now', ? || ' days') ORDER BY queued_at DESC",
+                (status, f"-{days}"),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM review_queue WHERE queued_at >= datetime('now', ? || ' days') "
+                "ORDER BY queued_at DESC",
+                (f"-{days}",),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def approve_review(review_id: int) -> dict:
+    """
+    Manually approves a queued signal — replays the originally-stored
+    signal/levels payload into log_hypothetical_trade (using the ORIGINAL
+    model call, not a re-fetch) and marks the queue row APPROVED.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM review_queue WHERE id = ? AND status = 'AWAITING_REVIEW'",
+            (review_id,),
+        ).fetchone()
+    if not row:
+        return {"error": f"Review {review_id} not found or already resolved"}
+
+    row = dict(row)
+    result      = json.loads(row["signals_json"])
+    levels      = json.loads(row["levels_json"])
+    regime_tags = json.loads(row["regime_tags_json"]) if row.get("regime_tags_json") else {}
+
+    trade_id = log_hypothetical_trade(
+        symbol=row["symbol"], side=row["side"], score_value=row["score_value"],
+        signals=result, levels=levels, hold_bars=row["hold_bars"] or _DEFAULT_HOLD_BARS,
+        model_version="v4", regime_tags=regime_tags,
+    )
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE review_queue SET status='APPROVED', resolved_at=datetime('now'), "
+            "resolved_by='manual', trade_id=? WHERE id=?",
+            (trade_id, review_id),
+        )
+    _run_log.append({
+        "ts": _et_now().isoformat(), "event": "REVIEW_APPROVED",
+        "sym": row["symbol"], "review_id": review_id, "tid": trade_id,
+    })
+    return {"review_id": review_id, "approved": True, "trade_id": trade_id}
+
+
+def skip_review(review_id: int) -> dict:
+    """Manually skips a queued signal (reviewer judged it not tradeable)."""
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE review_queue SET status='SKIPPED', resolved_at=datetime('now'), "
+            "resolved_by='manual' WHERE id=? AND status='AWAITING_REVIEW'",
+            (review_id,),
+        )
+    if cur.rowcount == 0:
+        return {"error": f"Review {review_id} not found or already resolved"}
+    return {"review_id": review_id, "skipped": True}
 
 
 def run_open_scan(
@@ -427,6 +619,18 @@ def run_open_scan(
             time_lbl = result["score"].get("time_label", "UNKNOWN")
             hold_b   = _HOLD_BARS.get(time_lbl, _DEFAULT_HOLD_BARS)
             side     = levels.get("side", "long")
+
+            if market_regime["regime"] == "EXTREME":
+                # D.E. Shaw hybrid model (round 6): unprecedented days get an
+                # optional human safety valve instead of auto-logging. Not a
+                # blocking step — auto-skips after REVIEW_QUEUE_TIMEOUT_SEC.
+                review_id = _queue_for_review(sym, side, score_val, result, levels, hold_b, market_regime)
+                _run_log.append({
+                    "ts": _et_now().isoformat(), "event": "REVIEW_QUEUED",
+                    "sym": sym, "score": score_val, "side": side, "review_id": review_id,
+                })
+                log.info(f"[RUNNER] Queued for review (EXTREME day): {sym} score={score_val} review_id={review_id}")
+                continue
 
             tid = log_hypothetical_trade(
                 symbol       = sym,
@@ -615,6 +819,8 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
 
     while _runner_active:
         try:
+            check_review_queue_timeouts()  # cheap DB check, runs every tick regardless of market hours
+
             now_et  = _et_now()
             today   = now_et.strftime("%Y-%m-%d")
 
@@ -694,6 +900,7 @@ def get_runner_status() -> dict:
     suppression stats (Kimi review, round 4).
     """
     open_pos = _load_open_positions()
+    pending_review = len(get_review_queue(status="AWAITING_REVIEW", days=1))
     return {
         "active":         _runner_active and bool(_runner_thread and _runner_thread.is_alive()),
         "symbols":        RUNNER_SYMBOLS,
@@ -705,5 +912,6 @@ def get_runner_status() -> dict:
         "open_positions": len(open_pos),
         "open_symbols":   [p["symbol"] for p in open_pos],
         "suppression_stats": get_suppression_stats(),
+        "pending_review":  pending_review,
         "recent_log":     list(reversed(_run_log[-20:])),
     }

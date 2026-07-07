@@ -585,21 +585,83 @@ across P0-P2. Six items were built; nine were declined with reasoning.
 
 ---
 
+### 8.10 Round-6 review — Kimi overrode two round-5 declinations, plus a new
+human review queue
+
+Kimi pushed back on two of round 5's declines and clarified the actual spec
+for each; both are now built. A third item (declined in round 5 as low-value)
+was re-proposed with tighter scoping and also built.
+
+**Built:**
+1. **Bridgewater "Four Boxes" macro tags** — round 5 declined this citing no
+   free source for GDP/CPI *surprise-vs-consensus* data. Kimi's correction:
+   the actual ask was lagging, read-only *raw-series* tags, not real-time
+   consensus-beating signals — FRED's free API covers that fine.
+   `fetchers/fred.py` (new file) wraps `api.stlouisfed.org`, gated behind
+   `FRED_API_KEY` (fails safe to None/empty, same convention as
+   `OPENWEATHER_API_KEY`). `_fetch_macro_tags()` in `paper_runner.py` logs
+   `yield_curve_slope` (10Y-2Y), `fed_rate`, `credit_spread_oas`, and
+   `debt_to_gdp_pct` on every regime check. No trading logic changes.
+2. **Dalio 3-force overlay** — round 5 declined this because Kimi's original
+   spec had it *gate the score threshold* directly, risking corrupted
+   collection from a rough proxy. Kimi's round-6 clarification: make it
+   **additive** to the existing SPY-gap EXTREME classification, the same
+   mechanism the intraday-escalation check (round 3) already uses — not a new
+   independent gate. Built exactly that: `long_term_force_contraction` (True
+   when HY-OAS credit spread is >2 std devs above its ~1yr mean, OR debt/GDP
+   is >1 std dev above its ~5yr mean — Dalio's own thresholds) now ORs into
+   the same `regime == "EXTREME"` classification `_fetch_market_regime()`
+   already produces. Zero new gates, zero threshold changes — one more way to
+   arrive at a classification that already existed.
+3. **Human review queue for EXTREME days** (D.E. Shaw hybrid model) — round 5
+   declined this as reintroducing a manual step into an automation-first
+   pipeline. Kimi's round-6 framing made it explicitly *optional, not
+   mandatory*: a new `review_queue` table holds `AWAITING_REVIEW` signals
+   that fire during EXTREME-regime days; `check_review_queue_timeouts()` runs
+   on every 60s runner tick (regardless of market hours) and auto-resolves
+   any row older than 5 minutes to `SKIPPED` — the conservative default. A
+   human can instead call `approve_review(id)`, which replays the originally
+   stored signal/levels payload (not a re-fetch — avoids reacting to a price
+   that's since moved) into `log_hypothetical_trade()`. `GET
+   /trade/review-queue`, `POST /trade/review-queue/{id}/approve`, `POST
+   /trade/review-queue/{id}/skip` expose this. NORMAL-regime days are
+   completely unaffected — direct logging continues exactly as before.
+
+**Not re-litigated:** all six round-5 built items continue unchanged; the
+remaining round-5 declines (NLP/sentiment, ML feature store, CI static
+analysis, multi-timeframe overlay, HRT-style overnight hold) were not
+reopened by Kimi's round-6 feedback and stand as declined.
+
+---
+
 ## 9. What We're Asking Kimi to Review Now
 
-1. **Section 8.1** — is confidence-gating via MA-spread compression (vs. a
-   second faster regime detector) a sufficient fix for the lag risk, or does
-   the compressed-regime fallback (treating it as regime-neutral) need its own
-   tie-breaker?
-2. **Section 8.3** — is an 80% Wilson CI with a 48% floor the right
-   statistical strictness, or should the confidence level / floor be adjusted?
-3. **Section 8.5** — is a single SPY-gap threshold (2%) a reasonable one-signal
-   proxy for "abnormal market day" given no VIX access, or is it too coarse
-   (e.g., should intraday realized vol of SPY also factor in)?
-4. Anything in Section 8.6's deferred list that should be reprioritized higher
-   despite the reasoning given?
+(Superseded 2026-07-07 — Rounds 3–6 answered and built the round 1–2
+questions that used to sit here. Current open questions, per Kimi's own
+round-6 read-through:)
+
+1. **Is the 5-minute review-queue timeout too short?** On EXTREME days a
+   human has 5 minutes to approve a queued signal before it auto-skips. If
+   nobody's at a screen, everything defaults to skip. Should the timeout
+   scale with regime severity (e.g., longer window when only one of the two
+   3-force conditions is contracting vs. both)?
+2. **Should `DATA_COLLECTION_SPRINT_MODE` auto-expire?** It's currently a
+   manual boolean with no built-in shutoff. Should it force itself off after
+   N trades or N weeks so it can't be silently left on past the point it's
+   useful?
+3. **Is FRED's silent-failure mode correct?** When `FRED_API_KEY` is
+   missing/fails, macro tags log as None with no alert. Is silent failure
+   still right for an optional-enrichment signal, or should missing macro
+   data surface somewhere (dashboard, log line) instead of just going quiet?
+4. **What's the actual trigger for letting Opening Range fire independently
+   on wide ranges?** Section 8.8 instruments the suppression rate but never
+   set a numeric threshold. Is 60% the real trigger, and is "unusually wide"
+   1.5x the 20-day average 15-min range, or something else?
+5. **Should the human review queue extend to NORMAL days?** Right now only
+   EXTREME-regime signals get queued. Is there a case for an opt-in "review
+   everything above |60|" mode once real (non-hypothetical) capital is on
+   the line, even outside EXTREME days?
 
 Reminder: there is still no real performance data. All of the above are
-architecture changes made in response to review, not results — the system
-still needs its first 100 closed trades before any of this can be empirically
-validated.
+architecture questions, not results — the system still needs its first 100
+closed trades before any of this can be empirically validated.
