@@ -139,7 +139,6 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON intraday_trades(symbol, entry_time);
-CREATE INDEX IF NOT EXISTS idx_trades_engine ON intraday_trades(engine, entry_time);
 
 CREATE TABLE IF NOT EXISTS pair_signals (
     id INTEGER PRIMARY KEY,
