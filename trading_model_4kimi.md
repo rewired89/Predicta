@@ -636,19 +636,32 @@ reopened by Kimi's round-6 feedback and stand as declined.
 
 ## 9. What We're Asking Kimi to Review Now
 
-1. **Section 8.1** — is confidence-gating via MA-spread compression (vs. a
-   second faster regime detector) a sufficient fix for the lag risk, or does
-   the compressed-regime fallback (treating it as regime-neutral) need its own
-   tie-breaker?
-2. **Section 8.3** — is an 80% Wilson CI with a 48% floor the right
-   statistical strictness, or should the confidence level / floor be adjusted?
-3. **Section 8.5** — is a single SPY-gap threshold (2%) a reasonable one-signal
-   proxy for "abnormal market day" given no VIX access, or is it too coarse
-   (e.g., should intraday realized vol of SPY also factor in)?
-4. Anything in Section 8.6's deferred list that should be reprioritized higher
-   despite the reasoning given?
+(Superseded 2026-07-07 — Rounds 3–6 answered and built the round 1–2
+questions that used to sit here. Current open questions, per Kimi's own
+round-6 read-through:)
+
+1. **Is the 5-minute review-queue timeout too short?** On EXTREME days a
+   human has 5 minutes to approve a queued signal before it auto-skips. If
+   nobody's at a screen, everything defaults to skip. Should the timeout
+   scale with regime severity (e.g., longer window when only one of the two
+   3-force conditions is contracting vs. both)?
+2. **Should `DATA_COLLECTION_SPRINT_MODE` auto-expire?** It's currently a
+   manual boolean with no built-in shutoff. Should it force itself off after
+   N trades or N weeks so it can't be silently left on past the point it's
+   useful?
+3. **Is FRED's silent-failure mode correct?** When `FRED_API_KEY` is
+   missing/fails, macro tags log as None with no alert. Is silent failure
+   still right for an optional-enrichment signal, or should missing macro
+   data surface somewhere (dashboard, log line) instead of just going quiet?
+4. **What's the actual trigger for letting Opening Range fire independently
+   on wide ranges?** Section 8.8 instruments the suppression rate but never
+   set a numeric threshold. Is 60% the real trigger, and is "unusually wide"
+   1.5x the 20-day average 15-min range, or something else?
+5. **Should the human review queue extend to NORMAL days?** Right now only
+   EXTREME-regime signals get queued. Is there a case for an opt-in "review
+   everything above |60|" mode once real (non-hypothetical) capital is on
+   the line, even outside EXTREME days?
 
 Reminder: there is still no real performance data. All of the above are
-architecture changes made in response to review, not results — the system
-still needs its first 100 closed trades before any of this can be empirically
-validated.
+architecture questions, not results — the system still needs its first 100
+closed trades before any of this can be empirically validated.
