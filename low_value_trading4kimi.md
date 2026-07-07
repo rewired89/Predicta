@@ -285,3 +285,46 @@ verified with:
 
 No real market data has touched this yet — same standing caveat as every
 other section of this project.
+
+---
+
+## 12. Post-Deploy Bug Fix + Query Box (2026-07-07)
+
+Two issues surfaced once this actually shipped to Railway:
+
+**Bug: "Open Dashboard" hung indefinitely.** `render_low_value_dashboard()`
+called `get_daily_universe()` directly to show the universe count. That
+function triggers a full live scan (`build_low_value_universe()` — Alpaca
+`get_all_active_assets()`, likely thousands of symbols, then per-candidate
+Finnhub/SEC/Alpaca calls) on any cache miss, and the in-memory universe
+cache is empty after every Railway restart/redeploy. So the dashboard — a
+page that should just be a fast read-only monitor — was silently kicking
+off a slow, multi-thousand-API-call scan on every cold load. **Fixed**: the
+dashboard now reads `universe_size` from the most recently *logged*
+`low_value_universe_snapshot` row (a plain DB read) instead of calling
+`get_daily_universe()`. A dashboard view should never trigger a live scan —
+only the runner's 8 AM tick or an explicit scan-now/query call should. Same
+root-cause class as the schema-ordering crash from earlier today: a
+read path that accidentally did expensive/fragile work it had no business
+doing.
+
+**Added: natural-language query box.** The High Value page has always had
+a free-text box ("give me a brief", ticker lookups); Low Value's page only
+had static JSON links until now, which wasn't a great daily-use experience
+for the engine specifically built for daily personal use. Added an "Ask"
+box to `templates/trading_low_value.html` + `POST /trade/low-value/query`:
+- **"scan the market" / "any signals" / "check the market"** → live
+  `run_low_value_scan()` (can genuinely take a minute or two on a cold
+  cache, since it's a full-market scan, not an 8-symbol watchlist — the UI
+  says so explicitly while it's working).
+- **Everything else** ("brief", "this week", "yesterday", or anything
+  unrecognized) → `get_low_value_brief(days)` — a new DB-only read (closed
+  trades in the window, win rate, total P&L, open position count, most
+  recent universe size). `"yesterday"` sets `days=1`, otherwise `days=7`.
+  This path is intentionally never allowed to trigger a scan, so "what
+  happened" is always fast regardless of cache state.
+
+Verified with a stubbed test that explicitly asserts `render_low_value_dashboard()`
+raises if it ever calls `get_daily_universe()` again (regression guard for
+the exact bug above), plus a real-schema test of `get_low_value_brief()`
+against inserted universe-snapshot and closed-trade rows.

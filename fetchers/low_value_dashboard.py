@@ -10,7 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from db.database import get_db
-from fetchers.low_value_runner import get_runner_status, get_daily_universe
+from fetchers.low_value_runner import get_runner_status
+from fetchers.trading_logger import get_universe_snapshots
 from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
 
 
@@ -24,6 +25,59 @@ def _pnl_sign(val) -> str:
     if val is None:
         return "—"
     return f"+${val:,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
+
+
+def get_low_value_brief(days: int = 7) -> dict:
+    """
+    Read-only recap for the "give me a brief" / "this week" / "yesterday"
+    query box on the Low Value page — same DB-only philosophy as the
+    dashboard, never triggers a live scan. days controls the closed-trade
+    lookback window (1 for "yesterday", 7 for "this week"/default).
+    """
+    with get_db() as conn:
+        closed_rows = conn.execute(
+            """
+            SELECT symbol, exit_reason, pnl_dollars, lv_thesis_type
+            FROM intraday_trades
+            WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NOT NULL
+              AND exit_time >= datetime('now', ? || ' days')
+            ORDER BY exit_time DESC
+            """,
+            (f"-{days}",),
+        ).fetchall()
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM intraday_trades WHERE engine='low_value' AND is_hypothetical=1 AND exit_time IS NULL"
+        ).fetchone()[0]
+
+    closed = [dict(r) for r in closed_rows]
+    n_closed = len(closed)
+    win_rate = total_pnl = None
+    if n_closed:
+        wins = sum(1 for t in closed if (t.get("pnl_dollars") or 0) > 0)
+        win_rate = round(wins / n_closed, 3)
+        total_pnl = round(sum(t.get("pnl_dollars") or 0 for t in closed), 2)
+
+    recent_snapshots = get_universe_snapshots(days=1)
+    universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
+
+    return {
+        "mode": "brief",
+        "days": days,
+        "universe_size": universe_size,
+        "open_positions": open_count,
+        "closed_trades": n_closed,
+        "win_rate": win_rate,
+        "total_pnl": total_pnl,
+        "recent_trades": [
+            {
+                "symbol": t["symbol"],
+                "thesis_type": t.get("lv_thesis_type") or "UNKNOWN",
+                "exit_reason": t.get("exit_reason") or "—",
+                "pnl_dollars": t.get("pnl_dollars") or 0.0,
+            }
+            for t in closed[:10]
+        ],
+    }
 
 
 def render_low_value_dashboard() -> str:
@@ -60,7 +114,12 @@ def render_low_value_dashboard() -> str:
     thesis_report = thesis_type_calibration_report(min_trades=3)
     readiness = low_value_calibration_readiness()
     runner_status = get_runner_status()
-    universe = get_daily_universe()
+    # Read-only: the most recently LOGGED universe snapshot, never a live
+    # rescan (a rescan is a slow, multi-API-call operation that belongs to
+    # the runner's scheduled job or a manual /trade/low-value/scan-now call,
+    # not to loading a dashboard page).
+    recent_snapshots = get_universe_snapshots(days=1)
+    universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     runner_dot = "#22c55e" if runner_status.get("active") else "#ef4444"
@@ -147,7 +206,7 @@ def render_low_value_dashboard() -> str:
   <div class="card">
     <div class="card-title">Today's Universe</div>
     <div class="stat-grid">
-      <div class="stat-box"><div class="stat-value">{len(universe)}</div><div class="stat-label">Symbols scanned</div></div>
+      <div class="stat-box"><div class="stat-value">{universe_size}</div><div class="stat-label">Symbols scanned</div></div>
       <div class="stat-box"><div class="stat-value">{len(open_t)}</div><div class="stat-label">Open positions (max 3)</div></div>
     </div>
   </div>

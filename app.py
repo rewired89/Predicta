@@ -2729,6 +2729,43 @@ def low_value_dashboard():
     return HTMLResponse(content=render_low_value_dashboard())
 
 
+class LowValueQueryRequest(BaseModel):
+    query: str
+
+
+# Multi-word phrases that mean "run a live scan now" — checked before the
+# brief triggers so "any signals" doesn't get swallowed by a broader match.
+_LV_SCAN_TRIGGERS = (
+    "scan the market", "scan market", "market scan", "any signals",
+    "today's picks", "todays picks", "check the market", "scan today",
+    "scan now", "run the scanner", "run a scan",
+)
+
+
+@app.post("/trade/low-value/query")
+def low_value_query(body: LowValueQueryRequest):
+    """
+    Natural-language query box for the Low Value page. "Scan the market" /
+    "any signals" triggers a live run_low_value_scan() (can take a minute or
+    two on a cold cache — it's a full-market scan, not an 8-symbol
+    watchlist). Everything else (brief / this week / yesterday / anything
+    unrecognized) returns a read-only recap — never triggers a scan, so
+    asking "what happened" is always fast.
+    """
+    q = body.query.strip().lower()
+    if not q:
+        raise HTTPException(400, "Query cannot be empty")
+
+    if any(trig in q for trig in _LV_SCAN_TRIGGERS):
+        from fetchers.low_value_runner import run_low_value_scan
+        ids = run_low_value_scan()
+        return {"mode": "scan", "logged": len(ids), "trade_ids": ids}
+
+    days = 1 if "yesterday" in q else 7
+    from fetchers.low_value_dashboard import get_low_value_brief
+    return get_low_value_brief(days=days)
+
+
 @app.get("/trade/paper-data")
 def paper_data_export(days: int = 60, include_open: bool = False):
     """

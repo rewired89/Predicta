@@ -10311,10 +10311,10 @@ mutates: none
 name: render_low_value_dashboard
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style.
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should.
 inputs: none
 outputs: str (HTML)
-calls: get_runner_status, get_daily_universe (low_value_runner.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
+calls: get_runner_status (low_value_runner.py), get_universe_snapshots (trading_logger.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
 called_by: low_value_dashboard (app.py)
 mutates: none
 ---
@@ -10404,6 +10404,42 @@ mutates: none
 ---
 
 ---
+name: get_low_value_brief
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: Read-only recap for the Low Value page's "Ask" query box ("give me a brief" / "this week" / "yesterday"). Closed-trade lookback window, win rate, total P&L, open position count, and most recent logged universe size — never triggers a live scan, added 2026-07-07 alongside the dashboard's live-scan fix so asking a question is always fast.
+inputs: days: int = 7
+outputs: dict {mode, days, universe_size, open_positions, closed_trades, win_rate, total_pnl, recent_trades}
+calls: db.database.get_db, get_universe_snapshots (trading_logger.py)
+called_by: low_value_query (app.py)
+mutates: none
+---
+
+---
+name: _LV_SCAN_TRIGGERS
+type: variable
+file: app.py
+purpose: Multi-word phrases ("scan the market", "any signals", etc.) that route the Low Value query box to a live run_low_value_scan() instead of the read-only brief.
+inputs: none
+outputs: tuple[str, ...]
+calls: none
+called_by: low_value_query
+mutates: none
+---
+
+---
+name: low_value_query
+type: function
+file: app.py
+purpose: POST /trade/low-value/query — natural-language query box for the Low Value page (added 2026-07-07). "Scan the market"/"any signals" triggers a live run_low_value_scan() (slow on cold cache — full-market scan, not an 8-symbol watchlist). Everything else ("brief"/"this week"/"yesterday"/unrecognized) returns get_low_value_brief() — a DB-only read, always fast. "yesterday" sets days=1, else days=7.
+inputs: body: LowValueQueryRequest {query: str}
+outputs: dict (scan result or brief result)
+calls: run_low_value_scan (low_value_runner.py), get_low_value_brief (low_value_dashboard.py)
+called_by: FastAPI (HTTP POST)
+mutates: intraday_trades table (only when a scan triggers)
+---
+
+---
 name: trading (app.py)
 type: function
 file: app.py
@@ -10467,10 +10503,10 @@ mutates: none
 name: trading_low_value.html
 type: template
 file: templates/trading_low_value.html
-purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints.
+purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints. Added 2026-07-07: an "Ask" natural-language query box (POST /trade/low-value/query) mirroring the High Value page's ticker/brief input — "scan the market" triggers a live scan, "brief"/"this week"/"yesterday" show a fast read-only recap.
 inputs: none
 outputs: HTML
-calls: none
+calls: /trade/low-value/query (fetch, JS)
 called_by: trading_low_value (app.py)
 mutates: none
 ---

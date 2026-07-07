@@ -30,6 +30,15 @@
   .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; }
   code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; font-size: .8rem; }
+  .prompt-label { font-size: .8rem; color: var(--muted); margin-bottom: 10px; line-height: 1.4; }
+  .query-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  #lv-query-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 11px 14px; font-size: .9rem; }
+  #lv-query-input:focus { outline: none; border-color: var(--purple); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { background: var(--bg); border: 1px solid var(--border); color: var(--muted); border-radius: 99px; padding: 6px 14px; font-size: .78rem; cursor: pointer; }
+  .chip:hover { border-color: var(--purple); color: var(--text); }
+  #lv-query-result { margin-top: 16px; font-size: .85rem; white-space: pre-wrap; word-break: break-word; }
+  .lv-loading { color: var(--muted); font-style: italic; }
 </style>
 </head>
 <body>
@@ -53,6 +62,22 @@
   <p class="sub">A contrarian scanner for sub-$20 stocks — beaten-down price, oversold RSI, capitulation volume, insider buying, and news catalysts feed one composite score. Runs once daily, pre-market. Fixed $25 positions, max 3 open at a time, 1-5 day holds. Completely independent from the High Value engine — shares only infrastructure (logging, calibration), never signal logic.</p>
 
   <div class="card">
+    <div class="card-title">Ask</div>
+    <div class="prompt-label">Type "scan the market" / "any signals today" to trigger a live scan, or "give me a brief" / "this week" / "yesterday" for a quick recap — no ticker lookup here, this engine only trades its own daily universe.</div>
+    <div class="query-row">
+      <input type="text" id="lv-query-input" placeholder="e.g. scan the market today, or give me a brief of this week" />
+      <button class="btn" onclick="lvRunQuery()">Ask</button>
+    </div>
+    <div class="chips">
+      <span class="chip" onclick="lvFill('scan the market today')">Scan the market today</span>
+      <span class="chip" onclick="lvFill('give me a brief of this week')">Brief this week</span>
+      <span class="chip" onclick="lvFill('what happened yesterday')">Yesterday</span>
+      <span class="chip" onclick="lvFill('any signals right now')">Any signals?</span>
+    </div>
+    <div id="lv-query-result"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Monitor</div>
     <div class="actions">
       <a class="btn" href="/trade/low-value/dashboard">Open Dashboard</a>
@@ -70,5 +95,56 @@
     <div class="row"><span>Runner</span><span>8:00 AM ET daily scan + exit check — <code>POST /trade/low-value/scan-now</code> to trigger manually</span></div>
   </div>
 </main>
+<script>
+function lvFill(text) {
+  document.getElementById("lv-query-input").value = text;
+  lvRunQuery();
+}
+
+async function lvRunQuery() {
+  const input = document.getElementById("lv-query-input");
+  const out = document.getElementById("lv-query-result");
+  const query = input.value.trim();
+  if (!query) return;
+  out.innerHTML = '<span class="lv-loading">Working… a live scan can take a minute or two the first time it runs today.</span>';
+  try {
+    const res = await fetch("/trade/low-value/query", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({query}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      out.textContent = "Error: " + (data.detail || res.statusText);
+      return;
+    }
+    if (data.mode === "scan") {
+      out.textContent = `Scan complete — ${data.logged} new signal(s) logged` +
+        (data.trade_ids.length ? ` (trade ids: ${data.trade_ids.join(", ")})` : ".");
+    } else {
+      const lines = [
+        `Period: last ${data.days} day(s)`,
+        `Universe (most recent scan): ${data.universe_size} symbols`,
+        `Open positions: ${data.open_positions}`,
+        `Closed trades: ${data.closed_trades} (win rate ${data.win_rate !== null ? (data.win_rate*100).toFixed(0) + "%" : "—"})`,
+        `Total P&L: ${data.total_pnl !== null ? "$" + data.total_pnl.toFixed(2) : "—"}`,
+      ];
+      if (data.recent_trades && data.recent_trades.length) {
+        lines.push("", "Recent closed trades:");
+        data.recent_trades.forEach(t => {
+          lines.push(`  ${t.symbol} · ${t.thesis_type} · ${t.exit_reason} · ${t.pnl_dollars >= 0 ? "+" : ""}$${t.pnl_dollars.toFixed(2)}`);
+        });
+      }
+      out.textContent = lines.join("\n");
+    }
+  } catch (e) {
+    out.textContent = "Request failed: " + e.message;
+  }
+}
+
+document.getElementById("lv-query-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") lvRunQuery();
+});
+</script>
 </body>
 </html>
