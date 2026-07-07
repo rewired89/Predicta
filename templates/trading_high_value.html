@@ -933,8 +933,7 @@ async function loadPositions() {
       ab.innerHTML = `
         <span>Portfolio: <strong style="color:var(--blue)">$${account.portfolio_value?.toLocaleString()}</strong></span>
         <span>Cash: <strong>$${account.cash?.toLocaleString()}</strong></span>
-        <span>Buying Power: <strong>$${account.buying_power?.toLocaleString()}</strong></span>
-        <span>Day Trades: <strong>${account.daytrade_count}</strong></span>`;
+        <span>Buying Power: <strong>$${account.buying_power?.toLocaleString()}</strong></span>`;
     }
 
     if (!positions.length) { el.textContent = "No open positions."; return; }

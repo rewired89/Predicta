@@ -326,7 +326,16 @@ def get_positions() -> list[dict]:
 
 
 def get_account() -> dict:
-    """Get paper trading account summary."""
+    """
+    Get paper trading account summary.
+
+    pattern_day_trader/daytrade_count/daytrading_buying_power were removed
+    from Alpaca's /v2/account response (FINRA replaced the PDT rule with the
+    intraday margin framework on 2026-06-04 — accounts are no longer
+    classified as PDT at all). Per Alpaca's migration notice, buying_power
+    is the replacement for all of them; the deprecated fields are no longer
+    requested or returned here.
+    """
     url = f"{PAPER_BASE_URL}/v2/account"
     data = _get(url)
     if "error" in data:
@@ -336,6 +345,4 @@ def get_account() -> dict:
         "cash": float(data.get("cash", 0)),
         "buying_power": float(data.get("buying_power", 0)),
         "portfolio_value": float(data.get("portfolio_value", 0)),
-        "daytrade_count": data.get("daytrade_count", 0),
-        "pattern_day_trader": data.get("pattern_day_trader", False),
     }
