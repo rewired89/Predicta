@@ -125,6 +125,23 @@ def render_low_value_dashboard() -> str:
     runner_dot = "#22c55e" if runner_status.get("active") else "#ef4444"
     runner_lbl = "Running" if runner_status.get("active") else "Stopped"
 
+    scan_banner_html = ""
+    if runner_status.get("scan_in_progress") or runner_status.get("universe_build_in_progress"):
+        started = runner_status.get("last_scan_started_at") or runner_status.get("last_universe_build_started_at")
+        scan_banner_html = (
+            f'<div class="card" style="border-color:#f59e0b;">'
+            f'<div class="card-title" style="color:#f59e0b;">Scan In Progress</div>'
+            f'<div style="font-size:.85rem;">Started {started}. This page does not auto-update — refresh in a few minutes.</div>'
+            f'</div>'
+        )
+    elif runner_status.get("last_scan_error"):
+        scan_banner_html = (
+            f'<div class="card" style="border-color:#ef4444;">'
+            f'<div class="card-title" style="color:#ef4444;">Last Scan Failed</div>'
+            f'<div style="font-size:.85rem;">{runner_status["last_scan_error"]}</div>'
+            f'</div>'
+        )
+
     open_rows_html = "".join(
         f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
@@ -202,6 +219,8 @@ def render_low_value_dashboard() -> str:
   </div>
 </header>
 <main>
+
+  {scan_banner_html}
 
   <div class="card">
     <div class="card-title">Today's Universe</div>

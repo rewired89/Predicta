@@ -61,6 +61,30 @@ _runner_active: bool = False
 _run_log: list[dict] = []
 _universe_cache: dict[str, list[str]] = {}   # {date_str: [symbols]}
 
+# 2026-07-07 production bug: get_daily_universe() called build_low_value_universe()
+# with no max_candidates, so EVERY US equity under $20 (realistically several
+# thousand, not a couple hundred) got the expensive per-symbol Alpaca/Finnhub/SEC
+# checks sequentially — nowhere near the "~200 stocks, 2-10 min" estimate the UI
+# quoted. 500 keeps a real day's scan bounded and predictable while still leaving
+# enough headroom to reach the 50-200 target universe size after all the filters.
+UNIVERSE_SCAN_MAX_CANDIDATES: int = 500
+
+_scan_lock = threading.Lock()
+_scan_in_progress: bool = False
+_scan_thread: Optional[threading.Thread] = None
+_last_scan_started_at: Optional[str] = None
+_last_scan_completed_at: Optional[str] = None
+_last_scan_trade_ids: list[int] = []
+_last_scan_error: Optional[str] = None
+
+# Same fire-and-forget treatment for a universe-only refresh (GET
+# /trade/low-value/universe?force_refresh=true) — building the universe
+# alone is the same expensive operation as the first half of a scan, so it
+# gets the same "never block an HTTP request" fix.
+_universe_lock = threading.Lock()
+_universe_build_in_progress: bool = False
+_last_universe_build_started_at: Optional[str] = None
+
 
 def _in_scan_window() -> bool:
     """True between 08:00 and 08:14 ET on weekdays — the daily pre-market scan window."""
@@ -81,12 +105,41 @@ def get_daily_universe(force_refresh: bool = False) -> list[str]:
     if not force_refresh and today_str in _universe_cache:
         return _universe_cache[today_str]
 
-    universe = build_low_value_universe(today_str)
+    universe = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
     _universe_cache.clear()   # only ever keep today's entry
     _universe_cache[today_str] = universe
     log_universe_snapshot(today_str, universe)
     log.info(f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols")
     return universe
+
+
+def _universe_build_worker() -> None:
+    """Background-thread body for trigger_universe_refresh_async — calls the blocking get_daily_universe safely off the request thread."""
+    global _universe_build_in_progress
+    try:
+        get_daily_universe(force_refresh=True)
+    except Exception as exc:
+        log.error(f"[LOW_VALUE] Async universe build failed: {exc}")
+    finally:
+        _universe_build_in_progress = False
+
+
+def trigger_universe_refresh_async() -> dict:
+    """
+    Fire-and-forget universe rebuild (2026-07-07 production fix — same class
+    of bug as trigger_scan_async, for GET /trade/low-value/universe?force_refresh=true
+    specifically). Starts the build in a background thread and returns
+    immediately; poll get_runner_status() or re-GET /trade/low-value/universe
+    without force_refresh for the cached result once it lands.
+    """
+    global _universe_build_in_progress, _last_universe_build_started_at
+    with _universe_lock:
+        if _universe_build_in_progress:
+            return {"status": "already_running", "started_at": _last_universe_build_started_at}
+        _universe_build_in_progress = True
+        _last_universe_build_started_at = _et_now().isoformat()
+        threading.Thread(target=_universe_build_worker, daemon=True, name="low-value-universe-build").start()
+    return {"status": "started", "started_at": _last_universe_build_started_at}
 
 
 def _load_open_positions() -> list[dict]:
@@ -286,6 +339,45 @@ def stop_runner() -> None:
     log.info("[LOW_VALUE] Stop signalled")
 
 
+def _scan_worker(symbols: Optional[list[str]]) -> None:
+    """Background-thread body for trigger_scan_async — never runs inside an HTTP request."""
+    global _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error
+    _last_scan_error = None
+    try:
+        ids = run_low_value_scan(symbols=symbols)
+        _last_scan_trade_ids = ids
+    except Exception as exc:
+        _last_scan_error = str(exc)
+        log.error(f"[LOW_VALUE] Async scan failed: {exc}")
+    finally:
+        _last_scan_completed_at = _et_now().isoformat()
+        _scan_in_progress = False
+
+
+def trigger_scan_async(symbols: Optional[list[str]] = None) -> dict:
+    """
+    Fire-and-forget scan trigger (2026-07-07 production fix) — a manual scan
+    can legitimately take several minutes (hundreds of sequential Alpaca/
+    Finnhub/SEC calls), and any code that blocks an HTTP request for that
+    long is at the mercy of Railway's/the browser's own timeout, which is
+    exactly what silently killed the query-box scan with a blank error.
+    Starts the scan in a background thread and returns immediately;
+    poll get_runner_status() for scan_in_progress / last_scan_completed_at.
+    Returns {"status": "started"} or {"status": "already_running"} if a
+    scan is already in flight (prevents duplicate concurrent scans from a
+    double-click or the scheduled 8 AM tick overlapping a manual trigger).
+    """
+    global _scan_in_progress, _scan_thread, _last_scan_started_at
+    with _scan_lock:
+        if _scan_in_progress:
+            return {"status": "already_running", "started_at": _last_scan_started_at}
+        _scan_in_progress = True
+        _last_scan_started_at = _et_now().isoformat()
+        _scan_thread = threading.Thread(target=_scan_worker, args=(symbols,), daemon=True, name="low-value-scan")
+        _scan_thread.start()
+    return {"status": "started", "started_at": _last_scan_started_at}
+
+
 def get_runner_status() -> dict:
     """Current Low Value runner state for GET /trade/low-value/runner/status."""
     open_pos = _load_open_positions()
@@ -300,4 +392,11 @@ def get_runner_status() -> dict:
         "universe_size":   len(_universe_cache.get(today_str, [])),
         "et_now":          _et_now().isoformat(),
         "recent_log":      list(reversed(_run_log[-20:])),
+        "scan_in_progress":       _scan_in_progress,
+        "last_scan_started_at":   _last_scan_started_at,
+        "last_scan_completed_at": _last_scan_completed_at,
+        "last_scan_trade_ids":    _last_scan_trade_ids,
+        "last_scan_error":        _last_scan_error,
+        "universe_build_in_progress":      _universe_build_in_progress,
+        "last_universe_build_started_at":  _last_universe_build_started_at,
     }

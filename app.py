@@ -2676,18 +2676,40 @@ def trade_dashboard():
 
 @app.get("/trade/low-value/universe")
 def low_value_universe(force_refresh: bool = False):
-    """Today's Low Value scanner universe (cached in-memory for the day unless force_refresh)."""
-    from fetchers.low_value_runner import get_daily_universe
-    universe = get_daily_universe(force_refresh=force_refresh)
-    return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "count": len(universe), "symbols": universe}
+    """
+    Today's Low Value scanner universe (cached in-memory for the day unless
+    force_refresh). A cache hit returns immediately. On a miss/force_refresh,
+    this NEVER blocks the request — building the universe is a multi-minute,
+    hundreds-of-API-calls operation (fixed 2026-07-07: it used to block here
+    directly, and a long enough wait would get silently killed by Railway's
+    proxy timeout with a blank error). Instead it kicks off
+    trigger_universe_refresh_async() and returns a "started" status; poll
+    this same endpoint again (without force_refresh) once it's done.
+    """
+    from fetchers.low_value_runner import get_daily_universe, trigger_universe_refresh_async
+    from fetchers.low_value_runner import _universe_cache
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not force_refresh and today_str in _universe_cache:
+        universe = get_daily_universe(force_refresh=False)
+        return {"date": today_str, "count": len(universe), "symbols": universe, "status": "cached"}
+    result = trigger_universe_refresh_async()
+    result["date"] = today_str
+    result["note"] = "Universe build running in the background — re-request this endpoint without force_refresh in a few minutes for the result."
+    return result
 
 
 @app.post("/trade/low-value/scan-now")
 def low_value_scan_now():
-    """Manually trigger a Low Value universe + signal scan outside the 8 AM ET window."""
-    from fetchers.low_value_runner import run_low_value_scan
-    ids = run_low_value_scan()
-    return {"logged": len(ids), "trade_ids": ids}
+    """
+    Manually trigger a Low Value universe + signal scan outside the 8 AM ET
+    window. Fire-and-forget (fixed 2026-07-07 — a scan can take several
+    minutes and must never block the HTTP request; see
+    fetchers.low_value_runner.trigger_scan_async). Poll
+    GET /trade/low-value/runner/status for scan_in_progress /
+    last_scan_completed_at / last_scan_trade_ids.
+    """
+    from fetchers.low_value_runner import trigger_scan_async
+    return trigger_scan_async()
 
 
 @app.get("/trade/low-value/runner/status")
@@ -2754,20 +2776,24 @@ _LV_SCAN_TRIGGERS = (
 def low_value_query(body: LowValueQueryRequest):
     """
     Natural-language query box for the Low Value page. "Scan the market" /
-    "any signals" triggers a live run_low_value_scan() (can take a minute or
-    two on a cold cache — it's a full-market scan, not an 8-symbol
-    watchlist). Everything else (brief / this week / yesterday / anything
-    unrecognized) returns a read-only recap — never triggers a scan, so
-    asking "what happened" is always fast.
+    "any signals" starts a live scan in the BACKGROUND (fixed 2026-07-07 —
+    this used to block the request on run_low_value_scan() directly, which
+    can genuinely take many minutes against the real universe size and was
+    getting silently killed by Railway's proxy timeout, returning a blank
+    error after a long wait with no way to tell if anything happened).
+    Returns immediately with a "started" status; poll
+    GET /trade/low-value/runner/status for scan_in_progress / results.
+    Everything else (brief / this week / yesterday / anything unrecognized)
+    returns a read-only recap — never triggers a scan, always fast.
     """
     q = body.query.strip().lower()
     if not q:
         raise HTTPException(400, "Query cannot be empty")
 
     if any(trig in q for trig in _LV_SCAN_TRIGGERS):
-        from fetchers.low_value_runner import run_low_value_scan
-        ids = run_low_value_scan()
-        return {"mode": "scan", "logged": len(ids), "trade_ids": ids}
+        from fetchers.low_value_runner import trigger_scan_async
+        result = trigger_scan_async()
+        return {"mode": "scan", **result}
 
     days = 1 if "yesterday" in q else 7
     from fetchers.low_value_dashboard import get_low_value_brief

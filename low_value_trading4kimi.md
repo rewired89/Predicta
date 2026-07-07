@@ -393,3 +393,64 @@ Also fixed the same day, unrelated to Kimi's list: Alpaca deprecated
 `pattern_day_trader`/`daytrade_count` (FINRA replaced the PDT rule with an
 intraday margin framework on 2026-06-04) — `get_account()` and the
 Positions & Orders account bar no longer reference them.
+
+---
+
+## 14. Production Bug: Unbounded Scan + Blocking Request Architecture (2026-07-07, same day)
+
+After deploying Section 13's fixes, the user tried the query box's "scan
+the market today" and it sat with no result for 20+ minutes, eventually
+showing a blank `Error:` with no message. Two compounding bugs, both real:
+
+**Bug A — the scan had no candidate limit.** `get_daily_universe()` called
+`build_low_value_universe(today_str)` with no `max_candidates`. The
+scanner's `max_candidates` parameter existed and was documented as "a
+safety valve against a very large Alpaca universe burning through
+Finnhub's/SEC's rate limits" — but it was never actually passed at the one
+call site that matters. Section 9's own math ("200 symbols × 1 Finnhub
+call = 3.3 min") assumed the candidate pool *was* ~200 — it isn't. The
+candidate pool is every US equity that survives the cheap `< $20` price
+filter, which is realistically several thousand tickers, not a couple
+hundred. Every one of those got the full sequential treatment (Alpaca
+daily bars, Finnhub/Yahoo market cap, SEC EDGAR bankruptcy check) before
+the 50-200 *output* cap even applied. **Fixed**: `get_daily_universe()` now
+passes a new `UNIVERSE_SCAN_MAX_CANDIDATES = 500` constant, bounding the
+input side, not just the output.
+
+**Bug B — a multi-minute operation was blocking the HTTP request.** Even
+correctly bounded, 500 candidates × up to 3 sequential network calls each
+is a real multi-minute operation. Running that synchronously inside a
+FastAPI request handler means the response is entirely at the mercy of
+Railway's proxy timeout (or the browser's) — which is exactly what
+produced the blank `Error:` after a long silent wait: the connection got
+killed server-side with no useful error payload to relay. **Fixed**: all
+three manual-trigger paths (`POST /trade/low-value/scan-now`, the query
+box's scan mode, and `GET /trade/low-value/universe?force_refresh=true`)
+now use fire-and-forget triggers (`trigger_scan_async()` /
+`trigger_universe_refresh_async()`) — a background thread does the real
+work, the HTTP response returns in milliseconds with a `"started"` status,
+and a `threading.Lock`-guarded flag (`_scan_in_progress` /
+`_universe_build_in_progress`) rejects a duplicate concurrent trigger
+instead of racing. `get_runner_status()` now exposes
+`scan_in_progress`/`last_scan_started_at`/`last_scan_completed_at`/
+`last_scan_trade_ids`/`last_scan_error`, and the dashboard shows an amber
+"Scan In Progress" or red "Last Scan Failed" banner built from that same
+status — checking on a background scan no longer requires reading raw
+JSON. The scheduled 8 AM runner tick is unaffected — it already ran
+`run_low_value_scan()` inside its own background thread, so it was never
+part of this bug; only the manual/query-triggered paths needed the fix.
+
+**Verification**: a stubbed test with an artificially slow `get_all_active_assets()`
+confirms `trigger_scan_async()` returns in under 100ms regardless of how
+long the underlying scan takes, that `scan_in_progress` is visible while
+it runs, that a second trigger during that window correctly returns
+`already_running` instead of starting a duplicate scan, and that the
+status fields update correctly once the background scan completes.
+
+**Open question for you**: `UNIVERSE_SCAN_MAX_CANDIDATES = 500` is a guess
+at the right tradeoff — high enough to still reach something close to the
+50-200 target universe size after the volume/cap/bankruptcy filters, low
+enough to keep a real scan's wall-clock time reasonable. We don't have
+real data yet on what fraction of sub-$20 candidates actually pass every
+filter, so this number may need tuning once a few real scans complete and
+we can see the actual candidate-to-output survival rate.

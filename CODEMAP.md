@@ -10311,12 +10311,60 @@ mutates: none
 name: get_daily_universe
 type: function
 file: fetchers/low_value_runner.py
-purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot on every fresh scan (not on cache hits).
+purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
 inputs: force_refresh: bool = False
 outputs: list[str]
 calls: build_low_value_universe, log_universe_snapshot
-called_by: run_low_value_scan, low_value_universe (app.py)
+called_by: run_low_value_scan, _universe_build_worker, low_value_universe (app.py, cache-hit path only)
 mutates: _universe_cache, low_value_universe_snapshot table
+---
+
+---
+name: UNIVERSE_SCAN_MAX_CANDIDATES
+type: variable
+file: fetchers/low_value_runner.py
+purpose: Caps how many price-filtered candidates get the expensive per-symbol checks in one universe scan (2026-07-07 production bug fix — get_daily_universe previously passed no cap at all, so the scan evaluated every US equity under $20, not the couple hundred the UI's "2-10 min" estimate assumed).
+inputs: none
+outputs: int (500)
+calls: none
+called_by: get_daily_universe
+mutates: none
+---
+
+---
+name: trigger_scan_async
+type: function
+file: fetchers/low_value_runner.py
+purpose: Fire-and-forget scan trigger (2026-07-07 production fix) — starts run_low_value_scan() in a background thread and returns immediately, so an HTTP request (scan-now, the query box) is never blocked for the multi-minute duration a real scan can take. Rejects a second concurrent trigger with status="already_running" (_scan_lock).
+inputs: symbols: Optional[list[str]] = None
+outputs: dict {status: "started"|"already_running", started_at}
+calls: threading.Thread, run_low_value_scan (via _scan_worker)
+called_by: low_value_scan_now, low_value_query (app.py)
+mutates: _scan_in_progress, _scan_thread, _last_scan_started_at
+---
+
+---
+name: _scan_worker
+type: function
+file: fetchers/low_value_runner.py
+purpose: Background-thread body for trigger_scan_async — runs run_low_value_scan(), records the result/error, clears _scan_in_progress on completion (success or failure).
+inputs: symbols: Optional[list[str]]
+outputs: none
+calls: run_low_value_scan
+called_by: trigger_scan_async (thread target)
+mutates: _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error
+---
+
+---
+name: trigger_universe_refresh_async
+type: function
+file: fetchers/low_value_runner.py
+purpose: Fire-and-forget universe rebuild (2026-07-07 production fix, same class as trigger_scan_async) — GET /trade/low-value/universe?force_refresh=true used to call get_daily_universe() directly and block the request for the full scan duration; this starts it in a background thread instead.
+inputs: none
+outputs: dict {status: "started"|"already_running", started_at}
+calls: threading.Thread, get_daily_universe (via _universe_build_worker)
+called_by: low_value_universe (app.py)
+mutates: _universe_build_in_progress, _last_universe_build_started_at
 ---
 
 ---
@@ -10407,7 +10455,7 @@ mutates: _runner_active
 name: get_runner_status (low_value_runner)
 type: function
 file: fetchers/low_value_runner.py
-purpose: Current Low Value runner state — active flag, config, open positions, today's universe cache state, recent log events.
+purpose: Current Low Value runner state — active flag, config, open positions, today's universe cache state, recent log events, and (added 2026-07-07) scan_in_progress/last_scan_started_at/last_scan_completed_at/last_scan_trade_ids/last_scan_error/universe_build_in_progress/last_universe_build_started_at — the poll target for the async scan/universe-build triggers.
 inputs: none
 outputs: dict
 calls: _load_open_positions, _et_now
@@ -10419,7 +10467,7 @@ mutates: none
 name: render_low_value_dashboard
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should.
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON.
 inputs: none
 outputs: str (HTML)
 calls: get_runner_status (low_value_runner.py), get_universe_snapshots (trading_logger.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
@@ -10431,24 +10479,24 @@ mutates: none
 name: low_value_universe (app.py)
 type: function
 file: app.py
-purpose: GET /trade/low-value/universe — today's Low Value scanner universe (JSON).
+purpose: GET /trade/low-value/universe — today's Low Value scanner universe (JSON). Fixed 2026-07-07 (production bug): a cache hit still returns synchronously/fast, but a cache miss or force_refresh no longer blocks the request on a live scan (which could take an hour+ pre-fix, and was getting silently killed by Railway's proxy timeout) — now calls trigger_universe_refresh_async() and returns a "started" status to poll.
 inputs: force_refresh: bool = False (query param)
-outputs: dict {date, count, symbols}
-calls: get_daily_universe (low_value_runner.py)
+outputs: dict {date, count, symbols, status: "cached"} on cache hit, or {status: "started"|"already_running", started_at, date, note} on miss/refresh
+calls: get_daily_universe (cache-hit path only), trigger_universe_refresh_async (low_value_runner.py)
 called_by: FastAPI (HTTP GET)
-mutates: none
+mutates: none directly (trigger_universe_refresh_async starts a background thread)
 ---
 
 ---
 name: low_value_scan_now
 type: function
 file: app.py
-purpose: POST /trade/low-value/scan-now — manually trigger a Low Value scan outside the 8 AM ET window.
+purpose: POST /trade/low-value/scan-now — manually trigger a Low Value scan outside the 8 AM ET window. Fixed 2026-07-07 (production bug): fire-and-forget via trigger_scan_async instead of blocking on run_low_value_scan() directly — a real scan can take several minutes and must never block the HTTP request.
 inputs: none
-outputs: dict {logged, trade_ids}
-calls: run_low_value_scan (low_value_runner.py)
+outputs: dict {status: "started"|"already_running", started_at}
+calls: trigger_scan_async (low_value_runner.py)
 called_by: FastAPI (HTTP POST)
-mutates: intraday_trades table (via run_low_value_scan)
+mutates: none directly (trigger_scan_async starts a background thread)
 ---
 
 ---
@@ -10539,12 +10587,12 @@ mutates: none
 name: low_value_query
 type: function
 file: app.py
-purpose: POST /trade/low-value/query — natural-language query box for the Low Value page (added 2026-07-07). "Scan the market"/"any signals" triggers a live run_low_value_scan() (slow on cold cache — full-market scan, not an 8-symbol watchlist). Everything else ("brief"/"this week"/"yesterday"/unrecognized) returns get_low_value_brief() — a DB-only read, always fast. "yesterday" sets days=1, else days=7.
+purpose: POST /trade/low-value/query — natural-language query box for the Low Value page (added 2026-07-07). "Scan the market"/"any signals" starts a scan via trigger_scan_async (fixed same day — previously blocked on run_low_value_scan() directly, which was getting silently killed by Railway's proxy timeout after a long wait with a blank error). Everything else ("brief"/"this week"/"yesterday"/unrecognized) returns get_low_value_brief() — a DB-only read, always fast. "yesterday" sets days=1, else days=7.
 inputs: body: LowValueQueryRequest {query: str}
-outputs: dict (scan result or brief result)
-calls: run_low_value_scan (low_value_runner.py), get_low_value_brief (low_value_dashboard.py)
+outputs: dict (scan-trigger status or brief result)
+calls: trigger_scan_async (low_value_runner.py), get_low_value_brief (low_value_dashboard.py)
 called_by: FastAPI (HTTP POST)
-mutates: intraday_trades table (only when a scan triggers)
+mutates: none directly (trigger_scan_async starts a background thread)
 ---
 
 ---
@@ -10611,7 +10659,7 @@ mutates: none
 name: trading_low_value.html
 type: template
 file: templates/trading_low_value.html
-purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints. Added 2026-07-07: an "Ask" natural-language query box (POST /trade/low-value/query) mirroring the High Value page's ticker/brief input — "scan the market" triggers a live scan, "brief"/"this week"/"yesterday" show a fast read-only recap. Kimi round-2 review: scan-trigger queries now show a window.confirm() cost warning (~200 API calls, 2-10 min) before firing, via a client-side LV_SCAN_TRIGGERS list mirroring app.py's _LV_SCAN_TRIGGERS.
+purpose: Low Value engine landing page — explains the contrarian sub-$20 thesis, links to the dashboard and JSON diagnostic endpoints. Added 2026-07-07: an "Ask" natural-language query box (POST /trade/low-value/query) mirroring the High Value page's ticker/brief input — "scan the market" triggers a live scan, "brief"/"this week"/"yesterday" show a fast read-only recap. Kimi round-2 review: scan-trigger queries show a window.confirm() cost warning before firing, via a client-side LV_SCAN_TRIGGERS list mirroring app.py's _LV_SCAN_TRIGGERS. Fixed later the same day (production bug — scan was blocking the request and getting killed by a proxy timeout after 20+ min with a blank error): the JS now expects an immediate "started"/"already_running" response instead of waiting for the scan itself to finish, and tells the user to check the Dashboard/Runner Status instead of showing inline results.
 inputs: none
 outputs: HTML
 calls: /trade/low-value/query (fetch, JS)

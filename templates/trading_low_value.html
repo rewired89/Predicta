@@ -121,12 +121,12 @@ async function lvRunQuery() {
   const isScan = LV_SCAN_TRIGGERS.some(trig => qLower.includes(trig));
   if (isScan) {
     const ok = confirm(
-      "This scans the full daily universe (up to ~200 stocks) via live market data, news, and fundamentals APIs — it can take 2-10 minutes, especially on a cold cache. Continue?"
+      "This scans up to several hundred stocks via live market data, news, and fundamentals APIs — it runs in the background and can take several minutes to finish, especially on a cold cache. Continue?"
     );
     if (!ok) { out.textContent = "Scan cancelled."; return; }
   }
 
-  out.innerHTML = '<span class="lv-loading">Working… a live scan can take a minute or two the first time it runs today.</span>';
+  out.innerHTML = '<span class="lv-loading">Working…</span>';
   try {
     const res = await fetch("/trade/low-value/query", {
       method: "POST",
@@ -139,8 +139,11 @@ async function lvRunQuery() {
       return;
     }
     if (data.mode === "scan") {
-      out.textContent = `Scan complete — ${data.logged} new signal(s) logged` +
-        (data.trade_ids.length ? ` (trade ids: ${data.trade_ids.join(", ")})` : ".");
+      if (data.status === "already_running") {
+        out.textContent = `A scan is already running (started ${data.started_at}). Check Runner Status or the Dashboard in a few minutes.`;
+      } else {
+        out.textContent = `Scan started in the background at ${data.started_at}. This can take several minutes — check Runner Status (JSON) or the Dashboard shortly; this page won't auto-update.`;
+      }
     } else {
       const lines = [
         `Period: last ${data.days} day(s)`,
