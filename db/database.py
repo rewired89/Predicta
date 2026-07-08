@@ -408,6 +408,29 @@ def _migrate_nrfi_all_markets(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_low_value_universe_snapshot(conn: sqlite3.Connection) -> None:
+    """
+    Idempotent: add filter_stats_json to low_value_universe_snapshot for
+    Railway/existing DBs that already had the table before this column
+    existed (Kimi review, 2026-07-07 follow-up — volatility-floor
+    stagnant_filtered_count). Same ALTER-TABLE-if-missing pattern as
+    _migrate_intraday_trades; deliberately NOT relying on schema.sql's
+    CREATE TABLE IF NOT EXISTS alone, since that no-ops on an existing table
+    and would silently skip the new column on every already-deployed DB.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='low_value_universe_snapshot'"
+    ).fetchone()
+    if not row:
+        return  # created by schema.sql's CREATE TABLE IF NOT EXISTS with the column already present
+    existing_cols = {
+        r[1] for r in conn.execute("PRAGMA table_info(low_value_universe_snapshot)").fetchall()
+    }
+    if "filter_stats_json" not in existing_cols:
+        conn.execute("ALTER TABLE low_value_universe_snapshot ADD COLUMN filter_stats_json TEXT")
+    conn.commit()
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)  # ensure volume dir exists on Railway
     schema = SCHEMA_PATH.read_text()
@@ -417,6 +440,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
     _repair_matches_fk(conn)   # heal DBs corrupted by the old rename migration
     _migrate_intraday_trades(conn)
     _migrate_new_tables(conn)
+    _migrate_low_value_universe_snapshot(conn)
     _migrate_nrfi_clv(conn)
     _migrate_nrfi_all_markets(conn)
     conn.close()

@@ -99,17 +99,22 @@ def _in_scan_window() -> bool:
 def get_daily_universe(force_refresh: bool = False) -> list[str]:
     """
     Today's Low Value universe, cached in-memory for the day. Logs a snapshot
-    to low_value_universe_snapshot on every fresh scan (not on cache hits).
+    (including the volatility-floor stagnant_filtered_count, Kimi review
+    2026-07-07 follow-up) to low_value_universe_snapshot on every fresh scan
+    (not on cache hits).
     """
     today_str = _et_now().strftime("%Y-%m-%d")
     if not force_refresh and today_str in _universe_cache:
         return _universe_cache[today_str]
 
-    universe = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
+    universe, stats = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
     _universe_cache.clear()   # only ever keep today's entry
     _universe_cache[today_str] = universe
-    log_universe_snapshot(today_str, universe)
-    log.info(f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols")
+    log_universe_snapshot(today_str, universe, filter_stats=stats)
+    log.info(
+        f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols "
+        f"({stats.get('stagnant_filtered_count', 0)} excluded as stagnant)"
+    )
     return universe
 
 

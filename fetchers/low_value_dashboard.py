@@ -7,6 +7,7 @@ app.py's GET /trade/low-value/dashboard just calls render_low_value_dashboard()
 and wraps it in an HTMLResponse.
 """
 from __future__ import annotations
+import json
 from datetime import datetime, timezone
 
 from db.database import get_db
@@ -120,6 +121,12 @@ def render_low_value_dashboard() -> str:
     # not to loading a dashboard page).
     recent_snapshots = get_universe_snapshots(days=1)
     universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
+    stagnant_filtered = 0
+    if recent_snapshots and recent_snapshots[0].get("filter_stats_json"):
+        try:
+            stagnant_filtered = json.loads(recent_snapshots[0]["filter_stats_json"]).get("stagnant_filtered_count", 0)
+        except Exception:
+            stagnant_filtered = 0
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     runner_dot = "#22c55e" if runner_status.get("active") else "#ef4444"
@@ -228,6 +235,7 @@ def render_low_value_dashboard() -> str:
       <div class="stat-box"><div class="stat-value">{universe_size}</div><div class="stat-label">Symbols scanned</div></div>
       <div class="stat-box"><div class="stat-value">{len(open_t)}</div><div class="stat-label">Open positions (max 3)</div></div>
     </div>
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{stagnant_filtered} excluded as stagnant (volatility floor)</div>
   </div>
 
   <div class="card">

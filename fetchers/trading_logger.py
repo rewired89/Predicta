@@ -435,18 +435,23 @@ def log_low_value_trade(
         return cur.lastrowid
 
 
-def log_universe_snapshot(scan_date: str, symbols: list[str]) -> int:
+def log_universe_snapshot(scan_date: str, symbols: list[str], filter_stats: Optional[dict] = None) -> int:
     """
     Logs the Low Value universe scanner's daily output to
     low_value_universe_snapshot (Kimi review, round 6 follow-up spec:
     "Log universe composition ... so composition drift/quality is auditable").
+
+    filter_stats (Kimi review, 2026-07-07 follow-up): scanner.py's
+    build_low_value_universe() stats dict — currently stagnant_filtered_count,
+    how many price-filtered candidates the volatility floor excluded before
+    any paid API call.
     """
     import json
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO low_value_universe_snapshot (scan_date, symbols_json, symbol_count, logged_at) "
-            "VALUES (?, ?, ?, datetime('now'))",
-            (scan_date, json.dumps(symbols), len(symbols)),
+            "INSERT INTO low_value_universe_snapshot (scan_date, symbols_json, symbol_count, filter_stats_json, logged_at) "
+            "VALUES (?, ?, ?, ?, datetime('now'))",
+            (scan_date, json.dumps(symbols), len(symbols), json.dumps(filter_stats or {})),
         )
         return cur.lastrowid
 

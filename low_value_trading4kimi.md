@@ -454,3 +454,46 @@ enough to keep a real scan's wall-clock time reasonable. We don't have
 real data yet on what fraction of sub-$20 candidates actually pass every
 filter, so this number may need tuning once a few real scans complete and
 we can see the actual candidate-to-output survival rate.
+
+---
+
+## 15. Volatility Floor (2026-07-07, Kimi's proposal — built as specified)
+
+Built exactly to spec, with one implementation optimization:
+
+- **`VOLATILITY_FLOOR_ENABLED`**, **`VOLATILITY_FLOOR_MIN_DAY_MOVE_PCT`
+  (0.02)**, **`VOLATILITY_FLOOR_MIN_5D_RANGE_PCT`(0.05)** — module
+  constants in `scanner.py`, per your naming preference.
+- **`_has_meaningful_volatility(daily_bars)`** — True (passes) if at least
+  one of the last 5 daily bars had a `|close-open|/open >= 2%` move, OR the
+  5-day high-low range is `>= 5%` of the 5-day-ago open. A candidate is
+  only excluded when BOTH conditions miss, matching your OR-logic exactly.
+  Fails open (True, don't exclude) when fewer than 5 bars of history exist
+  — same "insufficient data isn't evidence of X" convention as every other
+  signal in this engine.
+- **Ordering**: runs after the free earnings-blackout check (zero cost,
+  no reason not to check it first) and before the volume/market-cap/SEC
+  checks — same effect as your "step 1.5" placement: it cuts the candidate
+  pool before any paid API call.
+- **One deliberate deviation from the literal spec**: rather than a
+  separate `get_daily_bars` call for the volatility check (as your example
+  code implied), `build_low_value_universe` fetches the 20-day bars once
+  per candidate and reuses that same list for both `_has_meaningful_volatility`
+  (last 5 bars) and the existing volume check (`_avg_daily_volume_20d`,
+  refactored to take bars instead of a symbol) — one Alpaca call instead of
+  two. Same outcome, fewer API calls, which matters given the same-day
+  scan-cost problem in Section 14.
+- **`stagnant_filtered_count`** — logged in `low_value_universe_snapshot.filter_stats_json`
+  (new column, migrated onto the existing table via
+  `db/database.py:_migrate_low_value_universe_snapshot`) and shown on the
+  dashboard, per your ask.
+
+Verified against your own four scenarios: a flat stock (±0.5% daily, tight
+range) is excluded; a falling-knife day (-17% single day) passes via the
+single-day-move condition; a gradual bleed with no single dramatic day but
+a wide 5-day range passes via the range condition; a candidate with fewer
+than 5 bars of history fails open rather than being excluded. End-to-end
+integration test confirms `build_low_value_universe` returns `(universe,
+stats)`, `get_daily_universe` unpacks it correctly and its own external
+contract (`list[str]`) is unchanged, and the logged snapshot row's
+`filter_stats_json` matches the actual excluded count.

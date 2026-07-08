@@ -9711,10 +9711,34 @@ mutates: none
 name: _avg_daily_volume_20d
 type: function
 file: models/trading/low_value/scanner.py
-purpose: 20-day average daily volume for one symbol via Alpaca daily bars. 0.0 if unavailable.
-inputs: symbol: str
+purpose: 20-day average daily volume from already-fetched Alpaca daily bars. 0.0 if unavailable. Refactored 2026-07-07 (Kimi volatility-floor follow-up) to take bars directly instead of a symbol + its own get_daily_bars call — build_low_value_universe now fetches bars once per candidate and reuses them for both this and _has_meaningful_volatility.
+inputs: daily_bars: list[dict]
 outputs: float
-calls: get_daily_bars
+calls: none
+called_by: build_low_value_universe
+mutates: none
+---
+
+---
+name: VOLATILITY_FLOOR_ENABLED / VOLATILITY_FLOOR_MIN_DAY_MOVE_PCT / VOLATILITY_FLOOR_MIN_5D_RANGE_PCT
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Kimi review (2026-07-07 follow-up) — excludes stagnant/"zombie" candidates (no meaningful 5-day price action) before any paid Finnhub/SEC call. Thresholds: at least one >=2% single-day move OR a 5-day high-low range >=5% of the 5-day-ago open; a candidate only fails if BOTH miss.
+inputs: none
+outputs: bool (True) / float (0.02) / float (0.05)
+calls: none
+called_by: _has_meaningful_volatility, build_low_value_universe
+mutates: none
+---
+
+---
+name: _has_meaningful_volatility
+type: function
+file: models/trading/low_value/scanner.py
+purpose: The volatility-floor check itself — True (pass) if the last 5 daily bars show a >=2% single-day move OR a >=5% 5-day range; False (excluded) only when both miss. Fails open (True) when fewer than 5 bars exist, same "don't guess" convention as every other signal in this engine — insufficient history is not evidence of stagnation.
+inputs: daily_bars: list[dict]
+outputs: bool
+calls: none
 called_by: build_low_value_universe
 mutates: none
 ---
@@ -9747,10 +9771,10 @@ mutates: none
 name: build_low_value_universe
 type: function
 file: models/trading/low_value/scanner.py
-purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate volume/market-cap/earnings-blackout/bankruptcy checks. Returns a sorted 50-200 symbol list.
+purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate earnings-blackout (free) -> volatility floor (Kimi review 2026-07-07 follow-up, before any paid call) -> volume -> market-cap -> bankruptcy checks. Returns (sorted 50-200 symbol list, stats dict). Daily bars are fetched once per candidate and reused for both the volatility floor and the volume check (previously two separate Alpaca calls).
 inputs: today_str: str, max_candidates: Optional[int] = None
-outputs: list[str]
-calls: get_all_active_assets, _cheap_price_filter, _is_earnings_blackout, _avg_daily_volume_20d, _get_market_cap, has_recent_bankruptcy_filing
+outputs: tuple[list[str], dict] — dict currently has stagnant_filtered_count
+calls: get_all_active_assets, _cheap_price_filter, _is_earnings_blackout, get_daily_bars, _has_meaningful_volatility, _avg_daily_volume_20d, _get_market_cap, has_recent_bankruptcy_filing
 called_by: get_daily_universe (low_value_runner.py)
 mutates: none
 ---
@@ -10143,8 +10167,8 @@ mutates: intraday_trades table (INSERT, engine='low_value')
 name: log_universe_snapshot
 type: function
 file: fetchers/trading_logger.py
-purpose: Logs the Low Value universe scanner's daily output to low_value_universe_snapshot for after-the-fact composition auditing.
-inputs: scan_date: str, symbols: list[str]
+purpose: Logs the Low Value universe scanner's daily output to low_value_universe_snapshot for after-the-fact composition auditing. Gained filter_stats param (2026-07-07, Kimi volatility-floor follow-up) — stored as filter_stats_json (currently stagnant_filtered_count).
+inputs: scan_date: str, symbols: list[str], filter_stats: Optional[dict] = None
 outputs: int (row id)
 calls: db.database.get_db
 called_by: get_daily_universe (low_value_runner.py)
@@ -10167,12 +10191,24 @@ mutates: none
 name: low_value_universe_snapshot
 type: table
 file: db/schema.sql
-purpose: Kimi review round 6 follow-up — daily Low Value universe scanner output, logged so composition drift/quality is auditable after the fact instead of only living in memory for one scan.
+purpose: Kimi review round 6 follow-up — daily Low Value universe scanner output, logged so composition drift/quality is auditable after the fact instead of only living in memory for one scan. Gained filter_stats_json (2026-07-07, volatility-floor follow-up) — migrated onto existing Railway DBs via db/database.py:_migrate_low_value_universe_snapshot (schema.sql's CREATE TABLE IF NOT EXISTS alone doesn't add columns to an already-existing table).
 inputs: none (DDL)
 outputs: none (DDL)
 calls: none
 called_by: log_universe_snapshot, get_universe_snapshots (trading_logger.py)
 mutates: none (DDL)
+---
+
+---
+name: _migrate_low_value_universe_snapshot
+type: function
+file: db/database.py
+purpose: Idempotent ALTER-TABLE-if-missing migration adding filter_stats_json to low_value_universe_snapshot on existing DBs (2026-07-07) — same pattern as _migrate_intraday_trades, added after the earlier same-day production crash made "new column, existing table" migrations something to always handle explicitly rather than assume schema.sql's executescript covers.
+inputs: conn: sqlite3.Connection
+outputs: none
+calls: none
+called_by: init_db
+mutates: low_value_universe_snapshot table (ALTER TABLE ADD COLUMN, if missing)
 ---
 
 ---
@@ -10311,7 +10347,7 @@ mutates: none
 name: get_daily_universe
 type: function
 file: fetchers/low_value_runner.py
-purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
+purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot (including stagnant_filtered_count as of 2026-07-07) on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. Unpacks build_low_value_universe's (universe, stats) tuple internally — its own external contract (returns list[str]) is unchanged. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
 inputs: force_refresh: bool = False
 outputs: list[str]
 calls: build_low_value_universe, log_universe_snapshot
@@ -10467,7 +10503,7 @@ mutates: none
 name: render_low_value_dashboard
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON.
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON. Same day, third addition: shows the volatility-floor stagnant_filtered_count from the latest snapshot's filter_stats_json.
 inputs: none
 outputs: str (HTML)
 calls: get_runner_status (low_value_runner.py), get_universe_snapshots (trading_logger.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db

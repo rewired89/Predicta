@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS low_value_universe_snapshot (
     scan_date TEXT NOT NULL,
     symbols_json TEXT NOT NULL,
     symbol_count INTEGER NOT NULL,
+    filter_stats_json TEXT,
     logged_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_lv_universe_date ON low_value_universe_snapshot(scan_date);
