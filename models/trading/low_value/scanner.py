@@ -80,7 +80,7 @@ def _has_meaningful_volatility(daily_bars: list[dict]) -> bool:
     there isn't enough history to judge, same "don't guess" convention as
     every other signal in this engine.
     """
-    if len(daily_bars) < 5:
+    if not daily_bars or len(daily_bars) < 5:
         return True
     last5 = daily_bars[-5:]
     day_moves = [
@@ -146,6 +146,8 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
             continue
 
         daily_bars = get_daily_bars(sym, days=20)
+        if not daily_bars:
+            continue  # no bar data for this symbol (thin/new listing) — can't evaluate volatility or volume
 
         if VOLATILITY_FLOOR_ENABLED and not _has_meaningful_volatility(daily_bars):
             stagnant_filtered_count += 1

@@ -497,3 +497,53 @@ integration test confirms `build_low_value_universe` returns `(universe,
 stats)`, `get_daily_universe` unpacks it correctly and its own external
 contract (`list[str]`) is unchanged, and the logged snapshot row's
 `filter_stats_json` matches the actual excluded count.
+
+---
+
+## 16. Production Crash: `get_daily_bars` Returns `None`, Not `[]` (2026-07-08)
+
+First real "scan the market" attempt after Section 15 shipped crashed
+immediately — the dashboard showed "Last Scan Failed: object of type
+'NoneType' has no len()", with 0 symbols scanned and 0 excluded.
+
+**Root cause**: `fetchers/alpaca.py`'s `get_daily_bars()` (and `get_bars()`,
+same bug) did `return data.get("bars", [])`. That default only applies
+when the `"bars"` key is *missing* from Alpaca's response — but Alpaca
+sometimes returns `{"bars": null, ...}` explicitly, for a symbol with no
+data in the requested date range. `.get("bars", [])` on a dict that
+literally contains `"bars": None` returns `None`, not `[]`. Section 15's
+new volatility-floor code called `_has_meaningful_volatility(daily_bars)`,
+which did `len(daily_bars) < 5` with no None-guard — `len(None)` is
+exactly `"object of type 'NoneType' has no len()"`.
+
+**Why High Value never hit this**: its watchlist is a fixed set of liquid
+large-caps (`RUNNER_SYMBOLS`) that always have bar data. Low Value's
+scanner evaluates a much wider pool of obscure sub-$20 stocks — thin
+listings, recent IPOs, illiquid names — where Alpaca returning no data for
+the requested window is common, not an edge case. This is also why it
+only surfaced now: `get_daily_bars`/`get_bars` have been in the codebase
+since before this session, but every prior caller either happened to only
+query liquid symbols (High Value) or already guarded the return value
+before using it (e.g. `_avg_daily_volume_20d`'s `if not daily_bars: return
+0.0` — `not None` is `True`, so that path was always safe). Section 15's
+new code was the first caller to use a fetched-once `daily_bars` value
+directly without that guard.
+
+**Fixed at three layers** (defense in depth, not redundancy for its own
+sake — each catches a different future mistake):
+1. **Root cause**: `get_daily_bars`/`get_bars` now do `data.get("bars") or
+   []` — never returns `None` regardless of whether Alpaca omits the key
+   or sends it as `null`. This protects every current and future caller,
+   not just the volatility floor.
+2. **Scanner-level**: `build_low_value_universe` now does `if not
+   daily_bars: continue` right after fetching — a candidate with no bar
+   data can't be evaluated for volatility or volume anyway, so it's
+   skipped cleanly instead of relying solely on the fix above.
+3. **Function-level**: `_has_meaningful_volatility`'s guard changed from
+   `len(daily_bars) < 5` to `not daily_bars or len(daily_bars) < 5`.
+
+Verified two ways: a direct test confirms `get_daily_bars`/`get_bars`
+return `[]` (not `None`) when fed Alpaca's exact `{"bars": null}` response
+shape, and a full scanner regression test stubs `get_daily_bars` to return
+`None` (the pre-fix real-world behavior) and confirms
+`build_low_value_universe` now completes cleanly instead of crashing.

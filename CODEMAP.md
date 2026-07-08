@@ -2790,7 +2790,7 @@ mutates: Alpaca paper account (cancels order)
 name: get_bars
 type: function
 file: fetchers/alpaca.py
-purpose: Fetches OHLCV bars for a symbol at a given timeframe (default 5-min, 78 bars = one full trading day).
+purpose: Fetches OHLCV bars for a symbol at a given timeframe (default 5-min, 78 bars = one full trading day). Fixed 2026-07-08: uses `data.get("bars") or []`, not `data.get("bars", [])` — Alpaca can send {"bars": null} explicitly for a symbol with no data in range, which a plain .get(key, default) does NOT catch (default only applies to a missing key, not a null value).
 inputs: symbol: str, timeframe: str = "5Min", limit: int = 78
 outputs: list[dict {t, o, h, l, c, v, vw}]
 calls: _get
@@ -2802,11 +2802,11 @@ mutates: none
 name: get_daily_bars
 type: function
 file: fetchers/alpaca.py
-purpose: Fetches daily OHLCV bars for context and trend analysis over the past N days.
+purpose: Fetches daily OHLCV bars for context and trend analysis over the past N days. Fixed 2026-07-08 (production crash — root cause of "Last Scan Failed: object of type 'NoneType' has no len()" on the Low Value engine): uses `data.get("bars") or []`, not `data.get("bars", [])` — Alpaca sends {"bars": null} explicitly for some thin-data symbols, which a plain .get(key, default) does not catch. High Value never hit this (its fixed watchlist is always liquid); Low Value's scanner evaluates obscure penny stocks where it's common.
 inputs: symbol: str, days: int = 60
 outputs: list[dict]
 calls: _get
-called_by: _analyze_one (screener.py), intraday_analysis (app.py)
+called_by: _analyze_one (screener.py), intraday_analysis (app.py), build_low_value_universe (scanner.py), thesis-related callers in thesis_tracker.py/low_value_runner.py
 mutates: none
 ---
 
@@ -9735,7 +9735,7 @@ mutates: none
 name: _has_meaningful_volatility
 type: function
 file: models/trading/low_value/scanner.py
-purpose: The volatility-floor check itself — True (pass) if the last 5 daily bars show a >=2% single-day move OR a >=5% 5-day range; False (excluded) only when both miss. Fails open (True) when fewer than 5 bars exist, same "don't guess" convention as every other signal in this engine — insufficient history is not evidence of stagnation.
+purpose: The volatility-floor check itself — True (pass) if the last 5 daily bars show a >=2% single-day move OR a >=5% 5-day range; False (excluded) only when both miss. Fails open (True) when fewer than 5 bars exist, same "don't guess" convention as every other signal in this engine — insufficient history is not evidence of stagnation. Fixed 2026-07-08 production crash: guard is `not daily_bars or len(daily_bars) < 5` — previously `len(daily_bars) < 5` alone crashed with "NoneType has no len()" when get_daily_bars returned None (Alpaca sends {"bars": null} for some thin-data symbols).
 inputs: daily_bars: list[dict]
 outputs: bool
 calls: none
@@ -9771,7 +9771,7 @@ mutates: none
 name: build_low_value_universe
 type: function
 file: models/trading/low_value/scanner.py
-purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate earnings-blackout (free) -> volatility floor (Kimi review 2026-07-07 follow-up, before any paid call) -> volume -> market-cap -> bankruptcy checks. Returns (sorted 50-200 symbol list, stats dict). Daily bars are fetched once per candidate and reused for both the volatility floor and the volume check (previously two separate Alpaca calls).
+purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate earnings-blackout (free) -> volatility floor (Kimi review 2026-07-07 follow-up, before any paid call) -> volume -> market-cap -> bankruptcy checks. Returns (sorted 50-200 symbol list, stats dict). Daily bars are fetched once per candidate and reused for both the volatility floor and the volume check (previously two separate Alpaca calls). Fixed 2026-07-08: skips a candidate outright (`if not daily_bars: continue`) when get_daily_bars returns no data — defense-in-depth alongside the get_daily_bars fix itself, since a thinly-traded penny stock with no bar history can't be evaluated for volatility or volume anyway.
 inputs: today_str: str, max_candidates: Optional[int] = None
 outputs: tuple[list[str], dict] — dict currently has stagnant_filtered_count
 calls: get_all_active_assets, _cheap_price_filter, _is_earnings_blackout, get_daily_bars, _has_meaningful_volatility, _avg_daily_volume_20d, _get_market_cap, has_recent_bankruptcy_filing

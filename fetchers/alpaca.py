@@ -77,7 +77,13 @@ def get_bars(symbol: str, timeframe: str = "5Min", limit: int = 78) -> list[dict
     data = _get(url, params)
     if "error" in data:
         return []
-    bars = data.get("bars", [])
+    # Alpaca sometimes returns {"bars": null} (not a missing key) for a
+    # symbol with no data in range — .get(key, default) only falls back on
+    # a MISSING key, not a null value, so this crashed downstream callers
+    # with "NoneType has no len()" on thinly-traded Low Value candidates
+    # (fixed 2026-07-08; High Value's fixed watchlist never hit this since
+    # its symbols always have bar data).
+    bars = data.get("bars") or []
     return [
         {
             "t": b["t"],
@@ -106,7 +112,9 @@ def get_daily_bars(symbol: str, days: int = 60) -> list[dict]:
     data = _get(url, params)
     if "error" in data:
         return []
-    return data.get("bars", [])
+    # See get_bars() above — Alpaca can return {"bars": null} explicitly,
+    # which .get(key, default) does NOT catch (only a missing key does).
+    return data.get("bars") or []
 
 
 def get_snapshot(symbol: str) -> dict:
