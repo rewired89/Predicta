@@ -677,8 +677,16 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
             steps.append({"step": "ai_signals", "status": "error", "error": str(exc2)})
             sigs = {}
 
-        home_key   = sigs.get("home_team", "team_a")
-        is_home_a  = (home_key == "team_a")
+        # Always treat team_a as home here instead of trusting sigs["home_team"].
+        # This path only runs when the real ESPN/MLB schedule fetch failed, so
+        # there's no live data to check Claude's guess against — and Claude has
+        # gotten it backwards in practice (e.g. an AZ @ SD game logged with the
+        # away team recorded as home), which corrupts mu_home/mu_away, the park
+        # factor lookup, and ml_correct grading for that game. daily_nrfi.py
+        # always builds the query as "{home_abbr} vs {away_abbr}", so team_a is
+        # already the real home team for the automated pipeline; for manual
+        # queries this is a documented assumption, not a verified fact.
+        is_home_a  = True
         pf         = float(sigs.get("park_factor", 1.0))
         sig_a      = sigs.get("team_a", {})
         sig_b      = sigs.get("team_b", {})
