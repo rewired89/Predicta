@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-09T18:44:33.293928+00:00",
+  "fetched_at": "2026-07-10T13:03:22.366524+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-07-09T12:07Z"
+            "lastUpdated": "2026-07-09T13:19Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-07-09T12:07Z"
+            "lastUpdated": "2026-07-09T13:19Z"
           }
         ],
         "calendarType": "day",
@@ -37729,20 +37729,20 @@
               {
                 "id": "177489",
                 "uid": "s:850~l:851~e:188-2026~c:177489",
-                "date": "2026-07-10T12:30Z",
-                "startDate": "2026-07-10T12:30Z",
+                "date": "2026-07-10T12:35Z",
+                "startDate": "2026-07-10T12:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 10th at 8:30 AM EDT",
-                    "shortDetail": "7/10 - 8:30 AM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -37754,7 +37754,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Alexander Zverev (GER) leads Arthur Fery (GBR) 3-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [
                   {
                     "type": {
@@ -37789,9 +37794,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "fd06b6ea-593b-d5b3-da2b-767ec3e4232c",
                       "displayName": "Alexander Zverev",
@@ -37829,6 +37840,12 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "c07ac792-a539-3529-a750-6698c994081e",
                       "displayName": "Arthur Fery",
@@ -37861,6 +37878,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 188,
                 "type": {
                   "id": "1",
@@ -74337,7 +74359,7 @@
                 },
                 "venue": {
                   "fullName": "London, Great Britain",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -88336,9 +88358,9 @@
               {
                 "id": "177463",
                 "uid": "s:850~l:851~e:188-2026~c:177463",
-                "date": "2026-07-11T04:00Z",
-                "startDate": "2026-07-11T04:00Z",
-                "timeValid": false,
+                "date": "2026-07-11T12:00Z",
+                "startDate": "2026-07-11T12:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -88348,13 +88370,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, July 11th at 8:00 AM EDT",
+                    "shortDetail": "7/11 - 8:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "London, Great Britain",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -101433,8 +101455,8 @@
               {
                 "id": "177627",
                 "uid": "s:850~l:851~e:188-2026~c:177627",
-                "date": "2026-07-09T10:00Z",
-                "startDate": "2026-07-09T10:00Z",
+                "date": "2026-07-09T10:10Z",
+                "startDate": "2026-07-09T10:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -101883,20 +101905,20 @@
               {
                 "id": "177649",
                 "uid": "s:850~l:851~e:188-2026~c:177649",
-                "date": "2026-07-10T12:00Z",
-                "startDate": "2026-07-10T12:00Z",
+                "date": "2026-07-10T12:05Z",
+                "startDate": "2026-07-10T12:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 10th at 8:00 AM EDT",
-                    "shortDetail": "7/10 - 8:00 AM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -101908,7 +101930,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Gabriela Dabrowski (CAN) & Luisa Stefani (BRA) leads (13) Shuko Aoyama (JPN) & En-Shuo Liang (TPO) 7-5 3-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [
                   {
                     "type": {
@@ -101947,6 +101974,15 @@
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Gabriela Dabrowski / Luisa Stefani",
                       "shortDisplayName": "G. Dabrowski / L. Stefani",
@@ -102022,6 +102058,15 @@
                     "curatedRank": {
                       "current": 13
                     },
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Shuko Aoyama / En-Shuo Liang",
                       "shortDisplayName": "S. Aoyama / E. Liang",
@@ -109145,17 +109190,17 @@
                 "date": "2026-07-09T17:35Z",
                 "startDate": "2026-07-09T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -109169,7 +109214,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Storm Hunter (AUS) & Marc Polmans (AUS) leads (2) Marcelo Arevalo (ESA) & Jelena Ostapenko (LAT) 6-4 3-2",
+                    "text": "(2) Marcelo Arevalo (ESA) & Jelena Ostapenko (LAT) bt Storm Hunter (AUS) & Marc Polmans (AUS) 4-6 7-5 6-2",
                     "type": "event"
                   }
                 ],
@@ -109183,7 +109228,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -109193,7 +109238,12 @@
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -109268,14 +109318,19 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -109345,11 +109400,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 188,
                 "type": {
                   "id": "6",
@@ -113908,61 +113958,140 @@
               {
                 "id": "178698",
                 "uid": "s:850~l:851~e:306-2026~c:178698",
-                "date": "2026-07-10T09:00Z",
-                "startDate": "2026-07-10T09:00Z",
+                "date": "2026-07-10T09:05Z",
+                "startDate": "2026-07-10T09:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 10th at 5:00 AM EDT",
-                    "shortDetail": "7/10 - 5:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
                   "fullName": "B\u00e5stad, Sweden",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Simona Waltert (SUI) bt (8) Kaitlin Quevedo (ESP) 7-5 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3388",
+                    "uid": "s:850~l:851~a:3388",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "326bcb83-8418-c4a2-8e55-aedd00a1979a",
+                      "displayName": "Simona Waltert",
+                      "shortName": "S. Waltert",
+                      "fullName": "Simona Waltert",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/sui.png",
+                        "alt": "Switzerland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3388/simona-waltert",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "14460",
+                    "uid": "s:850~l:851~a:14460",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "curatedRank": {
+                      "current": 8
+                    },
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "dd910467-923d-35e9-a3fd-a2f884b49732",
+                      "displayName": "Kaitlin Quevedo",
+                      "shortName": "K. Quevedo",
+                      "fullName": "Kaitlin Quevedo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/14460/kaitlin-quevedo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -113982,20 +114111,20 @@
               {
                 "id": "178697",
                 "uid": "s:850~l:851~e:306-2026~c:178697",
-                "date": "2026-07-10T10:30Z",
-                "startDate": "2026-07-10T10:30Z",
+                "date": "2026-07-10T10:55Z",
+                "startDate": "2026-07-10T10:55Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 10th at 6:30 AM EDT",
-                    "shortDetail": "7/10 - 6:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -114007,7 +114136,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Paula Badosa (ESP) bt (3) Yulia Putintseva (KAZ) 6-1 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -114018,6 +114152,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "c6e9dd09-9179-acab-8601-da5b1ce04d30",
                       "displayName": "Paula Badosa",
@@ -114055,9 +114200,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "e45e1972-f8f0-fb07-5a19-5129931454bb",
                       "displayName": "Yulia Putintseva",
@@ -114136,30 +114292,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2731",
+                    "uid": "s:850~l:851~a:2731",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "c6e9dd09-9179-acab-8601-da5b1ce04d30",
+                      "displayName": "Paula Badosa",
+                      "shortName": "P. Badosa",
+                      "fullName": "Paula Badosa",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2731/paula-badosa",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "3388",
+                    "uid": "s:850~l:851~a:3388",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "326bcb83-8418-c4a2-8e55-aedd00a1979a",
+                      "displayName": "Simona Waltert",
+                      "shortName": "S. Waltert",
+                      "fullName": "Simona Waltert",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/sui.png",
+                        "alt": "Switzerland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3388/simona-waltert",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -117049,32 +117254,37 @@
               {
                 "id": "178710",
                 "uid": "s:850~l:851~e:306-2026~c:178710",
-                "date": "2026-07-10T04:00Z",
-                "startDate": "2026-07-10T04:00Z",
-                "timeValid": false,
-                "recent": false,
+                "date": "2026-07-10T12:35Z",
+                "startDate": "2026-07-10T12:35Z",
+                "timeValid": true,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
                   "fullName": "B\u00e5stad, Sweden",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Emiliana Arango (COL) & Simona Waltert (SUI) leads Ya Hsin Lee () & Qiu Yu Ye (CHN) 5-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -117085,6 +117295,12 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Ya Hsin Lee / Ye Qiu Yu",
                       "shortDisplayName": "Y. Lee / Q. Ye",
@@ -117145,32 +117361,89 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "3184-3388",
+                    "uid": "s:850~l:851~t:3184-3388",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Emiliana Arango / Simona Waltert",
+                      "shortDisplayName": "E. Arango / S. Waltert",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "b3ab143f-9634-2e5e-7d58-23bf73021c67",
+                          "displayName": "Emiliana Arango",
+                          "shortName": "E. Arango",
+                          "fullName": "Emiliana Arango",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                            "alt": "Colombia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3184/emiliana-arango",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "326bcb83-8418-c4a2-8e55-aedd00a1979a",
+                          "displayName": "Simona Waltert",
+                          "shortName": "S. Waltert",
+                          "fullName": "Simona Waltert",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/sui.png",
+                            "alt": "Switzerland",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3388/simona-waltert",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 306,
                 "type": {
                   "id": "4",
