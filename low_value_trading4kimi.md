@@ -644,3 +644,23 @@ correct, this isn't a code bug at all — it's a missing API key, and the
 fix is a Railway dashboard config change (add `FINNHUB_API_KEY`), not a
 code change. The next scan's dashboard funnel line will confirm or rule
 this out directly.
+
+**Resolution**: confirmed as the cause. `FINNHUB_API_KEY` was added to
+Railway on 2026-07-11. One question came up worth recording since it'll
+likely come up again: *"we have Alpaca for real-time market data, why do
+we need Finnhub at all?"* — Alpaca's Market Data API is prices/bars/quotes/
+volume only; it has no market-cap or fundamentals endpoint at any tier.
+The funnel diagnostics already proved Alpaca itself was never the problem
+(500 candidates cleanly passed the Alpaca-powered price and volume
+stages) — the empty universe was entirely the market-cap step, which by
+design was never routed through Alpaca. Finnhub isn't redundant with
+Alpaca, it's the only source in this pipeline for that specific data
+point.
+
+**Not yet independently re-verified in this session** — the key was added
+right as the session was wrapping up. Next scan (whenever it next runs,
+manually or at the 8 AM ET schedule) should show `market_cap_unavailable_count`
+drop sharply on the dashboard's funnel line. If it doesn't, the market-cap
+lookup itself needs a closer look (bad key, Finnhub rate-limiting, etc.) —
+that's the first thing to check at the start of the next session if the
+universe is still coming back empty.
