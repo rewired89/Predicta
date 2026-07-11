@@ -150,11 +150,18 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
          one Alpaca call, not two), market_cap > $50M, no bankruptcy 8-K in
          last 90 days. Order minimizes wasted API calls on candidates that
          fail cheaper checks first.
-    Returns (sorted list of 50-200 symbols, stats dict) — stats has
-    stagnant_filtered_count (candidates excluded by the volatility floor),
-    candidates_evaluated, elapsed_sec, and time_budget_exceeded (True if
-    SCAN_TIME_BUDGET_SEC was hit before finishing the candidate pool — a
-    partial, non-empty result in that case is expected and fine, not a bug).
+    Returns (sorted list of 50-200 symbols, stats dict) — stats has a
+    per-stage breakdown (stagnant_filtered_count, volume_filtered_count,
+    market_cap_unavailable_count, market_cap_too_small_count,
+    bankruptcy_filtered_count) plus candidates_evaluated, elapsed_sec, and
+    time_budget_exceeded. The stage breakdown (added 2026-07-11, after a
+    scan evaluated 500 candidates in 127s but produced 0 symbols with no way
+    to tell why) specifically separates market_cap_unavailable_count (Finnhub
+    AND Yahoo both failed to return a cap — a data-source availability
+    problem, e.g. missing FINNHUB_API_KEY or Yahoo being blocked from
+    Railway's datacenter IP) from market_cap_too_small_count (a real cap was
+    found and it's legitimately under $50M) — those look identical from the
+    final symbol count alone but mean completely different things.
 
     max_candidates caps how many price-filtered symbols get the expensive
     per-symbol checks — a safety valve against a very large Alpaca universe
@@ -167,8 +174,14 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
 
     all_symbols = get_all_active_assets()
     log.info(f"[LOW_VALUE_SCANNER] {len(all_symbols)} active Alpaca assets")
+    empty_stats = {
+        "stagnant_filtered_count": 0, "volume_filtered_count": 0,
+        "market_cap_unavailable_count": 0, "market_cap_too_small_count": 0,
+        "bankruptcy_filtered_count": 0, "candidates_evaluated": 0,
+        "elapsed_sec": 0, "time_budget_exceeded": False,
+    }
     if not all_symbols:
-        return [], {"stagnant_filtered_count": 0, "candidates_evaluated": 0, "elapsed_sec": 0, "time_budget_exceeded": False}
+        return [], empty_stats
 
     price_filter_deadline = start + PRICE_FILTER_TIME_BUDGET_SEC
     price_ok = _cheap_price_filter(all_symbols, price_filter_deadline)
@@ -178,6 +191,10 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
     scan_deadline = start + SCAN_TIME_BUDGET_SEC
     universe: list[str] = []
     stagnant_filtered_count = 0
+    volume_filtered_count = 0
+    market_cap_unavailable_count = 0
+    market_cap_too_small_count = 0
+    bankruptcy_filtered_count = 0
     candidates_evaluated = 0
     time_budget_exceeded = False
 
@@ -209,11 +226,17 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
             stagnant_filtered_count += 1
             continue
         if _avg_daily_volume_20d(daily_bars) <= MIN_AVG_DAILY_VOLUME_20D:
+            volume_filtered_count += 1
             continue
         cap = _get_market_cap(sym)
-        if cap is None or cap <= MIN_MARKET_CAP:
+        if cap is None:
+            market_cap_unavailable_count += 1
+            continue
+        if cap <= MIN_MARKET_CAP:
+            market_cap_too_small_count += 1
             continue
         if has_recent_bankruptcy_filing(sym, days=BANKRUPTCY_LOOKBACK_DAYS):
+            bankruptcy_filtered_count += 1
             continue
         universe.append(sym)
         if len(universe) >= UNIVERSE_MAX_SIZE:
@@ -222,10 +245,23 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
     elapsed_sec = round(time.monotonic() - start, 1)
     log.info(
         f"[LOW_VALUE_SCANNER] build_low_value_universe complete — {len(universe)} symbols, "
-        f"{candidates_evaluated} evaluated, {stagnant_filtered_count} stagnant, {elapsed_sec}s elapsed"
+        f"{candidates_evaluated} evaluated, {stagnant_filtered_count} stagnant, "
+        f"{volume_filtered_count} low-volume, {market_cap_unavailable_count} cap-unavailable, "
+        f"{market_cap_too_small_count} cap-too-small, {bankruptcy_filtered_count} bankruptcy, "
+        f"{elapsed_sec}s elapsed"
     )
+    if candidates_evaluated > 0 and market_cap_unavailable_count / candidates_evaluated > 0.5:
+        log.warning(
+            f"[LOW_VALUE_SCANNER] market cap unavailable for {market_cap_unavailable_count}/{candidates_evaluated} "
+            f"candidates ({market_cap_unavailable_count/candidates_evaluated:.0%}) — check FINNHUB_API_KEY is set "
+            f"and Yahoo Finance isn't blocking Railway's IP; this is a data-source problem, not a real filter result"
+        )
     return sorted(universe), {
         "stagnant_filtered_count": stagnant_filtered_count,
+        "volume_filtered_count": volume_filtered_count,
+        "market_cap_unavailable_count": market_cap_unavailable_count,
+        "market_cap_too_small_count": market_cap_too_small_count,
+        "bankruptcy_filtered_count": bankruptcy_filtered_count,
         "candidates_evaluated": candidates_evaluated,
         "elapsed_sec": elapsed_sec,
         "time_budget_exceeded": time_budget_exceeded,

@@ -607,3 +607,40 @@ stage (Alpaca). If `candidates_evaluated` is high but the universe is
 still empty, the filters themselves (volume/cap/volatility/bankruptcy) are
 the more likely culprit, not a slow dependency — a different investigation
 entirely.
+
+**Update, same day — the second scenario happened, and it's not a code
+bug.** The next scan completed cleanly: 500 candidates evaluated in 127s
+(well inside the time budget — not slow), 218 excluded by the volatility
+floor, but 0 symbols in the final universe. Since `candidates_evaluated`
+was high and `time_budget_exceeded` was false, this pointed straight at
+one of the later filter stages per the note above — but there was no way
+to tell *which* stage without a per-stage breakdown, which didn't exist
+yet.
+
+**Added**: `build_low_value_universe`'s stats dict now tracks
+`volume_filtered_count`, `market_cap_unavailable_count`,
+`market_cap_too_small_count`, and `bankruptcy_filtered_count` separately.
+The key distinction is `market_cap_unavailable_count` vs
+`market_cap_too_small_count` — both used to collapse into the same "cap
+check failed" bucket, but they mean opposite things: unavailable means
+Finnhub AND Yahoo both failed to return *any* cap (a data-source problem),
+too-small means a real cap was found and it's legitimately under $50M (the
+filter working correctly). A regression test reproducing the exact
+real-world symptom (both `get_market_cap` sources stubbed to return `None`
+for every candidate) confirms this now shows up unambiguously as
+`market_cap_unavailable_count: N, market_cap_too_small_count: 0` instead
+of an opaque empty universe. Also added a log warning + dashboard banner
+that fires automatically when `market_cap_unavailable_count` exceeds 50%
+of evaluated candidates.
+
+**Most likely actual cause, pending confirmation from the next scan's
+funnel breakdown**: `FINNHUB_API_KEY` is not set as a Railway environment
+variable. Without it, every `finnhub_market_cap()` call fails immediately
+(by design — fails safe on a missing key), pushing every single symbol
+onto the Yahoo Finance backup (`fetchers/yahoo_quote.py`), which hits
+`query1.finance.yahoo.com` — a public endpoint commonly rate-limited or
+blocked for datacenter IPs, which is exactly what Railway is. If that's
+correct, this isn't a code bug at all — it's a missing API key, and the
+fix is a Railway dashboard config change (add `FINNHUB_API_KEY`), not a
+code change. The next scan's dashboard funnel line will confirm or rule
+this out directly.

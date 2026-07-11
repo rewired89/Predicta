@@ -123,6 +123,8 @@ def render_low_value_dashboard() -> str:
     universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
     stagnant_filtered = 0
     scan_timing_note = ""
+    funnel_note = ""
+    data_source_warning = ""
     if recent_snapshots and recent_snapshots[0].get("filter_stats_json"):
         try:
             fstats = json.loads(recent_snapshots[0]["filter_stats_json"])
@@ -132,6 +134,25 @@ def render_low_value_dashboard() -> str:
                     f" · last scan took {fstats['elapsed_sec']:.0f}s, evaluated {fstats.get('candidates_evaluated', 0)} candidates"
                     + (" (TIME BUDGET EXCEEDED — partial result)" if fstats.get("time_budget_exceeded") else "")
                 )
+            if "volume_filtered_count" in fstats:
+                funnel_note = (
+                    f"Funnel: {fstats.get('candidates_evaluated', 0)} evaluated → "
+                    f"{stagnant_filtered} stagnant, {fstats.get('volume_filtered_count', 0)} low-volume, "
+                    f"{fstats.get('market_cap_unavailable_count', 0)} cap-unavailable, "
+                    f"{fstats.get('market_cap_too_small_count', 0)} cap-too-small, "
+                    f"{fstats.get('bankruptcy_filtered_count', 0)} bankruptcy → {universe_size} passed"
+                )
+                evaluated = fstats.get("candidates_evaluated", 0)
+                cap_unavailable = fstats.get("market_cap_unavailable_count", 0)
+                if evaluated > 0 and cap_unavailable / evaluated > 0.5:
+                    data_source_warning = (
+                        f'<div class="card" style="border-color:#f59e0b;">'
+                        f'<div class="card-title" style="color:#f59e0b;">Data Source Warning</div>'
+                        f'<div style="font-size:.85rem;">Market cap was unavailable for {cap_unavailable}/{evaluated} '
+                        f'candidates ({cap_unavailable/evaluated:.0%}) — check FINNHUB_API_KEY is set in Railway and that '
+                        f'Yahoo Finance isn\'t blocking Railway\'s IP. This is a data-source problem, not a real filter result.</div>'
+                        f'</div>'
+                    )
         except Exception:
             stagnant_filtered = 0
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -235,6 +256,7 @@ def render_low_value_dashboard() -> str:
 <main>
 
   {scan_banner_html}
+  {data_source_warning}
 
   <div class="card">
     <div class="card-title">Today's Universe</div>
@@ -243,6 +265,7 @@ def render_low_value_dashboard() -> str:
       <div class="stat-box"><div class="stat-value">{len(open_t)}</div><div class="stat-label">Open positions (max 3)</div></div>
     </div>
     <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{stagnant_filtered} excluded as stagnant (volatility floor){scan_timing_note}</div>
+    {f'<div style="font-size:.76rem; color:var(--muted); margin-top:6px;">{funnel_note}</div>' if funnel_note else ''}
   </div>
 
   <div class="card">
