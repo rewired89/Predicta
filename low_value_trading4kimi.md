@@ -547,3 +547,63 @@ return `[]` (not `None`) when fed Alpaca's exact `{"bars": null}` response
 shape, and a full scanner regression test stubs `get_daily_bars` to return
 `None` (the pre-fix real-world behavior) and confirms
 `build_low_value_universe` now completes cleanly instead of crashing.
+
+---
+
+## 17. Scan Ran 5+ Minutes With Zero Result, No Visibility (2026-07-11)
+
+After Section 16's crash fix deployed, a live "scan the market" attempt
+still produced nothing — no crash this time, just silence. Runner status
+showed `scan_in_progress: false, last_scan_started_at: null` even though
+the query box had just reported `{"status": "started", ...}` a few minutes
+earlier.
+
+**Diagnosis process, since we have no direct server access**: rather than
+guess, walked the user through hitting `POST /trade/low-value/query`
+directly (bypassing the browser frontend entirely) via curl/PowerShell.
+That confirmed the trigger itself works correctly — first call returned
+`{"status": "started"}`, an immediate second call correctly returned
+`{"status": "already_running"}` (proving both `trigger_scan_async` and its
+duplicate-scan lock work as designed). So the bug isn't in the
+trigger/lock mechanism — it's that the background scan itself either never
+finishes or the state gets reset before it does, and we have zero logging
+to tell which.
+
+**Root problem found on inspection, not from a log (we don't have log
+access)**: `build_low_value_universe` and `_cheap_price_filter` had no
+wall-clock time limit anywhere, and *no progress logging at all* — a
+completely silent multi-minute (or multi-hour, in the worst case) loop.
+Combined with `get_all_active_assets()` potentially returning several
+thousand candidates and `_cheap_price_filter` making up to ~50 sequential
+batched Alpaca snapshot calls before the per-symbol loop even starts, this
+pipeline has no circuit breaker if *any* dependency in the chain (Alpaca's
+snapshot endpoint on a large batch, or — most likely suspect — Finnhub,
+SEC EDGAR's ticker-map download, or Nasdaq's short-interest endpoint being
+slow/throttled from Railway's datacenter IP, the exact same failure class
+already documented in this codebase for FanGraphs/Baseball Savant) is
+slower than expected. It just keeps going, invisibly.
+
+**Fixed**: two independent wall-clock budgets — `SCAN_TIME_BUDGET_SEC`
+(240s) bounds the whole `build_low_value_universe` call,
+`PRICE_FILTER_TIME_BUDGET_SEC` (60s) bounds just the price-filter pass.
+Either one tripping returns whatever was found so far
+(`time_budget_exceeded: True` in the stats dict) instead of continuing
+indefinitely. Added progress logging (`[LOW_VALUE_SCANNER]` prefix) every
+10 price-filter batches and every 25 candidates evaluated, plus start/end
+markers — so the *next* time this happens, Railway's runtime logs will
+show exactly where time is going, which we had zero visibility into this
+round. `elapsed_sec`/`candidates_evaluated`/`time_budget_exceeded` are now
+also logged to `low_value_universe_snapshot` and shown on the dashboard,
+so this is visible without needing log access at all.
+
+**Honest state of this fix**: it guarantees the scan always terminates and
+gives visibility into timing, but does NOT identify or fix whichever
+dependency is actually slow — that diagnosis needs either Railway log
+access (which we don't have in this session) or a completed scan's timing
+breakdown to point at the specific stage. If the next attempt still
+returns 0 symbols but now shows `time_budget_exceeded: True` with a low
+`candidates_evaluated` count, that pins the slowness to the *price filter*
+stage (Alpaca). If `candidates_evaluated` is high but the universe is
+still empty, the filters themselves (volume/cap/volatility/bankruptcy) are
+the more likely culprit, not a slow dependency — a different investigation
+entirely.

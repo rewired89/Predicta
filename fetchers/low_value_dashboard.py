@@ -122,9 +122,16 @@ def render_low_value_dashboard() -> str:
     recent_snapshots = get_universe_snapshots(days=1)
     universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
     stagnant_filtered = 0
+    scan_timing_note = ""
     if recent_snapshots and recent_snapshots[0].get("filter_stats_json"):
         try:
-            stagnant_filtered = json.loads(recent_snapshots[0]["filter_stats_json"]).get("stagnant_filtered_count", 0)
+            fstats = json.loads(recent_snapshots[0]["filter_stats_json"])
+            stagnant_filtered = fstats.get("stagnant_filtered_count", 0)
+            if "elapsed_sec" in fstats:
+                scan_timing_note = (
+                    f" · last scan took {fstats['elapsed_sec']:.0f}s, evaluated {fstats.get('candidates_evaluated', 0)} candidates"
+                    + (" (TIME BUDGET EXCEEDED — partial result)" if fstats.get("time_budget_exceeded") else "")
+                )
         except Exception:
             stagnant_filtered = 0
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -235,7 +242,7 @@ def render_low_value_dashboard() -> str:
       <div class="stat-box"><div class="stat-value">{universe_size}</div><div class="stat-label">Symbols scanned</div></div>
       <div class="stat-box"><div class="stat-value">{len(open_t)}</div><div class="stat-label">Open positions (max 3)</div></div>
     </div>
-    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{stagnant_filtered} excluded as stagnant (volatility floor)</div>
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{stagnant_filtered} excluded as stagnant (volatility floor){scan_timing_note}</div>
   </div>
 
   <div class="card">

@@ -12,6 +12,8 @@ Alpaca market-data fetcher and (for the earnings-blackout list only) a
 read-only import of a High Value constant.
 """
 from __future__ import annotations
+import logging
+import time
 from typing import Optional
 
 from fetchers.alpaca import get_all_active_assets, get_snapshots, get_daily_bars
@@ -19,6 +21,8 @@ from fetchers.finnhub import get_market_cap as finnhub_market_cap
 from fetchers.yahoo_quote import get_market_cap as yahoo_market_cap
 from fetchers.sec_edgar import has_recent_bankruptcy_filing
 from fetchers.high_value_runner import EARNINGS_BLACKOUT
+
+log = logging.getLogger("low_value_scanner")
 
 PRICE_CEILING: float = 20.0
 MIN_AVG_DAILY_VOLUME_20D: int = 100_000
@@ -40,25 +44,49 @@ VOLATILITY_FLOOR_MIN_5D_RANGE_PCT: float = 0.05
 
 _SNAPSHOT_BATCH_SIZE = 200
 
+# 2026-07-11 production issue: a scan ran for 5+ minutes with zero visibility
+# into whether it was working or stuck — no time limit anywhere in the
+# pipeline, and no progress logging at all. Both are fixed here. Root cause
+# is still unconfirmed (most likely candidate: one of the newer data sources
+# — Finnhub, SEC EDGAR, Nasdaq short-interest — being slow/rate-limited from
+# Railway's datacenter IP, the exact same failure mode this codebase already
+# hit with FanGraphs/Baseball Savant, documented in CLAUDE.md), but a hard
+# time budget means a slow/throttled dependency degrades the scan instead of
+# hanging it indefinitely, and the new log lines let us actually see where
+# time goes on the next attempt.
+SCAN_TIME_BUDGET_SEC: float = 240.0        # 4 minutes, hard ceiling on the whole build
+PRICE_FILTER_TIME_BUDGET_SEC: float = 60.0  # 1 minute of the above, reserved for the price-filter pass
+
 
 def _batched(items: list, size: int):
     for i in range(0, len(items), size):
         yield items[i:i + size]
 
 
-def _cheap_price_filter(symbols: list[str]) -> list[str]:
+def _cheap_price_filter(symbols: list[str], deadline: float) -> list[str]:
     """
     First-pass filter: batch snapshots (Alpaca) for every active symbol,
-    keep only last_close < PRICE_CEILING. Cheap — a handful of batched API
-    calls regardless of universe size (Alpaca allows large symbol batches).
+    keep only last_close < PRICE_CEILING. Normally cheap — a handful of
+    batched API calls regardless of universe size — but bails out at
+    `deadline` (time.monotonic() timestamp) if Alpaca's snapshot endpoint is
+    unexpectedly slow, returning whatever survived so far rather than
+    hanging the whole scan.
     """
     survivors: list[str] = []
-    for chunk in _batched(symbols, _SNAPSHOT_BATCH_SIZE):
+    batches = list(_batched(symbols, _SNAPSHOT_BATCH_SIZE))
+    log.info(f"[LOW_VALUE_SCANNER] price filter: {len(symbols)} candidates, {len(batches)} batches")
+    for i, chunk in enumerate(batches):
+        if time.monotonic() > deadline:
+            log.warning(f"[LOW_VALUE_SCANNER] price filter time budget exceeded at batch {i}/{len(batches)} — returning {len(survivors)} survivors so far")
+            break
         snaps = get_snapshots(chunk)
         for sym, snap in snaps.items():
             price = snap.get("price") or 0
             if 0 < price < PRICE_CEILING:
                 survivors.append(sym)
+        if i % 10 == 0:
+            log.info(f"[LOW_VALUE_SCANNER] price filter batch {i}/{len(batches)} done — {len(survivors)} survivors so far")
+    log.info(f"[LOW_VALUE_SCANNER] price filter complete — {len(survivors)} symbols under ${PRICE_CEILING}")
     return survivors
 
 
@@ -122,28 +150,56 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
          one Alpaca call, not two), market_cap > $50M, no bankruptcy 8-K in
          last 90 days. Order minimizes wasted API calls on candidates that
          fail cheaper checks first.
-    Returns (sorted list of 50-200 symbols, stats dict) — stats currently
-    has stagnant_filtered_count (candidates excluded by the volatility
-    floor), logged into low_value_universe_snapshot for visibility into how
-    much of the daily candidate pool is "zombie" stocks.
+    Returns (sorted list of 50-200 symbols, stats dict) — stats has
+    stagnant_filtered_count (candidates excluded by the volatility floor),
+    candidates_evaluated, elapsed_sec, and time_budget_exceeded (True if
+    SCAN_TIME_BUDGET_SEC was hit before finishing the candidate pool — a
+    partial, non-empty result in that case is expected and fine, not a bug).
 
     max_candidates caps how many price-filtered symbols get the expensive
     per-symbol checks — a safety valve against a very large Alpaca universe
-    burning through Finnhub's/SEC's rate limits in one scan.
+    burning through Finnhub's/SEC's rate limits in one scan. SCAN_TIME_BUDGET_SEC
+    is the second, independent safety valve — bounds wall-clock time even if
+    max_candidates is generous, in case any one dependency is slow/throttled.
     """
-    all_symbols = get_all_active_assets()
-    if not all_symbols:
-        return [], {"stagnant_filtered_count": 0}
+    start = time.monotonic()
+    log.info(f"[LOW_VALUE_SCANNER] build_low_value_universe starting for {today_str}")
 
-    price_ok = _cheap_price_filter(all_symbols)
+    all_symbols = get_all_active_assets()
+    log.info(f"[LOW_VALUE_SCANNER] {len(all_symbols)} active Alpaca assets")
+    if not all_symbols:
+        return [], {"stagnant_filtered_count": 0, "candidates_evaluated": 0, "elapsed_sec": 0, "time_budget_exceeded": False}
+
+    price_filter_deadline = start + PRICE_FILTER_TIME_BUDGET_SEC
+    price_ok = _cheap_price_filter(all_symbols, price_filter_deadline)
     if max_candidates:
         price_ok = price_ok[:max_candidates]
 
+    scan_deadline = start + SCAN_TIME_BUDGET_SEC
     universe: list[str] = []
     stagnant_filtered_count = 0
+    candidates_evaluated = 0
+    time_budget_exceeded = False
+
     for sym in price_ok:
+        if time.monotonic() > scan_deadline:
+            time_budget_exceeded = True
+            log.warning(
+                f"[LOW_VALUE_SCANNER] time budget ({SCAN_TIME_BUDGET_SEC:.0f}s) exceeded after "
+                f"{candidates_evaluated}/{len(price_ok)} candidates — returning {len(universe)} symbols found so far"
+            )
+            break
+
         if _is_earnings_blackout(sym, today_str):
             continue
+
+        candidates_evaluated += 1
+        if candidates_evaluated % 25 == 0:
+            elapsed = time.monotonic() - start
+            log.info(
+                f"[LOW_VALUE_SCANNER] progress: {candidates_evaluated}/{len(price_ok)} candidates evaluated, "
+                f"{len(universe)} passed, {elapsed:.0f}s elapsed"
+            )
 
         daily_bars = get_daily_bars(sym, days=20)
         if not daily_bars:
@@ -163,4 +219,14 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
         if len(universe) >= UNIVERSE_MAX_SIZE:
             break
 
-    return sorted(universe), {"stagnant_filtered_count": stagnant_filtered_count}
+    elapsed_sec = round(time.monotonic() - start, 1)
+    log.info(
+        f"[LOW_VALUE_SCANNER] build_low_value_universe complete — {len(universe)} symbols, "
+        f"{candidates_evaluated} evaluated, {stagnant_filtered_count} stagnant, {elapsed_sec}s elapsed"
+    )
+    return sorted(universe), {
+        "stagnant_filtered_count": stagnant_filtered_count,
+        "candidates_evaluated": candidates_evaluated,
+        "elapsed_sec": elapsed_sec,
+        "time_budget_exceeded": time_budget_exceeded,
+    }

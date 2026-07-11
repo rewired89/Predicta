@@ -113,7 +113,9 @@ def get_daily_universe(force_refresh: bool = False) -> list[str]:
     log_universe_snapshot(today_str, universe, filter_stats=stats)
     log.info(
         f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols "
-        f"({stats.get('stagnant_filtered_count', 0)} excluded as stagnant)"
+        f"({stats.get('stagnant_filtered_count', 0)} excluded as stagnant, "
+        f"{stats.get('candidates_evaluated', 0)} evaluated, {stats.get('elapsed_sec', 0)}s elapsed"
+        f"{', TIME BUDGET EXCEEDED' if stats.get('time_budget_exceeded') else ''})"
     )
     return universe
 

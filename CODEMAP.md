@@ -9733,8 +9733,8 @@ mutates: none
 name: _cheap_price_filter
 type: function
 file: models/trading/low_value/scanner.py
-purpose: First-pass universe filter — batch Alpaca snapshots for every active symbol, keep only last_close < PRICE_CEILING. Cheap relative to per-symbol daily-bar/fundamentals calls, run before them to shrink the candidate set.
-inputs: symbols: list[str]
+purpose: First-pass universe filter — batch Alpaca snapshots for every active symbol, keep only last_close < PRICE_CEILING. Cheap relative to per-symbol daily-bar/fundamentals calls, run before them to shrink the candidate set. Fixed 2026-07-11 (production issue — a scan ran 5+ minutes with zero visibility): takes a `deadline` (time.monotonic() timestamp, PRICE_FILTER_TIME_BUDGET_SEC from build_low_value_universe) and bails out early if Alpaca's snapshot endpoint is unexpectedly slow, returning whatever survived so far. Logs progress every 10 batches.
+inputs: symbols: list[str], deadline: float
 outputs: list[str]
 calls: get_snapshots
 called_by: build_low_value_universe
@@ -9762,6 +9762,18 @@ inputs: none
 outputs: bool (True) / float (0.02) / float (0.05)
 calls: none
 called_by: _has_meaningful_volatility, build_low_value_universe
+mutates: none
+---
+
+---
+name: SCAN_TIME_BUDGET_SEC / PRICE_FILTER_TIME_BUDGET_SEC
+type: variable
+file: models/trading/low_value/scanner.py
+purpose: Fixed 2026-07-11 (production issue — a scan ran 5+ minutes with no result and no visibility into why). Hard wall-clock ceilings: SCAN_TIME_BUDGET_SEC (240s) bounds the whole build_low_value_universe call; PRICE_FILTER_TIME_BUDGET_SEC (60s, a subset of the total) bounds just the _cheap_price_filter pass. Either dependency being slow/throttled degrades to a partial result instead of hanging indefinitely.
+inputs: none
+outputs: float (240.0) / float (60.0)
+calls: none
+called_by: build_low_value_universe, _cheap_price_filter
 mutates: none
 ---
 
@@ -9805,9 +9817,9 @@ mutates: none
 name: build_low_value_universe
 type: function
 file: models/trading/low_value/scanner.py
-purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate earnings-blackout (free) -> volatility floor (Kimi review 2026-07-07 follow-up, before any paid call) -> volume -> market-cap -> bankruptcy checks. Returns (sorted 50-200 symbol list, stats dict). Daily bars are fetched once per candidate and reused for both the volatility floor and the volume check (previously two separate Alpaca calls). Fixed 2026-07-08: skips a candidate outright (`if not daily_bars: continue`) when get_daily_bars returns no data — defense-in-depth alongside the get_daily_bars fix itself, since a thinly-traded penny stock with no bar history can't be evaluated for volatility or volume anyway.
+purpose: Full daily scan pipeline — Alpaca active assets, cheap price filter, then per-candidate earnings-blackout (free) -> volatility floor (Kimi review 2026-07-07 follow-up, before any paid call) -> volume -> market-cap -> bankruptcy checks. Returns (sorted 50-200 symbol list, stats dict). Daily bars are fetched once per candidate and reused for both the volatility floor and the volume check (previously two separate Alpaca calls). Fixed 2026-07-08: skips a candidate outright (`if not daily_bars: continue`) when get_daily_bars returns no data. Fixed 2026-07-11 (production issue — a scan ran 5+ minutes with no result and no way to tell if it was stuck or slow): enforces SCAN_TIME_BUDGET_SEC (4 min) as a hard wall-clock ceiling on the whole build — stops evaluating further candidates and returns whatever was found so far (time_budget_exceeded=True in stats) rather than potentially hanging for a long time if a dependency (most likely Finnhub/SEC EDGAR/Nasdaq, possibly throttled from Railway's datacenter IP — same class of issue as the documented FanGraphs/Baseball Savant block) is slow. Logs progress every 25 candidates via the low_value_scanner logger.
 inputs: today_str: str, max_candidates: Optional[int] = None
-outputs: tuple[list[str], dict] — dict currently has stagnant_filtered_count
+outputs: tuple[list[str], dict] — dict has stagnant_filtered_count, candidates_evaluated, elapsed_sec, time_budget_exceeded
 calls: get_all_active_assets, _cheap_price_filter, _is_earnings_blackout, get_daily_bars, _has_meaningful_volatility, _avg_daily_volume_20d, _get_market_cap, has_recent_bankruptcy_filing
 called_by: get_daily_universe (low_value_runner.py)
 mutates: none
@@ -10381,7 +10393,7 @@ mutates: none
 name: get_daily_universe
 type: function
 file: fetchers/low_value_runner.py
-purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot (including stagnant_filtered_count as of 2026-07-07) on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. Unpacks build_low_value_universe's (universe, stats) tuple internally — its own external contract (returns list[str]) is unchanged. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
+purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot (including stagnant_filtered_count/candidates_evaluated/elapsed_sec/time_budget_exceeded as of 2026-07-11) on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. Unpacks build_low_value_universe's (universe, stats) tuple internally — its own external contract (returns list[str]) is unchanged. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
 inputs: force_refresh: bool = False
 outputs: list[str]
 calls: build_low_value_universe, log_universe_snapshot
@@ -10537,7 +10549,7 @@ mutates: none
 name: render_low_value_dashboard
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON. Same day, third addition: shows the volatility-floor stagnant_filtered_count from the latest snapshot's filter_stats_json.
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON. Same day, third addition: shows the volatility-floor stagnant_filtered_count from the latest snapshot's filter_stats_json. 2026-07-11: also shows elapsed_sec/candidates_evaluated/time_budget_exceeded from the same filter_stats_json, so a slow-but-not-crashed scan is visible without reading Railway logs.
 inputs: none
 outputs: str (HTML)
 calls: get_runner_status (low_value_runner.py), get_universe_snapshots (trading_logger.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
