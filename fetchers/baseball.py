@@ -193,6 +193,24 @@ def _all_teams() -> list[dict]:
     return teams
 
 
+# Common nicknames that don't textually resemble ESPN's own name/abbreviation
+# fields closely enough for difflib to find the right team — it instead picks
+# whatever candidate happens to share the most letters, which is often a
+# completely different team. Checked before fuzzy matching so these never hit
+# that fallback. "a's"/"oakland" are the team's own historical name after they
+# dropped the city from ESPN's record (real-world 2025 rebrand: displayName is
+# now just "Athletics", abbreviation "ATH" not "OAK") — confirmed 2026-07-11
+# that "a's" was fuzzy-matching to the Tampa Bay Rays and "oakland" to the LA
+# Dodgers. "jays" (Blue Jays) was similarly landing on the Rays (jays/rays
+# differ by one letter). Add more here if another short nickname is reported
+# wrong rather than trying to fix the general fuzzy-match algorithm.
+_TEAM_NAME_ALIASES: dict[str, str] = {
+    "a's": "athletics", "as": "athletics", "oak": "athletics",
+    "oakland": "athletics", "oakland athletics": "athletics",
+    "jays": "blue jays",
+}
+
+
 def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
     """Fuzzy-match a user-supplied name to an ESPN MLB team object."""
     candidates: dict[str, dict] = {}
@@ -204,6 +222,7 @@ def _match_team(name: str, teams: list[dict]) -> Optional[dict]:
                 candidates[val.lower()] = t
 
     q = name.lower().strip()
+    q = _TEAM_NAME_ALIASES.get(q, q)
     if q in candidates:
         return candidates[q]
 
@@ -237,6 +256,7 @@ def _match_teams(name: str, teams: list[dict], limit: int = 3) -> list[dict]:
                 candidates.setdefault(val.lower(), t)
 
     q = name.lower().strip()
+    q = _TEAM_NAME_ALIASES.get(q, q)
     if q in candidates:
         return [candidates[q]]
 

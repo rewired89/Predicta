@@ -976,6 +976,16 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     except Exception as exc:
         steps.append({"step": "elo_blend", "status": "skipped", "error": str(exc)})
 
+    # Final home/away probabilities after the Elo blend + 65/72% cap above —
+    # everything downstream (narrative, displayed bars, moneyline market) must
+    # use these, not the raw pre-blend prob_home/prob_away from step 5, or the
+    # AI narrative ends up quoting a different number than what's on screen
+    # (caught 2026-07-11: bars showed 51.5%/48.5% while the narrative said
+    # 52.6% because generate_baseball_narrative was still getting the raw
+    # Poisson-only prob_home/prob_away).
+    prob_home_final = prob_a if is_home_a else prob_b
+    prob_away_final = prob_b if is_home_a else prob_a
+
     home_starter_name = starter_a["name"] if is_home_a else starter_b["name"]
     away_starter_name = starter_b["name"] if is_home_a else starter_a["name"]
     home_starter_fip  = fip_b if is_home_a else fip_a   # home bats vs away starter
@@ -1132,23 +1142,22 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
         }
         narrative = generate_baseball_narrative(
             team_home, team_away,
-            prob_home, prob_away,
+            prob_home_final, prob_away_final,
             explanation, narrative_context,
         )
         steps.append({"step": "narrative", "status": "ok"})
     except Exception as exc:
         narrative = (
-            f"{team_home} win probability {prob_home*100:.1f}%, "
-            f"{team_away} {prob_away*100:.1f}%. "
+            f"{team_home} win probability {prob_home_final*100:.1f}%, "
+            f"{team_away} {prob_away_final*100:.1f}%. "
             f"Expected runs: home {mu_home:.1f}, away {mu_away:.1f}."
         )
         steps.append({"step": "narrative", "status": "error", "error": str(exc)})
 
     # ── Format ────────────────────────────────────────────────────────────────
-    # Override moneyline with Elo-blended + capped probabilities so BET
-    # recommendations use the final model output, not raw Poisson.
-    prob_home_final = prob_a if is_home_a else prob_b
-    prob_away_final = prob_b if is_home_a else prob_a
+    # Override moneyline with Elo-blended + capped probabilities (computed
+    # right after the Elo blend, above) so BET recommendations use the final
+    # model output, not raw Poisson.
     markets_raw["moneyline"]["p_home_win"] = prob_home_final
     markets_raw["moneyline"]["p_away_win"] = prob_away_final
     formatted_markets = _format_baseball_markets(markets_raw, team_home, team_away)

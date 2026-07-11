@@ -3873,10 +3873,22 @@ mutates: none
 ---
 
 ---
+name: _TEAM_NAME_ALIASES
+type: dict
+file: fetchers/baseball.py
+purpose: Added 2026-07-11. Maps common team nicknames that don't textually resemble any of ESPN's own name/abbreviation/nickname fields closely enough for difflib to find correctly — checked before fuzzy matching in both _match_team and _match_teams so these never reach the fragile fallback. Confirmed live: "a's" was fuzzy-matching to the Tampa Bay Rays (not the Athletics) and "oakland" to the LA Dodgers, because the Athletics' ESPN record dropped "Oakland" entirely in a real-world 2025 rebrand (displayName is now just "Athletics", abbreviation "ATH" not "OAK") — none of "a's"/"as"/"oak"/"oakland" exist anywhere in ESPN's own fields, so difflib picked whichever unrelated team happened to share the most letters. Also fixes "jays" (Blue Jays), which was landing on the Rays (one-letter difference). Add more entries here if another short nickname is reported resolving to the wrong team, rather than trying to fix the general fuzzy-match algorithm.
+inputs: none
+outputs: dict[str, str] (lowercased alias -> lowercased canonical name expected to exact-match a candidate key)
+calls: none
+called_by: _match_team, _match_teams
+mutates: none
+---
+
+---
 name: _match_team
 type: function
 file: fetchers/baseball.py
-purpose: Fuzzy-matches a user-supplied team name to a single ESPN MLB team object using multiple name fields and difflib (cutoff 0.45).
+purpose: Fuzzy-matches a user-supplied team name to a single ESPN MLB team object using multiple name fields and difflib (cutoff 0.45). Checks _TEAM_NAME_ALIASES first (2026-07-11) so known-bad nicknames never reach the fuzzy fallback.
 inputs: name: str, teams: list[dict]
 outputs: Optional[dict]
 calls: difflib.get_close_matches
@@ -3888,7 +3900,7 @@ mutates: none
 name: _match_teams
 type: function
 file: fetchers/baseball.py
-purpose: Added 2026-07-05. Like _match_team but returns ALL plausible candidates ranked by closeness, not just the single best guess — needed because short city hints are genuinely ambiguous ("LA" matches both LAD and LAA equally well, "NY" matches NYY and NYM, "CHI" matches CHC and CWS). lookup_batter tries each candidate's roster in turn instead of committing to one fuzzy guess that might silently be the wrong team. Fixed the "Andy Pages" + "LA" bug where the player exists on LAD but the lookup could land on LAA and report a false "not found."
+purpose: Added 2026-07-05. Like _match_team but returns ALL plausible candidates ranked by closeness, not just the single best guess — needed because short city hints are genuinely ambiguous ("LA" matches both LAD and LAA equally well, "NY" matches NYY and NYM, "CHI" matches CHC and CWS). lookup_batter tries each candidate's roster in turn instead of committing to one fuzzy guess that might silently be the wrong team. Fixed the "Andy Pages" + "LA" bug where the player exists on LAD but the lookup could land on LAA and report a false "not found." Checks _TEAM_NAME_ALIASES first (2026-07-11), same as _match_team.
 inputs: name: str, teams: list[dict], limit: int = 3
 outputs: list[dict] (deduped by team id)
 calls: difflib.get_close_matches
@@ -4553,6 +4565,8 @@ calls: parse_baseball_query, fetch_baseball_context, enrich_starter, enrich_team
 note: result dict now includes data_confidence (low/medium/high, from _baseball_data_confidence); also logged as a text signal for audit/calibration by-confidence. _log_prediction fires unconditionally at the end (manual queries included), persisting NRFI + moneyline/F5/O-U picks + game_pk to nrfi_bets so every query — not just the scheduled daily slate — can be graded later.
 
 **Fixed 2026-07-10 (found while auditing a user's real bet slips against nrfi_predictions):** in the ai_fallback branch (ESPN/MLB fetch failed for the game, so Claude estimates everything from training knowledge), is_home_a used to come from Claude's own "home_team" guess in interpret_baseball_signals — ungrounded, since this path has no live schedule data to check it against. Confirmed wrong on a real game (Padres @ Diamondbacks, 2026-07-09, game_pk 823277): the logged record had home_team="AZ"/away_team="SD" while home_abbr="SD"/away_abbr="AZ" and the real linescore (home 1 run, away 3) matched the abbr fields, not the team-name fields — i.e. Claude's guess put the away team in the home slot. That's not just a cosmetic label swap: team_home feeds park_factor (team_to_stadium_code) and the whole mu_home/mu_away framing, so the guess wrong-siding a game corrupts its win-probability calc, not just its post-hoc ml_correct grading. Fix: is_home_a is now hardcoded True in this branch — daily_nrfi.py always builds its query as "{home_abbr} vs {away_abbr}", so team_a is already the true home team for the automated pipeline; for manual website queries this is a documented assumption rather than a verified fact, same as before (data_confidence is already forced "low" for this whole path regardless).
+
+**Fixed 2026-07-11 (user report: "A's vs CHW today" showed inconsistent numbers and, separately, ESPN team-matching landed on the wrong team entirely):** two distinct bugs found auditing that one query. (1) generate_baseball_narrative was called with prob_home/prob_away — the RAW pre-Elo-blend, pre-cap probabilities from step 5 — while the displayed bars/markets use prob_a/prob_b AFTER the Elo blend + 65-72% cap (step 6). Result: the AI narrative text quoted a different percentage (e.g. "52.6%") than what the UI showed (51.5%/48.5%) for the same game. Fix: prob_home_final/prob_away_final (the post-blend numbers) are now computed once right after the Elo blend block and passed to generate_baseball_narrative (and the fallback text on its exception path) instead of the stale prob_home/prob_away; the pre-existing markets-override use of the same final numbers is unchanged, just de-duplicated to compute once. (2) Separately, fetch_baseball_context's team-name matching (see _TEAM_NAME_ALIASES in fetchers/baseball.py) was resolving "A's" to the Tampa Bay Rays — a completely unrelated team — because the Athletics' ESPN record no longer contains "Oakland" anywhere (real-world 2025 rebrand) and difflib's fuzzy fallback picked whatever team happened to share the most letters with "a's". This one silently used the wrong team's stats/park/pitchers under a name that still displayed as "A's" — see the _TEAM_NAME_ALIASES entry for the full explanation and fix.
 called_by: analyze_baseball (app.py)
 mutates: matches, signals (incl. weather + savant signals), predictions tables, nrfi_bets (via _log_prediction)
 ---
