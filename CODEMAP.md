@@ -4034,9 +4034,9 @@ type: function
 file: fetchers/baseball.py
 purpose: Live ESPN fallback for individual hitters not in the Player Impact KNOWN_HITTERS table. Resolves team_abbr to ALL plausible ESPN teams (via _match_teams, not just one best guess — fixed 2026-07-05) and tries each one's roster in turn until the player is found, pulling season batting stats from whichever team actually has them. Requires team_abbr since ESPN has no cross-league player-name search endpoint; returns {} if team_abbr is missing or the player isn't found on any matched team.
 inputs: name (str), team_abbr (optional str)
-outputs: dict (display_name, team, bats, pos, war=None, avg, ops, hr, sb, wrc_plus) or {}
+outputs: dict (display_name, team, bats, pos, war=None, avg, ops, hr, sb, wrc_plus, games_played) or {}
 calls: _match_teams, _all_teams, _find_roster_athlete, _get_batter_stats
-called_by: models/player_impact.py _get_hitter_data
+called_by: models/player_impact.py _get_hitter_data, models/hr_prop.py estimate_hr_probability
 mutates: none
 ---
 
@@ -4056,9 +4056,9 @@ mutates: none
 name: _get_batter_stats
 type: function
 file: fetchers/baseball.py
-purpose: Fetches season batting stats (AVG/OBP/SLG/OPS/HR/SB) for one ESPN athlete id and derives wRC+ using the same 2×OBP+SLG formula as _get_team_hitting.
+purpose: Fetches season batting stats (AVG/OBP/SLG/OPS/HR/SB/games played) for one ESPN athlete id and derives wRC+ using the same 2×OBP+SLG formula as _get_team_hitting. games_played added 2026-07-11 for models/hr_prop.py's HR-rate estimate (existing avg/ops/hr/sb/wrc_plus keys and their callers are unchanged — purely additive key).
 inputs: athlete_id (str)
-outputs: dict {avg, ops, hr, sb, wrc_plus} or {}
+outputs: dict {avg, ops, hr, sb, wrc_plus, games_played} or {}
 calls: _espn_get
 called_by: lookup_batter
 mutates: none
@@ -4188,6 +4188,22 @@ inputs: query (str), limit (int)
 outputs: list[dict]
 calls: search_pitchers, search_hitters
 called_by: app.py /player-search endpoint (no type filter)
+mutates: none
+---
+
+## models/hr_prop.py (added 2026-07-11)
+
+Standalone, experimental home-run probability estimate for one hitter in one game. NOT wired into run_baseball_analysis, the Poisson/Elo run model, any market, _log_prediction, or the daily NRFI automation — nothing else in the codebase calls it, so adding it cannot change any existing prediction or accuracy number. Built after investigating feasibility (see conversation 2026-07-11): a fuller version with opposing-pitcher/park/weather adjustment would need new Statcast batted-ball data via pybaseball, which is blocked from datacenter IPs same as FanGraphs/Savant (CLAUDE.md Bug 1) — this v1 deliberately stays within data already reachable (ESPN) and does only the player-intrinsic rate the user actually asked for.
+
+---
+name: estimate_hr_probability
+type: function
+file: models/hr_prop.py
+purpose: Rough per-game HR probability for a named hitter via a Poisson model — lambda = season_hr / games_played, P(>=1 HR) = 1 - e^-lambda. Prefers a live ESPN lookup (lookup_batter) since its hr and games_played come from the same current-season snapshot (consistent numerator/denominator). Falls back to KNOWN_HITTERS only when the live lookup fails — but KNOWN_HITTERS's hr field is a static "established quality" reference blend (see TEAM_WRC_PLUS's "2024-25 blend" comment), not a live in-season total, so it's divided by an assumed 162-game season instead of live team games_played to avoid mixing a full-season numerator with a partial-season denominator; the result is labeled as a career-level estimate rather than this year's actual pace in that case. No opposing-pitcher, park, or weather adjustment; not backtested; no data_confidence gate like the moneyline/NRFI/F5/O-U markets — purely informational.
+inputs: player_name (str), team_abbr (optional str)
+outputs: dict {player, team, season_hr, games_played, games_played_source, hr_rate_per_game, prob_hr_today_pct, method, caveats} or {error}
+calls: lookup_batter (fetchers/baseball.py), KNOWN_HITTERS (models/player_impact.py)
+called_by: app.py /hr-prop endpoint
 mutates: none
 ---
 

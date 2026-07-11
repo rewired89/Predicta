@@ -592,6 +592,7 @@ def _get_batter_stats(athlete_id: str) -> dict:
     ops = _stat(stats, "OPS", "ops", "onBasePlusSlugging")
     hr  = int(_stat(stats, "homeRuns", "hr"))
     sb  = int(_stat(stats, "stolenBases", "sb"))
+    gp  = int(_stat(stats, "gamesPlayed", "GP"))
 
     if obp > 0 and slg > 0:
         wrc_plus = round(((2 * obp + slg) / 1.045) * 100)
@@ -601,7 +602,8 @@ def _get_batter_stats(athlete_id: str) -> dict:
     else:
         return {}
 
-    return {"avg": round(avg, 3), "ops": round(ops, 3), "hr": hr, "sb": sb, "wrc_plus": wrc_plus}
+    return {"avg": round(avg, 3), "ops": round(ops, 3), "hr": hr, "sb": sb, "wrc_plus": wrc_plus,
+            "games_played": gp}
 
 
 def lookup_batter(name: str, team_abbr: Optional[str] = None) -> dict:

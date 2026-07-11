@@ -1113,6 +1113,20 @@ def hitter_impact(body: PlayerImpactRequest):
     return result
 
 
+class HRPropRequest(BaseModel):
+    name: str
+    team: str = ""
+
+
+@app.post("/hr-prop")
+def hr_prop(body: HRPropRequest):
+    from models.hr_prop import estimate_hr_probability
+    result = estimate_hr_probability(body.name.strip(), team_abbr=body.team.strip() or None)
+    if "error" in result:
+        raise HTTPException(404, detail=result["error"])
+    return result
+
+
 @app.get("/player-search")
 def player_search(q: str = "", type: str = ""):
     if not q.strip() or len(q.strip()) < 2:
