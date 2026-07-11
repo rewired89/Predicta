@@ -3,6 +3,9 @@ Temporary diagnostic script — safe to delete once the "A's vs CHW" query
 parsing issue is confirmed fixed. Run with: python debug_query.py
 Requires ANTHROPIC_API_KEY set in the environment (or a .env file).
 """
+from env_loader import load_env
+load_env()
+
 from ai_agent_baseball import parse_baseball_query
 
 query = "A's vs CHW today"
