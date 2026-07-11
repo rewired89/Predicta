@@ -28,11 +28,21 @@ Return ONLY valid JSON with these keys:
   odds_b_american  — American odds for team_b if mentioned, or null
   notes            — any extra context (weather, injuries, series info)
 
-Examples of odds in queries:
-  "NYY -130 vs BOS +110"        → odds_a_american: -130, odds_b_american: 110
-  "HOU -125, TOR +105"          → odds_a_american: -125, odds_b_american: 105
-  "LAD is -145 favorite"        → odds_a_american: -145, odds_b_american: null
-  "Yankees vs Red Sox tonight"  → odds_a_american: null, odds_b_american: null
+CRITICAL — team_a/team_b must be COPIED VERBATIM from the query, exact
+substring, same characters, same abbreviation. Do NOT expand an abbreviation
+to a full name, do NOT substitute a different or "more likely" team, do NOT
+guess which real franchise a short code refers to — a separate system
+resolves the real team from whatever string you return, so your only job is
+extraction, not identification. If the query says "CHW", return "CHW" — never
+substitute a different team like "Washington Nationals" for it. If it says
+"A's", return "A's", not "Athletics" or any other team.
+
+Examples:
+  "A's vs CHW today"             → team_a: "A's", team_b: "CHW"
+  "NYY -130 vs BOS +110"         → team_a: "NYY", team_b: "BOS", odds_a_american: -130, odds_b_american: 110
+  "HOU -125, TOR +105"           → team_a: "HOU", team_b: "TOR", odds_a_american: -125, odds_b_american: 105
+  "LAD is -145 favorite"         → odds_a_american: -145, odds_b_american: null
+  "Yankees vs Red Sox tonight"   → team_a: "Yankees", team_b: "Red Sox", odds_a_american: null, odds_b_american: null
 
 No markdown, no prose — raw JSON only."""
 
@@ -48,7 +58,27 @@ def parse_baseball_query(user_text: str) -> dict:
     raw = msg.content[0].text.strip()
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
     raw = re.sub(r"\n?```$", "", raw)
-    return json.loads(raw)
+    parsed = json.loads(raw)
+
+    # Safety net for a confirmed failure mode (2026-07-11): despite the
+    # verbatim-extraction instruction above, the model can still substitute a
+    # different real team for an abbreviation it misreads (caught live: "CHW"
+    # in "A's vs CHW today" came back as "Washington Nationals" — a team with
+    # no textual resemblance to "CHW" at all, pure hallucination, not a lookup
+    # bug). A prompt fix can reduce this but an LLM can't be trusted to always
+    # follow it, so fail loudly here instead of silently analyzing the wrong
+    # team: if neither team_a nor team_b appears anywhere in the original
+    # query text, something was substituted rather than extracted.
+    text_lower = user_text.lower()
+    for key in ("team_a", "team_b"):
+        val = str(parsed.get(key, "")).lower().strip()
+        if val and val not in text_lower:
+            raise ValueError(
+                f"Query parser returned {key}={parsed.get(key)!r}, which doesn't "
+                f"appear anywhere in the original query {user_text!r} — likely a "
+                f"hallucinated team substitution, not a real extraction."
+            )
+    return parsed
 
 
 # ── 2. Fallback signal estimation (when MLB API is unreachable) ───────────────

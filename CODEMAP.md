@@ -4457,12 +4457,14 @@ mutates: none
 name: parse_baseball_query
 type: function
 file: ai_agent_baseball.py
-purpose: Sends user's baseball query to Claude and returns structured JSON with home team, away team, date, notes, and optional American odds. Extracts odds_a_american and odds_b_american when present in query (e.g. "NYY -130 vs BOS +110 tonight").
+purpose: Sends user's baseball query to Claude and returns structured JSON with home team, away team, date, notes, and optional American odds. Extracts odds_a_american and odds_b_american when present in query (e.g. "NYY -130 vs BOS +110 tonight"). PARSE_SYSTEM now explicitly instructs verbatim extraction (2026-07-11 fix, see below) — team_a/team_b must be copied exactly from the query, not expanded or substituted.
 inputs: user_text: str
 outputs: dict {team_a, team_b, date, notes, odds_a_american?: float, odds_b_american?: float}
 calls: _client, client.messages.create, json.loads, re.sub
 called_by: run_baseball_analysis
 mutates: none
+
+**Fixed 2026-07-11 (user report: "A's vs CHW today" resolved to "Washington Nationals" — a team with zero textual resemblance to "CHW"):** confirmed this was NOT the ESPN team-matching layer (fetchers/baseball.py — tested directly, "CHW" resolves correctly to Chicago White Sox every time) but the query-parsing step upstream of it: PARSE_SYSTEM never told Claude to preserve the literal query text, so it was free to "identify" a real team from an abbreviation and got it wrong — a plain LLM hallucination, not a deterministic code bug, which is also why it reportedly worked fine on the same kind of query the day before (sampling variance, not a regression). Two-part fix: (1) PARSE_SYSTEM now explicitly demands verbatim extraction with a worked example of this exact failure ("CHW" → "CHW", never "Washington Nationals"); (2) parse_baseball_query now validates both team_a and team_b actually appear as a substring of the original query text (case-insensitive) and raises ValueError if not — since a prompt instruction alone can't be trusted to always hold, this turns a silent wrong-team analysis into a loud, visible error surfaced through run_baseball_analysis's existing try/except → {"error": ...} → app.py's 500 response → the frontend's #error-card, instead of quietly running the wrong game. Verified both the hallucination-catching path and the normal-parse pass-through path with a mocked Claude client (no live API key available in the environment this was fixed in).
 ---
 
 ---
