@@ -176,6 +176,13 @@ def render_low_value_dashboard() -> str:
             f'<div style="font-size:.85rem;">{runner_status["last_scan_error"]}</div>'
             f'</div>'
         )
+    elif runner_status.get("last_universe_build_error"):
+        scan_banner_html = (
+            f'<div class="card" style="border-color:#ef4444;">'
+            f'<div class="card-title" style="color:#ef4444;">Last Universe Build Failed</div>'
+            f'<div style="font-size:.85rem;">{runner_status["last_universe_build_error"]}</div>'
+            f'</div>'
+        )
 
     open_rows_html = "".join(
         f"""<div class="trade-row">
