@@ -26,7 +26,7 @@ first few times this runs for real.
 """
 from __future__ import annotations
 import difflib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -101,39 +101,81 @@ def lookup_team(name: str, teams: Optional[list[dict]] = None) -> Optional[dict]
     return None
 
 
-def fetch_team_schedule(team_id: str, limit: int = 20) -> list[dict]:
+def fetch_scoreboard_range(days_back: int = 200) -> list[dict]:
     """
-    Return completed games for a team, most recent first:
-      [{date, is_home, points_for, points_against, opponent}]
-    Empty list on any failure.
+    Return every STATUS_FINAL game across the whole league in the last
+    `days_back` days via /scoreboard?dates=START-END — a single shared call
+    the caller filters per team, rather than a per-team schedule endpoint.
+
+    FIXED 2026-07-12 (live-verified via /rugby-diag on Railway): the
+    per-team /teams/{id}/schedule endpoint 500s with an ESPN-side "script
+    error" for this league — it just doesn't work here, independent of
+    anything in this codebase. /scoreboard with a date range is CONFIRMED
+    working (200, real STATUS_FINAL games incl. a real Rabbitohs vs Knights
+    result) and is the same pattern fetchers/soccer_schedule.py already uses
+    successfully. Each entry: {date, home_id, home_name, home_score,
+    away_id, away_name, away_score}. Empty list on failure.
     """
-    data = _get(f"/teams/{team_id}/schedule")
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days_back)
+    data = _get("/scoreboard", {"dates": f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}"})
     if not data:
         return []
-    games = []
+    out = []
     for ev in data.get("events") or []:
         comp = (ev.get("competitions") or [{}])[0]
         status = comp.get("status", {}).get("type", {}).get("name", "")
         if status != "STATUS_FINAL":
             continue
         competitors = comp.get("competitors", [])
-        mine = next((c for c in competitors if str(c.get("id")) == str(team_id)
-                     or str(c.get("team", {}).get("id")) == str(team_id)), None)
-        opp = next((c for c in competitors if c is not mine), None)
-        if not mine or not opp:
+        home = next((c for c in competitors if c.get("homeAway") == "home"), None)
+        away = next((c for c in competitors if c.get("homeAway") == "away"), None)
+        if not home or not away:
             continue
-        try:
-            pf = int(mine.get("score", {}).get("value", mine.get("score", 0)))
-            pa = int(opp.get("score", {}).get("value", opp.get("score", 0)))
-        except (TypeError, ValueError):
+
+        def _score(c: dict) -> Optional[int]:
+            raw = c.get("score")
+            if isinstance(raw, dict):
+                raw = raw.get("value")
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
+
+        hs, as_ = _score(home), _score(away)
+        if hs is None or as_ is None:
             continue
-        games.append({
-            "date":            ev.get("date", ""),
-            "is_home":         mine.get("homeAway") == "home",
-            "points_for":      pf,
-            "points_against":  pa,
-            "opponent":        opp.get("team", {}).get("displayName", ""),
+        out.append({
+            "date":       ev.get("date", ""),
+            "home_id":    str(home.get("id") or home.get("team", {}).get("id") or ""),
+            "home_name":  home.get("team", {}).get("displayName", ""),
+            "home_score": hs,
+            "away_id":    str(away.get("id") or away.get("team", {}).get("id") or ""),
+            "away_name":  away.get("team", {}).get("displayName", ""),
+            "away_score": as_,
         })
+    return out
+
+
+def _team_games_from_scoreboard(team_id: str, events: list[dict], limit: int = 20) -> list[dict]:
+    """
+    Filter a shared fetch_scoreboard_range() result down to one team's games,
+    most recent first: [{date, is_home, points_for, points_against, opponent}].
+    """
+    games = []
+    for ev in events:
+        if ev["home_id"] == str(team_id):
+            games.append({
+                "date": ev["date"], "is_home": True,
+                "points_for": ev["home_score"], "points_against": ev["away_score"],
+                "opponent": ev["away_name"],
+            })
+        elif ev["away_id"] == str(team_id):
+            games.append({
+                "date": ev["date"], "is_home": False,
+                "points_for": ev["away_score"], "points_against": ev["home_score"],
+                "opponent": ev["home_name"],
+            })
     games.sort(key=lambda g: g["date"], reverse=True)
     return games[:limit]
 
@@ -153,17 +195,23 @@ def _blend(season_val: Optional[float], recent_val: Optional[float],
     return recent_weight * recent_val + (1 - recent_weight) * season_val
 
 
-def team_points_profile(team_id: str) -> dict:
+def team_points_profile(team_id: str, events: Optional[list[dict]] = None) -> dict:
     """
-    Aggregate a team's schedule into a points-for/against profile:
+    Aggregate a team's games into a points-for/against profile:
       {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against,
        away_ppg_for, away_ppg_against, home_matches, away_matches,
        recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws}
 
-    All values None when the schedule is empty (caller should treat this as
-    "no live data" rather than defaulting to a fabricated league-average team).
+    `events` is a shared fetch_scoreboard_range() result — pass it in from
+    enrich_rugby_teams() so both teams' profiles come from one league-wide
+    fetch instead of two (the per-team /schedule endpoint this used to call
+    is broken server-side for this league; see fetch_scoreboard_range).
+    Fetches its own if not supplied. All values None when there are no games
+    (caller should treat this as "no live data", not a fabricated default).
     """
-    games = fetch_team_schedule(team_id, limit=20)
+    if events is None:
+        events = fetch_scoreboard_range()
+    games = _team_games_from_scoreboard(team_id, events, limit=20)
     if not games:
         return {
             "matches": 0, "ppg_for": None, "ppg_against": None,
@@ -235,13 +283,16 @@ def enrich_rugby_teams(home_name: str, away_name: str) -> dict:
     home_match = lookup_team(home_name, teams)
     away_match = lookup_team(away_name, teams)
 
+    # One shared league-wide fetch for both teams (see fetch_scoreboard_range).
+    events = fetch_scoreboard_range() if (home_match or away_match) else []
+
     result: dict = {"home": {}, "away": {}}
     if home_match:
-        profile = team_points_profile(home_match["id"])
+        profile = team_points_profile(home_match["id"], events)
         if profile["matches"] > 0:
             result["home"] = {**profile, "team_id": home_match["id"], "resolved_name": home_match["name"]}
     if away_match:
-        profile = team_points_profile(away_match["id"])
+        profile = team_points_profile(away_match["id"], events)
         if profile["matches"] > 0:
             result["away"] = {**profile, "team_id": away_match["id"], "resolved_name": away_match["name"]}
     return result
@@ -417,7 +468,10 @@ def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
     except Exception as exc:
         out["scoreboard_exception"] = str(exc)
 
-    # 3. If any team resolved, probe its schedule endpoint raw too.
+    # 3. Confirm the per-team /schedule endpoint's known-broken status (kept
+    # here so a future ESPN-side fix would show up automatically), then test
+    # the scoreboard-range replacement (fetch_scoreboard_range) that
+    # team_points_profile actually uses now.
     match = lookup_team(sample_team_query, parsed_teams) if parsed_teams else None
     if match:
         out["sample_team_matched"] = match
@@ -427,19 +481,14 @@ def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
                 out["schedule_status"] = resp.status_code
                 if resp.status_code != 200:
                     out["schedule_error_body"] = resp.text[:500]
-                else:
-                    data = resp.json()
-                    events = data.get("events") or []
-                    out["schedule_event_count"] = len(events)
-                    statuses = [
-                        (ev.get("competitions") or [{}])[0].get("status", {}).get("type", {}).get("name")
-                        for ev in events
-                    ]
-                    out["schedule_status_breakdown"] = {
-                        s: statuses.count(s) for s in set(statuses)
-                    }
         except Exception as exc:
             out["schedule_exception"] = str(exc)
+
+        try:
+            profile = team_points_profile(match["id"])
+            out["scoreboard_range_profile"] = profile
+        except Exception as exc:
+            out["scoreboard_range_profile_exception"] = str(exc)
     else:
         out["sample_team_matched"] = None
 

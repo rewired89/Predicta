@@ -10896,13 +10896,25 @@ mutates: none
 ---
 
 ---
-name: fetch_team_schedule
+name: fetch_scoreboard_range
 type: function
 file: fetchers/rugby.py
-purpose: Returns a team's completed games (most recent first, capped at `limit`) as {date, is_home, points_for, points_against, opponent}, parsed from ESPN's teams/{id}/schedule endpoint. Only STATUS_FINAL events are included. Empty list on failure.
-inputs: team_id: str, limit: int = 20
-outputs: list[dict]
+purpose: REPLACES the old fetch_team_schedule (removed 2026-07-12). Live-verified on Railway that ESPN's /teams/{id}/schedule endpoint 500s with an ESPN-side "script error" for this league, independent of anything in this codebase — /teams and /scoreboard both confirmed working, only the per-team schedule sub-resource is broken. Returns every STATUS_FINAL league-wide game in the last `days_back` days via one /scoreboard?dates=START-END call (same pattern fetchers/soccer_schedule.py already uses), which the caller then filters per team — one shared fetch for both teams in a matchup instead of a broken per-team endpoint.
+inputs: days_back: int = 200
+outputs: list[dict] {date, home_id, home_name, home_score, away_id, away_name, away_score}
 calls: _get
+called_by: team_points_profile (default), enrich_rugby_teams (shared call), diagnose
+mutates: none
+---
+
+---
+name: _team_games_from_scoreboard
+type: function
+file: fetchers/rugby.py
+purpose: Filters a shared fetch_scoreboard_range() result down to one team's games, most recent first — {date, is_home, points_for, points_against, opponent}, the same shape the old per-team endpoint produced, so team_points_profile didn't need to change its own logic.
+inputs: team_id: str, events: list[dict], limit: int = 20
+outputs: list[dict]
+calls: none
 called_by: team_points_profile
 mutates: none
 ---
@@ -10935,11 +10947,11 @@ mutates: none
 name: team_points_profile
 type: function
 file: fetchers/rugby.py
-purpose: Aggregates a team's ESPN schedule into a points-for/against profile — season averages, home/away splits, last-5 recent form, W-L-D record, and effective_n (sample size for shrinkage). All fields are None/0 when the schedule is empty, rather than defaulting to a fabricated league-average team.
-inputs: team_id: str
+purpose: Aggregates a team's games into a points-for/against profile — season averages, home/away splits, last-5 recent form, W-L-D record, and effective_n (sample size for shrinkage). All fields are None/0 when there are no games, rather than defaulting to a fabricated league-average team. `events` (a shared fetch_scoreboard_range() result) can be passed in so a matchup's two teams share one league-wide fetch instead of two separate calls; fetches its own if omitted.
+inputs: team_id: str, events: Optional[list[dict]] = None
 outputs: dict {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against, away_ppg_for, away_ppg_against, home_matches, away_matches, recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws}
-calls: fetch_team_schedule, _avg
-called_by: enrich_rugby_teams
+calls: fetch_scoreboard_range (if events not supplied), _team_games_from_scoreboard, _avg
+called_by: enrich_rugby_teams, diagnose
 mutates: none
 ---
 
@@ -10959,10 +10971,10 @@ mutates: none
 name: enrich_rugby_teams
 type: function
 file: fetchers/rugby.py
-purpose: Main entry point — resolves both team names against ESPN's team list and returns {"home": {...profile}, "away": {...profile}}. A team's dict is {} (not a league-average default) when it can't be resolved or has zero completed games, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
+purpose: Main entry point — resolves both team names against ESPN's team list and returns {"home": {...profile}, "away": {...profile}}. A team's dict is {} (not a league-average default) when it can't be resolved or has zero completed games, matching analyze_soccer.py's "don't hallucinate from nothing" convention. Fetches fetch_scoreboard_range() once and passes the shared events list into both team_points_profile calls (2026-07-12 fix) instead of hitting the network twice.
 inputs: home_name: str, away_name: str
 outputs: dict {home: dict, away: dict}
-calls: fetch_teams, lookup_team, team_points_profile
+calls: fetch_teams, lookup_team, fetch_scoreboard_range, team_points_profile
 called_by: run_rugby_analysis (analyze_rugby.py)
 mutates: none
 ---
@@ -10971,10 +10983,10 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/rugby.py
-purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/nrfi_odds.py:diagnose) reporting the RAW HTTP status + response body for /teams, today's /scoreboard, and a sample team's /schedule — built after a live Railway test on a real, in-progress NRL fixture (South Sydney Rabbitohs vs Newcastle Knights) came back with empty data for both teams. Confirmed same day: /teams 404'd with ESPN's specific "League not found" message (not "Sport not found"), proving 'rugby-league' IS a real ESPN sport category and only the 'nrl' league code is wrong. When teams_status==404: calls discover_leagues(), auto-tests every slug it finds directly against the site API's /teams (core API and site API are separate systems — confirming the code carries over rather than assuming it does), and separately probes a short list of manual fallback slugs (_CANDIDATE_SLUGS) in case discovery itself comes back empty.
+purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/nrfi_odds.py:diagnose), extended twice the same day as each layer of the ESPN NRL bug was found: (1) raw /teams + /scoreboard status/body, (2) when teams_status==404, discover_leagues() + candidate slug probes (led to fixing ESPN_BASE to the numeric league id "3"), (3) after that fix, /teams/{id}/schedule turned out to 500 with an ESPN-side "script error" — kept as a known-broken-endpoint check, plus a live test of team_points_profile() (which now runs on fetch_scoreboard_range instead) so the actual replacement path is verified in the same round-trip rather than assumed fixed.
 inputs: sample_team_query: str = "Rabbitohs"
-outputs: dict (raw status codes, response bodies/snippets, parsed counts, league_discovery, discovered_slug_probe, candidate_slug_probe)
-calls: httpx.Client.get, fetch_teams, lookup_team, discover_leagues
+outputs: dict (raw status codes, response bodies/snippets, parsed counts, league_discovery, discovered_slug_probe, candidate_slug_probe, schedule_status [known broken], scoreboard_range_profile)
+calls: httpx.Client.get, fetch_teams, lookup_team, discover_leagues, team_points_profile
 called_by: rugby_diag (app.py)
 mutates: none
 ---
