@@ -10947,11 +10947,35 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/rugby.py
-purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/nrfi_odds.py:diagnose) reporting the RAW HTTP status + response body for /teams, today's /scoreboard, and a sample team's /schedule — built after a live Railway test on a real, in-progress NRL fixture (South Sydney Rabbitohs vs Newcastle Knights) came back with empty data for both teams. Surfaces the actual ESPN response instead of the silent {} the normal enrich_rugby_teams path returns on any failure, so the wrong assumption (URL slug vs JSON shape vs genuinely no NRL coverage on ESPN's site API) can be pinned down instead of guessed at again.
+purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/nrfi_odds.py:diagnose) reporting the RAW HTTP status + response body for /teams, today's /scoreboard, and a sample team's /schedule — built after a live Railway test on a real, in-progress NRL fixture (South Sydney Rabbitohs vs Newcastle Knights) came back with empty data for both teams. Confirmed same day: /teams 404'd with ESPN's specific "League not found" message (not "Sport not found"), proving 'rugby-league' IS a real ESPN sport category and only the 'nrl' league code is wrong. When teams_status==404, now also calls discover_leagues() and probes a short list of alternate candidate slugs (_CANDIDATE_SLUGS), instead of guessing one slug per round-trip with the user.
 inputs: sample_team_query: str = "Rabbitohs"
-outputs: dict (raw status codes, response bodies/snippets, parsed counts at each stage)
-calls: httpx.Client.get, fetch_teams, lookup_team
+outputs: dict (raw status codes, response bodies/snippets, parsed counts, league_discovery, candidate_slug_probe)
+calls: httpx.Client.get, fetch_teams, lookup_team, discover_leagues
 called_by: rugby_diag (app.py)
+mutates: none
+---
+
+---
+name: discover_leagues
+type: function
+file: fetchers/rugby.py
+purpose: Queries ESPN's separate 'core' API (sports.core.api.espn.com/v2/sports/{sport}/leagues) for the actual list of league slugs/names ESPN has under a sport — a real discovery endpoint, not a guess. Added 2026-07-12 immediately after confirming /teams' 404 said "League not found" specifically (proving 'rugby-league' is valid, 'nrl' isn't) — this asks ESPN directly what the right code is instead of trying candidate strings one at a time.
+inputs: sport: str = "rugby-league"
+outputs: dict {sport, status, league_count, leagues: [{slug, name}], raw_error/exception on failure}
+calls: httpx.Client.get
+called_by: diagnose
+mutates: none
+---
+
+---
+name: CORE_API_BASE / _CANDIDATE_SLUGS
+type: variable
+file: fetchers/rugby.py
+purpose: CORE_API_BASE points at ESPN's separate core API host used only for league discovery. _CANDIDATE_SLUGS is a short manual fallback list of alternate (sport, league) slug guesses (super-league, nrl-premiership, nrl.1, aus.1, rugby/nrl), tried only if discover_leagues() itself comes back empty or blocked.
+inputs: none
+outputs: str / list[tuple]
+calls: none
+called_by: discover_leagues (CORE_API_BASE), diagnose (_CANDIDATE_SLUGS)
 mutates: none
 ---
 

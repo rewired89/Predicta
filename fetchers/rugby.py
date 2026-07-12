@@ -237,6 +237,50 @@ def enrich_rugby_teams(home_name: str, away_name: str) -> dict:
     return result
 
 
+CORE_API_BASE = "https://sports.core.api.espn.com/v2/sports"
+
+# Manual fallback guesses, tried only if the core-API league discovery
+# (below) itself fails to return anything usable.
+_CANDIDATE_SLUGS = [
+    ("rugby-league", "super-league"),
+    ("rugby-league", "nrl-premiership"),
+    ("rugby-league", "nrl.1"),
+    ("rugby-league", "aus.1"),
+    ("rugby", "nrl"),
+]
+
+
+def discover_leagues(sport: str = "rugby-league") -> dict:
+    """
+    Query ESPN's separate 'core' API (sports.core.api.espn.com) for the list
+    of leagues it knows about under a given sport — this is a discovery
+    endpoint, not a guess. Added 2026-07-12 after /teams returned a specific
+    "League not found" 404 for 'nrl' (confirming 'rugby-league' itself IS a
+    recognised ESPN sport category, just not under that league code).
+    Returns {status, leagues: [{slug, name}], raw_error} — raw_error set on
+    any non-200 so we can see exactly what this endpoint says too.
+    """
+    out: dict = {"sport": sport}
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{CORE_API_BASE}/{sport}/leagues", params={"limit": 100})
+            out["status"] = resp.status_code
+            if resp.status_code != 200:
+                out["raw_error"] = resp.text[:500]
+                return out
+            data = resp.json()
+            items = data.get("items", [])
+            out["league_count"] = len(items)
+            out["leagues"] = [
+                {"slug": item.get("slug") or item.get("abbreviation"), "name": item.get("name")}
+                for item in items
+                if isinstance(item, dict)
+            ]
+    except Exception as exc:
+        out["exception"] = str(exc)
+    return out
+
+
 def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
     """
     One-shot diagnostic that reports EXACTLY why ESPN enrichment works or
@@ -267,6 +311,27 @@ def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
     parsed_teams = fetch_teams()
     out["parsed_teams_count"] = len(parsed_teams)
     out["parsed_teams_sample"] = parsed_teams[:5]
+
+    # 1b. League discovery — if /teams 404'd with "League not found" (sport
+    # recognised, league code wrong), ask ESPN's core API what leagues it
+    # actually has under this sport instead of guessing candidate slugs.
+    if out.get("teams_status") == 404:
+        out["league_discovery"] = discover_leagues("rugby-league")
+        # Cheap fallback: also try a short list of plausible alternate slugs
+        # directly, in case the discovery endpoint itself is empty/blocked.
+        candidate_results = []
+        for sport, league in _CANDIDATE_SLUGS:
+            try:
+                with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams"
+                    resp = client.get(url)
+                    candidate_results.append({
+                        "sport": sport, "league": league, "status": resp.status_code,
+                        "looks_ok": resp.status_code == 200,
+                    })
+            except Exception as exc:
+                candidate_results.append({"sport": sport, "league": league, "exception": str(exc)})
+        out["candidate_slug_probe"] = candidate_results
 
     # 2. Raw /scoreboard probe for today — if the slug is right, an
     # in-progress or scheduled fixture should show up here directly.
