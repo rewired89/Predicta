@@ -971,6 +971,11 @@ def esports_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "esports.html").read_text(encoding="utf-8"))
 
 
+@app.get("/rugby", response_class=HTMLResponse)
+def rugby_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "rugby.html").read_text(encoding="utf-8"))
+
+
 @app.get("/trading", response_class=HTMLResponse)
 def trading():
     """Stock Market hub — splits into High Value / Low Value (Kimi review, round 6 follow-up)."""
@@ -1187,6 +1192,26 @@ def analyze_table_tennis(body: TableTennisRequest):
         matches_today_b=body.matches_today_b,
     )
     if "error" in result and not result.get("player_a"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class RugbyRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-rugby")
+def analyze_rugby_endpoint(body: RugbyRequest):
+    """
+    NRL (Rugby League) pipeline. ESPN schedule-derived points-for/against +
+    Negative-Binomial split score model + Elo blend. See analyze_rugby.py.
+    """
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_rugby import run_rugby_analysis
+    result = run_rugby_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("home_team"):
         raise HTTPException(500, detail=result["error"])
     return result
 

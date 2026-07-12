@@ -8476,7 +8476,7 @@ Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tenn
 name: _migrate_sport_check
 type: function
 file: db/database.py
-purpose: Widens the matches.sport CHECK constraint to include all 5 active sports (soccer, table_tennis, tennis, baseball, esports). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB, and sets PRAGMA legacy_alter_table=ON around the RENAME so SQLite does NOT rewrite child-table foreign keys (predictions/signals/outcomes/odds_snapshots) to point at _matches_bak — that rewrite was the cause of the "no such table: _matches_bak" crash. Concurrency-safe: try/except so two overlapping init_db callers can never crash on a half-migrated _matches_bak. Idempotent.
+purpose: Widens the matches.sport CHECK constraint to include all 6 active sports (soccer, table_tennis, tennis, baseball, esports, rugby). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB, and sets PRAGMA legacy_alter_table=ON around the RENAME so SQLite does NOT rewrite child-table foreign keys (predictions/signals/outcomes/odds_snapshots) to point at _matches_bak — that rewrite was the cause of the "no such table: _matches_bak" crash. Concurrency-safe: try/except so two overlapping init_db callers can never crash on a half-migrated _matches_bak. Idempotent. Verified 2026-07-12: tested the upgrade path against a hand-built old-constraint DB (pre-rugby) — migration ran, existing rows survived, and a subsequent 'rugby' insert succeeded.
 inputs: conn: sqlite3.Connection
 outputs: none
 calls: sqlite3.Connection.execute, conn.commit, conn.rollback
@@ -10746,5 +10746,351 @@ inputs: none
 outputs: HTML
 calls: /trade/low-value/query (fetch, JS)
 called_by: trading_low_value (app.py)
+mutates: none
+---
+
+## fetchers/rugby.py
+
+---
+name: ESPN_BASE
+type: variable
+file: fetchers/rugby.py
+purpose: ESPN unofficial site API base URL for NRL (rugby-league/nrl slug). Same API family already used by fetchers/baseball.py and fetchers/soccer_schedule.py. NOTE — this exact sport/league slug has not been live-verified from a Claude Code session: this repo's remote containers cannot reach espn.com at all (confirmed 2026-07-12: even the already-working MLB endpoint 403s from this sandbox's proxy), so the schema assumption (events/competitions/competitors/status, same as MLB/soccer) is inferred from ESPN's site API being consistent across sports, not confirmed against a real rugby-league response. Verify field names once deployed (Railway) or run locally.
+inputs: none
+outputs: str
+calls: none
+called_by: _get
+mutates: none
+---
+
+---
+name: _get
+type: function
+file: fetchers/rugby.py
+purpose: GET from the ESPN NRL API with a browser User-Agent; returns None on any failure (network, non-2xx, bad JSON) rather than raising — same fail-soft convention as fetchers/soccer_schedule.py._get.
+inputs: path: str, params: Optional[dict]
+outputs: Optional[dict]
+calls: httpx.Client.get
+called_by: fetch_teams, fetch_team_schedule, fetch_standings
+mutates: none
+---
+
+---
+name: fetch_teams
+type: function
+file: fetchers/rugby.py
+purpose: Returns [{id, name, abbrev}] for all 17 NRL teams from the ESPN /teams endpoint. Empty list on failure.
+inputs: none
+outputs: list[dict]
+calls: _get
+called_by: lookup_team (default), enrich_rugby_teams
+mutates: none
+---
+
+---
+name: lookup_team
+type: function
+file: fetchers/rugby.py
+purpose: Fuzzy-matches a free-text team name (e.g. "Rabbitohs", "South Sydney") to an ESPN team entry — exact/substring match first, then difflib.get_close_matches on full names. Returns None if nothing reasonable matches.
+inputs: name: str, teams: Optional[list[dict]]
+outputs: Optional[dict]
+calls: fetch_teams (if teams not supplied), difflib.get_close_matches
+called_by: enrich_rugby_teams
+mutates: none
+---
+
+---
+name: fetch_team_schedule
+type: function
+file: fetchers/rugby.py
+purpose: Returns a team's completed games (most recent first, capped at `limit`) as {date, is_home, points_for, points_against, opponent}, parsed from ESPN's teams/{id}/schedule endpoint. Only STATUS_FINAL events are included. Empty list on failure.
+inputs: team_id: str, limit: int = 20
+outputs: list[dict]
+calls: _get
+called_by: team_points_profile
+mutates: none
+---
+
+---
+name: _avg
+type: function
+file: fetchers/rugby.py
+purpose: Arithmetic mean of a list of floats; returns None for an empty list instead of raising ZeroDivisionError.
+inputs: values: list[float]
+outputs: Optional[float]
+calls: none
+called_by: team_points_profile
+mutates: none
+---
+
+---
+name: _blend
+type: function
+file: fetchers/rugby.py
+purpose: Weighted average of a season-long value and a recent (last-5) value; falls back to whichever is present when the other is None. Mirrors models/dixon_coles._blend's recency-weighting convention (default 60% recent / 40% season).
+inputs: season_val: Optional[float], recent_val: Optional[float], recent_weight: float = 0.6
+outputs: Optional[float]
+calls: none
+called_by: (kept for parity with dixon_coles; actual blending for prediction happens in models/rugby_model.strengths_from_points, which receives the raw season/recent values from team_points_profile)
+mutates: none
+---
+
+---
+name: team_points_profile
+type: function
+file: fetchers/rugby.py
+purpose: Aggregates a team's ESPN schedule into a points-for/against profile — season averages, home/away splits, last-5 recent form, W-L-D record, and effective_n (sample size for shrinkage). All fields are None/0 when the schedule is empty, rather than defaulting to a fabricated league-average team.
+inputs: team_id: str
+outputs: dict {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against, away_ppg_for, away_ppg_against, home_matches, away_matches, recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws}
+calls: fetch_team_schedule, _avg
+called_by: enrich_rugby_teams
+mutates: none
+---
+
+---
+name: fetch_standings
+type: function
+file: fetchers/rugby.py
+purpose: Returns the NRL ladder as [{team, ladder_position, wins, losses, draws, points_for, points_against}]. Not currently consumed by analyze_rugby.py (kept for a future league-average-anchor / ladder-position feature) — empty list on failure.
+inputs: none
+outputs: list[dict]
+calls: _get
+called_by: (not yet wired into the pipeline)
+mutates: none
+---
+
+---
+name: enrich_rugby_teams
+type: function
+file: fetchers/rugby.py
+purpose: Main entry point — resolves both team names against ESPN's team list and returns {"home": {...profile}, "away": {...profile}}. A team's dict is {} (not a league-average default) when it can't be resolved or has zero completed games, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
+inputs: home_name: str, away_name: str
+outputs: dict {home: dict, away: dict}
+calls: fetch_teams, lookup_team, team_points_profile
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+
+## models/rugby_model.py
+
+---
+name: LEAGUE_AVG_POINTS / HOME_ADVANTAGE / NB_DISPERSION_K / SHRINKAGE_K / MODEL_PROB_CAP
+type: variable
+file: models/rugby_model.py
+purpose: Provisional starting constants for the NRL score model — NOT fitted to real NRL history (this repo's build/test containers can't reach ESPN, so there was no historical score data to calibrate against). LEAGUE_AVG_POINTS=22.0 (team pts/game), HOME_ADVANTAGE=1.12 (targets NRL's historically ~55-58% home win rate), NB_DISPERSION_K=8.0 (variance = mu + mu^2/k, since rugby scoring is overdispersed relative to Poisson), SHRINKAGE_K=8.0 (NRL's ~24-round season is shorter than soccer's 38), MODEL_PROB_CAP=0.78 (safety cap mirroring the baseball 72%-cap fix in CLAUDE.md's Bug 3 — "no model should claim near-certainty"). Open Calibration Issue: recalibrate all five once a season of real results is available.
+inputs: none
+outputs: float
+calls: none
+called_by: strengths_from_points, predict_score, analyze_rugby.py
+mutates: none
+---
+
+---
+name: strengths_from_points
+type: function
+file: models/rugby_model.py
+purpose: Converts a team's points-for/against profile into attack/defense multipliers (1.0 = league average), mirroring models/dixon_coles.strengths_from_xg's three-step layering: (1) blend season vs recent-5 points, (2) blend venue (home/away) split vs overall scaled by venue sample size, (3) Bayesian shrinkage to league mean by sample size (SHRINKAGE_K=8.0).
+inputs: season_pf, season_pa, recent_pf, recent_pa, venue_pf, venue_pa: Optional[float]; league_avg_points: float; matches_played, venue_matches: int; effective_n: Optional[float]; is_home: bool
+outputs: dict {attack, defense, components}
+calls: _blend, _shrink
+called_by: analyze_rugby._build_strengths
+mutates: none
+---
+
+---
+name: _nb_pmf_vector
+type: function
+file: models/rugby_model.py
+purpose: Negative Binomial PMF over 0..max_points for a given mean (mu) and dispersion (k), converting the (mu, k) parameterization to scipy.stats.nbinom's native (n, p) form (p = k/(k+mu)).
+inputs: mu: float, k: float, max_points: int
+outputs: np.ndarray
+calls: scipy.stats.nbinom.pmf
+called_by: predict_score
+mutates: none
+---
+
+---
+name: predict_score
+type: function
+file: models/rugby_model.py
+purpose: Core score model — computes home/away expected points (mu_home, mu_away) from attack/defense strengths + home advantage, builds independent Negative-Binomial marginals, and outer-products them into a score matrix. Deliberately skips the Dixon-Coles low-score correlation correction used for soccer (models/dixon_coles.py) — that correction fixes soccer's specific 0-0/1-0/1-1 clustering, which has no rugby analogue. Known limitation (undocumented until now, flagged 2026-07-12): treating total points as a smooth NB over all integers doesn't capture that rugby scores are lumpy combinations of 1/2/4/6-point plays — some integers (e.g. 1, 3) are far rarer in practice than the model assumes, which likely inflates the modeled draw probability above NRL's real (very low, golden-point-suppressed) draw rate. Not fixed in this pass — would need per-scoring-event (try/conversion/penalty) modeling, which needs data this fetcher doesn't currently pull.
+inputs: home_attack, home_defense, away_attack, away_defense: float; league_avg_points: float; home_advantage: float; neutral: bool; dispersion_k: float; max_points: int
+outputs: dict {prob_home, prob_draw, prob_away, mu_home, mu_away, score_matrix}
+calls: _nb_pmf_vector, numpy.outer
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+name: margin_buckets
+type: function
+file: models/rugby_model.py
+purpose: Victory-margin market — sums the score matrix into P(home wins by 1-12), P(home wins 13+), P(away wins by 1-12), P(away wins 13+). 12 points ≈ two converted tries, a common NRL handicap-line neighborhood.
+inputs: matrix: np.ndarray
+outputs: dict {home_by_1_12, home_by_13_plus, away_by_1_12, away_by_13_plus}
+calls: none
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+name: totals_over_under
+type: function
+file: models/rugby_model.py
+purpose: P(total points over/under a given line) summed from the score matrix.
+inputs: matrix: np.ndarray, line: float
+outputs: dict {line, prob_over, prob_under}
+calls: none
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+name: explain
+type: function
+file: models/rugby_model.py
+purpose: Plain-text summary of the score model's output (expected points, win probabilities, draw-rarity caveat) — feeds the pipeline's model_explanation / narrative prompt.
+inputs: result: dict, team_home: str, team_away: str
+outputs: str
+calls: none
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+
+## ai_agent_rugby.py
+
+---
+name: parse_rugby_query
+type: function
+file: ai_agent_rugby.py
+purpose: Extracts home_team, away_team, date, odds, handicap_line, total_line, and notes from free-text via Claude (claude-haiku-4-5-20251001). NRL nickname→full-name mapping (Rabbitohs→South Sydney Rabbitohs, etc.) is baked into the system prompt since there's only one competition to disambiguate (unlike soccer's multi-league schema).
+inputs: user_text: str
+outputs: dict {home_team, away_team, date, odds_home_decimal, odds_away_decimal, odds_home_american, odds_away_american, handicap_line, total_line, notes}
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+name: generate_rugby_narrative
+type: function
+file: ai_agent_rugby.py
+purpose: Generates a 2-3 sentence prediction narrative via Claude, mirroring ai_agent_soccer.generate_soccer_narrative's rules (favourite + win prob first, most decisive driver, verdict, confidence caveat, under 90 words).
+inputs: home_team, away_team: str; prob_home, prob_draw, prob_away: float; explanation: str; verdict: str; confidence: str
+outputs: str
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_rugby_analysis (analyze_rugby.py)
+mutates: none
+---
+
+---
+
+## analyze_rugby.py
+
+---
+name: _build_strengths
+type: function
+file: analyze_rugby.py
+purpose: Converts an enrich_rugby_teams() team profile into NB attack/defense strengths via models.rugby_model.strengths_from_points. Returns the league-average prior (1.0/1.0, flagged "no_data") when the team has no live ESPN data — no directional bias applied (unlike soccer's promoted-team prior, since rugby has no equivalent "just got promoted" signal).
+inputs: team_data: dict, is_home: bool
+outputs: dict {attack, defense, components}
+calls: models.rugby_model.strengths_from_points
+called_by: run_rugby_analysis
+mutates: none
+---
+
+---
+name: _bet_recommendations
+type: function
+file: analyze_rugby.py
+purpose: Translates model probabilities (+ optional market edge) into BET/LEAN/PASS verdicts. Deliberately uses baseball's conservative thresholds (65%/62pp no-odds, 3.5pp/1pp edge) rather than soccer's looser ones — this is a brand-new, zero-resolved-predictions model, and CLAUDE.md's own Bug 3 history ("model confidence was too high / thresholds too low") argues for starting cautious rather than tightening after losses.
+inputs: prob_home, prob_away: float; home_team, away_team: str; edge_summary: Optional[dict]; partial_data: bool
+outputs: list[dict]
+calls: none
+called_by: run_rugby_analysis
+mutates: none
+---
+
+---
+name: run_rugby_analysis
+type: function
+file: analyze_rugby.py
+purpose: Full NRL pipeline entry point — parse query (ai_agent_rugby) → ESPN schedule enrichment (fetchers/rugby) → attack/defense strengths → Negative-Binomial score model → Elo blend (dynamic weight by rating delta, same formula as analyze_soccer.py) → MODEL_PROB_CAP safety clamp → markets (margin buckets, totals, optional handicap cover) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='rugby') → narrate. Returns {"status": "insufficient_data", ...} without persisting when ESPN has no data for either team, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
+inputs: user_query: str, bankroll: float = 1000.0
+outputs: dict (see analyze_soccer.run_soccer_analysis's return shape for the parallel fields; rugby-specific additions are markets.margin_buckets/totals/handicap)
+calls: ai_agent_rugby.parse_rugby_query, fetchers.rugby.enrich_rugby_teams, _build_strengths, models.rugby_model.predict_score/margin_buckets/totals_over_under/explain, models.elo.EloModel, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_rugby.generate_rugby_narrative, db.database.get_db
+called_by: analyze_rugby_endpoint (app.py)
+mutates: matches table (sport='rugby'), signals table, predictions table
+---
+
+---
+
+## app.py (rugby additions)
+
+---
+name: RugbyRequest
+type: class
+file: app.py
+purpose: Pydantic request body for POST /analyze-rugby — {query: str, bankroll: float = 1000.0}.
+inputs: none
+outputs: none
+calls: none
+called_by: analyze_rugby_endpoint
+mutates: none
+---
+
+---
+name: analyze_rugby_endpoint
+type: function
+file: app.py
+purpose: POST /analyze-rugby — runs the NRL pipeline (analyze_rugby.run_rugby_analysis) and returns its result dict; 400 on empty query, 500 if the pipeline returns an error with no home_team.
+inputs: body: RugbyRequest
+outputs: dict (JSON response)
+calls: analyze_rugby.run_rugby_analysis
+called_by: FastAPI (HTTP POST)
+mutates: none
+---
+
+---
+name: rugby_ui
+type: function
+file: app.py
+purpose: GET /rugby — serves templates/rugby.html.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+
+## templates/rugby.html
+
+---
+name: rugby.html
+type: template
+file: templates/rugby.html
+purpose: NRL analysis UI — query box (team names, optional American odds), step tracker, team cards (points-for/against, W-L-D form), win-probability bars with a draw-rarity note, victory-margin grid, totals line, market comparison/Kelly card, recommendation card, AI narrative, and a collapsible pipeline trace. Carries an on-page amber caveat noting the model's constants are provisional/uncalibrated. Visual structure and CSS variables copied from templates/esports.html (closest existing analog: also a newer sport with a simpler market set than soccer/baseball).
+inputs: none
+outputs: HTML
+calls: /analyze-rugby (fetch, JS)
+called_by: rugby_ui (app.py)
+mutates: none
+---
+
+---
+name: sports.html (rugby card)
+type: template
+file: templates/sports.html
+purpose: Added a "Rugby (NRL)" card linking to /rugby, alongside the existing Soccer/Baseball/Tennis/Ping Pong/E-Sports cards.
+inputs: none
+outputs: HTML
+calls: none
+called_by: sports (app.py)
 mutates: none
 ---
