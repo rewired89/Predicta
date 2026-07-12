@@ -43,6 +43,23 @@ LOW_VALUE_TARGET_PCT: float = 0.50    # +50% exit
 LOW_VALUE_STOP_PCT: float = 0.50      # -50% exit
 NEGATIVE_THESES: set[str] = {"EARNINGS_MISS", "ANALYST_DOWNGRADE", "REGULATORY_RISK", "OPERATIONAL_CRISIS"}
 
+# Data-collection sprint mode (2026-07-12, same pattern and rationale as
+# fetchers/high_value_runner.py's DATA_COLLECTION_SPRINT_MODE): at the real
+# ENTRY_THRESHOLD (40, thesis_tracker.py), a live production scan found only
+# 2 candidate symbols out of 500 evaluated even before scoring — at that
+# rate, reaching the 20/50/100-closed-trade calibration tiers
+# (signal_calibration.py) this engine needs to be tunable at all could take
+# months of mostly-empty days. Lossless and reversible: log_low_value_trade
+# always stores the real composite score regardless of which bar let it in,
+# so post-hoc analysis can always re-filter to |score|>=40 even with sprint
+# mode on. Flip LOW_VALUE_DATA_COLLECTION_SPRINT_MODE back to False to
+# return to the strict bar once there's enough volume to tune against.
+# Does NOT change thesis_tracker.ENTRY_THRESHOLD itself (that still drives
+# label_for_score's BUY/SELL/STRONG_BUY/STRONG_SELL text and entry_eligible)
+# — only how low a score run_low_value_scan() is willing to log a trade at.
+LOW_VALUE_DATA_COLLECTION_SPRINT_MODE: bool = True
+LOW_VALUE_SPRINT_MIN_SCORE: float = 15.0
+
 # NYSE market holidays (Kimi review, round-2 follow-up — the prior weekday-only
 # approximation held a Thursday-before-a-3-day-weekend entry for 7 calendar
 # days instead of 5 trading days). Real dates, same convention as
@@ -236,9 +253,15 @@ def _load_open_positions() -> list[dict]:
 def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     """
     Scans the daily universe (or an explicit override list), logs any
-    |composite| >= ENTRY_THRESHOLD symbol as a hypothetical trade, capped at
-    LOW_VALUE_MAX_CONCURRENT_POSITIONS total open positions. Returns the list
-    of trade_ids created.
+    |composite| >= the effective logging bar as a hypothetical trade, capped
+    at LOW_VALUE_MAX_CONCURRENT_POSITIONS total open positions. Returns the
+    list of trade_ids created.
+
+    The effective bar is thesis_tracker.ENTRY_THRESHOLD (40) normally, or
+    LOW_VALUE_SPRINT_MIN_SCORE (15) while LOW_VALUE_DATA_COLLECTION_SPRINT_MODE
+    is on — see that constant's comment above for why. entry_score is stored
+    on every logged trade either way, so which bar let a given trade in is
+    always reconstructable after the fact.
     """
     syms = symbols if symbols is not None else get_daily_universe()
     if not syms:
@@ -247,6 +270,7 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     existing_open = len(_load_open_positions())
     news_by_symbol = scan_universe_news(syms)
     trade_ids: list[int] = []
+    min_score = LOW_VALUE_SPRINT_MIN_SCORE if LOW_VALUE_DATA_COLLECTION_SPRINT_MODE else ENTRY_THRESHOLD
 
     for sym in syms:
         if existing_open + len(trade_ids) >= LOW_VALUE_MAX_CONCURRENT_POSITIONS:
@@ -265,7 +289,7 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
 
             thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result)
             composite = thesis.get("composite")
-            if composite is None or not thesis.get("entry_eligible"):
+            if composite is None or abs(composite) < min_score:
                 continue
 
             side = "long" if composite > 0 else "short"
@@ -495,6 +519,9 @@ def get_runner_status() -> dict:
         "active":          _runner_active and bool(_runner_thread and _runner_thread.is_alive()),
         "scan_hour_et":    LOW_VALUE_SCAN_HOUR_ET,
         "max_positions":   LOW_VALUE_MAX_CONCURRENT_POSITIONS,
+        "entry_threshold": ENTRY_THRESHOLD,
+        "data_collection_sprint_mode": LOW_VALUE_DATA_COLLECTION_SPRINT_MODE,
+        "sprint_min_score": LOW_VALUE_SPRINT_MIN_SCORE if LOW_VALUE_DATA_COLLECTION_SPRINT_MODE else None,
         "open_positions":  len(open_pos),
         "open_symbols":    [p["symbol"] for p in open_pos],
         "universe_cached_today": today_str in _universe_cache,

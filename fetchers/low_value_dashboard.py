@@ -171,6 +171,10 @@ def render_low_value_dashboard() -> str:
 
     runner_dot = "#22c55e" if runner_status.get("active") else "#ef4444"
     runner_lbl = "Running" if runner_status.get("active") else "Stopped"
+    sprint_lbl = (
+        f" &nbsp;·&nbsp; <span style=\"color:#f59e0b;\">SPRINT MODE (logging bar {runner_status['sprint_min_score']:.0f}, real threshold {runner_status.get('entry_threshold', 40):.0f})</span>"
+        if runner_status.get("data_collection_sprint_mode") else ""
+    )
 
     scan_banner_html = ""
     if runner_status.get("scan_in_progress") or runner_status.get("universe_build_in_progress"):
@@ -269,7 +273,7 @@ def render_low_value_dashboard() -> str:
 <header>
   <div class="logo">Predicta · Low Value Monitor</div>
   <div class="header-meta">
-    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {now_str}
+    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {now_str}{sprint_lbl}
   </div>
 </header>
 <main>
