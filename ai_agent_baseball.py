@@ -47,6 +47,55 @@ Examples:
 No markdown, no prose — raw JSON only."""
 
 
+def _plausible_team_match(parsed_val: str, user_text: str, teams: list[dict]) -> bool:
+    """
+    True if parsed_val is a plausible identification of a team mentioned in
+    user_text — not necessarily verbatim.
+
+    Two text-heuristic versions of this check were tried and both broke on
+    real traffic (2026-07-11): an exact-substring requirement rejected every
+    query where the model reasonably expanded a nickname to the full name
+    ("Yankees" -> "New York Yankees"); a word-overlap version fixed that but
+    still rejected the single most common pattern in this app — a 3-letter
+    abbreviation expanding to a full name ("NYY" -> "New York Yankees",
+    "A's" -> "Athletics") shares no words at all with the abbreviation.
+
+    Instead of inventing more string heuristics, this reuses the same ESPN
+    team-matching code (_match_team, with its alias table) that the rest of
+    the pipeline already relies on: resolve parsed_val to a real team id, then
+    check whether ANY word or adjacent-word-pair in the raw query resolves to
+    that SAME id via the identical matcher. Abbreviation, nickname, and full
+    name all normalize to one id through the one matcher, so this correctly
+    accepts every surface form Claude might reasonably use while still
+    rejecting a true hallucination like "CHW" -> "Washington Nationals" (no
+    token in "A's vs CHW today" resolves to the Nationals' id).
+
+    teams is fetched once by the caller and reused across both team_a/team_b
+    checks. Fails open (returns True, i.e. doesn't block) if ESPN is
+    unreachable (teams empty) or the parsed value itself doesn't resolve to
+    any known team — a network hiccup here must never be able to block every
+    query.
+    """
+    from fetchers.baseball import _match_team
+
+    if not teams:
+        return True
+
+    claimed = _match_team(parsed_val, teams)
+    if not claimed:
+        return True  # can't resolve the claim itself — not this check's job to flag that
+    claimed_id = claimed.get("id")
+
+    tokens = re.findall(r"[A-Za-z']+", user_text)
+    candidates = set(tokens)
+    candidates.update(f"{tokens[i]} {tokens[i + 1]}" for i in range(len(tokens) - 1))
+    for cand in candidates:
+        m = _match_team(cand, teams)
+        if m and m.get("id") == claimed_id:
+            return True
+    return False
+
+
 def parse_baseball_query(user_text: str) -> dict:
     client = _client()
     msg = client.messages.create(
@@ -60,23 +109,27 @@ def parse_baseball_query(user_text: str) -> dict:
     raw = re.sub(r"\n?```$", "", raw)
     parsed = json.loads(raw)
 
-    # Safety net for a confirmed failure mode (2026-07-11): despite the
-    # verbatim-extraction instruction above, the model can still substitute a
-    # different real team for an abbreviation it misreads (caught live: "CHW"
-    # in "A's vs CHW today" came back as "Washington Nationals" — a team with
-    # no textual resemblance to "CHW" at all, pure hallucination, not a lookup
-    # bug). A prompt fix can reduce this but an LLM can't be trusted to always
-    # follow it, so fail loudly here instead of silently analyzing the wrong
-    # team: if neither team_a nor team_b appears anywhere in the original
-    # query text, something was substituted rather than extracted.
-    text_lower = user_text.lower()
+    # Safety net for a confirmed failure mode (2026-07-11): the model can
+    # substitute a different real team for an abbreviation it misreads
+    # (caught live: "CHW" in "A's vs CHW today" came back as "Washington
+    # Nationals" — a team with no textual resemblance to "CHW" at all, pure
+    # hallucination, not a lookup bug). See _plausible_team_match's docstring
+    # for why this validates via the real ESPN team matcher rather than a
+    # text heuristic — two text-heuristic attempts before this one both
+    # broke normal queries.
+    try:
+        from fetchers.baseball import _all_teams
+        teams = _all_teams()
+    except Exception:
+        teams = []  # ESPN unreachable — skip validation rather than block on a network hiccup
+
     for key in ("team_a", "team_b"):
-        val = str(parsed.get(key, "")).lower().strip()
-        if val and val not in text_lower:
+        val = str(parsed.get(key, "")).strip()
+        if val and not _plausible_team_match(val, user_text, teams):
             raise ValueError(
                 f"Query parser returned {key}={parsed.get(key)!r}, which doesn't "
-                f"appear anywhere in the original query {user_text!r} — likely a "
-                f"hallucinated team substitution, not a real extraction."
+                f"share any real overlap with the original query {user_text!r} — "
+                f"likely a hallucinated team substitution, not a real extraction."
             )
     return parsed
 

@@ -4460,11 +4460,23 @@ file: ai_agent_baseball.py
 purpose: Sends user's baseball query to Claude and returns structured JSON with home team, away team, date, notes, and optional American odds. Extracts odds_a_american and odds_b_american when present in query (e.g. "NYY -130 vs BOS +110 tonight"). PARSE_SYSTEM now explicitly instructs verbatim extraction (2026-07-11 fix, see below) — team_a/team_b must be copied exactly from the query, not expanded or substituted.
 inputs: user_text: str
 outputs: dict {team_a, team_b, date, notes, odds_a_american?: float, odds_b_american?: float}
-calls: _client, client.messages.create, json.loads, re.sub
+calls: _client, client.messages.create, json.loads, re.sub, _plausible_team_match, fetchers.baseball._all_teams
 called_by: run_baseball_analysis
 mutates: none
 
-**Fixed 2026-07-11 (user report: "A's vs CHW today" resolved to "Washington Nationals" — a team with zero textual resemblance to "CHW"):** confirmed this was NOT the ESPN team-matching layer (fetchers/baseball.py — tested directly, "CHW" resolves correctly to Chicago White Sox every time) but the query-parsing step upstream of it: PARSE_SYSTEM never told Claude to preserve the literal query text, so it was free to "identify" a real team from an abbreviation and got it wrong — a plain LLM hallucination, not a deterministic code bug, which is also why it reportedly worked fine on the same kind of query the day before (sampling variance, not a regression). Two-part fix: (1) PARSE_SYSTEM now explicitly demands verbatim extraction with a worked example of this exact failure ("CHW" → "CHW", never "Washington Nationals"); (2) parse_baseball_query now validates both team_a and team_b actually appear as a substring of the original query text (case-insensitive) and raises ValueError if not — since a prompt instruction alone can't be trusted to always hold, this turns a silent wrong-team analysis into a loud, visible error surfaced through run_baseball_analysis's existing try/except → {"error": ...} → app.py's 500 response → the frontend's #error-card, instead of quietly running the wrong game. Verified both the hallucination-catching path and the normal-parse pass-through path with a mocked Claude client (no live API key available in the environment this was fixed in).
+**Fixed 2026-07-11 (user report: "A's vs CHW today" resolved to "Washington Nationals" — a team with zero textual resemblance to "CHW"):** confirmed this was NOT the ESPN team-matching layer (fetchers/baseball.py — tested directly, "CHW" resolves correctly to Chicago White Sox every time) but the query-parsing step upstream of it: PARSE_SYSTEM never told Claude to preserve the literal query text, so it was free to "identify" a real team from an abbreviation and got it wrong — a plain LLM hallucination, not a deterministic code bug, which is also why it reportedly worked fine on the same kind of query the day before (sampling variance, not a regression). Fix part 1: PARSE_SYSTEM now explicitly demands verbatim extraction with a worked example of this exact failure ("CHW" → "CHW", never "Washington Nationals"). Fix part 2 went through two broken iterations before landing — see _plausible_team_match's docstring for the full history: an exact-substring validation shipped first and immediately broke nearly every normal query (the model routinely and correctly expands "Yankees" to "New York Yankees", which isn't a hallucination); a word-overlap version fixed that but still broke the single most common query format in this app, 3-letter abbreviations ("NYY -130 vs BOS +110 tonight" — "NYY" and "New York Yankees" share no words). The final version validates via the real ESPN team matcher instead of text heuristics, so it correctly accepts every surface form while still rejecting true hallucinations. Verified all three categories (nickname expansion, abbreviation expansion, verbatim abbreviation — all must pass; hallucinated substitution — must still block) with a mocked Claude client (no live API key available in the environment this was fixed in).
+---
+
+---
+name: _plausible_team_match
+type: function
+file: ai_agent_baseball.py
+purpose: Validates that a team name/abbreviation parse_baseball_query returned for team_a/team_b is a plausible identification of something actually mentioned in the query, without requiring verbatim text — resolves both the parsed value and every word/adjacent-word-pair in the raw query through fetchers.baseball._match_team (the same ESPN matcher + alias table the rest of the pipeline uses) and accepts a match if any of them resolve to the same team id. Fails open (returns True) if ESPN is unreachable or the parsed value itself doesn't resolve to a known team, so a network hiccup here can never block every query.
+inputs: parsed_val: str, user_text: str, teams: list[dict] (fetched once by the caller and reused for both team_a/team_b checks)
+outputs: bool
+calls: fetchers.baseball._match_team
+called_by: parse_baseball_query
+mutates: none
 ---
 
 ---
