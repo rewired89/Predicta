@@ -3010,11 +3010,11 @@ mutates: predictions table
 name: record_outcome
 type: function
 file: engine.py
-purpose: Records a match result, updates match status to "final", and optionally updates Elo/Glicko ratings.
+purpose: Records a match result, updates match status to "final", and optionally updates Elo/Glicko ratings. Extended 2026-07-12 to include 'rugby' in the Elo-update branch (previously only 'soccer') so tasks/rugby_auto.py's resolve_finished() actually updates rugby Elo ratings, not just soccer's.
 inputs: match_id: int, result: str, score_a: Optional[int], score_b: Optional[int], update_ratings: bool = True, importance: str = "default", surface: str = "all"
 outputs: dict {status, result, new_rating_a?, new_rating_b?}
 calls: get_db, elo_model.update, glicko_model.update
-called_by: add_outcome (app.py)
+called_by: add_outcome (app.py), resolve_finished (tasks/soccer_auto.py, tasks/rugby_auto.py)
 mutates: outcomes table, matches table, elo_ratings or glicko2_ratings table
 ---
 
@@ -11163,7 +11163,7 @@ mutates: none
 name: run_rugby_analysis
 type: function
 file: analyze_rugby.py
-purpose: Full NRL pipeline entry point — parse query (ai_agent_rugby) → ESPN schedule enrichment (fetchers/rugby, before_date=match_date to prevent same-day data leakage — fixed 2026-07-12) → attack/defense strengths → Negative-Binomial score model → Elo blend (dynamic weight by rating delta, same formula as analyze_soccer.py) → MODEL_PROB_CAP safety clamp → markets (margin buckets, totals, optional handicap cover) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='rugby') → narrate. Returns {"status": "insufficient_data", ...} without persisting when ESPN has no data for either team, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
+purpose: Full NRL pipeline entry point — parse query (ai_agent_rugby) → ESPN schedule enrichment (fetchers/rugby, before_date=match_date to prevent same-day data leakage — fixed 2026-07-12) → attack/defense strengths → Negative-Binomial score model → Elo blend (dynamic weight by rating delta, same formula as analyze_soccer.py) → MODEL_PROB_CAP safety clamp → markets (margin buckets, totals, optional handicap cover) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='rugby'), including bet_side/bet_model_prob/bet_decimal_odds/bet_edge_pp signals on BET/LEAN verdicts (added 2026-07-12 so tasks/rugby_auto.py can compute hit-rate/calibration once resolved) → narrate. Returns {"status": "insufficient_data", ...} without persisting when ESPN has no data for either team, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict (see analyze_soccer.run_soccer_analysis's return shape for the parallel fields; rugby-specific additions are markets.margin_buckets/totals/handicap)
 calls: ai_agent_rugby.parse_rugby_query, fetchers.rugby.enrich_rugby_teams, _build_strengths, models.rugby_model.predict_score/margin_buckets/totals_over_under/explain, models.elo.EloModel, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_rugby.generate_rugby_narrative, db.database.get_db
@@ -11196,6 +11196,30 @@ inputs: body: RugbyRequest
 outputs: dict (JSON response)
 calls: analyze_rugby.run_rugby_analysis
 called_by: FastAPI (HTTP POST)
+mutates: none
+---
+
+---
+name: rugby_auto_resolve
+type: function
+file: app.py
+purpose: POST /rugby-auto/resolve — added 2026-07-12 (user asked for a way to collect real game results for later analysis/calibration before betting real money). Manually triggers tasks.rugby_auto.resolve_finished(). No scheduler yet — call this manually after each round of NRL games, or wire a cron later.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.rugby_auto.resolve_finished
+called_by: FastAPI (HTTP POST)
+mutates: outcomes table, matches table, elo_ratings table (via resolve_finished → record_outcome)
+---
+
+---
+name: rugby_performance
+type: function
+file: app.py
+purpose: GET /rugby-performance — added 2026-07-12, same "prove it before staking real money" purpose as GET /tt-performance. Returns NOT ENOUGH DATA below 10 resolved predictions; otherwise a plain verdict (EDGE PROVEN / EDGE EXISTS / CALIBRATED — CHECK MARKET ODDS / NO EDGE DETECTED) derived from tasks.rugby_auto.compute_metrics()'s BET-pick hit rate and implied ROI.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.rugby_auto.compute_metrics
+called_by: FastAPI (HTTP GET)
 mutates: none
 ---
 
@@ -11536,5 +11560,61 @@ inputs: none
 outputs: HTML
 calls: none
 called_by: sports (app.py)
+mutates: none
+---
+
+---
+
+## fetchers/rugby.py (result resolution)
+
+---
+name: _last_word_match
+type: function
+file: fetchers/rugby.py
+purpose: Matches the last word (nickname) between two team-name strings — mirrors fetchers/soccer_schedule.py's helper of the same name.
+inputs: a: str, b: str
+outputs: bool
+calls: none
+called_by: finished_result
+mutates: none
+---
+
+---
+name: finished_result
+type: function
+file: fetchers/rugby.py
+purpose: Added 2026-07-12 (user asked for a way to collect actual game results for later analysis/calibration). Looks up a match's final result by team names + scheduled date, fuzzy-matching against fetch_scoreboard_range's output — same approach fetchers/soccer_schedule.py already uses successfully for soccer. Returns None if no STATUS_FINAL game matching both names is found within ~4 days of the given date.
+inputs: home: str, away: str, on_or_after: str ('YYYY-MM-DD'), window_days: int = 200
+outputs: Optional[dict] {result, score_a, score_b, kickoff_utc, matched_home, matched_away}
+calls: fetch_scoreboard_range, _last_word_match
+called_by: resolve_finished (tasks/rugby_auto.py)
+mutates: none
+---
+
+---
+
+## tasks/rugby_auto.py
+
+---
+name: resolve_finished
+type: function
+file: tasks/rugby_auto.py
+purpose: Added 2026-07-12. Finds rugby predictions with scheduled_at in the past and no outcome row, looks up the real result via fetchers.rugby.finished_result, and calls engine.record_outcome (which also updates Elo). Mirrors tasks/soccer_auto.py's resolve_finished(), minus the background scheduler — manually triggered via POST /rugby-auto/resolve until rugby gets its own auto-predict job.
+inputs: none
+outputs: dict {candidates, resolved, still_pending, errors, details}
+calls: fetchers.rugby.finished_result, engine.record_outcome
+called_by: rugby_auto_resolve (app.py)
+mutates: outcomes table, matches table (status), elo_ratings table (via record_outcome)
+---
+
+---
+name: compute_metrics
+type: function
+file: tasks/rugby_auto.py
+purpose: Added 2026-07-12, same purpose as tasks/soccer_auto.py's _compute_metrics() (minus per-league breakdown — rugby only has one league right now). Joins matches/predictions/outcomes/signals for sport='rugby' and computes: resolved n, avg Brier score, BET-pick and LEAN-pick hit rate + implied ROI (when odds were supplied), and calibration buckets (50-60%/60-70%/70-80%/80%+ model-prob buckets vs actual hit rate). Depends on the bet_side/bet_model_prob/bet_decimal_odds/bet_edge_pp signals analyze_rugby.py logs per BET/LEAN prediction.
+inputs: none
+outputs: dict {resolved, avg_brier, bet, lean, calibration, generated_utc}
+calls: db.database.get_db
+called_by: rugby_performance (app.py)
 mutates: none
 ---

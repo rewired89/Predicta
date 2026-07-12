@@ -346,10 +346,29 @@ def run_rugby_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
                 log_signal(match_id, name, team, signal_value=v, source="espn_nrl")
 
         top_rec = (recs or [{}])[0]
-        if top_rec.get("verdict"):
-            log_signal(match_id, "verdict", None, signal_text=top_rec["verdict"], source="rugby_v1")
+        verdict = top_rec.get("verdict")
+        if verdict:
+            log_signal(match_id, "verdict", None, signal_text=verdict, source="rugby_v1")
         log_signal(match_id, "data_completeness_home", None, signal_text=data_completeness["home"], source="rugby_v1")
         log_signal(match_id, "data_completeness_away", None, signal_text=data_completeness["away"], source="rugby_v1")
+
+        # Bet-context signals (mirrors analyze_soccer.py's Round 6 P4-P6
+        # persistence) — needed so tasks/rugby_auto.py can compute BET/LEAN
+        # hit rate and calibration buckets once outcomes are resolved.
+        if verdict in ("BET", "LEAN"):
+            bet_str = top_rec.get("bet", "") or ""
+            bet_side = "home" if bet_str.startswith(home_team) else (
+                "away" if bet_str.startswith(away_team) else None)
+            if bet_side:
+                log_signal(match_id, "bet_side", None, signal_text=bet_side, source="rugby_v1")
+                bet_prob = prob_home if bet_side == "home" else prob_away
+                log_signal(match_id, "bet_model_prob", None, signal_value=float(bet_prob), source="rugby_v1")
+                bet_odds = odds_home if bet_side == "home" else odds_away
+                if bet_odds is not None:
+                    log_signal(match_id, "bet_decimal_odds", None, signal_value=float(bet_odds), source="rugby_v1")
+                edge_pp = top_rec.get("edge_pp")
+                if edge_pp is not None:
+                    log_signal(match_id, "bet_edge_pp", None, signal_value=float(edge_pp), source="rugby_v1")
 
         explanation = explain(score, home_team, away_team) + (
             f" Elo win-prob: {home_team} {elo_home*100:.1f}% / {away_team} {elo_away*100:.1f}%."

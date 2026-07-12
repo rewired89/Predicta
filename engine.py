@@ -226,7 +226,7 @@ def record_outcome(
     part_b = match["participant_b"]
 
     if update_ratings and score_a is not None and score_b is not None:
-        if sport == "soccer":
+        if sport in ("soccer", "rugby"):
             new_ra, new_rb = elo_model.update(part_a, part_b, score_a, score_b, importance)
             return {
                 "status": "recorded",

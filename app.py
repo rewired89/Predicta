@@ -1249,6 +1249,71 @@ def analyze_rugby_endpoint(body: RugbyRequest):
     return result
 
 
+@app.post("/rugby-auto/resolve")
+def rugby_auto_resolve():
+    """
+    Manually trigger a resolve-finished pass for rugby predictions: finds
+    matches with scheduled_at in the past and no outcome row, looks up the
+    real result via ESPN, and records it (updates Elo too). Added 2026-07-12
+    so BET/LEAN/PASS predictions can actually be graded against real results
+    before betting real money — no scheduler yet, call this manually
+    (or wire a cron later, same as tasks/nrfi_auto.py does for baseball).
+    """
+    from tasks.rugby_auto import resolve_finished
+    return resolve_finished()
+
+
+@app.get("/rugby-performance")
+def rugby_performance():
+    """
+    Rugby model performance report — resolved predictions, Brier score,
+    BET/LEAN hit rate + implied ROI, calibration buckets. Same
+    "prove it before staking real money" purpose as GET /tt-performance.
+    Call POST /rugby-auto/resolve first to grade any pending predictions.
+    """
+    from tasks.rugby_auto import compute_metrics
+    metrics = compute_metrics()
+    n = metrics.get("resolved", 0)
+    if n < 10:
+        return {
+            "verdict": "NOT ENOUGH DATA",
+            "n_resolved": n,
+            "needed": 10,
+            "message": (
+                f"Only {n} resolved rugby predictions. Need at least 10 to compute "
+                "meaningful metrics. Keep running predictions and call "
+                "POST /rugby-auto/resolve after each round of games."
+            ),
+            "next_step": "Run 20+ predictions (with market odds where possible), resolve them, then call this endpoint.",
+        }
+
+    bet = metrics.get("bet") or {}
+    brier = metrics.get("avg_brier") or 0.25
+    roi = bet.get("implied_roi")
+    hit_rate = bet.get("hit_rate")
+
+    if roi is not None and roi > 0.05:
+        verdict = "EDGE PROVEN"
+        note = f"BET picks ROI +{roi*100:.1f}% across {bet.get('n', 0)} bets. Still small-sample — keep tracking."
+    elif roi is not None and roi > 0:
+        verdict = "EDGE EXISTS"
+        note = f"BET picks ROI +{roi*100:.1f}% — thin edge, not conclusive. Need 50+ BET picks to separate skill from variance."
+    elif hit_rate is not None and hit_rate > 0.55:
+        verdict = "CALIBRATED — CHECK MARKET ODDS"
+        note = f"BET hit rate {hit_rate*100:.1f}% without full odds coverage — supply odds on more queries to compute real ROI."
+    else:
+        verdict = "NO EDGE DETECTED"
+        hr_pct = hit_rate * 100 if hit_rate is not None else 0.0
+        note = f"BET hit rate {hr_pct:.1f}%, Brier {brier:.3f}. Not outperforming yet."
+
+    return {
+        "verdict": verdict, "note": note, "n_resolved": n,
+        "avg_brier": brier, "bet": bet, "lean": metrics.get("lean"),
+        "calibration": metrics.get("calibration"),
+        "full_metrics": metrics,
+    }
+
+
 class UFCRequest(BaseModel):
     query: str
     bankroll: float = 1000.0

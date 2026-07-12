@@ -534,3 +534,61 @@ def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
         out["sample_team_matched"] = None
 
     return out
+
+
+def _last_word_match(a: str, b: str) -> bool:
+    """Match the last word (nickname) between two team strings. Mirrors
+    fetchers/soccer_schedule.py's helper of the same name."""
+    aw, bw = a.split(), b.split()
+    if not aw or not bw:
+        return False
+    return aw[-1] == bw[-1] and len(aw[-1]) >= 4
+
+
+def finished_result(home: str, away: str, on_or_after: str, window_days: int = 200) -> Optional[dict]:
+    """
+    Look up a match's final result by team names + the date it was scheduled
+    for. Mirrors fetchers/soccer_schedule.py's finished_result() so
+    tasks/rugby_auto.py's resolve step can follow the same pattern already
+    used for soccer. Reuses fetch_scoreboard_range (the only working data
+    path for this league — see that function's docstring) rather than a
+    fresh windowed call, since it already covers everything back to
+    `window_days` before today.
+
+    Returns {result: 'a'|'b'|'draw', score_a, score_b, kickoff_utc,
+    matched_home, matched_away} or None if no STATUS_FINAL game matching
+    both team names is found within the lookback window.
+    """
+    home_lo, away_lo = home.lower().strip(), away.lower().strip()
+    try:
+        base_date = datetime.strptime(on_or_after[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        base_date = None
+
+    events = fetch_scoreboard_range(days_back=window_days)
+    for ev in events:
+        h_name, a_name = ev["home_name"].lower(), ev["away_name"].lower()
+        home_match = home_lo in h_name or h_name in home_lo or _last_word_match(home_lo, h_name)
+        away_match = away_lo in a_name or a_name in away_lo or _last_word_match(away_lo, a_name)
+        if not (home_match and away_match):
+            continue
+        if base_date is not None:
+            try:
+                ev_date = datetime.strptime(ev["date"][:10], "%Y-%m-%d").date()
+                if abs((ev_date - base_date).days) > 4:
+                    continue
+            except ValueError:
+                pass
+        hs, as_ = ev["home_score"], ev["away_score"]
+        if hs > as_:
+            result = "a"
+        elif hs < as_:
+            result = "b"
+        else:
+            result = "draw"
+        return {
+            "result": result, "score_a": hs, "score_b": as_,
+            "kickoff_utc": ev["date"],
+            "matched_home": ev["home_name"], "matched_away": ev["away_name"],
+        }
+    return None
