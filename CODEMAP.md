@@ -3238,12 +3238,12 @@ mutates: none
 name: startup
 type: hook
 file: app.py
-purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runner (paper_runner.start_runner).
+purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern.
 inputs: none
 outputs: none
-calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py)
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py)
 called_by: FastAPI on_event("startup")
-mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals)
+mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals), _runner_thread/_runner_active (low_value_runner.py globals)
 ---
 
 ---

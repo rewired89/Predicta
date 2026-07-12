@@ -51,6 +51,21 @@ def startup():
     except Exception:
         pass
 
+    # Start the Low Value engine's own runner (2026-07-12 fix — this call
+    # was missing entirely). Without it, _runner_loop() never runs, so the
+    # daily 8:00-8:14 AM ET universe scan + entry/exit check never fires on
+    # its own; the engine only ever did anything if someone manually hit
+    # POST /trade/low-value/runner/start, and that in-memory state resets
+    # on every Railway restart/redeploy — which, given how often this repo
+    # deploys, meant the "automatic" daily collection had effectively never
+    # been running. Independent thread/globals from the High Value runner
+    # above (fetchers/low_value_runner.py).
+    try:
+        from fetchers.low_value_runner import start_runner as start_low_value_runner
+        start_low_value_runner()
+    except Exception:
+        pass
+
     # Start the soccer auto-collection loop:
     #   scan_fixtures every 4 h, resolve_finished every 2 h, weekly_report
     #   every Monday 08:00 UTC (writes to reports/ and pushes to GitHub if
