@@ -10839,7 +10839,7 @@ mutates: none
 name: ESPN_BASE
 type: variable
 file: fetchers/rugby.py
-purpose: ESPN unofficial site API base URL for NRL (rugby-league/nrl slug). Same API family already used by fetchers/baseball.py and fetchers/soccer_schedule.py. NOTE — this exact sport/league slug has not been live-verified from a Claude Code session: this repo's remote containers cannot reach espn.com at all (confirmed 2026-07-12: even the already-working MLB endpoint 403s from this sandbox's proxy), so the schema assumption (events/competitions/competitors/status, same as MLB/soccer) is inferred from ESPN's site API being consistent across sports, not confirmed against a real rugby-league response. Verify field names once deployed (Railway) or run locally.
+purpose: ESPN unofficial site API base URL for NRL. FIXED 2026-07-12 (live-verified via /rugby-diag on Railway): the league code under sport "rugby-league" is the numeric ESPN league ID "3" (abbreviation "NRL"), NOT a human-readable slug like "nrl" — unlike every other ESPN-slug assumption in this repo (baseball's "mlb", soccer's "eng.1"). Original guess ("rugby-league/nrl") 404'd with ESPN's specific "League not found" message on a real, in-progress fixture; the real code was found by querying ESPN's separate core API (sports.core.api.espn.com/v2/sports/rugby-league/leagues), whose single returned league's $ref resolved to id=3. /teams now confirmed 200 from production with top_level_keys=["sports"], matching the sports→leagues→teams shape this file already parses.
 inputs: none
 outputs: str
 calls: none

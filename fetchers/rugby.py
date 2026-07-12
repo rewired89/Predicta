@@ -9,13 +9,20 @@ does not expose a season-stats endpoint as rich as Understat/Savant, so this
 mirrors the "derive from game log" approach rather than reading pre-aggregated
 splits.
 
-NOTE: this repo's remote build/test containers cannot reach espn.com (same
-"remote container egress policy" already documented in fetchers/baseball.py).
-This fetcher follows the exact schema (events/competitions/competitors/status)
-already verified working for MLB/soccer/tennis ESPN endpoints, but the
-rugby-league/nrl slug itself has not been live-verified from this session —
-confirm field names against a real response once deployed (Railway) or run
-locally, and adjust if ESPN's schema differs for this sport.
+FIXED 2026-07-12 (live-verified via /rugby-diag on Railway): the league code
+under sport "rugby-league" is the numeric ESPN league ID "3", NOT the
+human-readable slug "nrl" every other ESPN-slug guess in this repo uses
+(baseball's "mlb", soccer's "eng.1" etc.). Found via ESPN's separate core API
+(sports.core.api.espn.com/v2/sports/rugby-league/leagues), which returned
+exactly one league whose $ref resolved to id=3, abbreviation="NRL". /teams
+confirmed 200 with this code (top_level_keys=["sports"], matching the
+sports→leagues→teams shape this file already parses) — this repo's own dev
+sandbox still can't reach espn.com to verify further, but the /teams endpoint
+itself is now confirmed working from production. The schedule/standings
+endpoints below use the same league code and the same events/competitions/
+status shape already verified for MLB/soccer/tennis, but haven't individually
+been exercised against a real NRL game yet — watch data/live results the
+first few times this runs for real.
 """
 from __future__ import annotations
 import difflib
@@ -24,7 +31,10 @@ from typing import Optional
 
 import httpx
 
-ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/rugby-league/nrl"
+# "3" is ESPN's internal numeric league ID for NRL under sport "rugby-league"
+# — discovered via the core API, NOT a human-readable slug (see module
+# docstring). Do not "fix" this back to "nrl"; that 404s with "League not found".
+ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3"
 TIMEOUT = 15.0
 
 _HEADERS = {
