@@ -32,7 +32,7 @@
 | Baseball (MLB) | analyze_baseball.py | Split Poisson F5/L4 + 60/40 Elo blend + 72% max cap (65% at Coors) + corrected park factors + data confidence gating + market sanity check |
 | Tennis (ATP/WTA) | analyze_tennis.py | Nested Markov chain (points→games→sets→match) |
 | Soccer | analyze_soccer.py | Dixon-Coles Poisson + Elo |
-| Table Tennis (Ping Pong) | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer |
+| Table Tennis (Ping Pong) | analyze_table_tennis.py | Logistic + Glicko2 + 5pp value gate + market comparison layer. **Hidden from the Sports UI nav 2026-07-12** (user call — too unpredictable to bet on) — pipeline, `/ping-pong` route, and `/analyze-table-tennis` endpoint are all still live, just not linked from `/sports` |
 | E-Sports (CS2/LoL/Dota2/Valorant) | analyze_esports.py | 60% Elo (from world ranking) + 40% recent form blend + H2H adjustment + market comparison layer; PandaScore API primary, Claude AI fallback |
 | Rugby League (NRL) | analyze_rugby.py | Negative-Binomial split score model (points-for/against from ESPN schedule aggregation, no third-party xG-equivalent) + Elo blend + 78% max cap + margin/totals markets. **v1, uncalibrated** — see Open Calibration Issues |
 

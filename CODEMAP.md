@@ -3638,7 +3638,7 @@ mutates: none
 name: sports.html
 type: template
 file: templates/sports.html
-purpose: Sports sub-landing with Soccer, Baseball, Tennis, Ping Pong, and E-Sports cards; shows model pills for each sport.
+purpose: Sports sub-landing with Soccer, Baseball, Tennis, E-Sports, and Rugby (NRL) cards; shows model pills for each sport. Ping Pong card removed 2026-07-12 (user call — table tennis outcomes felt too unpredictable to bet on) but the /ping-pong route, templates/ping_pong.html, and the whole table-tennis pipeline (analyze_table_tennis.py, models) are untouched and still reachable by direct URL — only the discoverable nav link was removed.
 inputs: none
 outputs: HTML
 calls: none
