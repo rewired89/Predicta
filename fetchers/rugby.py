@@ -101,7 +101,7 @@ def lookup_team(name: str, teams: Optional[list[dict]] = None) -> Optional[dict]
     return None
 
 
-def fetch_scoreboard_range(days_back: int = 200) -> list[dict]:
+def fetch_scoreboard_range(days_back: int = 200, before_date: Optional[str] = None) -> list[dict]:
     """
     Return every STATUS_FINAL game across the whole league in the last
     `days_back` days via /scoreboard?dates=START-END — a single shared call
@@ -115,18 +115,39 @@ def fetch_scoreboard_range(days_back: int = 200) -> list[dict]:
     result) and is the same pattern fetchers/soccer_schedule.py already uses
     successfully. Each entry: {date, home_id, home_name, home_score,
     away_id, away_name, away_score}. Empty list on failure.
+
+    `before_date` ('YYYY-MM-DD', the match being predicted) excludes every
+    game on or after that calendar day. FIXED 2026-07-12 (found live-testing
+    a same-day fixture): without this, a game already STATUS_FINAL earlier
+    the same day it's being "predicted" gets pulled into both teams' stats,
+    leaking that game's own result into the prediction of itself. Excluding
+    the whole query day (not just the specific matchup) is the safe rule —
+    a team's other game later the same day shouldn't inform a prediction either.
     """
     end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=days_back)
     data = _get("/scoreboard", {"dates": f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}"})
     if not data:
         return []
+    cutoff = None
+    if before_date:
+        try:
+            cutoff = datetime.strptime(before_date[:10], "%Y-%m-%d").date()
+        except ValueError:
+            cutoff = None
     out = []
     for ev in data.get("events") or []:
         comp = (ev.get("competitions") or [{}])[0]
         status = comp.get("status", {}).get("type", {}).get("name", "")
         if status != "STATUS_FINAL":
             continue
+        if cutoff is not None:
+            try:
+                ev_date = datetime.strptime(ev.get("date", "")[:10], "%Y-%m-%d").date()
+                if ev_date >= cutoff:
+                    continue
+            except ValueError:
+                pass
         competitors = comp.get("competitors", [])
         home = next((c for c in competitors if c.get("homeAway") == "home"), None)
         away = next((c for c in competitors if c.get("homeAway") == "away"), None)
@@ -195,22 +216,27 @@ def _blend(season_val: Optional[float], recent_val: Optional[float],
     return recent_weight * recent_val + (1 - recent_weight) * season_val
 
 
-def team_points_profile(team_id: str, events: Optional[list[dict]] = None) -> dict:
+def team_points_profile(
+    team_id: str, events: Optional[list[dict]] = None, before_date: Optional[str] = None,
+) -> dict:
     """
     Aggregate a team's games into a points-for/against profile:
       {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against,
        away_ppg_for, away_ppg_against, home_matches, away_matches,
-       recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws}
+       recent_ppg_for, recent_ppg_against, effective_n,
+       wins, losses, draws, recent_wins, recent_losses, recent_draws}
 
     `events` is a shared fetch_scoreboard_range() result — pass it in from
     enrich_rugby_teams() so both teams' profiles come from one league-wide
     fetch instead of two (the per-team /schedule endpoint this used to call
     is broken server-side for this league; see fetch_scoreboard_range).
-    Fetches its own if not supplied. All values None when there are no games
-    (caller should treat this as "no live data", not a fabricated default).
+    Fetches its own if not supplied, using `before_date` to exclude the
+    match being predicted (and anything same-day) from its own inputs.
+    All values None when there are no games (caller should treat this as
+    "no live data", not a fabricated default).
     """
     if events is None:
-        events = fetch_scoreboard_range()
+        events = fetch_scoreboard_range(before_date=before_date)
     games = _team_games_from_scoreboard(team_id, events, limit=20)
     if not games:
         return {
@@ -220,6 +246,7 @@ def team_points_profile(team_id: str, events: Optional[list[dict]] = None) -> di
             "home_matches": 0, "away_matches": 0,
             "recent_ppg_for": None, "recent_ppg_against": None,
             "effective_n": 0, "wins": 0, "losses": 0, "draws": 0,
+            "recent_wins": 0, "recent_losses": 0, "recent_draws": 0,
         }
 
     home_games = [g for g in games if g["is_home"]]
@@ -229,6 +256,13 @@ def team_points_profile(team_id: str, events: Optional[list[dict]] = None) -> di
     wins = sum(1 for g in games if g["points_for"] > g["points_against"])
     losses = sum(1 for g in games if g["points_for"] < g["points_against"])
     draws = sum(1 for g in games if g["points_for"] == g["points_against"])
+    # FIXED 2026-07-12 (found live-testing): the UI labels this "Recent Form
+    # (L5)" but was displaying the full-sample wins/losses/draws above (11-12
+    # games for a ~200-day lookback), not an actual last-5 record. These are
+    # the real last-5 counts the label claims to show.
+    recent_wins   = sum(1 for g in recent if g["points_for"] > g["points_against"])
+    recent_losses = sum(1 for g in recent if g["points_for"] < g["points_against"])
+    recent_draws  = sum(1 for g in recent if g["points_for"] == g["points_against"])
 
     return {
         "matches":            len(games),
@@ -240,6 +274,7 @@ def team_points_profile(team_id: str, events: Optional[list[dict]] = None) -> di
         "away_ppg_against":   _avg([g["points_against"] for g in away_games]),
         "home_matches":       len(home_games),
         "away_matches":       len(away_games),
+        "recent_wins": recent_wins, "recent_losses": recent_losses, "recent_draws": recent_draws,
         "recent_ppg_for":     _avg([g["points_for"] for g in recent]),
         "recent_ppg_against": _avg([g["points_against"] for g in recent]),
         "effective_n":        float(len(games)),
@@ -271,20 +306,26 @@ def fetch_standings() -> list[dict]:
     return out
 
 
-def enrich_rugby_teams(home_name: str, away_name: str) -> dict:
+def enrich_rugby_teams(home_name: str, away_name: str, before_date: Optional[str] = None) -> dict:
     """
     Main entry point — resolve both team names against ESPN's team list and
     return {"home": {...profile, team_id, resolved_name}, "away": {...}}.
     A team dict is {} (not defaulted to league-average) when it can't be
     resolved or has no completed games, matching the soccer pipeline's
     "don't hallucinate from nothing" convention.
+
+    `before_date` ('YYYY-MM-DD', the match being predicted) is passed through
+    to fetch_scoreboard_range to exclude that day's games from both teams'
+    stats — see fetch_scoreboard_range's docstring for why (data leakage
+    found live-testing a same-day fixture: an already-finished game's own
+    result was feeding the "prediction" of that same game).
     """
     teams = fetch_teams()
     home_match = lookup_team(home_name, teams)
     away_match = lookup_team(away_name, teams)
 
     # One shared league-wide fetch for both teams (see fetch_scoreboard_range).
-    events = fetch_scoreboard_range() if (home_match or away_match) else []
+    events = fetch_scoreboard_range(before_date=before_date) if (home_match or away_match) else []
 
     result: dict = {"home": {}, "away": {}}
     if home_match:

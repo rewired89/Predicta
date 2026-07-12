@@ -531,8 +531,8 @@ function renderResults(d) {
   document.getElementById('teamAPA').textContent = ta.ppg_against != null ? ta.ppg_against.toFixed(1) : '—';
   document.getElementById('teamBPF').textContent = tb.ppg_for != null ? tb.ppg_for.toFixed(1) : '—';
   document.getElementById('teamBPA').textContent = tb.ppg_against != null ? tb.ppg_against.toFixed(1) : '—';
-  document.getElementById('teamAForm').textContent = (ta.wins != null) ? `${ta.wins}-${ta.losses}-${ta.draws}` : '—';
-  document.getElementById('teamBForm').textContent = (tb.wins != null) ? `${tb.wins}-${tb.losses}-${tb.draws}` : '—';
+  document.getElementById('teamAForm').textContent = (ta.recent_wins != null) ? `${ta.recent_wins}-${ta.recent_losses}-${ta.recent_draws}` : '—';
+  document.getElementById('teamBForm').textContent = (tb.recent_wins != null) ? `${tb.recent_wins}-${tb.recent_losses}-${tb.recent_draws}` : '—';
 
   const pA = d.prob_home || 0, pB = d.prob_away || 0;
   document.getElementById('cardA').className = 'team-card' + (pA > pB ? ' winner' : '');

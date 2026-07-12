@@ -184,8 +184,11 @@ def run_rugby_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     total_line = _safe_float(parsed.get("total_line"))
 
     # ── ESPN enrichment ──────────────────────────────────────────────────────
+    # before_date=match_date excludes that day's games from both teams' stats
+    # (fixed 2026-07-12 — an already-finished same-day game was otherwise
+    # leaking its own result into the "prediction" of itself).
     try:
-        enriched = enrich_rugby_teams(home_team, away_team)
+        enriched = enrich_rugby_teams(home_team, away_team, before_date=match_date)
         steps.append({
             "step": "espn_enrich",
             "status": "ok" if (enriched["home"] and enriched["away"]) else "partial",

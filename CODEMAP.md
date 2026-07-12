@@ -10899,8 +10899,8 @@ mutates: none
 name: fetch_scoreboard_range
 type: function
 file: fetchers/rugby.py
-purpose: REPLACES the old fetch_team_schedule (removed 2026-07-12). Live-verified on Railway that ESPN's /teams/{id}/schedule endpoint 500s with an ESPN-side "script error" for this league, independent of anything in this codebase — /teams and /scoreboard both confirmed working, only the per-team schedule sub-resource is broken. Returns every STATUS_FINAL league-wide game in the last `days_back` days via one /scoreboard?dates=START-END call (same pattern fetchers/soccer_schedule.py already uses), which the caller then filters per team — one shared fetch for both teams in a matchup instead of a broken per-team endpoint.
-inputs: days_back: int = 200
+purpose: REPLACES the old fetch_team_schedule (removed 2026-07-12). Live-verified on Railway that ESPN's /teams/{id}/schedule endpoint 500s with an ESPN-side "script error" for this league, independent of anything in this codebase — /teams and /scoreboard both confirmed working, only the per-team schedule sub-resource is broken. Returns every STATUS_FINAL league-wide game in the last `days_back` days via one /scoreboard?dates=START-END call (same pattern fetchers/soccer_schedule.py already uses), which the caller then filters per team — one shared fetch for both teams in a matchup instead of a broken per-team endpoint. `before_date` param added same day after a live test on a same-day fixture revealed data leakage: a game already STATUS_FINAL earlier that day was being pulled into both teams' stats used to "predict" that same game. Excludes every game on or after that calendar day.
+inputs: days_back: int = 200, before_date: Optional[str] = None ('YYYY-MM-DD')
 outputs: list[dict] {date, home_id, home_name, home_score, away_id, away_name, away_score}
 calls: _get
 called_by: team_points_profile (default), enrich_rugby_teams (shared call), diagnose
@@ -10947,9 +10947,9 @@ mutates: none
 name: team_points_profile
 type: function
 file: fetchers/rugby.py
-purpose: Aggregates a team's games into a points-for/against profile — season averages, home/away splits, last-5 recent form, W-L-D record, and effective_n (sample size for shrinkage). All fields are None/0 when there are no games, rather than defaulting to a fabricated league-average team. `events` (a shared fetch_scoreboard_range() result) can be passed in so a matchup's two teams share one league-wide fetch instead of two separate calls; fetches its own if omitted.
-inputs: team_id: str, events: Optional[list[dict]] = None
-outputs: dict {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against, away_ppg_for, away_ppg_against, home_matches, away_matches, recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws}
+purpose: Aggregates a team's games into a points-for/against profile — season averages, home/away splits, last-5 recent form, W-L-D record (both full-sample AND real last-5), and effective_n (sample size for shrinkage). All fields are None/0 when there are no games, rather than defaulting to a fabricated league-average team. `events` (a shared fetch_scoreboard_range() result) can be passed in so a matchup's two teams share one league-wide fetch instead of two separate calls; fetches its own if omitted (respecting `before_date`). FIXED 2026-07-12: added recent_wins/recent_losses/recent_draws — templates/rugby.html's "Recent Form (L5)" field was displaying the full-sample wins/losses/draws (11-12 games) instead of an actual last-5 record; these are the real last-5 counts.
+inputs: team_id: str, events: Optional[list[dict]] = None, before_date: Optional[str] = None
+outputs: dict {matches, ppg_for, ppg_against, home_ppg_for, home_ppg_against, away_ppg_for, away_ppg_against, home_matches, away_matches, recent_ppg_for, recent_ppg_against, effective_n, wins, losses, draws, recent_wins, recent_losses, recent_draws}
 calls: fetch_scoreboard_range (if events not supplied), _team_games_from_scoreboard, _avg
 called_by: enrich_rugby_teams, diagnose
 mutates: none
@@ -10971,8 +10971,8 @@ mutates: none
 name: enrich_rugby_teams
 type: function
 file: fetchers/rugby.py
-purpose: Main entry point — resolves both team names against ESPN's team list and returns {"home": {...profile}, "away": {...profile}}. A team's dict is {} (not a league-average default) when it can't be resolved or has zero completed games, matching analyze_soccer.py's "don't hallucinate from nothing" convention. Fetches fetch_scoreboard_range() once and passes the shared events list into both team_points_profile calls (2026-07-12 fix) instead of hitting the network twice.
-inputs: home_name: str, away_name: str
+purpose: Main entry point — resolves both team names against ESPN's team list and returns {"home": {...profile}, "away": {...profile}}. A team's dict is {} (not a league-average default) when it can't be resolved or has zero completed games, matching analyze_soccer.py's "don't hallucinate from nothing" convention. Fetches fetch_scoreboard_range() once and passes the shared events list into both team_points_profile calls (2026-07-12 fix) instead of hitting the network twice. `before_date` (added same day) is threaded through to fetch_scoreboard_range to prevent same-day data leakage — see fetch_scoreboard_range's docstring.
+inputs: home_name: str, away_name: str, before_date: Optional[str] = None
 outputs: dict {home: dict, away: dict}
 calls: fetch_teams, lookup_team, fetch_scoreboard_range, team_points_profile
 called_by: run_rugby_analysis (analyze_rugby.py)
@@ -11163,7 +11163,7 @@ mutates: none
 name: run_rugby_analysis
 type: function
 file: analyze_rugby.py
-purpose: Full NRL pipeline entry point — parse query (ai_agent_rugby) → ESPN schedule enrichment (fetchers/rugby) → attack/defense strengths → Negative-Binomial score model → Elo blend (dynamic weight by rating delta, same formula as analyze_soccer.py) → MODEL_PROB_CAP safety clamp → markets (margin buckets, totals, optional handicap cover) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='rugby') → narrate. Returns {"status": "insufficient_data", ...} without persisting when ESPN has no data for either team, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
+purpose: Full NRL pipeline entry point — parse query (ai_agent_rugby) → ESPN schedule enrichment (fetchers/rugby, before_date=match_date to prevent same-day data leakage — fixed 2026-07-12) → attack/defense strengths → Negative-Binomial score model → Elo blend (dynamic weight by rating delta, same formula as analyze_soccer.py) → MODEL_PROB_CAP safety clamp → markets (margin buckets, totals, optional handicap cover) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='rugby') → narrate. Returns {"status": "insufficient_data", ...} without persisting when ESPN has no data for either team, matching analyze_soccer.py's "don't hallucinate from nothing" convention.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict (see analyze_soccer.run_soccer_analysis's return shape for the parallel fields; rugby-specific additions are markets.margin_buckets/totals/handicap)
 calls: ai_agent_rugby.parse_rugby_query, fetchers.rugby.enrich_rugby_teams, _build_strengths, models.rugby_model.predict_score/margin_buckets/totals_over_under/explain, models.elo.EloModel, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_rugby.generate_rugby_narrative, db.database.get_db
@@ -11231,7 +11231,7 @@ mutates: none
 name: rugby.html
 type: template
 file: templates/rugby.html
-purpose: NRL analysis UI — query box (team names, optional American odds), step tracker, team cards (points-for/against, W-L-D form), win-probability bars with a draw-rarity note, victory-margin grid, totals line, market comparison/Kelly card, recommendation card, AI narrative, and a collapsible pipeline trace. Carries an on-page amber caveat noting the model's constants are provisional/uncalibrated. Visual structure and CSS variables copied from templates/esports.html (closest existing analog: also a newer sport with a simpler market set than soccer/baseball).
+purpose: NRL analysis UI — query box (team names, optional American odds), step tracker, team cards (points-for/against, W-L-D form), win-probability bars with a draw-rarity note, victory-margin grid, totals line, market comparison/Kelly card, recommendation card, AI narrative, and a collapsible pipeline trace. Carries an on-page amber caveat noting the model's constants are provisional/uncalibrated. Visual structure and CSS variables copied from templates/esports.html (closest existing analog: also a newer sport with a simpler market set than soccer/baseball). FIXED 2026-07-12 (found live-testing): the "Recent Form (L5)" field was bound to ai_signals.{home,away}.wins/losses/draws — the FULL-SAMPLE record (11-12 games), not an actual last-5 record. Now bound to the new recent_wins/recent_losses/recent_draws fields fetchers/rugby.py's team_points_profile() actually computes over the last 5 games.
 inputs: none
 outputs: HTML
 calls: /analyze-rugby (fetch, JS)
