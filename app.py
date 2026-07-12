@@ -986,6 +986,19 @@ def esports_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "esports.html").read_text(encoding="utf-8"))
 
 
+@app.get("/rugby-diag")
+def rugby_diag(team: str = "Rabbitohs"):
+    """
+    Diagnose why ESPN rugby-league/nrl enrichment returns empty — raw HTTP
+    status + response body for /teams, today's /scoreboard, and a sample
+    team's /schedule, instead of the silent {} the normal pipeline path
+    returns on any failure. Added 2026-07-12 after a live Railway test came
+    back empty for both teams in a real, in-progress fixture.
+    """
+    from fetchers.rugby import diagnose
+    return diagnose(team)
+
+
 @app.get("/rugby", response_class=HTMLResponse)
 def rugby_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "rugby.html").read_text(encoding="utf-8"))

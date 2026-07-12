@@ -10944,6 +10944,18 @@ mutates: none
 ---
 
 ---
+name: diagnose
+type: function
+file: fetchers/rugby.py
+purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/nrfi_odds.py:diagnose) reporting the RAW HTTP status + response body for /teams, today's /scoreboard, and a sample team's /schedule — built after a live Railway test on a real, in-progress NRL fixture (South Sydney Rabbitohs vs Newcastle Knights) came back with empty data for both teams. Surfaces the actual ESPN response instead of the silent {} the normal enrich_rugby_teams path returns on any failure, so the wrong assumption (URL slug vs JSON shape vs genuinely no NRL coverage on ESPN's site API) can be pinned down instead of guessed at again.
+inputs: sample_team_query: str = "Rabbitohs"
+outputs: dict (raw status codes, response bodies/snippets, parsed counts at each stage)
+calls: httpx.Client.get, fetch_teams, lookup_team
+called_by: rugby_diag (app.py)
+mutates: none
+---
+
+---
 
 ## models/rugby_model.py
 
@@ -11124,6 +11136,18 @@ inputs: body: RugbyRequest
 outputs: dict (JSON response)
 calls: analyze_rugby.run_rugby_analysis
 called_by: FastAPI (HTTP POST)
+mutates: none
+---
+
+---
+name: rugby_diag
+type: function
+file: app.py
+purpose: GET /rugby-diag?team=<name> — runs fetchers.rugby.diagnose() and returns the raw ESPN response data. Debug-only endpoint, added 2026-07-12 to pin down why a live Railway test returned empty data for a real in-progress NRL fixture.
+inputs: team: str = "Rabbitohs" (query param)
+outputs: dict (JSON response)
+calls: fetchers.rugby.diagnose
+called_by: FastAPI (HTTP GET)
 mutates: none
 ---
 

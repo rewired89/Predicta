@@ -235,3 +235,89 @@ def enrich_rugby_teams(home_name: str, away_name: str) -> dict:
         if profile["matches"] > 0:
             result["away"] = {**profile, "team_id": away_match["id"], "resolved_name": away_match["name"]}
     return result
+
+
+def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
+    """
+    One-shot diagnostic that reports EXACTLY why ESPN enrichment works or
+    fails — raw HTTP status + response body for /teams and today's
+    /scoreboard, instead of the silent {} the normal path returns on any
+    failure. Built after the first live Railway test came back empty for
+    both teams in a real, in-progress NRL fixture (2026-07-12) — that's
+    strong evidence the assumed rugby-league/nrl slug or JSON shape is
+    wrong, not that ESPN itself is down, so this surfaces the real response
+    instead of guessing again.
+    """
+    out: dict = {"espn_base": ESPN_BASE}
+
+    # 1. Raw /teams probe
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{ESPN_BASE}/teams")
+            out["teams_status"] = resp.status_code
+            out["teams_url"] = str(resp.url)
+            if resp.status_code != 200:
+                out["teams_error_body"] = resp.text[:500]
+            else:
+                data = resp.json()
+                out["teams_top_level_keys"] = list(data.keys())
+    except Exception as exc:
+        out["teams_exception"] = str(exc)
+
+    parsed_teams = fetch_teams()
+    out["parsed_teams_count"] = len(parsed_teams)
+    out["parsed_teams_sample"] = parsed_teams[:5]
+
+    # 2. Raw /scoreboard probe for today — if the slug is right, an
+    # in-progress or scheduled fixture should show up here directly.
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{ESPN_BASE}/scoreboard", params={"dates": today})
+            out["scoreboard_status"] = resp.status_code
+            out["scoreboard_url"] = str(resp.url)
+            if resp.status_code != 200:
+                out["scoreboard_error_body"] = resp.text[:500]
+            else:
+                data = resp.json()
+                events = data.get("events") or []
+                out["scoreboard_event_count"] = len(events)
+                out["scoreboard_sample"] = [
+                    {
+                        "name": ev.get("name"),
+                        "status": (ev.get("competitions") or [{}])[0]
+                                    .get("status", {}).get("type", {}).get("name"),
+                        "date": ev.get("date"),
+                    }
+                    for ev in events[:10]
+                ]
+    except Exception as exc:
+        out["scoreboard_exception"] = str(exc)
+
+    # 3. If any team resolved, probe its schedule endpoint raw too.
+    match = lookup_team(sample_team_query, parsed_teams) if parsed_teams else None
+    if match:
+        out["sample_team_matched"] = match
+        try:
+            with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                resp = client.get(f"{ESPN_BASE}/teams/{match['id']}/schedule")
+                out["schedule_status"] = resp.status_code
+                if resp.status_code != 200:
+                    out["schedule_error_body"] = resp.text[:500]
+                else:
+                    data = resp.json()
+                    events = data.get("events") or []
+                    out["schedule_event_count"] = len(events)
+                    statuses = [
+                        (ev.get("competitions") or [{}])[0].get("status", {}).get("type", {}).get("name")
+                        for ev in events
+                    ]
+                    out["schedule_status_breakdown"] = {
+                        s: statuses.count(s) for s in set(statuses)
+                    }
+        except Exception as exc:
+            out["schedule_exception"] = str(exc)
+    else:
+        out["sample_team_matched"] = None
+
+    return out
