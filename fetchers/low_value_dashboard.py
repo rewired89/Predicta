@@ -137,15 +137,27 @@ def render_low_value_dashboard() -> str:
             if "volume_filtered_count" in fstats:
                 funnel_note = (
                     f"Funnel: {fstats.get('candidates_evaluated', 0)} evaluated → "
+                    f"{fstats.get('no_bar_data_count', 0)} no-bar-data, "
                     f"{stagnant_filtered} stagnant, {fstats.get('volume_filtered_count', 0)} low-volume, "
                     f"{fstats.get('market_cap_unavailable_count', 0)} cap-unavailable, "
                     f"{fstats.get('market_cap_too_small_count', 0)} cap-too-small, "
                     f"{fstats.get('bankruptcy_filtered_count', 0)} bankruptcy → {universe_size} passed"
                 )
                 evaluated = fstats.get("candidates_evaluated", 0)
+                no_bar_data = fstats.get("no_bar_data_count", 0)
+                if evaluated > 0 and no_bar_data / evaluated > 0.2:
+                    data_source_warning += (
+                        f'<div class="card" style="border-color:#f59e0b;">'
+                        f'<div class="card-title" style="color:#f59e0b;">No Bar Data Warning</div>'
+                        f'<div style="font-size:.85rem;">{no_bar_data}/{evaluated} candidates ({no_bar_data/evaluated:.0%}) '
+                        f'had no daily-bar history from Alpaca — its free-tier feed is IEX only (not SIP), which has thin '
+                        f'coverage for illiquid/small-cap names. This silently shrank every scan before this counter existed '
+                        f'(2026-07-12) — it is a data-source coverage gap, not a real filter result.</div>'
+                        f'</div>'
+                    )
                 cap_unavailable = fstats.get("market_cap_unavailable_count", 0)
                 if evaluated > 0 and cap_unavailable / evaluated > 0.5:
-                    data_source_warning = (
+                    data_source_warning += (
                         f'<div class="card" style="border-color:#f59e0b;">'
                         f'<div class="card-title" style="color:#f59e0b;">Data Source Warning</div>'
                         f'<div style="font-size:.85rem;">Market cap was unavailable for {cap_unavailable}/{evaluated} '

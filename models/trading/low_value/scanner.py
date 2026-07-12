@@ -177,7 +177,7 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
     empty_stats = {
         "stagnant_filtered_count": 0, "volume_filtered_count": 0,
         "market_cap_unavailable_count": 0, "market_cap_too_small_count": 0,
-        "bankruptcy_filtered_count": 0, "candidates_evaluated": 0,
+        "bankruptcy_filtered_count": 0, "no_bar_data_count": 0, "candidates_evaluated": 0,
         "elapsed_sec": 0, "time_budget_exceeded": False,
     }
     if not all_symbols:
@@ -195,6 +195,7 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
     market_cap_unavailable_count = 0
     market_cap_too_small_count = 0
     bankruptcy_filtered_count = 0
+    no_bar_data_count = 0
     candidates_evaluated = 0
     time_budget_exceeded = False
 
@@ -220,7 +221,8 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
 
         daily_bars = get_daily_bars(sym, days=20)
         if not daily_bars:
-            continue  # no bar data for this symbol (thin/new listing) — can't evaluate volatility or volume
+            no_bar_data_count += 1  # thin/new listing, or Alpaca's free IEX feed (not SIP) just has no history for it
+            continue
 
         if VOLATILITY_FLOOR_ENABLED and not _has_meaningful_volatility(daily_bars):
             stagnant_filtered_count += 1
@@ -245,7 +247,7 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
     elapsed_sec = round(time.monotonic() - start, 1)
     log.info(
         f"[LOW_VALUE_SCANNER] build_low_value_universe complete — {len(universe)} symbols, "
-        f"{candidates_evaluated} evaluated, {stagnant_filtered_count} stagnant, "
+        f"{candidates_evaluated} evaluated, {no_bar_data_count} no-bar-data, {stagnant_filtered_count} stagnant, "
         f"{volume_filtered_count} low-volume, {market_cap_unavailable_count} cap-unavailable, "
         f"{market_cap_too_small_count} cap-too-small, {bankruptcy_filtered_count} bankruptcy, "
         f"{elapsed_sec}s elapsed"
@@ -256,12 +258,20 @@ def build_low_value_universe(today_str: str, max_candidates: Optional[int] = Non
             f"candidates ({market_cap_unavailable_count/candidates_evaluated:.0%}) — check FINNHUB_API_KEY is set "
             f"and Yahoo Finance isn't blocking Railway's IP; this is a data-source problem, not a real filter result"
         )
+    if candidates_evaluated > 0 and no_bar_data_count / candidates_evaluated > 0.2:
+        log.warning(
+            f"[LOW_VALUE_SCANNER] no daily-bar data for {no_bar_data_count}/{candidates_evaluated} candidates "
+            f"({no_bar_data_count/candidates_evaluated:.0%}) — Alpaca's free-tier feed is IEX only (not SIP), which "
+            f"has thin historical coverage for illiquid/small-cap names; this is a data-source coverage gap, not a "
+            f"real filter result, and it silently shrank every scan before this counter existed (2026-07-12)"
+        )
     return sorted(universe), {
         "stagnant_filtered_count": stagnant_filtered_count,
         "volume_filtered_count": volume_filtered_count,
         "market_cap_unavailable_count": market_cap_unavailable_count,
         "market_cap_too_small_count": market_cap_too_small_count,
         "bankruptcy_filtered_count": bankruptcy_filtered_count,
+        "no_bar_data_count": no_bar_data_count,
         "candidates_evaluated": candidates_evaluated,
         "elapsed_sec": elapsed_sec,
         "time_budget_exceeded": time_budget_exceeded,
