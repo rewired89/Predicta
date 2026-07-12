@@ -290,3 +290,70 @@ def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
         rates = _method_rates(history)
         result[key] = {**profile, **rates, "fight_history": history}
     return result
+
+
+def diagnose(sample_fighter: str = "Jones") -> dict:
+    """
+    One-shot diagnostic reporting the RAW HTTP status + response snippet for
+    ufcstats.com, instead of the silent {} enrich_ufc_fighters returns on any
+    failure. Added 2026-07-12 (same pattern as fetchers/rugby.py:diagnose,
+    fetchers/nrfi_odds.py:diagnose) after a user report that no fighter stats
+    ever come back. Since this repo's dev sandbox can't reach ufcstats.com at
+    all (confirmed both http and https, same proxy block as espn.com), the
+    scraper's CSS-class assumptions were never live-verified — this checks
+    each stage in order so a failure shows up as a specific status code /
+    missing selector instead of a generic empty result.
+    """
+    out: dict = {"base": BASE}
+
+    # 1. Raw fetch of the alphabetical listing page
+    letter = sample_fighter[0].lower() if sample_fighter else "a"
+    url = f"{BASE}/statistics/fighters"
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(url, params={"char": letter, "page": "all"})
+            out["listing_status"] = resp.status_code
+            out["listing_url"] = str(resp.url)
+            out["listing_content_length"] = len(resp.text)
+            out["listing_has_expected_class"] = "b-statistics__table-row" in resp.text
+            if resp.status_code != 200:
+                out["listing_error_body"] = resp.text[:500]
+    except Exception as exc:
+        out["listing_exception"] = str(exc)
+
+    parsed = search_fighters_by_letter(letter)
+    out["parsed_fighter_count"] = len(parsed)
+    out["parsed_fighter_sample"] = parsed[:5]
+
+    # 2. If lookup_fighter resolves the sample name, probe its detail page raw
+    match = lookup_fighter(sample_fighter, parsed) if parsed else None
+    out["sample_fighter_matched"] = match
+    if match:
+        fighter_url = f"{BASE}{match['url']}" if match["url"].startswith("/") else match["url"]
+        try:
+            with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                resp = client.get(fighter_url)
+                out["profile_status"] = resp.status_code
+                out["profile_content_length"] = len(resp.text)
+                out["profile_has_expected_classes"] = {
+                    "b-content__title-highlight": "b-content__title-highlight" in resp.text,
+                    "b-list__box-list-item": "b-list__box-list-item" in resp.text,
+                    "b-fight-details__table-body": "b-fight-details__table-body" in resp.text,
+                }
+                if resp.status_code != 200:
+                    out["profile_error_body"] = resp.text[:500]
+        except Exception as exc:
+            out["profile_exception"] = str(exc)
+
+        try:
+            out["parsed_profile"] = fetch_fighter_profile(fighter_url)
+        except Exception as exc:
+            out["parsed_profile_exception"] = str(exc)
+
+        try:
+            history = fetch_fight_history(fighter_url, limit=3)
+            out["parsed_fight_history_sample"] = history
+        except Exception as exc:
+            out["parsed_fight_history_exception"] = str(exc)
+
+    return out

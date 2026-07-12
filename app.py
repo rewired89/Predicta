@@ -1004,6 +1004,20 @@ def rugby_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "rugby.html").read_text(encoding="utf-8"))
 
 
+@app.get("/ufc-diag")
+def ufc_diag(fighter: str = "Jones"):
+    """
+    Diagnose why ufcstats.com scraping returns empty — raw HTTP status +
+    response body for the alphabetical fighter listing and a sample
+    fighter's detail page, instead of the silent {} the normal pipeline path
+    returns on any failure. Added 2026-07-12 after a user report that no
+    fighter stats ever come back — same diagnostic-first approach that
+    found and fixed the rugby ESPN slug bug.
+    """
+    from fetchers.ufc import diagnose
+    return diagnose(fighter)
+
+
 @app.get("/ufc", response_class=HTMLResponse)
 def ufc_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "ufc.html").read_text(encoding="utf-8"))

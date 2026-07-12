@@ -11388,6 +11388,18 @@ mutates: none
 ---
 
 ---
+name: diagnose
+type: function
+file: fetchers/ufc.py
+purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/rugby.py:diagnose) reporting the RAW HTTP status + response body/content-length for the alphabetical fighter listing (/statistics/fighters) and a sample fighter's detail page, instead of the silent {} enrich_ufc_fighters returns on any failure. Built after a user report that no fighter stats ever come back — this repo's dev sandbox can't reach ufcstats.com at all (confirmed both http/https, same proxy allowlist block as espn.com), so the scraper's CSS-class assumptions (b-statistics__table-row, b-content__title-highlight, b-list__box-list-item, b-fight-details__table-body) were never live-verified. Checks each stage in order (listing status → parsed count → detail page status → expected-class presence → parsed profile/history) so a failure shows up as a specific cause instead of a generic empty result.
+inputs: sample_fighter: str = "Jones"
+outputs: dict (raw status codes, content lengths, expected-class booleans, parsed samples at each stage)
+calls: httpx.Client.get, search_fighters_by_letter, lookup_fighter, fetch_fighter_profile, fetch_fight_history
+called_by: ufc_diag (app.py)
+mutates: none
+---
+
+---
 
 ## models/ufc_model.py
 
@@ -11532,6 +11544,18 @@ inputs: body: UFCRequest
 outputs: dict (JSON response)
 calls: analyze_ufc.run_ufc_analysis
 called_by: FastAPI (HTTP POST)
+mutates: none
+---
+
+---
+name: ufc_diag
+type: function
+file: app.py
+purpose: GET /ufc-diag?fighter=<name> — added 2026-07-12 after a user report that no fighter stats ever come back. Runs fetchers.ufc.diagnose() and returns the raw ufcstats.com response data (status codes, expected-CSS-class presence, parsed samples per stage). Debug-only endpoint, same pattern as GET /rugby-diag.
+inputs: fighter: str = "Jones" (query param)
+outputs: dict (JSON response)
+calls: fetchers.ufc.diagnose
+called_by: FastAPI (HTTP GET)
 mutates: none
 ---
 
