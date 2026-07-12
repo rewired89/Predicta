@@ -10402,15 +10402,27 @@ mutates: none
 ---
 
 ---
+name: _build_lock
+type: variable
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 — serializes the actual build_low_value_universe() call inside get_daily_universe() so a scan-now trigger and a universe-refresh trigger (both of which ultimately call get_daily_universe(), one with force_refresh=False, one with force_refresh=True) can't race into two independent concurrent builds — see get_daily_universe's entry for the live incident that surfaced this.
+inputs: none
+outputs: threading.Lock
+calls: none
+called_by: get_daily_universe
+mutates: none
+---
+
+---
 name: get_daily_universe
 type: function
 file: fetchers/low_value_runner.py
-purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot (including stagnant_filtered_count/candidates_evaluated/elapsed_sec/time_budget_exceeded as of 2026-07-11) on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. Unpacks build_low_value_universe's (universe, stats) tuple internally — its own external contract (returns list[str]) is unchanged. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly.
+purpose: Today's Low Value universe, cached in-memory for the day. Logs a snapshot (including stagnant_filtered_count/candidates_evaluated/elapsed_sec/time_budget_exceeded as of 2026-07-11) on every fresh scan (not on cache hits). Fixed 2026-07-07 (production bug): now passes max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES to build_low_value_universe — previously unbounded, meaning EVERY US equity under $20 (realistically several thousand) got the expensive per-symbol Alpaca/Finnhub/SEC checks sequentially, turning a "few minute" scan into a potential hour+. Unpacks build_low_value_universe's (universe, stats) tuple internally — its own external contract (returns list[str]) is unchanged. This function itself still blocks synchronously — callers on the HTTP request path must go through trigger_universe_refresh_async/trigger_scan_async instead of calling this directly. Fixed 2026-07-12 (live production report — a manual scan-now and a manual universe-refresh landed ~90s apart, both hit this function, both saw a cache miss, both ran their own full build_low_value_universe() concurrently, doubling load on Finnhub's 60-calls/min ceiling): the cache-miss branch now runs inside _build_lock with a re-check of the cache immediately after acquiring it — a second caller that only needed "today's universe, whatever it is" (force_refresh=False) now picks up the first caller's fresh result instead of redoing the work; an explicit force_refresh=True caller still gets a real rebuild, just serialized instead of parallel.
 inputs: force_refresh: bool = False
 outputs: list[str]
 calls: build_low_value_universe, log_universe_snapshot
 called_by: run_low_value_scan, _universe_build_worker, low_value_universe (app.py, cache-hit path only)
-mutates: _universe_cache, low_value_universe_snapshot table
+mutates: _universe_cache, low_value_universe_snapshot table, _build_lock (held during the build)
 ---
 
 ---

@@ -61,6 +61,13 @@ _runner_active: bool = False
 _run_log: list[dict] = []
 _universe_cache: dict[str, list[str]] = {}   # {date_str: [symbols]}
 
+# Serializes the actual build_low_value_universe() call inside
+# get_daily_universe() (see 2026-07-12 comment there) — a scan-now trigger
+# and a universe-refresh trigger both ultimately call get_daily_universe(),
+# and without this lock a race between them ran two full, independent
+# universe builds at once.
+_build_lock = threading.Lock()
+
 # 2026-07-07 production bug: get_daily_universe() called build_low_value_universe()
 # with no max_candidates, so EVERY US equity under $20 (realistically several
 # thousand, not a couple hundred) got the expensive per-symbol Alpaca/Finnhub/SEC
@@ -153,17 +160,33 @@ def get_daily_universe(force_refresh: bool = False) -> list[str]:
     if not force_refresh and today_str in _universe_cache:
         return _universe_cache[today_str]
 
-    universe, stats = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
-    _universe_cache.clear()   # only ever keep today's entry
-    _universe_cache[today_str] = universe
-    log_universe_snapshot(today_str, universe, filter_stats=stats)
-    log.info(
-        f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols "
-        f"({stats.get('stagnant_filtered_count', 0)} excluded as stagnant, "
-        f"{stats.get('candidates_evaluated', 0)} evaluated, {stats.get('elapsed_sec', 0)}s elapsed"
-        f"{', TIME BUDGET EXCEEDED' if stats.get('time_budget_exceeded') else ''})"
-    )
-    return universe
+    # 2026-07-12 production report: a manual scan-now and a manual
+    # universe-refresh landed ~90s apart while the first was still running —
+    # trigger_scan_async's run_low_value_scan() calls this with
+    # force_refresh=False (cache miss -> build), and trigger_universe_refresh_async
+    # calls it with force_refresh=True independently. Neither path coordinated
+    # with the other, so both ran their own full build_low_value_universe()
+    # pass concurrently — doubling load on Finnhub's 60-calls/min ceiling at
+    # exactly the moment a clean scan mattered most. _build_lock serializes
+    # the actual build; the re-check after acquiring it means a second caller
+    # that only wanted "today's universe, cache is fine" (force_refresh=False)
+    # picks up the first caller's now-fresh result instead of redoing the
+    # work. An explicit force_refresh=True caller still gets a real rebuild
+    # (respecting the "refresh" intent), just serialized rather than parallel.
+    with _build_lock:
+        if not force_refresh and today_str in _universe_cache:
+            return _universe_cache[today_str]
+        universe, stats = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
+        _universe_cache.clear()   # only ever keep today's entry
+        _universe_cache[today_str] = universe
+        log_universe_snapshot(today_str, universe, filter_stats=stats)
+        log.info(
+            f"[LOW_VALUE] Universe scan for {today_str} — {len(universe)} symbols "
+            f"({stats.get('stagnant_filtered_count', 0)} excluded as stagnant, "
+            f"{stats.get('candidates_evaluated', 0)} evaluated, {stats.get('elapsed_sec', 0)}s elapsed"
+            f"{', TIME BUDGET EXCEEDED' if stats.get('time_budget_exceeded') else ''})"
+        )
+        return universe
 
 
 def _universe_build_worker() -> None:
