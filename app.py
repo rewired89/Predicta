@@ -2727,7 +2727,17 @@ def low_value_universe(force_refresh: bool = False):
     """
     from fetchers.low_value_runner import get_daily_universe, trigger_universe_refresh_async
     from fetchers.low_value_runner import _universe_cache
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    from fetchers.high_value_runner import _et_now
+    # Must match the ET-based date key get_daily_universe() actually caches
+    # under (fetchers/low_value_runner.py: _et_now().strftime(...)) — this
+    # used to compute today_str from UTC instead. From 8:00 PM ET to
+    # midnight ET, the UTC calendar date is already the next day, so this
+    # endpoint's cache lookup silently missed an already-completed universe
+    # every single poll and re-triggered a brand new build each time,
+    # forever — indistinguishable from a hung build from the outside (a
+    # live 2026-07-11 report: triggered ~7:55 PM ET, polled repeatedly past
+    # 8:00 PM ET, dashboard stayed empty with no error the whole time).
+    today_str = _et_now().strftime("%Y-%m-%d")
     if not force_refresh and today_str in _universe_cache:
         universe = get_daily_universe(force_refresh=False)
         return {"date": today_str, "count": len(universe), "symbols": universe, "status": "cached"}

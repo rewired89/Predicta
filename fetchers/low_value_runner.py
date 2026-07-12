@@ -84,6 +84,52 @@ _last_scan_error: Optional[str] = None
 _universe_lock = threading.Lock()
 _universe_build_in_progress: bool = False
 _last_universe_build_started_at: Optional[str] = None
+_last_universe_build_error: Optional[str] = None
+
+# 2026-07-12 production report: universe_build_in_progress observed stuck
+# True for 10+ minutes with universe_size still 0 and no error anywhere —
+# scanner.py's own SCAN_TIME_BUDGET_SEC/PRICE_FILTER_TIME_BUDGET_SEC
+# deadlines are only checked *between* loop iterations, so one slow/hanging
+# call inside a single iteration (or any future dependency change that
+# reintroduces an unbounded wait) can still starve them indefinitely — the
+# internal budget alone isn't a real ceiling. This is a second, outer
+# watchdog: it can't force-kill a genuinely hung thread (Python has no API
+# for that), but it stops the *observable* state from lying forever — once
+# a build has claimed to be "in progress" longer than this, both the
+# trigger endpoint and the status/dashboard endpoints treat it as failed,
+# clear the flag, and surface an error instead of silence, so a fresh
+# attempt is actually allowed to run. Set well above the scanner's own
+# ~300s worst case (240s scan + 60s price-filter budgets) to leave slack
+# for one in-flight call finishing plus the DB write.
+MAX_UNIVERSE_BUILD_SECONDS: float = 360.0
+
+
+def _seconds_since(iso_ts: Optional[str]) -> Optional[float]:
+    if not iso_ts:
+        return None
+    try:
+        started = datetime.fromisoformat(iso_ts)
+        return (datetime.now(started.tzinfo) - started).total_seconds()
+    except Exception:
+        return None
+
+
+def _clear_stale_universe_build() -> None:
+    """Unsticks _universe_build_in_progress if it's been true for longer than any legitimate build could take — see MAX_UNIVERSE_BUILD_SECONDS above."""
+    global _universe_build_in_progress, _last_universe_build_error
+    if not _universe_build_in_progress:
+        return
+    elapsed = _seconds_since(_last_universe_build_started_at)
+    if elapsed is not None and elapsed > MAX_UNIVERSE_BUILD_SECONDS:
+        log.error(
+            f"[LOW_VALUE] Universe build watchdog: still 'in progress' after {elapsed:.0f}s "
+            f"(budget {MAX_UNIVERSE_BUILD_SECONDS:.0f}s) — treating as hung/failed, clearing the flag"
+        )
+        _universe_build_in_progress = False
+        _last_universe_build_error = (
+            f"Watchdog: build exceeded {MAX_UNIVERSE_BUILD_SECONDS:.0f}s without completing "
+            "(a dependency call likely hung past its own timeout) — treated as failed, safe to retry"
+        )
 
 
 def _in_scan_window() -> bool:
@@ -122,10 +168,11 @@ def get_daily_universe(force_refresh: bool = False) -> list[str]:
 
 def _universe_build_worker() -> None:
     """Background-thread body for trigger_universe_refresh_async — calls the blocking get_daily_universe safely off the request thread."""
-    global _universe_build_in_progress
+    global _universe_build_in_progress, _last_universe_build_error
     try:
         get_daily_universe(force_refresh=True)
     except Exception as exc:
+        _last_universe_build_error = str(exc)
         log.error(f"[LOW_VALUE] Async universe build failed: {exc}")
     finally:
         _universe_build_in_progress = False
@@ -139,12 +186,14 @@ def trigger_universe_refresh_async() -> dict:
     immediately; poll get_runner_status() or re-GET /trade/low-value/universe
     without force_refresh for the cached result once it lands.
     """
-    global _universe_build_in_progress, _last_universe_build_started_at
+    global _universe_build_in_progress, _last_universe_build_started_at, _last_universe_build_error
     with _universe_lock:
+        _clear_stale_universe_build()
         if _universe_build_in_progress:
             return {"status": "already_running", "started_at": _last_universe_build_started_at}
         _universe_build_in_progress = True
         _last_universe_build_started_at = _et_now().isoformat()
+        _last_universe_build_error = None
         threading.Thread(target=_universe_build_worker, daemon=True, name="low-value-universe-build").start()
     return {"status": "started", "started_at": _last_universe_build_started_at}
 
@@ -376,6 +425,7 @@ def trigger_scan_async(symbols: Optional[list[str]] = None) -> dict:
     """
     global _scan_in_progress, _scan_thread, _last_scan_started_at
     with _scan_lock:
+        _clear_stale_scan()
         if _scan_in_progress:
             return {"status": "already_running", "started_at": _last_scan_started_at}
         _scan_in_progress = True
@@ -385,8 +435,37 @@ def trigger_scan_async(symbols: Optional[list[str]] = None) -> dict:
     return {"status": "started", "started_at": _last_scan_started_at}
 
 
+# Same outer-watchdog treatment as _clear_stale_universe_build (see comment
+# there) for the scan trigger — run_low_value_scan() has no internal time
+# budget of its own at all (unlike build_low_value_universe), so it's even
+# more exposed to the same "in_progress stuck true forever" failure mode.
+# Generous ceiling: a full ~200-symbol universe, two Alpaca daily-bar calls
+# each plus a news lookup, all at a 10s per-call timeout.
+MAX_SCAN_SECONDS: float = 900.0
+
+
+def _clear_stale_scan() -> None:
+    global _scan_in_progress, _last_scan_error, _last_scan_completed_at
+    if not _scan_in_progress:
+        return
+    elapsed = _seconds_since(_last_scan_started_at)
+    if elapsed is not None and elapsed > MAX_SCAN_SECONDS:
+        log.error(
+            f"[LOW_VALUE] Scan watchdog: still 'in progress' after {elapsed:.0f}s "
+            f"(budget {MAX_SCAN_SECONDS:.0f}s) — treating as hung/failed, clearing the flag"
+        )
+        _scan_in_progress = False
+        _last_scan_completed_at = _et_now().isoformat()
+        _last_scan_error = (
+            f"Watchdog: scan exceeded {MAX_SCAN_SECONDS:.0f}s without completing "
+            "(a dependency call likely hung past its own timeout) — treated as failed, safe to retry"
+        )
+
+
 def get_runner_status() -> dict:
     """Current Low Value runner state for GET /trade/low-value/runner/status."""
+    _clear_stale_universe_build()
+    _clear_stale_scan()
     open_pos = _load_open_positions()
     today_str = _et_now().strftime("%Y-%m-%d")
     return {
@@ -406,4 +485,5 @@ def get_runner_status() -> dict:
         "last_scan_error":        _last_scan_error,
         "universe_build_in_progress":      _universe_build_in_progress,
         "last_universe_build_started_at":  _last_universe_build_started_at,
+        "last_universe_build_error":       _last_universe_build_error,
     }

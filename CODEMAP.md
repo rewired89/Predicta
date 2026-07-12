@@ -10417,10 +10417,10 @@ mutates: none
 name: trigger_scan_async
 type: function
 file: fetchers/low_value_runner.py
-purpose: Fire-and-forget scan trigger (2026-07-07 production fix) — starts run_low_value_scan() in a background thread and returns immediately, so an HTTP request (scan-now, the query box) is never blocked for the multi-minute duration a real scan can take. Rejects a second concurrent trigger with status="already_running" (_scan_lock).
+purpose: Fire-and-forget scan trigger (2026-07-07 production fix) — starts run_low_value_scan() in a background thread and returns immediately, so an HTTP request (scan-now, the query box) is never blocked for the multi-minute duration a real scan can take. Rejects a second concurrent trigger with status="already_running" (_scan_lock). 2026-07-12: calls _clear_stale_scan() first so a genuinely hung prior scan doesn't block every retry forever.
 inputs: symbols: Optional[list[str]] = None
 outputs: dict {status: "started"|"already_running", started_at}
-calls: threading.Thread, run_low_value_scan (via _scan_worker)
+calls: threading.Thread, run_low_value_scan (via _scan_worker), _clear_stale_scan
 called_by: low_value_scan_now, low_value_query (app.py)
 mutates: _scan_in_progress, _scan_thread, _last_scan_started_at
 ---
@@ -10441,12 +10441,84 @@ mutates: _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last
 name: trigger_universe_refresh_async
 type: function
 file: fetchers/low_value_runner.py
-purpose: Fire-and-forget universe rebuild (2026-07-07 production fix, same class as trigger_scan_async) — GET /trade/low-value/universe?force_refresh=true used to call get_daily_universe() directly and block the request for the full scan duration; this starts it in a background thread instead.
+purpose: Fire-and-forget universe rebuild (2026-07-07 production fix, same class as trigger_scan_async) — GET /trade/low-value/universe?force_refresh=true used to call get_daily_universe() directly and block the request for the full scan duration; this starts it in a background thread instead. 2026-07-12: calls _clear_stale_universe_build() before checking the in-progress flag, so a genuinely hung prior build (see that function's entry) doesn't permanently block every future retry with "already_running".
 inputs: none
 outputs: dict {status: "started"|"already_running", started_at}
-calls: threading.Thread, get_daily_universe (via _universe_build_worker)
+calls: threading.Thread, get_daily_universe (via _universe_build_worker), _clear_stale_universe_build
 called_by: low_value_universe (app.py)
-mutates: _universe_build_in_progress, _last_universe_build_started_at
+mutates: _universe_build_in_progress, _last_universe_build_started_at, _last_universe_build_error
+---
+
+---
+name: _universe_build_worker
+type: function
+file: fetchers/low_value_runner.py
+purpose: Background-thread body for trigger_universe_refresh_async — calls the blocking get_daily_universe(force_refresh=True) off the request thread. 2026-07-12: now records the exception message to _last_universe_build_error on failure (previously only logged it, leaving the dashboard/status endpoint with no way to show why the last build failed).
+inputs: none
+outputs: none
+calls: get_daily_universe
+called_by: trigger_universe_refresh_async (thread target)
+mutates: _universe_build_in_progress, _last_universe_build_error
+---
+
+---
+name: MAX_UNIVERSE_BUILD_SECONDS
+type: variable
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 production report — universe_build_in_progress was observed stuck True for 10+ minutes with universe_size 0 and no error anywhere. scanner.py's own SCAN_TIME_BUDGET_SEC/PRICE_FILTER_TIME_BUDGET_SEC deadlines are only checked between loop iterations, so one slow/hanging call inside a single iteration can still starve them — not a hard ceiling by itself. This is the outer-watchdog ceiling (360s, ~60s of slack above the scanner's own ~300s worst case) used by _clear_stale_universe_build to decide a build has hung.
+inputs: none
+outputs: float (360.0)
+calls: none
+called_by: _clear_stale_universe_build
+mutates: none
+---
+
+---
+name: _clear_stale_universe_build
+type: function
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 outer watchdog — if _universe_build_in_progress has been True for longer than MAX_UNIVERSE_BUILD_SECONDS, treats it as hung/failed: clears the flag and sets _last_universe_build_error to a "safe to retry" message. Can't force-kill a genuinely hung background thread (no such API in Python), but stops the *observable* state (status endpoint, dashboard) from claiming "in progress" forever. Called from both trigger_universe_refresh_async (so a new trigger can actually retry) and get_runner_status (so polling alone self-heals the display, no re-trigger needed).
+inputs: none
+outputs: none
+calls: _seconds_since
+called_by: trigger_universe_refresh_async, get_runner_status
+mutates: _universe_build_in_progress, _last_universe_build_error
+---
+
+---
+name: _seconds_since
+type: function
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 helper shared by the universe-build and scan watchdogs — parses an ISO timestamp string (as produced by _et_now().isoformat()) and returns elapsed seconds vs now in the same tz, or None if the timestamp is missing/unparseable.
+inputs: iso_ts: Optional[str]
+outputs: Optional[float]
+calls: none
+called_by: _clear_stale_universe_build, _clear_stale_scan
+mutates: none
+---
+
+---
+name: MAX_SCAN_SECONDS
+type: variable
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 — same watchdog treatment as MAX_UNIVERSE_BUILD_SECONDS, for trigger_scan_async. run_low_value_scan() has no internal time budget of its own at all (unlike build_low_value_universe), so it's even more exposed to a stuck-forever in-progress flag. Generous 900s ceiling for a full ~200-symbol universe scan at up to two Alpaca daily-bar calls plus a news lookup per symbol (10s timeout each).
+inputs: none
+outputs: float (900.0)
+calls: none
+called_by: _clear_stale_scan
+mutates: none
+---
+
+---
+name: _clear_stale_scan
+type: function
+file: fetchers/low_value_runner.py
+purpose: 2026-07-12 outer watchdog for trigger_scan_async, mirroring _clear_stale_universe_build — if _scan_in_progress has been True longer than MAX_SCAN_SECONDS, clears it and sets _last_scan_error/_last_scan_completed_at so a hung scan can't block every future scan-now/query call with "already_running" forever.
+inputs: none
+outputs: none
+calls: _seconds_since
+called_by: trigger_scan_async, get_runner_status
+mutates: _scan_in_progress, _last_scan_error, _last_scan_completed_at
 ---
 
 ---
@@ -10537,19 +10609,19 @@ mutates: _runner_active
 name: get_runner_status (low_value_runner)
 type: function
 file: fetchers/low_value_runner.py
-purpose: Current Low Value runner state — active flag, config, open positions, today's universe cache state, recent log events, and (added 2026-07-07) scan_in_progress/last_scan_started_at/last_scan_completed_at/last_scan_trade_ids/last_scan_error/universe_build_in_progress/last_universe_build_started_at — the poll target for the async scan/universe-build triggers.
+purpose: Current Low Value runner state — active flag, config, open positions, today's universe cache state, recent log events, and (added 2026-07-07) scan_in_progress/last_scan_started_at/last_scan_completed_at/last_scan_trade_ids/last_scan_error/universe_build_in_progress/last_universe_build_started_at — the poll target for the async scan/universe-build triggers. 2026-07-12: now calls _clear_stale_universe_build()/_clear_stale_scan() before building the response, and adds last_universe_build_error — so a stuck in-progress flag self-heals just by being polled, without needing a fresh trigger call.
 inputs: none
 outputs: dict
-calls: _load_open_positions, _et_now
+calls: _load_open_positions, _et_now, _clear_stale_universe_build, _clear_stale_scan
 called_by: low_value_runner_status (app.py), render_low_value_dashboard (low_value_dashboard.py)
-mutates: none
+mutates: none directly (the watchdog calls it invokes may clear _universe_build_in_progress/_scan_in_progress as a side effect)
 ---
 
 ---
 name: render_low_value_dashboard
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON. Same day, third addition: shows the volatility-floor stagnant_filtered_count from the latest snapshot's filter_stats_json. 2026-07-11: also shows elapsed_sec/candidates_evaluated/time_budget_exceeded from the same filter_stats_json. Same day, second addition: shows the full per-stage filter funnel (volume/cap-unavailable/cap-too-small/bankruptcy counts) plus an amber "Data Source Warning" banner when market_cap_unavailable_count exceeds 50% of evaluated candidates — surfaces a missing FINNHUB_API_KEY / blocked Yahoo Finance without needing Railway log access.
+purpose: Standalone HTML Low Value monitor — today's universe count, open positions, closed P&L, win rate by thesis type. Separate page from High Value's trade_dashboard() in app.py, matching its visual style. Fixed 2026-07-07: previously called get_daily_universe() directly, which triggers a live multi-API-call universe scan on cache miss — made every dashboard page load hang/timeout after a Railway restart (empty in-memory cache). Now reads universe_size from the most recently LOGGED low_value_universe_snapshot row instead — a dashboard view must never trigger a live scan, only the runner's scheduled job or an explicit scan-now/query call should. Same day, second fix: shows an amber "Scan In Progress" banner when get_runner_status()'s scan_in_progress/universe_build_in_progress is True, or a red "Last Scan Failed" banner with the error, so checking whether a background scan is running/succeeded doesn't require reading raw JSON. Same day, third addition: shows the volatility-floor stagnant_filtered_count from the latest snapshot's filter_stats_json. 2026-07-11: also shows elapsed_sec/candidates_evaluated/time_budget_exceeded from the same filter_stats_json. Same day, second addition: shows the full per-stage filter funnel (volume/cap-unavailable/cap-too-small/bankruptcy counts) plus an amber "Data Source Warning" banner when market_cap_unavailable_count exceeds 50% of evaluated candidates — surfaces a missing FINNHUB_API_KEY / blocked Yahoo Finance without needing Railway log access. 2026-07-12: added a red "Last Universe Build Failed" banner (last_universe_build_error) alongside the existing scan-failed banner, so the new outer watchdog's "treated as hung, safe to retry" message is visible here too, not just in raw JSON.
 inputs: none
 outputs: str (HTML)
 calls: get_runner_status (low_value_runner.py), get_universe_snapshots (trading_logger.py), thesis_type_calibration_report, low_value_calibration_readiness (signal_calibration.py), db.database.get_db
@@ -10561,10 +10633,10 @@ mutates: none
 name: low_value_universe (app.py)
 type: function
 file: app.py
-purpose: GET /trade/low-value/universe — today's Low Value scanner universe (JSON). Fixed 2026-07-07 (production bug): a cache hit still returns synchronously/fast, but a cache miss or force_refresh no longer blocks the request on a live scan (which could take an hour+ pre-fix, and was getting silently killed by Railway's proxy timeout) — now calls trigger_universe_refresh_async() and returns a "started" status to poll.
+purpose: GET /trade/low-value/universe — today's Low Value scanner universe (JSON). Fixed 2026-07-07 (production bug): a cache hit still returns synchronously/fast, but a cache miss or force_refresh no longer blocks the request on a live scan (which could take an hour+ pre-fix, and was getting silently killed by Railway's proxy timeout) — now calls trigger_universe_refresh_async() and returns a "started" status to poll. Fixed 2026-07-12 (real root cause of a "runs 10+ minutes, dashboard stays empty" report): today_str used to be computed from datetime.now(timezone.utc), but _universe_cache is keyed by the ET-based date get_daily_universe() actually uses. From 8:00 PM ET to midnight ET the UTC calendar date is already the next day, so this endpoint's cache-hit check silently missed an already-completed universe on every poll and re-triggered a brand new build each time, forever — indistinguishable from a genuinely hung build from the caller's side. Now derives today_str from fetchers.high_value_runner._et_now() (same source _universe_cache's key comes from) instead of UTC.
 inputs: force_refresh: bool = False (query param)
 outputs: dict {date, count, symbols, status: "cached"} on cache hit, or {status: "started"|"already_running", started_at, date, note} on miss/refresh
-calls: get_daily_universe (cache-hit path only), trigger_universe_refresh_async (low_value_runner.py)
+calls: get_daily_universe (cache-hit path only), trigger_universe_refresh_async (low_value_runner.py), _et_now (high_value_runner.py)
 called_by: FastAPI (HTTP GET)
 mutates: none directly (trigger_universe_refresh_async starts a background thread)
 ---
