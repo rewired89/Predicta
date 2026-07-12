@@ -257,8 +257,16 @@ def discover_leagues(sport: str = "rugby-league") -> dict:
     endpoint, not a guess. Added 2026-07-12 after /teams returned a specific
     "League not found" 404 for 'nrl' (confirming 'rugby-league' itself IS a
     recognised ESPN sport category, just not under that league code).
-    Returns {status, leagues: [{slug, name}], raw_error} — raw_error set on
-    any non-200 so we can see exactly what this endpoint says too.
+
+    ESPN's core API list endpoints return each item as a {"$ref": url}
+    pointer rather than an inline object (confirmed live 2026-07-12 — our
+    first attempt guessed inline "slug"/"name" keys and got null/null back).
+    This extracts the league code from the tail of that $ref URL instead,
+    and follows one ref to fetch the real league object (name/slug/abbrev)
+    so we don't need yet another round-trip to identify it.
+
+    Returns {status, leagues: [{ref, slug_from_ref, name, abbreviation}],
+    raw_error} — raw_error set on any non-200.
     """
     out: dict = {"sport": sport}
     try:
@@ -271,11 +279,27 @@ def discover_leagues(sport: str = "rugby-league") -> dict:
             data = resp.json()
             items = data.get("items", [])
             out["league_count"] = len(items)
-            out["leagues"] = [
-                {"slug": item.get("slug") or item.get("abbreviation"), "name": item.get("name")}
-                for item in items
-                if isinstance(item, dict)
-            ]
+            leagues = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                ref = item.get("$ref")
+                entry = {"raw_item_keys": list(item.keys()), "ref": ref}
+                if ref:
+                    # Strip query string, take the last path segment as the slug.
+                    slug = ref.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+                    entry["slug_from_ref"] = slug
+                    try:
+                        ref_resp = client.get(ref)
+                        if ref_resp.status_code == 200:
+                            ref_data = ref_resp.json()
+                            entry["name"] = ref_data.get("name")
+                            entry["abbreviation"] = ref_data.get("abbreviation")
+                            entry["shortName"] = ref_data.get("shortName")
+                    except Exception as exc:
+                        entry["ref_fetch_exception"] = str(exc)
+                leagues.append(entry)
+            out["leagues"] = leagues
     except Exception as exc:
         out["exception"] = str(exc)
     return out
@@ -316,7 +340,31 @@ def diagnose(sample_team_query: str = "Rabbitohs") -> dict:
     # recognised, league code wrong), ask ESPN's core API what leagues it
     # actually has under this sport instead of guessing candidate slugs.
     if out.get("teams_status") == 404:
-        out["league_discovery"] = discover_leagues("rugby-league")
+        discovery = discover_leagues("rugby-league")
+        out["league_discovery"] = discovery
+
+        # Auto-test whatever slug(s) discover_leagues() found against the
+        # actual site API (core API and site API are separate systems —
+        # confirm the code carries over instead of assuming it does).
+        discovered_slugs = [
+            l["slug_from_ref"] for l in discovery.get("leagues", [])
+            if l.get("slug_from_ref")
+        ]
+        discovered_results = []
+        for slug in discovered_slugs:
+            try:
+                with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/rugby-league/{slug}/teams"
+                    resp = client.get(url)
+                    entry = {"league": slug, "status": resp.status_code, "looks_ok": resp.status_code == 200}
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        entry["top_level_keys"] = list(data.keys())
+                    discovered_results.append(entry)
+            except Exception as exc:
+                discovered_results.append({"league": slug, "exception": str(exc)})
+        out["discovered_slug_probe"] = discovered_results
+
         # Cheap fallback: also try a short list of plausible alternate slugs
         # directly, in case the discovery endpoint itself is empty/blocked.
         candidate_results = []
