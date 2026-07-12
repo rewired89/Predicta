@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UFC — Predicta</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #080d14;
+    --surface:    #0e1520;
+    --surface2:   #111b2e;
+    --border:     #1a2840;
+    --green:      #00e676;
+    --green-dim:  #00e67622;
+    --green-glow: 0 0 32px #00e67633;
+    --purple:     #a78bfa;
+    --amber:      #fbbf24;
+    --red:        #f87171;
+    --cyan:       #22d3ee;
+    --text:       #e2e8f0;
+    --muted:      #5a7299;
+    --radius:     14px;
+  }
+
+  html { font-size: 15px; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: rgba(8,13,20,.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo { font-size: 1.3rem; font-weight: 800; color: var(--green); letter-spacing: -.5px; }
+  .badge { background: #00e67618; color: var(--green); font-size: .65rem; padding: 2px 8px; border-radius: 99px; font-weight: 700; letter-spacing: .8px; border: 1px solid #00e67630; }
+  header nav { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+  header nav a { color: var(--muted); text-decoration: none; font-size: .82rem; font-weight: 500; transition: color .2s; }
+  header nav a:hover { color: var(--text); }
+  header nav a.active { color: var(--green); }
+
+  .page { flex: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; width: 100%; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; transition: color .2s; }
+  .breadcrumb a:hover { color: var(--green); }
+  .breadcrumb .sep { color: var(--border); }
+  .breadcrumb .current { color: var(--text); }
+
+  .hero { margin-bottom: 36px; }
+  .hero-eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--green); opacity: .7; margin-bottom: 8px; }
+  .hero-title { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 800; line-height: 1.1; letter-spacing: -.5px; margin-bottom: 8px; }
+  .hero-title .accent { color: var(--green); }
+  .hero-sub { color: var(--muted); font-size: .88rem; line-height: 1.6; max-width: 560px; }
+  .hero-note { color: var(--amber); font-size: .76rem; line-height: 1.5; max-width: 620px; margin-top: 10px; border-left: 2px solid var(--amber); padding-left: 10px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .card + .card { margin-top: 16px; }
+  .card-title { font-size: .7rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+  .query-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
+  .query-label { font-size: .72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .query-row { display: flex; gap: 10px; }
+  .query-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-size: .92rem; padding: 12px 16px; outline: none; transition: border-color .2s;
+  }
+  .query-input:focus { border-color: var(--green); }
+  .query-input::placeholder { color: var(--muted); }
+  .btn-analyze {
+    background: var(--green); color: #080d14; border: none; border-radius: 10px;
+    padding: 12px 24px; font-size: .88rem; font-weight: 700; cursor: pointer;
+    transition: opacity .2s, transform .15s; white-space: nowrap;
+  }
+  .btn-analyze:hover { opacity: .88; transform: translateY(-1px); }
+  .btn-analyze:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .odds-section { margin-top: 18px; }
+  .odds-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .odds-toggle-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
+  .odds-toggle svg { transition: transform .2s; }
+  .odds-toggle.open svg { transform: rotate(180deg); }
+  .odds-pair { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .odds-pair.visible { display: grid; }
+  .odds-group label { font-size: .7rem; color: var(--muted); font-weight: 600; letter-spacing: .5px; display: block; margin-bottom: 5px; text-transform: uppercase; }
+  .odds-input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: .88rem; padding: 9px 12px; outline: none; transition: border-color .2s;
+  }
+  .odds-input:focus { border-color: var(--green); }
+  .odds-input::placeholder { color: var(--muted); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 99px;
+    font-size: .75rem; color: var(--muted); padding: 5px 12px; cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .chip:hover { border-color: var(--green); color: var(--green); }
+
+  .steps-row { display: flex; gap: 0; margin-bottom: 24px; }
+  .step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+  .step:not(:last-child)::after {
+    content: ''; position: absolute; top: 13px; left: 50%; width: 100%; height: 1px;
+    background: var(--border); z-index: 0;
+  }
+  .step-dot {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: .65rem; font-weight: 700; color: var(--muted); position: relative; z-index: 1;
+    transition: border-color .3s, background .3s, color .3s;
+  }
+  .step-dot.active { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+  .step-dot.done { border-color: var(--green); background: var(--green); color: #080d14; }
+  .step-label { font-size: .62rem; color: var(--muted); text-align: center; max-width: 80px; line-height: 1.3; }
+
+  #results { display: none; }
+  #results.visible { display: block; }
+
+  .match-header {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+  }
+  .match-league-badge {
+    font-size: .72rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 6px; background: var(--cyan); color: #080d14;
+  }
+
+  .matchup { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: start; margin-bottom: 16px; }
+  .team-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .team-card.winner { border-color: var(--green); box-shadow: var(--green-glow); }
+  .team-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .team-sub { font-size: .72rem; color: var(--muted); margin-bottom: 14px; }
+  .team-stats { display: flex; flex-direction: column; gap: 8px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; }
+  .stat-label { font-size: .72rem; color: var(--muted); }
+  .stat-value { font-size: .85rem; font-weight: 700; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.cyan { color: var(--cyan); }
+  .stat-value.amber { color: var(--amber); }
+
+  .vs-divider { display: flex; align-items: center; justify-content: center; padding-top: 20px; }
+  .vs-badge {
+    width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 800; color: var(--muted);
+  }
+
+  .prob-section { margin-bottom: 16px; }
+  .prob-label-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .prob-name { font-size: .82rem; font-weight: 700; }
+  .prob-val { font-size: 1.2rem; font-weight: 800; }
+  .prob-val.green  { color: var(--green); }
+  .prob-val.purple { color: var(--purple); }
+  .prob-bar-track { height: 10px; border-radius: 99px; background: var(--bg); overflow: hidden; position: relative; }
+  .prob-bar-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+  .prob-bar-fill.green  { background: linear-gradient(90deg, var(--green), #00bcd4); }
+  .prob-bar-fill.purple { background: linear-gradient(90deg, var(--purple), #818cf8); }
+  .prob-draw-note { font-size: .72rem; color: var(--muted); margin-top: 10px; }
+
+  .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .method-col { text-align: center; }
+  .method-col-title { font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .method-cell { background: var(--surface2); border-radius: 8px; padding: 10px 6px; margin-bottom: 8px; }
+  .method-val { font-size: 1rem; font-weight: 800; color: var(--cyan); }
+  .method-lbl { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+
+  .market-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+  .market-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .market-verdict {
+    font-size: .75rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 6px;
+  }
+  .market-verdict.value   { background: #00e67622; color: var(--green);  border: 1px solid #00e67640; }
+  .market-verdict.pass    { background: #fbbf2422; color: var(--amber);  border: 1px solid #fbbf2440; }
+  .market-verdict.slight  { background: #a78bfa22; color: var(--purple); border: 1px solid #a78bfa40; }
+  .market-verdict.avoid   { background: #f8717122; color: var(--red);    border: 1px solid #f8717140; }
+  .market-verdict.no-odds { background: #1a284022; color: var(--muted);  border: 1px solid var(--border); }
+  .market-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .mstat { text-align: center; }
+  .mstat-val { font-size: 1.3rem; font-weight: 800; color: var(--green); }
+  .mstat-lbl { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 2px; }
+  .market-reason { font-size: .8rem; color: var(--muted); line-height: 1.5; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+  .rec-card { border-radius: var(--radius); padding: 22px 24px; margin-bottom: 16px; display: flex; align-items: center; gap: 18px; }
+  .rec-card.rec-bet  { background: #00e67612; border: 1px solid #00e67630; }
+  .rec-card.rec-pass { background: #fbbf2410; border: 1px solid #fbbf2430; }
+  .rec-icon { font-size: 2rem; flex-shrink: 0; }
+  .rec-body { flex: 1; }
+  .rec-label { font-size: .65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .rec-player { font-size: 1.25rem; font-weight: 800; }
+  .rec-player.green { color: var(--green); }
+  .rec-player.amber { color: var(--amber); }
+  .rec-reason { font-size: .8rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  .narrative { font-size: .9rem; line-height: 1.8; color: var(--text); background: var(--surface2); border-left: 3px solid var(--green); padding: 16px 18px; border-radius: 0 10px 10px 0; }
+
+  .trace-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .trace-header svg { transition: transform .2s; }
+  .trace-header.open svg { transform: rotate(180deg); }
+  .trace-steps { display: none; margin-top: 14px; }
+  .trace-steps.visible { display: flex; flex-direction: column; gap: 8px; }
+  .trace-step { display: flex; gap: 10px; align-items: flex-start; font-size: .78rem; }
+  .trace-status { font-weight: 700; font-size: .65rem; padding: 2px 7px; border-radius: 4px; margin-top: 1px; flex-shrink: 0; }
+  .trace-status.ok    { background: #00e67618; color: var(--green); }
+  .trace-status.warn  { background: #fbbf2418; color: var(--amber); }
+  .trace-status.error { background: #f8717118; color: var(--red); }
+  .trace-name { color: var(--text); font-weight: 600; }
+  .trace-data { color: var(--muted); word-break: break-all; }
+
+  .confidence-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+  .confidence-badge.high   { background: #00e67618; color: var(--green); border: 1px solid #00e67630; }
+  .confidence-badge.medium { background: #fbbf2418; color: var(--amber); border: 1px solid #fbbf2430; }
+  .confidence-badge.low    { background: #f8717118; color: var(--red);   border: 1px solid #f8717130; }
+
+  .spinner { display: none; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
+  .spinner.active { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box { background: #f8717112; border: 1px solid #f8717130; border-radius: 10px; padding: 14px 18px; color: var(--red); font-size: .85rem; margin-top: 16px; display: none; }
+  .error-box.visible { display: block; }
+
+  @media (max-width: 680px) {
+    .matchup { grid-template-columns: 1fr; }
+    .vs-divider { display: none; }
+    .market-stats { grid-template-columns: 1fr 1fr; }
+    .method-grid { grid-template-columns: 1fr; }
+    .match-header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Predicta</div>
+  <div class="badge">PAPER MODE</div>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/sports" class="active">Sports</a>
+    <a href="/trading">Markets</a>
+    <a href="/audit">Audit</a>
+    <a href="/report">Report</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<div class="page">
+
+  <div class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/sports">Sports</a>
+    <span class="sep">›</span>
+    <span class="current">UFC</span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-eyebrow">UFC / MMA · Glicko-2 + Stats Logistic · Method of Victory</div>
+    <h1 class="hero-title">UFC <span class="accent">Analysis</span></h1>
+    <p class="hero-sub">Career striking/grappling stats scraped from ufcstats.com, blended with Glicko-2 (weight-class scoped, uncertainty-aware) — plus a separate method-of-victory model for KO/TKO, submission, and decision odds.</p>
+    <p class="hero-note">v1 model — league-average finish rates, blend weights, and the probability cap are provisional starting estimates, not yet backtested against real UFC results. Ring-rust (days since last fight) is not modeled yet. Treat outputs as directional until calibrated.</p>
+  </div>
+
+  <!-- Query Card -->
+  <div class="query-card">
+    <div class="query-label">Matchup Query</div>
+    <div class="query-row">
+      <input id="queryInput" class="query-input" type="text"
+             placeholder="e.g. Islam Makhachev vs Dustin Poirier lightweight"
+             autocomplete="off" />
+      <button id="analyzeBtn" class="btn-analyze" onclick="runAnalysis()">
+        <span id="btnText">Analyze</span>
+        <span id="btnSpinner" class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="odds-section">
+      <div class="odds-toggle" id="oddsToggle" onclick="toggleOdds()">
+        <span class="odds-toggle-label">&#9881; Add sportsbook odds (enables value check)</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="#5a7299" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="odds-pair" id="oddsPair">
+        <div class="odds-group">
+          <label>Fighter A odds (American)</label>
+          <input id="oddsA" class="odds-input" type="number" placeholder="-450" />
+        </div>
+        <div class="odds-group">
+          <label>Fighter B odds (American)</label>
+          <input id="oddsB" class="odds-input" type="number" placeholder="+350" />
+        </div>
+      </div>
+    </div>
+
+    <div class="chips" id="exampleChips">
+      <span class="chip" onclick="setQuery('Islam Makhachev vs Dustin Poirier lightweight')">Makhachev vs Poirier</span>
+      <span class="chip" onclick="setQuery('Alex Pereira vs Magomed Ankalaev light heavyweight')">Pereira vs Ankalaev</span>
+      <span class="chip" onclick="setQuery('Jon Jones vs Tom Aspinall heavyweight')">Jones vs Aspinall</span>
+      <span class="chip" onclick="setQuery('Ilia Topuria vs Max Holloway featherweight')">Topuria vs Holloway</span>
+    </div>
+  </div>
+
+  <!-- Step tracker -->
+  <div class="steps-row" id="stepsRow" style="display:none">
+    <div class="step"><div class="step-dot" id="s1">1</div><div class="step-label">Parse query</div></div>
+    <div class="step"><div class="step-dot" id="s2">2</div><div class="step-label">ufcstats.com scrape</div></div>
+    <div class="step"><div class="step-dot" id="s3">3</div><div class="step-label">Glicko-2 + stats blend</div></div>
+    <div class="step"><div class="step-dot" id="s4">4</div><div class="step-label">Method of victory</div></div>
+    <div class="step"><div class="step-dot" id="s5">5</div><div class="step-label">Generate narrative</div></div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="match-header">
+      <div>
+        <div style="font-size:.7rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px">Matchup</div>
+        <div style="font-size:1rem; font-weight:700" id="matchTitle">—</div>
+      </div>
+      <span class="match-league-badge" id="weightClassBadge">UFC</span>
+    </div>
+
+    <div class="matchup">
+      <div class="team-card" id="cardA">
+        <div class="team-name" id="fighterAName">—</div>
+        <div class="team-sub" id="fighterARecord">—</div>
+        <div class="team-stats">
+          <div class="stat-row"><span class="stat-label">Sig. Strikes Landed/Min</span><span class="stat-value cyan" id="fighterASlpm">—</span></div>
+          <div class="stat-row"><span class="stat-label">Sig. Strikes Absorbed/Min</span><span class="stat-value" id="fighterASapm">—</span></div>
+          <div class="stat-row"><span class="stat-label">Takedown Avg / Def</span><span class="stat-value green" id="fighterATd">—</span></div>
+          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value" id="fighterAReach">—</span></div>
+        </div>
+      </div>
+
+      <div class="vs-divider"><div class="vs-badge">VS</div></div>
+
+      <div class="team-card" id="cardB">
+        <div class="team-name" id="fighterBName">—</div>
+        <div class="team-sub" id="fighterBRecord">—</div>
+        <div class="team-stats">
+          <div class="stat-row"><span class="stat-label">Sig. Strikes Landed/Min</span><span class="stat-value cyan" id="fighterBSlpm">—</span></div>
+          <div class="stat-row"><span class="stat-label">Sig. Strikes Absorbed/Min</span><span class="stat-value" id="fighterBSapm">—</span></div>
+          <div class="stat-row"><span class="stat-label">Takedown Avg / Def</span><span class="stat-value green" id="fighterBTd">—</span></div>
+          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value" id="fighterBReach">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card prob-section">
+      <div class="card-title">Win Probability</div>
+      <div style="margin-bottom:14px">
+        <div class="prob-label-row"><span class="prob-name" id="probNameA">—</span><span class="prob-val green" id="probValA">—%</span></div>
+        <div class="prob-bar-track"><div class="prob-bar-fill green" id="probBarA" style="width:50%"></div></div>
+      </div>
+      <div>
+        <div class="prob-label-row"><span class="prob-name" id="probNameB">—</span><span class="prob-val purple" id="probValB">—%</span></div>
+        <div class="prob-bar-track"><div class="prob-bar-fill purple" id="probBarB" style="width:50%"></div></div>
+      </div>
+      <div class="prob-draw-note" id="fightNote">—</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Method of Victory</div>
+      <div class="method-grid">
+        <div class="method-col">
+          <div class="method-col-title" id="methodColA">Fighter A</div>
+          <div class="method-cell"><div class="method-val" id="mAKo">—</div><div class="method-lbl">KO/TKO</div></div>
+          <div class="method-cell"><div class="method-val" id="mASub">—</div><div class="method-lbl">Submission</div></div>
+          <div class="method-cell"><div class="method-val" id="mADec">—</div><div class="method-lbl">Decision</div></div>
+        </div>
+        <div class="method-col">
+          <div class="method-col-title" id="methodColB">Fighter B</div>
+          <div class="method-cell"><div class="method-val" id="mBKo">—</div><div class="method-lbl">KO/TKO</div></div>
+          <div class="method-cell"><div class="method-val" id="mBSub">—</div><div class="method-lbl">Submission</div></div>
+          <div class="method-cell"><div class="method-val" id="mBDec">—</div><div class="method-lbl">Decision</div></div>
+        </div>
+        <div class="method-col">
+          <div class="method-col-title">Overall</div>
+          <div class="method-cell"><div class="method-val" id="mFinishes">—</div><div class="method-lbl">Fight Finishes</div></div>
+          <div class="method-cell"><div class="method-val" id="mDistance">—</div><div class="method-lbl">Goes the Distance</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="market-card">
+      <div class="card-title" style="margin-bottom:0">Market Comparison</div>
+      <div class="market-header">
+        <div style="font-size:.85rem; color:var(--muted)" id="marketSide">—</div>
+        <div class="market-verdict no-odds" id="marketVerdict">No Odds</div>
+      </div>
+      <div class="market-stats">
+        <div class="mstat"><div class="mstat-val" id="modelEdge">—</div><div class="mstat-lbl">Model Edge</div></div>
+        <div class="mstat"><div class="mstat-val" id="kellyStake">—</div><div class="mstat-lbl">Kelly Stake</div></div>
+        <div class="mstat"><div class="mstat-val" id="marketProb">—</div><div class="mstat-lbl">Market Prob</div></div>
+      </div>
+      <div class="market-reason" id="marketReason">Supply odds above to see market comparison and value analysis.</div>
+    </div>
+
+    <div class="rec-card rec-bet" id="recCard">
+      <div class="rec-icon" id="recIcon">🥊</div>
+      <div class="rec-body">
+        <div class="rec-label">Recommendation</div>
+        <div class="rec-player green" id="recTeam">—</div>
+        <div class="rec-reason" id="recReason">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI Narrative</div>
+      <div class="narrative" id="narrative">—</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">Data Confidence</div>
+        <div class="confidence-badge" id="confidenceBadge">—</div>
+      </div>
+      <div class="trace-header" id="traceToggle" onclick="toggleTrace()">
+        <span style="font-size:.72rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted)">Pipeline Trace</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 4.5L7 9.5L12 4.5" stroke="#5a7299" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="trace-steps" id="traceSteps"></div>
+    </div>
+
+  </div><!-- /results -->
+</div>
+
+<footer style="text-align:center; padding:20px; font-size:.75rem; color:var(--muted); border-top:1px solid var(--border)">
+  Predicta · Paper mode only · No real wagers or trades are placed.
+</footer>
+
+<script>
+function setQuery(q) { document.getElementById('queryInput').value = q; }
+
+function toggleOdds() {
+  document.getElementById('oddsToggle').classList.toggle('open');
+  document.getElementById('oddsPair').classList.toggle('visible');
+}
+
+function toggleTrace() {
+  document.getElementById('traceToggle').classList.toggle('open');
+  document.getElementById('traceSteps').classList.toggle('visible');
+}
+
+function setStep(n, state) {
+  const dot = document.getElementById('s' + n);
+  if (!dot) return;
+  dot.className = 'step-dot ' + state;
+  if (state === 'done') dot.textContent = '✓';
+}
+
+function parseFloatOrNull(id) {
+  const v = document.getElementById(id).value.trim();
+  return v ? parseFloat(v) : null;
+}
+
+async function runAnalysis() {
+  let query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+
+  const oddsA = parseFloatOrNull('oddsA');
+  const oddsB = parseFloatOrNull('oddsB');
+  if (oddsA != null && oddsB != null) {
+    query += ` (odds: A ${oddsA > 0 ? '+' + oddsA : oddsA}, B ${oddsB > 0 ? '+' + oddsB : oddsB})`;
+  }
+
+  const btn = document.getElementById('analyzeBtn');
+  const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('btnSpinner');
+  const errorBox = document.getElementById('errorBox');
+  const results = document.getElementById('results');
+  const stepsRow = document.getElementById('stepsRow');
+
+  btn.disabled = true;
+  btnText.style.display = 'none';
+  spinner.classList.add('active');
+  errorBox.classList.remove('visible');
+  results.classList.remove('visible');
+  stepsRow.style.display = 'flex';
+  for (let i = 1; i <= 5; i++) { const d = document.getElementById('s'+i); if (d) { d.className = 'step-dot'; d.textContent = i; } }
+
+  const stepDelay = ms => new Promise(r => setTimeout(r, ms));
+  setStep(1, 'active');
+
+  const body = { query, bankroll: 1000 };
+
+  let data;
+  try {
+    await stepDelay(200);
+    setStep(1, 'done'); setStep(2, 'active');
+
+    const resp = await fetch('/analyze-ufc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    setStep(2, 'done'); setStep(3, 'active');
+    await stepDelay(150);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'Request failed');
+    }
+    data = await resp.json();
+    setStep(3, 'done'); setStep(4, 'active');
+    await stepDelay(100);
+    setStep(4, 'done'); setStep(5, 'active');
+    await stepDelay(100);
+    setStep(5, 'done');
+  } catch (e) {
+    for (let i = 1; i <= 5; i++) { const d = document.getElementById('s'+i); if (d && d.classList.contains('active')) d.className = 'step-dot'; }
+    errorBox.textContent = e.message || 'Analysis failed.';
+    errorBox.classList.add('visible');
+    btn.disabled = false;
+    btnText.style.display = '';
+    spinner.classList.remove('active');
+    return;
+  }
+
+  renderResults(data);
+  results.classList.add('visible');
+  btn.disabled = false;
+  btnText.style.display = '';
+  spinner.classList.remove('active');
+}
+
+function renderResults(d) {
+  const fa = d.ai_signals?.a || {};
+  const fb = d.ai_signals?.b || {};
+  const mc = d.market_comparison || {};
+  const rec = (d.bet_recommendations || [])[0] || {};
+  const markets = d.markets || {};
+  const mov = markets.method_of_victory || {};
+
+  document.getElementById('matchTitle').textContent = `${d.fighter_a} vs ${d.fighter_b}`;
+  document.getElementById('weightClassBadge').textContent = (d.weight_class && d.weight_class !== 'all') ? d.weight_class : 'UFC';
+
+  document.getElementById('fighterAName').textContent = d.fighter_a || '—';
+  document.getElementById('fighterBName').textContent = d.fighter_b || '—';
+  document.getElementById('fighterARecord').textContent = (fa.wins != null) ? `${fa.wins}-${fa.losses}-${fa.draws}` : '—';
+  document.getElementById('fighterBRecord').textContent = (fb.wins != null) ? `${fb.wins}-${fb.losses}-${fb.draws}` : '—';
+  document.getElementById('fighterASlpm').textContent = fa.slpm != null ? fa.slpm.toFixed(2) : '—';
+  document.getElementById('fighterBSlpm').textContent = fb.slpm != null ? fb.slpm.toFixed(2) : '—';
+  document.getElementById('fighterASapm').textContent = fa.sapm != null ? fa.sapm.toFixed(2) : '—';
+  document.getElementById('fighterBSapm').textContent = fb.sapm != null ? fb.sapm.toFixed(2) : '—';
+  document.getElementById('fighterATd').textContent = (fa.td_avg != null) ? `${fa.td_avg}/${fa.td_def ?? '—'}%` : '—';
+  document.getElementById('fighterBTd').textContent = (fb.td_avg != null) ? `${fb.td_avg}/${fb.td_def ?? '—'}%` : '—';
+  document.getElementById('fighterAReach').textContent = fa.reach_in != null ? fa.reach_in + '"' : '—';
+  document.getElementById('fighterBReach').textContent = fb.reach_in != null ? fb.reach_in + '"' : '—';
+
+  const pA = d.prob_a || 0, pB = d.prob_b || 0;
+  document.getElementById('cardA').className = 'team-card' + (pA > pB ? ' winner' : '');
+  document.getElementById('cardB').className = 'team-card' + (pB > pA ? ' winner' : '');
+
+  document.getElementById('probNameA').textContent = d.fighter_a || '—';
+  document.getElementById('probNameB').textContent = d.fighter_b || '—';
+  document.getElementById('probValA').textContent = pA + '%';
+  document.getElementById('probValB').textContent = pB + '%';
+  document.getElementById('probBarA').style.width = pA + '%';
+  document.getElementById('probBarB').style.width = pB + '%';
+  document.getElementById('fightNote').textContent = 'Draws not modeled (rare in MMA) — probabilities are win-or-lose only.';
+
+  document.getElementById('methodColA').textContent = d.fighter_a || 'Fighter A';
+  document.getElementById('methodColB').textContent = d.fighter_b || 'Fighter B';
+  document.getElementById('mAKo').textContent  = mov[`${d.fighter_a}_ko`]  != null ? mov[`${d.fighter_a}_ko`]  + '%' : '—';
+  document.getElementById('mASub').textContent = mov[`${d.fighter_a}_sub`] != null ? mov[`${d.fighter_a}_sub`] + '%' : '—';
+  document.getElementById('mADec').textContent = mov[`${d.fighter_a}_dec`] != null ? mov[`${d.fighter_a}_dec`] + '%' : '—';
+  document.getElementById('mBKo').textContent  = mov[`${d.fighter_b}_ko`]  != null ? mov[`${d.fighter_b}_ko`]  + '%' : '—';
+  document.getElementById('mBSub').textContent = mov[`${d.fighter_b}_sub`] != null ? mov[`${d.fighter_b}_sub`] + '%' : '—';
+  document.getElementById('mBDec').textContent = mov[`${d.fighter_b}_dec`] != null ? mov[`${d.fighter_b}_dec`] + '%' : '—';
+  document.getElementById('mFinishes').textContent = markets.fight_finishes_pct != null ? markets.fight_finishes_pct + '%' : '—';
+  document.getElementById('mDistance').textContent = markets.goes_the_distance_pct != null ? markets.goes_the_distance_pct + '%' : '—';
+
+  const label = (mc.has_real_odds ? (rec.verdict || '') : '').toLowerCase();
+  const verdictEl = document.getElementById('marketVerdict');
+  verdictEl.textContent = mc.has_real_odds ? (rec.verdict || 'FAIR') : 'No Odds';
+  verdictEl.className = 'market-verdict ' + (
+    label.includes('bet') ? 'value' :
+    label.includes('pass') ? 'pass' :
+    label.includes('lean') ? 'slight' : 'no-odds'
+  );
+  document.getElementById('marketSide').textContent = rec.bet ? 'Lean: ' + rec.bet : 'Add odds to enable value analysis';
+  document.getElementById('modelEdge').textContent = rec.edge_pp != null ? rec.edge_pp.toFixed(1) + 'pp' : '—';
+  document.getElementById('kellyStake').textContent = d.kelly?.recommended_stake != null ? '$' + d.kelly.recommended_stake.toFixed(0) : '—';
+  document.getElementById('marketProb').textContent = mc.market_implied_a != null ? (mc.market_implied_a * 100).toFixed(1) + '%' : '—';
+  document.getElementById('marketReason').textContent = (rec.reasons || []).join(' ') || rec.skip_reason || 'Supply odds above to see market comparison and value analysis.';
+
+  const isPass = (rec.verdict || '').toUpperCase() === 'PASS';
+  const recCard = document.getElementById('recCard');
+  recCard.className = 'rec-card ' + (isPass ? 'rec-pass' : 'rec-bet');
+  document.getElementById('recIcon').textContent = isPass ? '⏸' : '🥊';
+  document.getElementById('recTeam').textContent = rec.bet || rec.verdict || '—';
+  document.getElementById('recTeam').className = 'rec-player ' + (isPass ? 'amber' : 'green');
+  document.getElementById('recReason').textContent = (rec.reasons || []).join(' ') || rec.skip_reason || '—';
+
+  document.getElementById('narrative').textContent = d.narrative || '—';
+
+  const conf = (d.data_confidence || 'low').toLowerCase();
+  const badgeEl = document.getElementById('confidenceBadge');
+  badgeEl.textContent = (d.data_confidence || 'low').toUpperCase();
+  badgeEl.className = 'confidence-badge ' + (conf.includes('high') ? 'high' : conf.includes('low') ? 'low' : 'medium');
+
+  renderTrace(d.steps || []);
+}
+
+function renderTrace(steps) {
+  const container = document.getElementById('traceSteps');
+  container.innerHTML = '';
+  steps.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'trace-step';
+    const statusClass = s.status === 'ok' ? 'ok' : s.status === 'warn' ? 'warn' : 'error';
+    const dataStr = s.data ? JSON.stringify(s.data).slice(0, 120) : '';
+    div.innerHTML = `
+      <span class="trace-status ${statusClass}">${(s.status || '').toUpperCase()}</span>
+      <div>
+        <span class="trace-name">${s.step || ''}</span>
+        ${dataStr ? `<div class="trace-data">${dataStr}</div>` : ''}
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('queryInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runAnalysis();
+});
+</script>
+</body>
+</html>

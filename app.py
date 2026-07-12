@@ -991,6 +991,11 @@ def rugby_ui():
     return HTMLResponse(content=(TEMPLATES_DIR / "rugby.html").read_text(encoding="utf-8"))
 
 
+@app.get("/ufc", response_class=HTMLResponse)
+def ufc_ui():
+    return HTMLResponse(content=(TEMPLATES_DIR / "ufc.html").read_text(encoding="utf-8"))
+
+
 @app.get("/trading", response_class=HTMLResponse)
 def trading():
     """Stock Market hub — splits into High Value / Low Value (Kimi review, round 6 follow-up)."""
@@ -1227,6 +1232,27 @@ def analyze_rugby_endpoint(body: RugbyRequest):
     from analyze_rugby import run_rugby_analysis
     result = run_rugby_analysis(body.query, body.bankroll)
     if "error" in result and not result.get("home_team"):
+        raise HTTPException(500, detail=result["error"])
+    return result
+
+
+class UFCRequest(BaseModel):
+    query: str
+    bankroll: float = 1000.0
+
+
+@app.post("/analyze-ufc")
+def analyze_ufc_endpoint(body: UFCRequest):
+    """
+    UFC pipeline. ufcstats.com scrape + Glicko-2/stats-logistic blend for win
+    probability, plus a separate method-of-victory (KO/sub/decision) model.
+    See analyze_ufc.py.
+    """
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    from analyze_ufc import run_ufc_analysis
+    result = run_ufc_analysis(body.query, body.bankroll)
+    if "error" in result and not result.get("fighter_a"):
         raise HTTPException(500, detail=result["error"])
     return result
 

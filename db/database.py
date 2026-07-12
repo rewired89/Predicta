@@ -11,7 +11,7 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 def _migrate_sport_check(conn: sqlite3.Connection) -> None:
     """
-    Widen matches.sport CHECK to include all active sports (baseball, esports, rugby).
+    Widen matches.sport CHECK to include all active sports (baseball, esports, rugby, ufc).
 
     Concurrency-safe: schema.sql already ships the full constraint, so on any
     fresh DB this returns immediately without touching the table. The rename/
@@ -20,7 +20,7 @@ def _migrate_sport_check(conn: sqlite3.Connection) -> None:
     background thread both calling init_db) can never crash on a half-migrated
     _matches_bak — the loser rolls back and the winner's result stands.
     """
-    FULL_CONSTRAINT = "'soccer','table_tennis','tennis','baseball','esports','rugby'"
+    FULL_CONSTRAINT = "'soccer','table_tennis','tennis','baseball','esports','rugby','ufc'"
 
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='matches'"

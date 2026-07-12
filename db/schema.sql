@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY,
-    sport TEXT NOT NULL CHECK(sport IN ('soccer','table_tennis','tennis','baseball','esports','rugby')),
+    sport TEXT NOT NULL CHECK(sport IN ('soccer','table_tennis','tennis','baseball','esports','rugby','ufc')),
     league TEXT,
     participant_a TEXT NOT NULL,
     participant_b TEXT NOT NULL,

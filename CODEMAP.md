@@ -8476,7 +8476,7 @@ Added "Audit" link to the navbar of: home.html, sports.html, baseball.html, tenn
 name: _migrate_sport_check
 type: function
 file: db/database.py
-purpose: Widens the matches.sport CHECK constraint to include all 6 active sports (soccer, table_tennis, tennis, baseball, esports, rugby). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB, and sets PRAGMA legacy_alter_table=ON around the RENAME so SQLite does NOT rewrite child-table foreign keys (predictions/signals/outcomes/odds_snapshots) to point at _matches_bak — that rewrite was the cause of the "no such table: _matches_bak" crash. Concurrency-safe: try/except so two overlapping init_db callers can never crash on a half-migrated _matches_bak. Idempotent. Verified 2026-07-12: tested the upgrade path against a hand-built old-constraint DB (pre-rugby) — migration ran, existing rows survived, and a subsequent 'rugby' insert succeeded.
+purpose: Widens the matches.sport CHECK constraint to include all 7 active sports (soccer, table_tennis, tennis, baseball, esports, rugby, ufc). schema.sql now ships the full constraint, so on a fresh DB this returns immediately (no rename/rebuild). The rename→recreate→copy→drop path only runs to upgrade a pre-existing old-schema DB, and sets PRAGMA legacy_alter_table=ON around the RENAME so SQLite does NOT rewrite child-table foreign keys (predictions/signals/outcomes/odds_snapshots) to point at _matches_bak — that rewrite was the cause of the "no such table: _matches_bak" crash. Concurrency-safe: try/except so two overlapping init_db callers can never crash on a half-migrated _matches_bak. Idempotent. Verified 2026-07-12: tested the upgrade path against a hand-built old-constraint DB (pre-rugby) — migration ran, existing rows survived, and a subsequent 'rugby' insert succeeded. Same test repeated for the 'ufc' addition.
 inputs: conn: sqlite3.Connection
 outputs: none
 calls: sqlite3.Connection.execute, conn.commit, conn.rollback
@@ -11159,7 +11159,295 @@ mutates: none
 name: sports.html (rugby card)
 type: template
 file: templates/sports.html
-purpose: Added a "Rugby (NRL)" card linking to /rugby, alongside the existing Soccer/Baseball/Tennis/Ping Pong/E-Sports cards.
+purpose: Added a "Rugby (NRL)" card linking to /rugby, alongside the existing Soccer/Baseball/Tennis/E-Sports cards (Ping Pong card removed same day, see the main sports.html entry above).
+inputs: none
+outputs: HTML
+calls: none
+called_by: sports (app.py)
+mutates: none
+---
+
+---
+
+## fetchers/ufc.py
+
+---
+name: BASE
+type: variable
+file: fetchers/ufc.py
+purpose: ufcstats.com base URL. Unlike ESPN (rugby/baseball/soccer/tennis), UFC Stats has no JSON API — this is a plain HTML scrape via requests+BeautifulSoup. NOTE — not live-verified from a Claude Code session: this repo's remote containers cannot reach external sites at all (confirmed 2026-07-12 for both espn.com and ufcstats.com from this sandbox's proxy). The CSS class names below are based on ufcstats.com's long-stable, widely-scraped structure, not a live-confirmed response. Verify once deployed (Railway) or run locally.
+inputs: none
+outputs: str
+calls: none
+called_by: _get
+mutates: none
+---
+
+---
+name: _get
+type: function
+file: fetchers/ufc.py
+purpose: GET a ufcstats.com page with a browser User-Agent; returns '' on any failure (network, non-2xx) rather than raising — same fail-soft convention as fetchers/ittf.py._get.
+inputs: url: str, params: Optional[dict]
+outputs: str
+calls: httpx.Client.get
+called_by: search_fighters_by_letter, fetch_fighter_profile, fetch_fight_history
+mutates: none
+---
+
+---
+name: search_fighters_by_letter
+type: function
+file: fetchers/ufc.py
+purpose: Scrapes /statistics/fighters?char={letter}&page=all — ufcstats.com's alphabetical (by last name) fighter listing, since the site has no name-search endpoint. Returns [{name, url, wins, losses, draws}]; empty list on failure.
+inputs: last_initial: str
+outputs: list[dict]
+calls: _get
+called_by: lookup_fighter
+mutates: none
+---
+
+---
+name: lookup_fighter
+type: function
+file: fetchers/ufc.py
+purpose: Resolves a free-text fighter name to a ufcstats.com entry — tries the query's last word as the last-name initial (site is indexed by last name), then exact/substring/difflib fuzzy match against that letter's full listing. Returns None if nothing matches.
+inputs: name: str
+outputs: Optional[dict]
+calls: search_fighters_by_letter, difflib.get_close_matches
+called_by: enrich_ufc_fighters
+mutates: none
+---
+
+---
+name: fetch_fighter_profile
+type: function
+file: fetchers/ufc.py
+purpose: Scrapes a fighter's ufcstats.com detail page for career stats (SLpM, Str. Acc., SApM, Str. Def, TD Avg/Acc/Def, Sub. Avg) and bio (height, reach, stance, age derived from DOB, W-L-D record). Empty dict on failure.
+inputs: fighter_url: str
+outputs: dict {name, wins, losses, draws, height_in, reach_in, stance, age, slpm, str_acc, sapm, str_def, td_avg, td_acc, td_def, sub_avg}
+calls: _get, BeautifulSoup
+called_by: enrich_ufc_fighters
+mutates: none
+---
+
+---
+name: fetch_fight_history
+type: function
+file: fetchers/ufc.py
+purpose: Scrapes a fighter's recent-fights table (most recent first) — result, opponent, method, round, event. Known limitation: the per-fighter table has no separate date column, so precise days-since-last-fight (true "ring rust") isn't computable without an additional per-event page fetch — not implemented in v1. Empty list on failure.
+inputs: fighter_url: str, limit: int = 15
+outputs: list[dict] {result, opponent, method, round, event}
+calls: _get, BeautifulSoup
+called_by: _method_rates, enrich_ufc_fighters
+mutates: none
+---
+
+---
+name: _method_rates
+type: function
+file: fetchers/ufc.py
+purpose: From a fight-history list, computes win_ko_rate/win_sub_rate (share of WINS by that method) and loss_ko_rate/loss_sub_rate (share of LOSSES by that method — a durability/susceptibility proxy consumed by models/ufc_model.method_of_victory). Returns None (not 0.0) for a rate when the fighter has zero fights of that outcome type, so "never finished" isn't indistinguishable from "no data."
+inputs: fights: list[dict]
+outputs: dict {win_ko_rate, win_sub_rate, loss_ko_rate, loss_sub_rate, n_wins, n_losses}
+calls: none
+called_by: enrich_ufc_fighters
+mutates: none
+---
+
+---
+name: enrich_ufc_fighters
+type: function
+file: fetchers/ufc.py
+purpose: Main entry point — resolves both fighter names and returns {"a": {...profile, ...method_rates, fight_history}, "b": {...}}. A fighter's dict is {} (not a replacement-level default) when unresolved, matching this repo's "don't hallucinate from nothing" convention.
+inputs: name_a: str, name_b: str
+outputs: dict {a: dict, b: dict}
+calls: lookup_fighter, fetch_fighter_profile, fetch_fight_history, _method_rates
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+
+## models/ufc_model.py
+
+---
+name: DEFAULT_GLICKO_RD / CONFIDENT_RD / STATS_SCALE / REACH_COEF / AGE_DECLINE_START / AGE_DECLINE_PER_YEAR / MODEL_PROB_CAP / LEAGUE_AVG_LOSS_KO_RATE / LEAGUE_AVG_LOSS_SUB_RATE / LEAGUE_AVG_WIN_KO_RATE / LEAGUE_AVG_WIN_SUB_RATE
+type: variable
+file: models/ufc_model.py
+purpose: Provisional starting constants — NOT fitted to real UFC history (same "build environment can't reach the data source" limitation as rugby). CONFIDENT_RD=60 is roughly what Glicko-2 RD looks like after ~10+ recorded fights; DEFAULT_GLICKO_RD=350 is models/glicko.py's unrated default. MODEL_PROB_CAP=0.82 (slightly looser than rugby's 0.78 — MMA mismatches run bigger — but still bounded, same "no near-certainty claims" culture as the baseball/rugby caps). LEAGUE_AVG_* rates are rough historical UFC finish-rate estimates used only when a fighter has zero fight history to compute their own rate from.
+inputs: none
+outputs: float
+calls: none
+called_by: stats_win_prob, composite_win_prob, method_of_victory
+mutates: none
+---
+
+---
+name: stats_win_prob
+type: function
+file: models/ufc_model.py
+purpose: Logistic win probability for fighter A from career stats alone — striking differential (SLpM-SApM), takedown edge (TD rate × opponent's TD defense gap), reach advantage, and age-decline penalty past 34. Returns 0.5 (no signal) when both fighters have no usable stats.
+inputs: fighter_a: dict, fighter_b: dict
+outputs: float
+calls: math.exp (via _sigmoid), _age_penalty
+called_by: composite_win_prob
+mutates: none
+---
+
+---
+name: composite_win_prob
+type: function
+file: models/ufc_model.py
+purpose: Blends Glicko-2 win probability with stats_win_prob. Blend weight on Glicko-2 grows as both fighters' RD shrinks toward CONFIDENT_RD (rating is trustworthy) and shrinks toward 0 as RD approaches DEFAULT_GLICKO_RD (freshly-rated or long-inactive fighter) — the "RD = doubt" framing directly justifying Glicko-2 over plain Elo for this sport.
+inputs: fighter_a: dict, fighter_b: dict, glicko_prob_a: float, rd_a: float, rd_b: float
+outputs: dict {prob_a, prob_b, glicko_weight, stats_weight, glicko_prob_a, stats_prob_a, avg_rd}
+calls: stats_win_prob
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+name: method_of_victory
+type: function
+file: models/ufc_model.py
+purpose: P(KO/TKO), P(submission), P(decision) conditional on `fighter` winning — blends the fighter's own finish-rate (from wins) with the opponent's finish-susceptibility rate (from losses), 50/50 when both available, falls back to whichever exists, falls back to LEAGUE_AVG_WIN_*_RATE when neither fighter has fight history. Normalizes so p_ko+p_sub never exceeds 1.0; decision takes the residual.
+inputs: fighter: dict, opponent: dict
+outputs: dict {p_ko, p_sub, p_dec}
+calls: none
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+name: explain
+type: function
+file: models/ufc_model.py
+purpose: Plain-text summary of the win-probability blend and both fighters' method-of-victory breakdown — feeds the pipeline's model_explanation / narrative prompt.
+inputs: fighter_a_name: str, fighter_b_name: str, blend: dict, method_a: dict, method_b: dict
+outputs: str
+calls: none
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+
+## ai_agent_ufc.py
+
+---
+name: parse_ufc_query
+type: function
+file: ai_agent_ufc.py
+purpose: Extracts fighter_a, fighter_b, weight_class, date, and odds from free-text via Claude (claude-haiku-4-5-20251001). No league/season disambiguation needed (single promotion) but adds a method-of-victory-relevant weight_class field team-sport parsers don't need.
+inputs: user_text: str
+outputs: dict {fighter_a, fighter_b, weight_class, date, odds_a_decimal, odds_b_decimal, odds_a_american, odds_b_american, notes}
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+name: generate_ufc_narrative
+type: function
+file: ai_agent_ufc.py
+purpose: Generates a 2-3 sentence prediction narrative via Claude, mirroring the other ai_agent_*.generate_*_narrative functions' rules (favourite + win prob first, most decisive driver, most-favoured method of victory if clear, verdict, confidence caveat, under 90 words).
+inputs: fighter_a, fighter_b: str; prob_a, prob_b: float; explanation: str; verdict: str; confidence: str
+outputs: str
+calls: anthropic.Anthropic (claude-haiku-4-5-20251001)
+called_by: run_ufc_analysis (analyze_ufc.py)
+mutates: none
+---
+
+---
+
+## analyze_ufc.py
+
+---
+name: _bet_recommendations
+type: function
+file: analyze_ufc.py
+purpose: Translates model probabilities (+ optional market edge) into BET/LEAN/PASS verdicts. Same conservative thresholds as analyze_rugby.py's _bet_recommendations (65%/62pp no-odds, 3.5pp/1pp with odds) for the same reason — brand-new, zero-resolved-predictions model, start cautious (CLAUDE.md Bug 3).
+inputs: prob_a, prob_b: float; fighter_a, fighter_b: str; edge_summary: Optional[dict]; partial_data: bool
+outputs: list[dict]
+calls: none
+called_by: run_ufc_analysis
+mutates: none
+---
+
+---
+name: run_ufc_analysis
+type: function
+file: analyze_ufc.py
+purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → ufcstats.com scrape (fetchers/ufc) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. Returns {"status": "insufficient_data", ...} without persisting when ufcstats.com has no data for either fighter.
+inputs: user_query: str, bankroll: float = 1000.0
+outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score)
+calls: ai_agent_ufc.parse_ufc_query, fetchers.ufc.enrich_ufc_fighters, models.glicko.Glicko2Model, models.ufc_model.composite_win_prob/method_of_victory/explain, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_ufc.generate_ufc_narrative, db.database.get_db
+called_by: analyze_ufc_endpoint (app.py)
+mutates: matches table (sport='ufc'), signals table, predictions table
+---
+
+---
+
+## app.py (UFC additions)
+
+---
+name: UFCRequest
+type: class
+file: app.py
+purpose: Pydantic request body for POST /analyze-ufc — {query: str, bankroll: float = 1000.0}.
+inputs: none
+outputs: none
+calls: none
+called_by: analyze_ufc_endpoint
+mutates: none
+---
+
+---
+name: analyze_ufc_endpoint
+type: function
+file: app.py
+purpose: POST /analyze-ufc — runs the UFC pipeline (analyze_ufc.run_ufc_analysis) and returns its result dict; 400 on empty query, 500 if the pipeline returns an error with no fighter_a.
+inputs: body: UFCRequest
+outputs: dict (JSON response)
+calls: analyze_ufc.run_ufc_analysis
+called_by: FastAPI (HTTP POST)
+mutates: none
+---
+
+---
+name: ufc_ui
+type: function
+file: app.py
+purpose: GET /ufc — serves templates/ufc.html.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+
+## templates/ufc.html
+
+---
+name: ufc.html
+type: template
+file: templates/ufc.html
+purpose: UFC analysis UI — matchup query box (optional American odds), step tracker, fighter cards (record, SLpM/SApM, TD avg/def, reach), win-probability bars with a "draws not modeled" note, a 3-column method-of-victory grid (KO/TKO, submission, decision per fighter + overall finish/distance %), market comparison/Kelly card, recommendation card, AI narrative, collapsible pipeline trace. Carries an on-page amber caveat about provisional constants and unmodeled ring-rust. Visual structure/CSS copied from templates/rugby.html (same reasoning as rugby copying esports.html — closest existing analog).
+inputs: none
+outputs: HTML
+calls: /analyze-ufc (fetch, JS)
+called_by: ufc_ui (app.py)
+mutates: none
+---
+
+---
+name: sports.html (UFC card)
+type: template
+file: templates/sports.html
+purpose: Added a "UFC" card linking to /ufc, alongside the existing Soccer/Baseball/Tennis/E-Sports/Rugby cards.
 inputs: none
 outputs: HTML
 calls: none
