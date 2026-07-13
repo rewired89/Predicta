@@ -262,18 +262,29 @@ def _hours_before_first_pitch(game_time: str, captured_at: str) -> Optional[floa
 
 def capture_odds(predictions: list[dict], phase: str) -> int:
     """
-    Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction
-    record for Closing Line Value (CLV) measurement.
+    Fetch current NRFI/YRFI odds AND full-game moneyline odds from The Odds
+    API and attach both to each prediction record.
 
     phase="entry"   → fill entry_* (the line when we made the pick). Also seeds
                        closing_* so a single daily run still yields a CLV of 0.
     phase="closing" → update closing_* (the latest line before first pitch).
 
-    No-op (returns 0) when ODDS_API_KEY is unset or no games match. Mutates the
-    records in place; caller is responsible for saving the JSON.
+    The NRFI market (fetch_nrfi_odds) requires a Business-tier Odds API plan
+    and returns nothing on a lower tier — confirmed 2026-07-12 this project's
+    real key gets rejected for that specific market, which is why every
+    entry_nrfi_dec stayed empty despite a valid key. Added fetch_ml_odds
+    (entry_ml_home_dec/entry_ml_away_dec/etc.) alongside it, unchanged,
+    because full-game moneyline (h2h) is a featured market available on every
+    plan including free. NRFI fields are left in place for when/if a
+    Business-tier key is available — this is purely additive, nothing NRFI-
+    specific was removed or altered.
+
+    No-op for a given market's fields if that fetch returns nothing (e.g. no
+    ODDS_API_KEY, or NRFI on a lower-tier plan). Mutates the records in
+    place; caller is responsible for saving the JSON.
     """
     try:
-        from fetchers.nrfi_odds import fetch_nrfi_odds
+        from fetchers.nrfi_odds import fetch_nrfi_odds, fetch_ml_odds
     except Exception:
         return 0
 
@@ -287,19 +298,22 @@ def capture_odds(predictions: list[dict], phase: str) -> int:
         for p in predictions
         if not p.get("error")
     ]
-    odds = fetch_nrfi_odds(games)
-    if not odds:
+    nrfi_odds = fetch_nrfi_odds(games)
+    ml_odds = fetch_ml_odds(games)
+    if not nrfi_odds and not ml_odds:
         return 0
 
     updated = 0
     for p in predictions:
         key = f"{p.get('away_abbr')}@{p.get('home_abbr')}"
-        o = odds.get(key)
-        if not o:
+        o = nrfi_odds.get(key)
+        m = ml_odds.get(key)
+        if not o and not m:
             continue
-        if phase == "entry":
-            # Only set entry once; seed closing so same-day CLV is defined.
-            if p.get("entry_nrfi_dec") is None:
+
+        if o:
+            if phase == "entry" and p.get("entry_nrfi_dec") is None:
+                # Only set entry once; seed closing so same-day CLV is defined.
                 p["entry_nrfi_dec"] = o["nrfi_dec"]
                 p["entry_yrfi_dec"] = o["yrfi_dec"]
                 p["entry_book"]     = o["book"]
@@ -312,11 +326,18 @@ def capture_odds(predictions: list[dict], phase: str) -> int:
             p["closing_yrfi_dec"] = o["yrfi_dec"]
             p["closing_book"]     = o["book"]
             p["closing_odds_at"]  = o["captured_at"]
-        else:  # closing
-            p["closing_nrfi_dec"] = o["nrfi_dec"]
-            p["closing_yrfi_dec"] = o["yrfi_dec"]
-            p["closing_book"]     = o["book"]
-            p["closing_odds_at"]  = o["captured_at"]
+
+        if m:
+            if phase == "entry" and p.get("entry_ml_home_dec") is None:
+                p["entry_ml_home_dec"] = m["ml_home_dec"]
+                p["entry_ml_away_dec"] = m["ml_away_dec"]
+                p["entry_ml_book"]     = m["book"]
+                p["entry_ml_odds_at"]  = m["captured_at"]
+            p["closing_ml_home_dec"] = m["ml_home_dec"]
+            p["closing_ml_away_dec"] = m["ml_away_dec"]
+            p["closing_ml_book"]     = m["book"]
+            p["closing_ml_odds_at"]  = m["captured_at"]
+
         updated += 1
 
     return updated

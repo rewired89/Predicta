@@ -8219,12 +8219,14 @@ purpose: REMOVED — superseded by tasks/nrfi_auto.py (always-on Railway schedul
 name: capture_odds
 type: function
 file: scripts/daily_nrfi.py
-purpose: Fetch current NRFI/YRFI odds from The Odds API and attach to each prediction record for Closing Line Value (CLV). phase="entry" fills entry_* (line when pick was made), records entry_hours_to_fp (hours before first pitch via _hours_before_first_pitch) + entry_stale flag (True if < MIN_ENTRY_LEAD_HOURS=3h before first pitch, so stale entries can be excluded from headline CLV), and seeds closing_*; phase="closing" updates closing_*. Graceful no-op (returns 0) when ODDS_API_KEY unset or no market match. Mutates records in place.
+purpose: Fetch current NRFI/YRFI odds AND full-game moneyline odds from The Odds API and attach both to each prediction record. phase="entry" fills entry_* (line when pick was made), records entry_hours_to_fp (hours before first pitch via _hours_before_first_pitch) + entry_stale flag (True if < MIN_ENTRY_LEAD_HOURS=3h before first pitch, so stale entries can be excluded from headline CLV), and seeds closing_*; phase="closing" updates closing_*. Graceful no-op for either market's fields if that fetch returns nothing.
 inputs: predictions: list[dict], phase: str ("entry"|"closing")
-outputs: int (games updated)
-calls: fetchers.nrfi_odds.fetch_nrfi_odds
+outputs: int (games updated — either market counts)
+calls: fetchers.nrfi_odds.fetch_nrfi_odds, fetchers.nrfi_odds.fetch_ml_odds
 called_by: main (daily_nrfi.py) predict + capture-odds modes
 mutates: prediction record dicts
+
+**Extended 2026-07-12 (user confirmed a real ODDS_API_KEY is set in Railway, yet 0/99 games ever had entry_nrfi_dec populated):** root cause found via web research, not guessing — totals_1st_1_innings (the NRFI market) is a period market that The Odds API gates behind a Business-tier plan; a lower-tier key gets rejected for that market specifically, every time, regardless of validity. Rather than reworking the existing NRFI-specific fields/DB columns/CLV math (a much bigger, riskier change), added a fully parallel path: fetch_ml_odds fetches h2h (full-game moneyline), a "featured" market included on every plan including free, and capture_odds now attaches entry_ml_home_dec/entry_ml_away_dec/entry_ml_book/entry_ml_odds_at (and closing_ml_*) alongside the untouched NRFI fields. Purely additive — nothing NRFI-specific was removed, renamed, or altered, so this carries zero risk to anything already working (or already broken) on that side. New keys live only on the JSON prediction records, same as the NRFI CLV fields already do; no DB schema change made (nrfi_bets table untouched) — could be added later if DB-level moneyline CLV tracking is wanted.
 ---
 
 name: _compute_clv
@@ -8244,11 +8246,47 @@ mutates: prediction record dict, nrfi_bets (best-effort UPDATE)
 name: fetch_nrfi_odds
 type: function
 file: fetchers/nrfi_odds.py
-purpose: Fetch first-inning NRFI/YRFI odds from The Odds API (market totals_1st_1_innings, line 0.5; Under=NRFI, Over=YRFI) for a list of games. Matches events by fuzzy team-name comparison, prefers Pinnacle then other sharp books, else median across books. Returns {"{away_abbr}@{home_abbr}": {nrfi_dec, yrfi_dec, book, captured_at}}. Empty dict when ODDS_API_KEY unset or API unreachable (graceful).
+purpose: Fetch first-inning NRFI/YRFI odds from The Odds API (market totals_1st_1_innings, line 0.5; Under=NRFI, Over=YRFI) for a list of games. Matches events by fuzzy team-name comparison, prefers Pinnacle then other sharp books, else median across books. Returns {"{away_abbr}@{home_abbr}": {nrfi_dec, yrfi_dec, book, captured_at}}. Empty dict when ODDS_API_KEY unset or API unreachable (graceful). NOTE (2026-07-12): totals_1st_1_innings requires a Business-tier Odds API plan — on a lower tier this returns empty every time even with a valid key, confirmed via web research and via diagnose(). See fetch_ml_odds for the market that works on any plan.
 inputs: games: list[dict] (home_abbr, away_abbr, home_name, away_name)
 outputs: dict[str, dict]
 calls: The Odds API /sports/baseball_mlb/events + /events/{id}/odds (httpx)
 called_by: scripts/daily_nrfi.capture_odds
+mutates: none
+---
+
+---
+name: fetch_ml_odds
+type: function
+file: fetchers/nrfi_odds.py
+purpose: Added 2026-07-12. Fetch full-game moneyline (h2h) odds for a list of games — same event-matching/sharp-book-preference structure as fetch_nrfi_odds, but requests ML_MARKET ("h2h") instead of the period market, since h2h is a "featured" market included on every Odds API plan (including free), unlike totals_1st_1_innings. This is what actually lets CLV/market-comparison tracking work with this project's real key. Purely additive alongside fetch_nrfi_odds — nothing existing was changed.
+inputs: games: list[dict] (home_abbr, away_abbr, home_name, away_name)
+outputs: dict[str, dict] {"{away_abbr}@{home_abbr}": {ml_home_dec, ml_away_dec, book, captured_at}}
+calls: The Odds API /sports/baseball_mlb/events + /events/{id}/odds (httpx), _extract_ml_prices
+called_by: scripts/daily_nrfi.capture_odds
+mutates: none
+---
+
+---
+name: _extract_ml_prices
+type: function
+file: fetchers/nrfi_odds.py
+purpose: Added 2026-07-12. From a single event-odds payload, pulls home/away decimal moneyline prices for the h2h market. Unlike the NRFI market's outcomes (keyed "under"/"over"), h2h outcomes are keyed by team name, so each outcome's name is fuzzy-matched against the given home_name/away_name (same normalize-and-substring approach as _match_event). Prefers a sharp book; else median across books quoting h2h.
+inputs: event_odds: dict, home_name: str, away_name: str
+outputs: Optional[dict] {ml_home_dec, ml_away_dec, book}
+calls: _norm
+called_by: fetch_ml_odds, diagnose
+mutates: none
+---
+
+---
+name: diagnose
+type: function
+file: fetchers/nrfi_odds.py
+purpose: One-shot diagnostic behind GET /nrfi-auto/odds-diag — reports key presence, events-endpoint status/quota, and (2026-07-12) checks NRFI_MARKET and ML_MARKET independently rather than bailing out on the first failure. The original version returned immediately if the NRFI market request failed, so it could never have reported on ML_MARKET even after fetch_ml_odds was added — since a lower-tier key can access one market and not the other, both must be checked in the same call for this diagnostic to be useful at all.
+inputs: none
+outputs: dict — key_present, events_status, requests_remaining/used, sample_event, {nrfi,ml}_odds_status, {nrfi,ml}_markets_returned, nrfi_prices_parsed, ml_prices_parsed, or an error/exception field
+calls: _api_key, _extract_nrfi_prices, _extract_ml_prices
+called_by: app.py GET /nrfi-auto/odds-diag
 mutates: none
 ---
 

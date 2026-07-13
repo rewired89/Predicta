@@ -27,6 +27,13 @@ import httpx
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY     = "baseball_mlb"
 NRFI_MARKET   = "totals_1st_1_innings"
+# Full-game moneyline (h2h) — a "featured" market included on every Odds API
+# plan, unlike NRFI_MARKET (a period market gated behind a Business-tier
+# plan; confirmed 2026-07-12 that a valid key on a lower tier gets rejected
+# for NRFI_MARKET specifically, which is why 0 games ever had entry_nrfi_dec
+# populated despite a real key being set). Added so CLV/market-comparison
+# tracking has a market this project's actual key can reach.
+ML_MARKET     = "h2h"
 # Pinnacle first, then other sharp/major books as reference preference order.
 SHARP_BOOKS   = ["pinnacle", "betonlineag", "lowvig", "bovada"]
 
@@ -102,6 +109,108 @@ def _extract_nrfi_prices(event_odds: dict) -> Optional[dict]:
             "book": f"median({len(per_book)})"}
 
 
+def _extract_ml_prices(event_odds: dict, home_name: str, away_name: str) -> Optional[dict]:
+    """
+    From a single event-odds payload, pull full-game moneyline (h2h) decimal
+    prices for the home and away side. h2h outcomes are keyed by team name
+    (not "under"/"over" like the NRFI market), so each outcome's name is
+    matched against home_name/away_name the same way _match_event matches
+    events. Prefers a sharp book; else uses the median across all books.
+    Returns {ml_home_dec, ml_away_dec, book} or None.
+    """
+    hn, an = _norm(home_name), _norm(away_name)
+    per_book: dict[str, tuple[float, float]] = {}
+    for bm in event_odds.get("bookmakers", []):
+        book = bm.get("key", "")
+        for mkt in bm.get("markets", []):
+            if mkt.get("key") != ML_MARKET:
+                continue
+            home_price = away_price = None
+            for oc in mkt.get("outcomes", []):
+                name = _norm(oc.get("name", ""))
+                price = oc.get("price")
+                if price is None or not name:
+                    continue
+                if name in hn or hn in name:
+                    home_price = float(price)
+                elif name in an or an in name:
+                    away_price = float(price)
+            if home_price and away_price:
+                per_book[book] = (home_price, away_price)
+
+    if not per_book:
+        return None
+
+    for pref in SHARP_BOOKS:
+        if pref in per_book:
+            h, a = per_book[pref]
+            return {"ml_home_dec": h, "ml_away_dec": a, "book": pref}
+
+    homes = median(v[0] for v in per_book.values())
+    aways = median(v[1] for v in per_book.values())
+    return {"ml_home_dec": round(homes, 4), "ml_away_dec": round(aways, 4),
+            "book": f"median({len(per_book)})"}
+
+
+def fetch_ml_odds(games: list[dict]) -> dict[str, dict]:
+    """
+    Fetch current full-game moneyline odds for each game — same shape and
+    event-matching as fetch_nrfi_odds, but requests ML_MARKET ("h2h") instead
+    of the period market, since that's the market this project's actual key
+    can access.
+
+    games: list of dicts with keys home_abbr, away_abbr, home_name, away_name
+           (as produced by scripts/daily_nrfi.py fetch_schedule()).
+
+    Returns {"{away_abbr}@{home_abbr}": {ml_home_dec, ml_away_dec, book, captured_at}}.
+    Empty dict when ODDS_API_KEY is unset or the API is unreachable.
+    """
+    key = _api_key()
+    if not key:
+        return {}
+
+    try:
+        with httpx.Client(timeout=15) as client:
+            ev_resp = client.get(
+                f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events",
+                params={"apiKey": key, "dateFormat": "iso"},
+            )
+            ev_resp.raise_for_status()
+            events = ev_resp.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+
+    now = datetime.now(timezone.utc).isoformat()
+    out: dict[str, dict] = {}
+
+    for g in games:
+        home_name, away_name = g.get("home_name", ""), g.get("away_name", "")
+        ev = _match_event(events, home_name, away_name)
+        if not ev:
+            continue
+        try:
+            with httpx.Client(timeout=15) as client:
+                od_resp = client.get(
+                    f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{ev['id']}/odds",
+                    params={
+                        "apiKey":     key,
+                        "regions":    "us,eu",
+                        "markets":    ML_MARKET,
+                        "oddsFormat": "decimal",
+                    },
+                )
+                od_resp.raise_for_status()
+                prices = _extract_ml_prices(od_resp.json(), home_name, away_name)
+        except (httpx.HTTPError, ValueError):
+            prices = None
+
+        if prices:
+            prices["captured_at"] = now
+            out[f"{g['away_abbr']}@{g['home_abbr']}"] = prices
+
+    return out
+
+
 def fetch_nrfi_odds(games: list[dict]) -> dict[str, dict]:
     """
     Fetch current NRFI/YRFI odds for each game.
@@ -160,17 +269,24 @@ def fetch_nrfi_odds(games: list[dict]) -> dict[str, dict]:
 def diagnose() -> dict:
     """
     One-shot diagnostic that reports EXACTLY why odds capture works or fails —
-    key present? events endpoint status + quota remaining? does the requested
-    first-inning market come back, or does the API reject it (wrong market /
-    plan not included)? Surfaces the raw status + error body instead of the
-    silent empty-dict the normal path returns.
+    key present? events endpoint status + quota remaining? does each market
+    come back, or does the API reject it (wrong market / plan not included)?
+    Surfaces the raw status + error body instead of the silent empty-dict the
+    normal path returns.
+
+    Checks BOTH markets independently (2026-07-12) — NRFI_MARKET (period
+    market, needs a Business-tier plan) and ML_MARKET (h2h, on every plan).
+    NRFI failing must not stop ML from being checked in the same call, since
+    a lower-tier key can access one and not the other; the original version
+    returned immediately on the first failure and would never have reached
+    the h2h check at all.
     """
     key = _api_key()
     if not key:
         return {"key_present": False,
                 "error": "ODDS_API_KEY not visible to this process. It is set in "
                          "Railway but the running deploy may predate it — redeploy."}
-    out: dict = {"key_present": True, "market_requested": NRFI_MARKET}
+    out: dict = {"key_present": True, "markets_requested": [NRFI_MARKET, ML_MARKET]}
     try:
         with httpx.Client(timeout=25) as c:
             ev = c.get(f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events",
@@ -187,23 +303,29 @@ def diagnose() -> dict:
                 out["note"] = "No MLB events returned by The Odds API right now."
                 return out
             e0 = events[0]
-            out["sample_event"] = {k: e0.get(k) for k in
-                                   ("home_team", "away_team", "commence_time")}
-            od = c.get(f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{e0['id']}/odds",
-                       params={"apiKey": key, "regions": "us,eu",
-                               "markets": NRFI_MARKET, "oddsFormat": "decimal"})
-            out["odds_status"] = od.status_code
-            if od.status_code != 200:
-                # 422 = market not available / not on your plan; 401 = bad key
-                out["odds_error_body"] = od.text[:500]
-                return out
-            data = od.json()
-            markets_seen = sorted({m.get("key")
-                                   for b in data.get("bookmakers", [])
-                                   for m in b.get("markets", [])})
-            out["n_bookmakers"] = len(data.get("bookmakers", []))
-            out["markets_returned"] = markets_seen
-            out["nrfi_prices_parsed"] = _extract_nrfi_prices(data)
+            home_name, away_name = e0.get("home_team", ""), e0.get("away_team", "")
+            out["sample_event"] = {"home_team": home_name, "away_team": away_name,
+                                    "commence_time": e0.get("commence_time")}
+
+            for label, market in (("nrfi", NRFI_MARKET), ("ml", ML_MARKET)):
+                od = c.get(f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{e0['id']}/odds",
+                           params={"apiKey": key, "regions": "us,eu",
+                                   "markets": market, "oddsFormat": "decimal"})
+                out[f"{label}_odds_status"] = od.status_code
+                if od.status_code != 200:
+                    # 422/401/403 = market not on your plan, or bad key
+                    out[f"{label}_odds_error_body"] = od.text[:500]
+                    continue
+                data = od.json()
+                markets_seen = sorted({m.get("key")
+                                       for b in data.get("bookmakers", [])
+                                       for m in b.get("markets", [])})
+                out[f"{label}_n_bookmakers"] = len(data.get("bookmakers", []))
+                out[f"{label}_markets_returned"] = markets_seen
+                if label == "nrfi":
+                    out["nrfi_prices_parsed"] = _extract_nrfi_prices(data)
+                else:
+                    out["ml_prices_parsed"] = _extract_ml_prices(data, home_name, away_name)
     except Exception as exc:
         out["exception"] = f"{type(exc).__name__}: {exc}"
     return out
