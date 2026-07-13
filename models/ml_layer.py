@@ -35,12 +35,12 @@ TENNIS_FEATURES = [
     "rest_days", "glicko2_rating", "surface_amp",
 ]
 SOCCER_FEATURES = [
-    "elo_diff", "glicko2_diff", "form_diff", "h2h_decayed",
+    "elo_diff", "glicko2_diff", "form_diff",
     "rest_diff", "key_player_out_flag", "neutral_site_flag", "fatigue_flag",
     "home_adv",
 ]
 TABLE_TENNIS_FEATURES = [
-    "elo_diff", "glicko2_diff", "form_diff", "h2h_decayed", "fatigue_flag",
+    "elo_diff", "glicko2_diff", "form_diff", "fatigue_flag",
 ]
 
 SPORT_FEATURES: dict[str, list[str]] = {

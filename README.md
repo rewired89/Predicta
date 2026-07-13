@@ -281,9 +281,12 @@ SQI = ((first_serve_pct / AVG_FIRST_SERVE_PCT)
      + (first_won_pct  / AVG_FIRST_WON_PCT)
      + (second_won_pct / AVG_SECOND_WON_PCT)) / 3 × 100
 
-RQI = (bp_converted_pct / AVG_BP_CONVERTED) × 100        ← single-signal in the actual code (see below)
+RQI = (bp_converted_pct / AVG_BP_CONVERTED) × 0.6 × 100
+    + (return_points_won_pct / AVG_RETURN_POINTS_WON_PCT) × 0.4 × 100
 ```
-Centred at 100 = tour average.
+Centred at 100 = tour average. `AVG_RETURN_POINTS_WON_PCT` = 0.32 (ATP) / 0.37 (WTA, estimated —
+no published WTA figure found; see `fetchers/tennis.py`). Falls back to whichever component is
+available if ESPN doesn't expose one of the two inputs for a given player.
 
 | | ATP | WTA |
 |---|---|---|
@@ -291,6 +294,7 @@ Centred at 100 = tour average.
 | 1st-serve won % | 0.73 | 0.68 |
 | 2nd-serve won % | 0.54 | 0.51 |
 | BP converted % | 0.40 | 0.42 |
+| Return points won % | 0.32 | 0.37 (estimated) |
 
 #### Surface Amplifier (applied to SQI only)
 | Surface | Multiplier |
@@ -393,8 +397,13 @@ falls back to a plain last-5-match average if the decayed fetch errors.
 
 **Form blend**: `DEFAULT_RECENT_WEIGHT = 0.6` — last-5 form gets 60% weight, full-season 40%.
 
-**H2H**: `h2h_decayed` is listed as an ML-layer feature name but is **not actually
-computed anywhere** in the live soccer pipeline — see [Known Discrepancies](#known-discrepancies--doc-vs-code-mismatches).
+**H2H**: no head-to-head signal is computed in the live soccer pipeline. `h2h_decayed`
+was previously listed as an ML-layer feature name with a `compute_h2h_decayed()` helper
+in `fetchers/signals.py`, but neither `analyze_soccer.py` nor `models/dixon_coles.py` ever
+called it — removed from `SOCCER_FEATURES`/`TABLE_TENNIS_FEATURES` and deleted
+2026-07-13 rather than leaving a schema entry that silently defaulted to 0.0. Re-add both
+the fetch (team H2H match history — `fetchers/thesportsdb.py:fetch_h2h` already exists but
+isn't wired into `analyze_soccer.py`) and the feature together if this signal is wanted.
 
 ---
 
@@ -736,37 +745,47 @@ the 4 core sports. **`predict()` is never called by any live pipeline.**
 MIN_SAMPLES = 100
 BASEBALL_FEATURES     = ["wrc_plus","starter_fip","bullpen_fip","park_factor","platoon_adj","starter_avg_ip","home_boost","elo_rating","wind_factor","temp_factor","is_dome"]
 TENNIS_FEATURES       = ["sqi","rqi","surface_win_rate","form_score","rest_days","glicko2_rating","surface_amp"]
-SOCCER_FEATURES       = ["elo_diff","glicko2_diff","form_diff","h2h_decayed","rest_diff","key_player_out_flag","neutral_site_flag","fatigue_flag","home_adv"]
-TABLE_TENNIS_FEATURES = ["elo_diff","glicko2_diff","form_diff","h2h_decayed","fatigue_flag"]
+SOCCER_FEATURES       = ["elo_diff","glicko2_diff","form_diff","rest_diff","key_player_out_flag","neutral_site_flag","fatigue_flag","home_adv"]
+TABLE_TENNIS_FEATURES = ["elo_diff","glicko2_diff","form_diff","fatigue_flag"]
 ```
 Will activate once 100+ resolved predictions with logged signals exist for a sport.
-Note `soccer`'s `h2h_decayed` and `table_tennis`'s `fatigue_flag`/`h2h_decayed` are
-feature *names* only — see [Known Discrepancies](#known-discrepancies--doc-vs-code-mismatches)
-for which of these aren't actually computed by the live pipelines yet, meaning training
-would currently default them to 0.0 for every row.
+`h2h_decayed` was removed from both lists 2026-07-13 — it was never wired into
+`analyze_soccer.py`/`analyze_table_tennis.py` and would have silently defaulted to 0.0
+at training time (see `fetchers/signals.py` history). The remaining feature names in
+these lists are still aspirational in places — verify against each pipeline's
+`log_signal()` calls before relying on a specific one.
 
 ---
 
 ## Known Discrepancies / Doc-vs-Code Mismatches
 
 Surfaced while writing this document (2026-07-13) — listed here deliberately rather
-than silently fixed, since an outside reviewer should know about them:
+than silently fixed, since an outside reviewer should know about them. Items 1-3 below
+(originally flagged by an outside technical review) were fixed same-day; see each entry.
 
-1. **Tennis RQI formula** — `tests/validate_tennis_scale.py`'s docstring describes a
-   two-component weighted RQI (`bp_converted×0.6 + return_points_won×0.4`). The real,
-   live code in `fetchers/tennis.py` computes RQI as a **single** signal
-   (`bp_converted_pct / AVG_BP_CONVERTED × 100` only) — the documented formula doesn't
-   exist in the running code.
+1. ~~Tennis RQI formula~~ — **fixed 2026-07-13**. `fetchers/tennis.py:return_quality_index()`
+   now computes the documented two-component blend (`bp_converted×0.6 + return_points_won×0.4`)
+   instead of bp-conversion alone.
 
-2. **Soccer H2H** — `h2h_decayed` is listed as an ML-layer feature name for both soccer
-   and table tennis, but `analyze_soccer.py`/`models/dixon_coles.py` never actually
-   compute a head-to-head signal anywhere. It would silently default to 0.0 if the
-   (currently disconnected) ML layer were ever trained.
+2. ~~Soccer/TT H2H feature~~ — **resolved 2026-07-13** by deletion rather than wiring-in.
+   `h2h_decayed` and the orphaned `compute_h2h_decayed()` helper were removed (see
+   [ML Layer](#ml-layer-disconnected) and [Soccer §5](#5-soccer--dixon-coles--elo) above) —
+   wiring it in properly would require building a full soccer H2H fetch pipeline, which
+   doesn't exist today and is a larger project than a same-day fix.
 
-3. **Two Coors Field park-factor tables, only one fixed** — `fetchers/baseball.py`'s
-   table was corrected 1.19 → 1.38 on 2026-07-05 (see §3). `models/nrfi_model.py` has
-   its own, separate `_PARK_FACTORS` dict, still at the old, uncorrected 1.19 and
-   several other stale values — never synced with the fix.
+3. ~~Two Coors Field park-factor tables, only one fixed~~ — **fixed 2026-07-13**.
+   `models/nrfi_model.py` and `scripts/build_nrfi_dataset.py` both hardcoded their own
+   stale copy of `fetchers/baseball.py`'s `PARK_FACTORS` dict (still at the old,
+   uncorrected 1.19 for Coors). Both now import `PARK_FACTORS` directly instead of
+   duplicating it, so there is exactly one park-factor table in the codebase.
+   **Caveat:** `data/nrfi_dataset.csv` — the training set for the deployed
+   `models/nrfi_xgb.json` — was already built using the stale values before this fix, so
+   the currently-deployed NRFI XGBoost model itself learned from wrong Coors-park
+   features. This fix corrects prediction-time fallback and all *future* dataset builds;
+   it does not retroactively fix the already-trained model. Retraining
+   (`python scripts/build_nrfi_dataset.py` then `python models/nrfi_model.py --train`)
+   would need its own review per this repo's convention of not touching a
+   walk-forward-validated model on a same-day patch — tracked as a follow-up, not done here.
 
 4. **`fetchers/weather.py` docstring says weather doesn't apply to the run model yet**
    ("enable after 50+ predictions validate the effect") — it's stale. `analyze_baseball.py`
@@ -924,8 +943,10 @@ If you're reviewing this system, here's where independent judgment would help mo
    codebase's own validation script. What would a properly fitted scale look like
    given the ATP reference hold-rate gap?
 
-4. **Table Tennis's actual RQI formula** vs. the discrepancy noted above — which is
-   "correct," and does the single-signal live version undervalue return quality?
+4. **Table Tennis's RQI formula** (`fetchers/table_tennis.py`) is still single-signal
+   (return win rate only) — unlike tennis's RQI, which was fixed to a two-component
+   blend 2026-07-13 (see Known Discrepancies). Does TT's single-signal version
+   undervalue return quality the same way tennis's did?
 
 5. **Rugby/UFC v1 constants** — Every number in both sections is a starting estimate
    with zero backtested history behind it (documented sandbox limitation, not

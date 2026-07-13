@@ -30,6 +30,8 @@ from typing import Optional
 
 import numpy as np
 
+from fetchers.baseball import PARK_FACTORS as _PARK_FACTORS
+
 _REPO          = Path(__file__).resolve().parent.parent
 MODEL_PATH     = _REPO / "models" / "nrfi_xgb.json"
 CALIBRATOR_PATH = _REPO / "models" / "nrfi_calibrator.pkl"
@@ -94,17 +96,9 @@ FEATURE_DEFAULTS = {
     "is_dome":           0,
 }
 
-# Park factor and dome lookup for prediction-time use
-_PARK_FACTORS: dict[str, float] = {
-    "COL": 1.19, "CIN": 1.08, "BOS": 1.06, "TEX": 1.05,
-    "PHI": 1.04, "CHW": 1.03, "ATL": 1.02, "BAL": 1.01,
-    "HOU": 1.01, "LAA": 1.00, "MIA": 1.00, "MIL": 1.00,
-    "DET": 0.99, "PIT": 0.99, "MIN": 0.99, "KC":  0.98,
-    "NYY": 0.98, "TOR": 0.98, "NYM": 0.97, "STL": 0.97,
-    "CLE": 0.97, "WSH": 0.96, "TB":  0.96, "OAK": 0.96,
-    "CHC": 0.96, "ARI": 0.95, "LAD": 0.95, "SD":  0.94,
-    "SEA": 0.93, "SF":  0.92,
-}
+# Dome lookup for prediction-time use. Park factors come from fetchers.baseball.PARK_FACTORS
+# (imported above) — do not re-hardcode a second copy here, it will drift out of sync
+# with the corrected values (see CLAUDE.md Bug 2 / README Known Discrepancies).
 _DOME_TEAMS = {"TB", "MIA", "MIL", "ARI", "HOU", "SEA", "TOR", "TEX"}
 
 

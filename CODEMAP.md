@@ -1751,8 +1751,9 @@ file: models/ml_layer.py
 purpose: Sport-specific ML feature lists; signal names must match what log_signal() records in each sport's pipeline. Missing signals default to 0.0 at train/predict time.
   BASEBALL: wrc_plus, starter_fip, bullpen_fip, park_factor, platoon_adj, starter_avg_ip, home_boost, elo_rating, wind_factor, temp_factor, is_dome
   TENNIS:   sqi, rqi, surface_win_rate, form_score, rest_days, glicko2_rating, surface_amp
-  SOCCER:   elo_diff, glicko2_diff, form_diff, h2h_decayed, rest_diff, key_player_out_flag, neutral_site_flag, fatigue_flag, home_adv
-  TABLE_TENNIS: elo_diff, glicko2_diff, form_diff, h2h_decayed, fatigue_flag
+  SOCCER:   elo_diff, glicko2_diff, form_diff, rest_diff, key_player_out_flag, neutral_site_flag, fatigue_flag, home_adv
+  TABLE_TENNIS: elo_diff, glicko2_diff, form_diff, fatigue_flag
+  (h2h_decayed removed 2026-07-13 — was never wired into analyze_soccer.py/analyze_table_tennis.py; see README Known Discrepancies)
 calls: none
 called_by: _feature_list
 mutates: none
@@ -2652,18 +2653,6 @@ type: function
 file: fetchers/signals.py
 purpose: Computes an exponentially decayed form score from recent match results (1=win, 0.5=draw, 0=loss) with configurable decay.
 inputs: results: list[float], n: int = 10, decay: float = 0.9
-outputs: float (0–1)
-calls: none
-called_by: none (utility)
-mutates: none
----
-
----
-name: compute_h2h_decayed
-type: function
-file: fetchers/signals.py
-purpose: Computes a time-decayed head-to-head win probability for participant A from a list of historical results with dates.
-inputs: h2h_results: list[tuple[float, str]], decay: float = 0.85
 outputs: float (0–1)
 calls: none
 called_by: none (utility)
@@ -3780,11 +3769,11 @@ mutates: none
 name: PARK_FACTORS
 type: variable
 file: fetchers/baseball.py
-purpose: Dict mapping ESPN MLB team abbreviations to multi-year park run factors (1.0 = neutral). Coors Field (COL) = 1.38. Corrected 2026-07-04 from compressed range to FanGraphs-calibrated values.
+purpose: Dict mapping ESPN MLB team abbreviations to multi-year park run factors (1.0 = neutral). Coors Field (COL) = 1.38. Corrected 2026-07-04 from compressed range to FanGraphs-calibrated values. Single source of truth as of 2026-07-13 — models/nrfi_model.py and scripts/build_nrfi_dataset.py previously hardcoded their own stale duplicate copies (still at old COL=1.19) and now import this dict directly instead.
 inputs: none
 outputs: dict[str, float]
 calls: none
-called_by: fetch_baseball_context
+called_by: fetch_baseball_context, predict_nrfi (models/nrfi_model.py), build_season (scripts/build_nrfi_dataset.py)
 mutates: none
 ---
 
@@ -4791,8 +4780,8 @@ mutates: none
 name: return_quality_index
 type: function
 file: fetchers/tennis.py
-purpose: Computes return quality normalized to 100 = tour average from break points converted percentage.
-inputs: bp_converted_pct: float, tour: str
+purpose: Computes return quality normalized to 100 = tour average. Two-component blend (bp_converted_pct*0.6 + return_points_won_pct*0.4), fixed 2026-07-13 to match the formula documented in tests/validate_tennis_scale.py — was previously bp_converted_pct only. Falls back to whichever component is available if one is missing.
+inputs: bp_converted_pct: Optional[float], return_points_won_pct: Optional[float] = None, tour: str
 outputs: float (100 = tour average)
 calls: none
 called_by: fetch_tennis_context
@@ -8086,7 +8075,7 @@ mutates: none
 name: build_nrfi_dataset
 type: script
 file: scripts/build_nrfi_dataset.py
-purpose: One-time scraper that builds data/nrfi_dataset.csv — the training set for the NRFI XGBoost model. Pulls 2022–2024 MLB regular-season games from MLB Stats API (linescore for NRFI outcome, boxscore for starter names + top-3 lineup batters via battingOrder field), looks up per-season pitcher stats from FanGraphs (via pybaseball: SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%) and batter wRC+ for lineup spots 1-3 (home_top3_wrc, away_top3_wrc). Writes per-season checkpoints so the run can be resumed if interrupted. Run locally (external HTTP blocked in container).
+purpose: One-time scraper that builds data/nrfi_dataset.csv — the training set for the NRFI XGBoost model. Pulls 2022–2024 MLB regular-season games from MLB Stats API (linescore for NRFI outcome, boxscore for starter names + top-3 lineup batters via battingOrder field), looks up per-season pitcher stats from FanGraphs (via pybaseball: SIERA, xFIP, CSW%, O-Swing%, K%, BB%, GB%, HR/FB%) and batter wRC+ for lineup spots 1-3 (home_top3_wrc, away_top3_wrc). Writes per-season checkpoints so the run can be resumed if interrupted. Run locally (external HTTP blocked in container). Park factors now imported from fetchers.baseball.PARK_FACTORS (fixed 2026-07-13 — previously a stale hardcoded duplicate, see README Known Discrepancies #3); the already-committed data/nrfi_dataset.csv was built before this fix and still reflects the old values until re-run.
 inputs: --seasons (default 2022 2023 2024), --output (default data/nrfi_dataset.csv), --delay (default 1.0s)
 outputs: data/nrfi_dataset.csv (~7300 rows), data/nrfi_checkpoint_{year}.csv per season
 calls: MLB Stats API, pybaseball.pitching_stats, pybaseball.batting_stats
@@ -8389,7 +8378,7 @@ mutates: models/nrfi_xgb.json, models/nrfi_calibrator.pkl (training only)
 name: predict_nrfi
 type: function
 file: models/nrfi_model.py
-purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Builds 32-feature vector in exact FEATURES list order; maps starter dict keys to training column names (barrel_pct_against→home_barrel_pct, hard_hit_pct_against→home_hard_hit_pct, avg_fb_velo→home_avg_velo). Optional home_fi_rate/away_fi_rate for rolling fi_rate (defaults to 0.29). Optional home_top3_wrc/away_top3_wrc for live lineup data (defaults to 100). Includes assertion to catch future FEATURES/fv length mismatches.
+purpose: Returns calibrated NRFI probability (float 0–1) using the trained XGBoost model. Returns None if model not trained yet (caller falls back to Poisson). Builds 32-feature vector in exact FEATURES list order; maps starter dict keys to training column names (barrel_pct_against→home_barrel_pct, hard_hit_pct_against→home_hard_hit_pct, avg_fb_velo→home_avg_velo). Optional home_fi_rate/away_fi_rate for rolling fi_rate (defaults to 0.29). Optional home_top3_wrc/away_top3_wrc for live lineup data (defaults to 100). Includes assertion to catch future FEATURES/fv length mismatches. park_factor fallback (when caller doesn't pass one) now uses fetchers.baseball.PARK_FACTORS via module-level import (fixed 2026-07-13 — previously a local, stale _PARK_FACTORS dict with COL=1.19 instead of the corrected 1.38).
 inputs: home_starter: dict, away_starter: dict, home_team: str, park_factor: Optional[float], home_top3_wrc: Optional[float], away_top3_wrc: Optional[float], home_fi_rate: Optional[float], away_fi_rate: Optional[float]
 outputs: Optional[float] — calibrated probability of NRFI
 calls: xgboost.XGBClassifier.predict_proba, LogisticRegression.predict_proba

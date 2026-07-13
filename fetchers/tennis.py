@@ -21,17 +21,22 @@ TSDB_BASE     = "https://www.thesportsdb.com/api/v1/json/1"
 TIMEOUT       = 15.0
 
 # ATP tour averages (used to build quality indices)
-ATP_AVG_FIRST_SERVE_PCT = 0.62
-ATP_AVG_FIRST_WON_PCT   = 0.73
-ATP_AVG_SECOND_WON_PCT  = 0.54
-ATP_AVG_BP_CONVERTED    = 0.40
-ATP_AVG_ACES_PER_MATCH  = 7.0
+ATP_AVG_FIRST_SERVE_PCT       = 0.62
+ATP_AVG_FIRST_WON_PCT         = 0.73
+ATP_AVG_SECOND_WON_PCT        = 0.54
+ATP_AVG_BP_CONVERTED          = 0.40
+ATP_AVG_RETURN_POINTS_WON_PCT = 0.32
+ATP_AVG_ACES_PER_MATCH        = 7.0
 
-# WTA tour averages
-WTA_AVG_FIRST_SERVE_PCT = 0.60
-WTA_AVG_FIRST_WON_PCT   = 0.68
-WTA_AVG_SECOND_WON_PCT  = 0.51
-WTA_AVG_BP_CONVERTED    = 0.42
+# WTA tour averages. WTA_AVG_RETURN_POINTS_WON_PCT is an estimate (no published
+# WTA figure found alongside the ATP one) — women's tour return games run stronger
+# relative to serve than ATP's, so this is set a few points above the ATP average
+# rather than reused as-is. Flagged uncalibrated like the rest of the tennis model.
+WTA_AVG_FIRST_SERVE_PCT       = 0.60
+WTA_AVG_FIRST_WON_PCT         = 0.68
+WTA_AVG_SECOND_WON_PCT        = 0.51
+WTA_AVG_BP_CONVERTED          = 0.42
+WTA_AVG_RETURN_POINTS_WON_PCT = 0.37
 
 # Surface inference from tournament/event name keywords
 SURFACE_KEYWORDS: dict[str, list[str]] = {
@@ -139,13 +144,23 @@ def serve_quality_index(
 
 def return_quality_index(
     bp_converted_pct: Optional[float],
+    return_points_won_pct: Optional[float] = None,
     tour: str = "atp",
 ) -> float:
-    """Return quality index — 100 = tour average. Uses break point conversion %."""
-    avg_bp = ATP_AVG_BP_CONVERTED if tour == "atp" else WTA_AVG_BP_CONVERTED
-    if not bp_converted_pct:
+    """Return quality index — 100 = tour average.
+    Two-component blend: break point conversion % (60%) + return points won % (40%).
+    Falls back to whichever component is available if only one is present."""
+    avg_bp  = ATP_AVG_BP_CONVERTED          if tour == "atp" else WTA_AVG_BP_CONVERTED
+    avg_rpw = ATP_AVG_RETURN_POINTS_WON_PCT if tour == "atp" else WTA_AVG_RETURN_POINTS_WON_PCT
+    bp_score  = (bp_converted_pct / avg_bp) if bp_converted_pct else None
+    rpw_score = (return_points_won_pct / avg_rpw) if return_points_won_pct else None
+    if bp_score is None and rpw_score is None:
         return 100.0
-    return round((bp_converted_pct / avg_bp) * 100, 1)
+    if rpw_score is None:
+        return round(bp_score * 100, 1)
+    if bp_score is None:
+        return round(rpw_score * 100, 1)
+    return round((bp_score * 0.6 + rpw_score * 0.4) * 100, 1)
 
 
 # ── ESPN scoreboard — recent match history ────────────────────────────────────
@@ -260,6 +275,9 @@ def _extract_serve_stats(raw: dict) -> dict:
         "first_won_pct":    _pick("first_serve_points_won_pct", "firstservewon", "first_serve_won"),
         "second_won_pct":   _pick("second_serve_points_won_pct", "secondservewon", "second_serve_won"),
         "bp_converted_pct": _pick("break_points_converted_pct", "bpconverted", "break_point_pct"),
+        "return_points_won_pct": _pick(
+            "return_points_won_percentage", "returnpointswon", "return_points_won"
+        ),
         "aces":             _pick("aces", "ace"),
         "double_faults":    _pick("double_faults", "double_fault", "doublefaults"),
         "ranking":          _pick("ranking", "rank", "current_rank"),
@@ -389,7 +407,7 @@ def fetch_tennis_context(
             tour,
         )
         player_data["return_quality"]   = return_quality_index(
-            serve.get("bp_converted_pct"), tour
+            serve.get("bp_converted_pct"), serve.get("return_points_won_pct"), tour
         )
 
         # ── Recent form: ESPN scoreboard ──────────────────────────────────────

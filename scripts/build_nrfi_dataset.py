@@ -56,6 +56,8 @@ except ImportError:
     print("ERROR: pandas not installed. Run: pip install pandas")
     sys.exit(1)
 
+from fetchers.baseball import PARK_FACTORS
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 MLB_API       = "https://statsapi.mlb.com/api/v1"
@@ -79,18 +81,6 @@ MLB_TO_ESPN: dict[str, str] = {
 
 # Fixed / retractable-roof stadiums (NRFI unaffected by wind/rain)
 DOME_TEAMS = {"TB", "MIA", "MIL", "ARI", "HOU", "SEA", "TOR", "TEX"}
-
-# Park run factors (3-year average — matches fetchers/baseball.py)
-PARK_FACTORS: dict[str, float] = {
-    "COL": 1.19, "CIN": 1.08, "BOS": 1.06, "TEX": 1.05,
-    "PHI": 1.04, "CHW": 1.03, "ATL": 1.02, "BAL": 1.01,
-    "HOU": 1.01, "LAA": 1.00, "MIA": 1.00, "MIL": 1.00,
-    "DET": 0.99, "PIT": 0.99, "MIN": 0.99, "KC":  0.98,
-    "NYY": 0.98, "TOR": 0.98, "NYM": 0.97, "STL": 0.97,
-    "CLE": 0.97, "WSH": 0.96, "TB":  0.96, "OAK": 0.96,
-    "CHC": 0.96, "ARI": 0.95, "LAD": 0.95, "SD":  0.94,
-    "SEA": 0.93, "SF":  0.92,
-}
 
 CSV_COLUMNS = [
     # metadata (not model features)
