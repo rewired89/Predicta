@@ -136,6 +136,29 @@ def get_company_profile(symbol: str) -> dict:
     return _cached_or_fetch(symbol, "profile", lambda: _finnhub_get("stock/profile2", {"symbol": symbol}) or {})
 
 
+def get_cached_company_name(symbol: str) -> Optional[str]:
+    """
+    Company display name (e.g. "FIGS, Inc." for symbol FIGS) — 2026-07-13,
+    user-requested, so the dashboard can show more than a bare ticker.
+    Cache-only, deliberately: reads whatever profile row get_company_profile()
+    already cached during the scan (every symbol that made it into the final
+    universe passed the market-cap check, so if Finnhub was the source for
+    that, its profile — including "name" — is already sitting in
+    finnhub_cache). Never triggers a live fetch itself, matching the
+    long-standing "a dashboard view must never make a live API call" rule
+    (fetchers/low_value_dashboard.py) — a stale/even-days-old name is fine
+    for display, company names don't change, but a live Finnhub/Yahoo call
+    on every dashboard page load is not fine. Returns None (not the ticker)
+    when nothing was ever cached, e.g. Yahoo was the market-cap source
+    instead of Finnhub for this symbol — the caller decides the fallback.
+    """
+    cache = _cache_read(symbol, "profile")
+    if not cache or not cache.get("data"):
+        return None
+    name = cache["data"].get("name")
+    return name or None
+
+
 def get_market_cap(symbol: str) -> Optional[float]:
     """Market cap in dollars (Finnhub returns it in millions — converted here), or None."""
     data = get_company_profile(symbol)

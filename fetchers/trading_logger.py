@@ -407,7 +407,7 @@ def log_low_value_trade(
                 qty, position_value,
                 entry_score, model_version, is_hypothetical, notes,
                 engine, lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
-                lv_missing_signals, lv_short_interest_asof,
+                lv_missing_signals, lv_short_interest_asof, lv_signals_json,
                 logged_at
             ) VALUES (
                 ?, ?, ?, ?,
@@ -416,7 +416,7 @@ def log_low_value_trade(
                 ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                ?, ?,
+                ?, ?, ?,
                 datetime('now')
             )
             """,
@@ -429,7 +429,7 @@ def log_low_value_trade(
                 "HYPOTHETICAL: Low Value engine, no order placed",
                 "low_value", thesis_type,
                 json.dumps(nr.get("flags", [])), nr.get("sentiment"), nr.get("headline_count"),
-                json.dumps(missing_signals), short_interest_asof,
+                json.dumps(missing_signals), short_interest_asof, json.dumps(thesis_result.get("signals", {})),
             ),
         )
         return cur.lastrowid

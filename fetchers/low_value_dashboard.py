@@ -13,7 +13,14 @@ from datetime import datetime, timezone
 from db.database import get_db
 from fetchers.low_value_runner import get_runner_status
 from fetchers.trading_logger import get_universe_snapshots
+from fetchers.finnhub import get_cached_company_name
 from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
+
+
+def _display_name(symbol: str) -> str:
+    """'FIGS' -> 'FIGS · FIGS, Inc.', or just 'FIGS' if no cached company name exists (e.g. Yahoo, not Finnhub, was the market-cap source for this symbol) — see get_cached_company_name's docstring for why this never makes a live call."""
+    name = get_cached_company_name(symbol)
+    return f"{symbol} · {name}" if name else symbol
 
 
 def _pnl_color(val) -> str:
@@ -45,13 +52,18 @@ def _pnl_sign(val) -> str:
 # a higher |score| means "more of the 8 signals agree, more strongly" — not
 # "X% chance of being right."
 THESIS_TYPE_LABELS: dict[str, str] = {
-    "TECHNICAL_OVERSOLD":  "beaten-down price, technically oversold",
-    "INSIDER_BUYING":      "company insiders have been buying",
-    "EARNINGS_MISS":       "missed earnings — betting the selloff overreacted",
-    "ANALYST_DOWNGRADE":   "analyst downgrade — betting the selloff overreacted",
-    "REGULATORY_RISK":     "regulatory/legal scare — betting the selloff overreacted",
-    "OPERATIONAL_CRISIS":  "layoffs/restructuring news — betting the selloff overreacted",
-    "POSITIVE_CATALYST":   "positive news catalyst",
+    # "Oversold" is a common point of confusion (2026-07-13, user-reported):
+    # it does NOT mean the price is too high. It means selling has been so
+    # heavy/fast that the price likely fell further than the fundamentals
+    # justify — sellers overshot. The contrarian bet is that it snaps back
+    # toward fair value, i.e. BUY the overshoot, not "it's overpriced, avoid."
+    "TECHNICAL_OVERSOLD":  "sold off hard and fast — the bet is sellers overshot and it bounces back, not that the price is too high",
+    "INSIDER_BUYING":      "company insiders have been buying their own stock recently",
+    "EARNINGS_MISS":       "missed earnings — the bet is the market's reaction overshot",
+    "ANALYST_DOWNGRADE":   "an analyst downgrade — the bet is the market's reaction overshot",
+    "REGULATORY_RISK":     "a regulatory/legal scare — the bet is the market's reaction overshot",
+    "OPERATIONAL_CRISIS":  "layoffs/restructuring news — the bet is the market's reaction overshot",
+    "POSITIVE_CATALYST":   "a positive news catalyst",
     "UNKNOWN":             "unclassified signal",
 }
 
@@ -61,6 +73,51 @@ EXIT_REASON_LABELS: dict[str, str] = {
     "TIME":             "closed — 5 trading days passed with no target/stop hit",
     "THESIS_RESOLVED":  "closed — the negative story reversed as expected",
 }
+
+# Per-signal plain-English translator (2026-07-13, user-requested — "the
+# signals or news or whatever the model thinks"). Mirrors the exact detail
+# dict shape each _score_* function in thesis_tracker.py returns; a signal
+# not present here (shouldn't happen — this list matches SIGNAL_WEIGHTS)
+# falls back to a generic "name: score" line rather than crashing.
+def _signal_explanation(name: str, entry: dict) -> str:
+    score = entry.get("score")
+    detail = entry.get("detail") or {}
+    try:
+        if name == "price_vs_20d_low":
+            return f"Trading {detail['ratio']:.0%} above its 20-day low (${detail['20d_low']:.2f} → ${detail['close']:.2f}) — the closer to 0%, the nearer a recent bottom"
+        if name == "rsi_14":
+            rsi = detail["rsi_14"]
+            zone = "oversold (heavy recent selling)" if rsi < 30 else "overbought" if rsi > 70 else "neutral"
+            return f"RSI(14) is {rsi:.0f} — {zone}"
+        if name == "volume_spike":
+            return f"Today's volume is {detail['spike_ratio']:.1f}x the 20-day average — a spike often means capitulation selling (or, less often, a real move starting)"
+        if name == "insider_buying_30d":
+            return "Company insiders bought shares in the last 30 days" if detail.get("insider_buying_30d") else "No recorded insider buying in the last 30 days"
+        if name == "short_interest_pct":
+            asof = detail.get("short_interest_as_of") or "unknown date"
+            return f"Short interest is {detail['short_interest_pct']:.1f}% of float (as of {asof}) — higher means more potential for a short squeeze if it turns"
+        if name == "sector_relative_strength":
+            return f"Last 5 days: stock {detail['symbol_5d_return_pct']:+.1f}% vs. its sector ETF {detail['sector_5d_return_pct']:+.1f}% ({detail['relative_pp']:+.1f}pp relative)"
+        if name == "cash_burn_months":
+            return f"~{detail['cash_burn_months']:.1f} months of cash runway left at the current burn rate"
+        if name == "news_sentiment":
+            return f"{detail.get('headline_count', 0)} recent headlines, sentiment {detail.get('sentiment', 0):+.2f} (-1 very negative to +1 very positive)"
+    except (KeyError, TypeError, ValueError):
+        pass
+    return f"{name.replace('_', ' ')}: {score}"
+
+
+def _signals_breakdown_html(signals_json: str | None) -> str:
+    if not signals_json:
+        return '<div class="muted-note" style="margin-top:6px;">Detailed signal breakdown wasn\'t recorded for this trade (opened before this feature) — new trades will show it.</div>'
+    try:
+        signals = json.loads(signals_json)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not signals:
+        return ""
+    lines = "".join(f"<li>{_signal_explanation(name, entry)}</li>" for name, entry in signals.items())
+    return f'<ul style="margin:6px 0 0 18px; padding:0; font-size:.78rem; color:var(--muted); line-height:1.5;">{lines}</ul>'
 
 
 def _thesis_label(code: str) -> str:
@@ -129,7 +186,7 @@ def render_low_value_dashboard() -> str:
         closed_rows = conn.execute(
             """
             SELECT symbol, side, entry_time, exit_time, pnl_dollars, pnl_pct,
-                   exit_reason, entry_score, lv_thesis_type
+                   exit_reason, entry_score, lv_thesis_type, lv_signals_json
             FROM intraday_trades
             WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NOT NULL
             ORDER BY exit_time DESC LIMIT 50
@@ -137,7 +194,7 @@ def render_low_value_dashboard() -> str:
         ).fetchall()
         open_rows = conn.execute(
             """
-            SELECT symbol, side, entry_time, entry_price, entry_score, lv_thesis_type, lv_news_flags
+            SELECT symbol, side, entry_time, entry_price, entry_score, lv_thesis_type, lv_news_flags, lv_signals_json
             FROM intraday_trades
             WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NULL
             ORDER BY entry_time DESC
@@ -247,18 +304,22 @@ def render_low_value_dashboard() -> str:
         f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
               <div class="trade-info">
-                <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {t['symbol']}</span>
-                <span class="trade-detail">Signal strength {t.get('entry_score') or '—'}/100 (not a win probability — see note below) · {_thesis_label(t.get('lv_thesis_type'))}</span>
+                <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {_display_name(t['symbol'])}</span>
+                <span class="trade-detail">Signal strength {t.get('entry_score') or '—'}/100 (not a win probability) · {_thesis_label(t.get('lv_thesis_type'))}</span>
                 <span class="trade-time">opened {t['entry_time'][:16]} UTC</span>
+                {_signals_breakdown_html(t.get('lv_signals_json'))}
               </div>
             </div>"""
         for t in open_t
     ) or '<div class="muted-note">No open Low Value positions right now — the model didn\'t find a strong enough signal on the last scan.</div>'
 
     closed_rows_html = "".join(
-        f"""<div class="exit-item">
-              <span>{"BUY" if t.get('side')=='long' else "SHORT" if t.get('side') else ''} {t['symbol']} · {_thesis_label(t.get('lv_thesis_type'))} · {_exit_label(t.get('exit_reason'))}</span>
-              <span style="color:{_pnl_color(t.get('pnl_dollars'))}">{_pnl_sign(t.get('pnl_dollars'))}</span>
+        f"""<div class="exit-block">
+              <div class="exit-item" style="border-bottom:none; padding:0;">
+                <span>{"BUY" if t.get('side')=='long' else "SHORT" if t.get('side') else ''} {_display_name(t['symbol'])} · {_thesis_label(t.get('lv_thesis_type'))} · {_exit_label(t.get('exit_reason'))}</span>
+                <span style="color:{_pnl_color(t.get('pnl_dollars'))}">{_pnl_sign(t.get('pnl_dollars'))}</span>
+              </div>
+              {_signals_breakdown_html(t.get('lv_signals_json'))}
             </div>"""
         for t in closed[:15]
     ) or '<div class="muted-note">No closed Low Value trades yet — nothing has hit its target, stop, or time limit.</div>'
@@ -306,6 +367,8 @@ def render_low_value_dashboard() -> str:
   .trade-time {{ font-size: .72rem; color: var(--muted); margin-top: 2px; }}
   .exit-item {{ display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }}
   .exit-item:last-child {{ border-bottom: none; }}
+  .exit-block {{ padding: 7px 0; border-bottom: 1px solid var(--border); }}
+  .exit-block:last-child {{ border-bottom: none; }}
   .exit-count {{ color: var(--muted); }}
   .muted-note {{ font-size: .82rem; color: var(--muted); font-style: italic; }}
   footer {{ text-align: center; font-size: .75rem; color: var(--muted); padding: 20px; }}
@@ -360,15 +423,6 @@ def render_low_value_dashboard() -> str:
     {thesis_rows_html}
   </div>
 
-  <div class="card" style="border-color:var(--purple);">
-    <div class="card-title" style="color:var(--purple);">What do these numbers mean?</div>
-    <div style="font-size:.82rem; color:var(--text); line-height:1.6;">
-      <b>BUY / SHORT</b> — which way the model thinks the price moves. BUY = expects it to rise, SHORT = expects it to fall.<br><br>
-      <b>Signal strength (e.g. 31.85/100)</b> — <u>this is not a win probability.</u> It's a blend of 8 technical/fundamental signals (price vs 20-day low, RSI, volume, insider buying, short interest, sector strength, cash burn, news sentiment) on a -100 (strong SHORT) to +100 (strong BUY) scale. A higher number means more of the 8 signals agree, more strongly — it does <u>not</u> mean "X% chance of being right," unlike the sports models' win probabilities, which are calibrated against thousands of real resolved games. This engine has {readiness['total_closed_trades']} closed trades so far — a real score-to-win-rate calibration (the same thing the sports pipelines have) only becomes possible once there's real volume of resolved trades to check against, which is exactly what this data-collection phase is for.<br><br>
-      <b>Closes at:</b> +50% (target hit), -50% (stop hit), 5 trading days with neither hit (time exit), or — only for stocks flagged over bad news — a fresh positive headline confirming the story turned around.<br><br>
-      <b>These are hypothetical/paper trades</b> — fixed $25 each, no real money, no real broker order. The point right now is building up a track record to check the model against reality before ever treating a signal as investment advice.
-    </div>
-  </div>
 
 </main>
 <footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/dashboard">High Value dashboard</a></footer>

@@ -202,6 +202,15 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         # transparency + short-interest staleness, both logged only
         ("lv_missing_signals",     "TEXT"),
         ("lv_short_interest_asof", "TEXT"),
+        # v6c: 2026-07-13, user-requested — the per-signal breakdown
+        # (compute_thesis_score()'s "signals" dict: each of the 8 raw
+        # scores + their real-world detail, e.g. actual RSI value, actual
+        # 20-day-low distance) was computed at scan time but discarded
+        # after logging — nothing recorded WHY a trade fired beyond the
+        # single composite number and a thesis_type category. Now stored
+        # verbatim as JSON so the dashboard (and any future analysis) can
+        # show the real reasoning, not just the final score.
+        ("lv_signals_json",        "TEXT"),
     ]
 
     existing_cols = {
