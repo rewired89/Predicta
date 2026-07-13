@@ -28,6 +28,49 @@ def _pnl_sign(val) -> str:
     return f"+${val:,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
 
 
+# Plain-English translations (2026-07-13, user-requested — the raw
+# thesis_type/exit_reason codes and the -100..+100 composite score reads as
+# jargon to anyone who isn't already familiar with this codebase; a real
+# user reading this dashboard mistook the score for a win probability, e.g.
+# "31.85 out of 100" the way the sports models report a calibrated win %).
+# IMPORTANT: this composite score is NOT a win probability. It's a weighted
+# blend of 8 raw signals (price vs 20-day low, RSI, volume spike, insider
+# buying, short interest, sector strength, cash burn, news sentiment) — see
+# models/trading/low_value/thesis_tracker.py. Unlike the sports pipelines
+# (which report a real, backtested "65% chance to win" because they've been
+# calibrated against thousands of resolved games), this engine has zero
+# resolved trades to calibrate against yet — score-to-win-rate calibration
+# (the same 20/50/100-trade tiers signal_calibration.py already tracks) only
+# becomes possible once enough of these trades actually close. Until then,
+# a higher |score| means "more of the 8 signals agree, more strongly" — not
+# "X% chance of being right."
+THESIS_TYPE_LABELS: dict[str, str] = {
+    "TECHNICAL_OVERSOLD":  "beaten-down price, technically oversold",
+    "INSIDER_BUYING":      "company insiders have been buying",
+    "EARNINGS_MISS":       "missed earnings — betting the selloff overreacted",
+    "ANALYST_DOWNGRADE":   "analyst downgrade — betting the selloff overreacted",
+    "REGULATORY_RISK":     "regulatory/legal scare — betting the selloff overreacted",
+    "OPERATIONAL_CRISIS":  "layoffs/restructuring news — betting the selloff overreacted",
+    "POSITIVE_CATALYST":   "positive news catalyst",
+    "UNKNOWN":             "unclassified signal",
+}
+
+EXIT_REASON_LABELS: dict[str, str] = {
+    "TARGET":          "hit its +50% profit target",
+    "STOP":             "hit its -50% stop-loss",
+    "TIME":             "closed — 5 trading days passed with no target/stop hit",
+    "THESIS_RESOLVED":  "closed — the negative story reversed as expected",
+}
+
+
+def _thesis_label(code: str) -> str:
+    return THESIS_TYPE_LABELS.get(code or "UNKNOWN", (code or "unclassified").replace("_", " ").lower())
+
+
+def _exit_label(code: str) -> str:
+    return EXIT_REASON_LABELS.get(code or "", code or "closed")
+
+
 def get_low_value_brief(days: int = 7) -> dict:
     """
     Read-only recap for the "give me a brief" / "this week" / "yesterday"
@@ -204,21 +247,21 @@ def render_low_value_dashboard() -> str:
         f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
               <div class="trade-info">
-                <span class="trade-sym">{t['symbol']}</span>
-                <span class="trade-detail">{t['side'].upper()} · score {t.get('entry_score') or '—'} · {t.get('lv_thesis_type') or 'UNKNOWN'}</span>
-                <span class="trade-time">since {t['entry_time'][:16]}</span>
+                <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {t['symbol']}</span>
+                <span class="trade-detail">Signal strength {t.get('entry_score') or '—'}/100 (not a win probability — see note below) · {_thesis_label(t.get('lv_thesis_type'))}</span>
+                <span class="trade-time">opened {t['entry_time'][:16]} UTC</span>
               </div>
             </div>"""
         for t in open_t
-    ) or '<div class="muted-note">No open Low Value positions.</div>'
+    ) or '<div class="muted-note">No open Low Value positions right now — the model didn\'t find a strong enough signal on the last scan.</div>'
 
     closed_rows_html = "".join(
         f"""<div class="exit-item">
-              <span>{t['symbol']} · {t.get('lv_thesis_type') or 'UNKNOWN'} · {t.get('exit_reason') or '—'}</span>
+              <span>{"BUY" if t.get('side')=='long' else "SHORT" if t.get('side') else ''} {t['symbol']} · {_thesis_label(t.get('lv_thesis_type'))} · {_exit_label(t.get('exit_reason'))}</span>
               <span style="color:{_pnl_color(t.get('pnl_dollars'))}">{_pnl_sign(t.get('pnl_dollars'))}</span>
             </div>"""
         for t in closed[:15]
-    ) or '<div class="muted-note">No closed Low Value trades yet.</div>'
+    ) or '<div class="muted-note">No closed Low Value trades yet — nothing has hit its target, stop, or time limit.</div>'
 
     thesis_rows_html = "".join(
         f"""<div class="exit-item">
@@ -297,6 +340,9 @@ def render_low_value_dashboard() -> str:
       <div class="stat-box"><div class="stat-value" style="color:{_pnl_color(total_pnl)}">{_pnl_sign(total_pnl)}</div><div class="stat-label">Total P&amp;L</div></div>
       <div class="stat-box"><div class="stat-value">{f"{win_rate:.0%}" if win_rate is not None else "—"}</div><div class="stat-label">Win rate</div></div>
     </div>
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">
+      {f"Nothing has finished yet — every open position is still running. Total P&amp;L and win rate only count trades that have actually closed (hit their target, stop, or time limit); this will fill in as positions close." if n_closed == 0 else f"Across the {n_closed} paper trades that have closed so far: total hypothetical profit/loss (fixed $25 per trade, not real money) and the share that were profitable."}
+    </div>
   </div>
 
   <div class="card">
@@ -312,6 +358,16 @@ def render_low_value_dashboard() -> str:
   <div class="card">
     <div class="card-title">Win Rate by Thesis Type ({readiness['calibration_quality']})</div>
     {thesis_rows_html}
+  </div>
+
+  <div class="card" style="border-color:var(--purple);">
+    <div class="card-title" style="color:var(--purple);">What do these numbers mean?</div>
+    <div style="font-size:.82rem; color:var(--text); line-height:1.6;">
+      <b>BUY / SHORT</b> — which way the model thinks the price moves. BUY = expects it to rise, SHORT = expects it to fall.<br><br>
+      <b>Signal strength (e.g. 31.85/100)</b> — <u>this is not a win probability.</u> It's a blend of 8 technical/fundamental signals (price vs 20-day low, RSI, volume, insider buying, short interest, sector strength, cash burn, news sentiment) on a -100 (strong SHORT) to +100 (strong BUY) scale. A higher number means more of the 8 signals agree, more strongly — it does <u>not</u> mean "X% chance of being right," unlike the sports models' win probabilities, which are calibrated against thousands of real resolved games. This engine has {readiness['total_closed_trades']} closed trades so far — a real score-to-win-rate calibration (the same thing the sports pipelines have) only becomes possible once there's real volume of resolved trades to check against, which is exactly what this data-collection phase is for.<br><br>
+      <b>Closes at:</b> +50% (target hit), -50% (stop hit), 5 trading days with neither hit (time exit), or — only for stocks flagged over bad news — a fresh positive headline confirming the story turned around.<br><br>
+      <b>These are hypothetical/paper trades</b> — fixed $25 each, no real money, no real broker order. The point right now is building up a track record to check the model against reality before ever treating a signal as investment advice.
+    </div>
   </div>
 
 </main>
