@@ -11,7 +11,12 @@ oversold RSI, and a capitulation volume spike are treated as BULLISH
 (beaten-down + about to turn), not bearish — the opposite polarity from a
 trend-following engine. Insider buying, sector-relative strength, and
 positive news sentiment reinforce the same thesis; short interest is scored
-as squeeze potential (positive), not risk.
+as squeeze potential (positive), not risk. Insider SELLING (2026-07-13,
+user-requested) works the other way — the same drop is a much weaker
+contrarian case if the company's own insiders are dumping alongside
+retail/fear-driven sellers than if they're sitting tight; see
+_score_insider_buying's docstring for the actual scoring and its known
+10b5-1-plan limitation.
 
 Composite score: -100..+100. Missing signals (no data available, e.g. no
 Finnhub fundamentals for a given micro-cap) are EXCLUDED from the weighted
@@ -22,7 +27,7 @@ same discipline as every calibration gate elsewhere in this codebase).
 from __future__ import annotations
 from typing import Optional
 
-from fetchers.openinsider import has_insider_buying
+from fetchers.openinsider import get_recent_insider_activity
 from fetchers.finra import get_short_interest
 from fetchers.finnhub import get_company_profile, get_basic_financials
 
@@ -139,8 +144,40 @@ def _score_volume_spike(daily_bars: list[dict]) -> Optional[tuple[float, dict]]:
 
 
 def _score_insider_buying(symbol: str) -> tuple[float, dict]:
-    bought = has_insider_buying(symbol, days=30)
-    return (100.0 if bought else 0.0), {"insider_buying_30d": bought}
+    """
+    Signal key stays "insider_buying_30d" (SIGNAL_WEIGHTS, dominant_thesis_type's
+    INSIDER_BUYING check both key off it unchanged) but as of 2026-07-13 also
+    folds in insider SELLING — user-requested: a stock dumped by retail/fear
+    selling is a much stronger "sellers overshot" case when the company's own
+    insiders are NOT also selling, versus insiders dumping right alongside
+    everyone else (real smart-money confirmation, not just panic). See
+    fetchers/openinsider.py's docstring for the known 10b5-1-plan limitation
+    (this can't yet tell a routine scheduled sale from a conviction one).
+
+    Scoring (v1, uncalibrated — tune once resolved trades exist, same
+    disclaimer as every other signal weight in this file):
+      bought, not sold  -> +100 (strongest confirmation)
+      bought AND sold   -> +40  (mixed signal)
+      neither           -> 0    (no signal either way — same as the old default)
+      sold, not bought  -> -60  (insiders dumping into the dip — contradicts the thesis)
+    """
+    activity = get_recent_insider_activity(symbol, days=30)
+    bought = bool(activity["purchases"])
+    sold = bool(activity["sales"])
+    if bought and not sold:
+        score = 100.0
+    elif bought and sold:
+        score = 40.0
+    elif sold:  # sold and not bought
+        score = -60.0
+    else:
+        score = 0.0
+    return score, {
+        "insider_buying_30d": bought,
+        "insider_selling_30d": sold,
+        "insider_purchase_dates": activity["purchases"],
+        "insider_sale_dates": activity["sales"],
+    }
 
 
 def _score_short_interest(symbol: str) -> Optional[tuple[float, dict]]:

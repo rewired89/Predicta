@@ -92,7 +92,16 @@ def _signal_explanation(name: str, entry: dict) -> str:
         if name == "volume_spike":
             return f"Today's volume is {detail['spike_ratio']:.1f}x the 20-day average — a spike often means capitulation selling (or, less often, a real move starting)"
         if name == "insider_buying_30d":
-            return "Company insiders bought shares in the last 30 days" if detail.get("insider_buying_30d") else "No recorded insider buying in the last 30 days"
+            bought, sold = detail.get("insider_buying_30d"), detail.get("insider_selling_30d")
+            if sold is None:  # legacy row, logged before insider-selling tracking existed
+                return "Company insiders bought shares in the last 30 days" if bought else "No recorded insider buying in the last 30 days"
+            if bought and not sold:
+                return "Insiders bought shares and did NOT sell — a strong sign this is fear-driven selling, not a real problem with the company"
+            if bought and sold:
+                return "Mixed insider activity — some insiders bought, but others sold, in the same 30 days"
+            if sold:
+                return "Insiders SOLD shares during this window with no offsetting purchases — a red flag against the 'sellers overshot' bet"
+            return "No recorded insider buying or selling in the last 30 days"
         if name == "short_interest_pct":
             asof = detail.get("short_interest_as_of") or "unknown date"
             return f"Short interest is {detail['short_interest_pct']:.1f}% of float (as of {asof}) — higher means more potential for a short squeeze if it turns"

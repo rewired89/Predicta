@@ -9655,7 +9655,31 @@ purpose: OpenInsider screener base URL.
 inputs: none
 outputs: str
 calls: none
-called_by: get_recent_insider_purchases
+called_by: _fetch_screener_html
+mutates: none
+---
+
+---
+name: _ROW_BLOCK_RE / _dates_within
+type: variable / function
+file: fetchers/openinsider.py
+purpose: 2026-07-13 rewrite, found while adding insider-selling extraction (see get_recent_insider_activity's entry): the original single regex captured a filing date and then searched forward (DOTALL, non-greedy) for a transaction-type cell WITHOUT stopping at the row's own </tr> — so a date from one <tr> could get paired with a transaction type from a completely different, later row whenever the nearest matching type cell wasn't in the same row. Verified wrong with a hand-built HTML fixture (a Sale row's date got attributed to the Sale type from the *next* row). Fixed by extracting each row's inner HTML first via _ROW_BLOCK_RE (a "tempered dot" pattern, (?:(?!</tr>).)*?, that can never cross a </tr>), then having _dates_within search for date + type together within that isolated block only.
+inputs: html: str, type_re: re.Pattern (for _dates_within), days: int (for _dates_within)
+outputs: re.Pattern (for _ROW_BLOCK_RE) / list[str] (for _dates_within)
+calls: none
+called_by: get_recent_insider_activity
+mutates: none
+---
+
+---
+name: get_recent_insider_activity
+type: function
+file: fetchers/openinsider.py
+purpose: 2026-07-13, user-requested ("if the big companies are not getting rid of the share, we need to have that in mind"). One HTTP call, both directions: {"purchases": [...], "sales": [...]} filing dates for a symbol within the last N days, scraped from OpenInsider's per-ticker screener page (same source and one fetch, not two, as the pre-existing purchases-only lookup). {"purchases": [], "sales": []} on any fetch/parse failure. True institutional/13F ownership is 45-day-lagged by SEC rule and has no free source in this codebase — insider Form-4 selling (2-business-day disclosure) is the closest fresh, free proxy for "is smart money also bailing." Known limitation: doesn't distinguish a routine 10b5-1 scheduled sale from a discretionary one (see module docstring).
+inputs: symbol: str, days: int = 30
+outputs: dict {purchases: list[str], sales: list[str]}
+calls: _fetch_screener_html, _dates_within
+called_by: get_recent_insider_purchases, _score_insider_buying (thesis_tracker.py)
 mutates: none
 ---
 
@@ -9663,10 +9687,10 @@ mutates: none
 name: get_recent_insider_purchases
 type: function
 file: fetchers/openinsider.py
-purpose: Filing dates of open-market insider Purchase (code P) transactions for a symbol within the last N days, scraped from OpenInsider's per-ticker screener page. [] on any fetch/parse failure.
+purpose: Filing dates of open-market insider Purchase (code P) transactions for a symbol within the last N days. Kept as a thin wrapper around get_recent_insider_activity (2026-07-13) — was the original public entry point before insider selling was added; behavior unchanged, now correctly row-scoped (see _dates_within's entry).
 inputs: symbol: str, days: int = 30
 outputs: list[str]
-calls: requests.get
+calls: get_recent_insider_activity
 called_by: has_insider_buying
 mutates: none
 ---
@@ -9675,11 +9699,11 @@ mutates: none
 name: has_insider_buying
 type: function
 file: fetchers/openinsider.py
-purpose: Boolean convenience wrapper for the insider_buying_30d signal.
+purpose: Boolean convenience wrapper, kept for any external caller expecting the pre-2026-07-13 API. Not called from within this codebase anymore — _score_insider_buying (thesis_tracker.py) calls get_recent_insider_activity directly now (one HTTP call for both buying and selling instead of two).
 inputs: symbol: str, days: int = 30
 outputs: bool
 calls: get_recent_insider_purchases
-called_by: _score_insider_buying (thesis_tracker.py)
+called_by: none (kept for backward compatibility)
 mutates: none
 ---
 
@@ -10047,10 +10071,10 @@ mutates: none
 name: _score_insider_buying
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: 100 if an open-market insider Purchase occurred in the last 30 days, else 0 (no penalty for absence).
+purpose: Fixed 2026-07-13 (user-requested — "if the big companies are not getting rid of the share, we need to have that in mind before making a prediction"): now folds insider SELLING into the same signal, not just buying. Signal key stays "insider_buying_30d" (SIGNAL_WEIGHTS, dominant_thesis_type's INSIDER_BUYING check both key off it unchanged). Scoring (v1, uncalibrated): bought-only +100 (strongest confirmation), bought-and-sold +40 (mixed), neither 0 (no signal, same as the old default), sold-only -60 (insiders dumping into the dip contradicts the "sellers overshot" thesis). detail dict now also carries insider_selling_30d/insider_purchase_dates/insider_sale_dates alongside the original insider_buying_30d bool — low_value_dashboard.py's _signal_explanation handles both the new shape and pre-2026-07-13 logged rows (which only have the bool) gracefully.
 inputs: symbol: str
 outputs: tuple[float, dict]
-calls: fetchers.openinsider.has_insider_buying
+calls: fetchers.openinsider.get_recent_insider_activity
 called_by: compute_thesis_score
 mutates: none
 ---
