@@ -326,7 +326,7 @@ def diagnose(sample_fighter: str = "Jones") -> dict:
     out["parsed_fighter_sample"] = parsed[:5]
 
     # 2. If lookup_fighter resolves the sample name, probe its detail page raw
-    match = lookup_fighter(sample_fighter, parsed) if parsed else None
+    match = lookup_fighter(sample_fighter) if parsed else None
     out["sample_fighter_matched"] = match
     if match:
         fighter_url = f"{BASE}{match['url']}" if match["url"].startswith("/") else match["url"]
