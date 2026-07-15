@@ -40,6 +40,20 @@ from bs4 import BeautifulSoup
 
 FIGHTMATRIX_BASE = "https://www.fightmatrix.com"
 TAPOLOGY_BASE = "https://www.tapology.com"
+
+# ESPN — added 2026-07-15 as the new PRIMARY source, after FightMatrix's
+# ranking table turned out to be JS-rendered (not in static HTML) and
+# Tapology turned out to be Cloudflare-blocked. ESPN's site API is already
+# proven reliable in this repo for baseball/soccer/tennis/rugby, but the
+# exact sport/league slug for MMA has NOT been live-verified — same
+# situation the rugby build was in before discovering the real code was a
+# numeric ID, not "nrl". "mma"/"ufc" below is a guess based on ESPN's site
+# structure (espn.com/mma/), tested via diagnose() with core-API discovery
+# as a fallback rather than assumed correct.
+ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/mma/ufc"
+CORE_API_BASE = "https://sports.core.api.espn.com/v2/sports"
+_ESPN_CANDIDATE_SLUGS = [("mma", "ufc"), ("mma", "mma"), ("ufc", "ufc")]
+
 TIMEOUT = 20.0
 
 _HEADERS = {
@@ -76,6 +90,129 @@ def _f(val, default: Optional[float] = None) -> Optional[float]:
         return float(s)
     except ValueError:
         return default
+
+
+def _espn_get(path: str, params: Optional[dict] = None) -> Optional[dict]:
+    """GET from ESPN's site API. Returns None on any failure (network, 4xx/5xx, bad JSON)."""
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{ESPN_BASE}{path}", params=params or {})
+            resp.raise_for_status()
+            return resp.json()
+    except Exception:
+        return None
+
+
+def fetch_espn_athletes(pages: int = 3) -> list[dict]:
+    """
+    Paginated /athletes listing — same pattern fetchers/tennis.py already
+    uses successfully for ATP/WTA. Returns [{id, name}]; empty list on
+    failure or if the sport/league slug is wrong.
+    """
+    out = []
+    for page in range(1, pages + 1):
+        data = _espn_get("/athletes", {"limit": 100, "page": page})
+        if not data:
+            break
+        athletes = data.get("athletes") or []
+        if not athletes:
+            break
+        for a in athletes:
+            name = a.get("displayName", "")
+            if name:
+                out.append({"id": a.get("id"), "name": name})
+    return out
+
+
+def lookup_espn_athlete(name: str, athletes: Optional[list[dict]] = None) -> Optional[dict]:
+    """Fuzzy-match a fighter name against fetch_espn_athletes()."""
+    athletes = athletes if athletes is not None else fetch_espn_athletes()
+    if not athletes:
+        return None
+    for a in athletes:
+        if a["name"].lower() == name.lower().strip():
+            return a
+    names = [a["name"].lower() for a in athletes]
+    import difflib
+    close = difflib.get_close_matches(name.lower().strip(), names, n=1, cutoff=0.6)
+    if close:
+        return next((a for a in athletes if a["name"].lower() == close[0]), None)
+    return None
+
+
+def fetch_espn_athlete_bio(athlete_id: str) -> dict:
+    """
+    /athletes/{id} — bio fields (height, weight, DOB → age, etc.). Field
+    names are a best guess mirroring ESPN's standard athlete object shape
+    used elsewhere in this repo (fetchers/tennis.py); not live-verified for
+    MMA specifically. Returns {} on failure.
+    """
+    data = _espn_get(f"/athletes/{athlete_id}")
+    if not data:
+        return {}
+    athlete = data.get("athlete", data)
+    age = None
+    dob = athlete.get("dateOfBirth")
+    if dob:
+        try:
+            age = (datetime.now() - datetime.strptime(dob[:10], "%Y-%m-%d")).days / 365.25
+        except Exception:
+            age = None
+    reach_in = None
+    for stat_key in ("reach", "reachIn"):
+        if athlete.get(stat_key):
+            reach_in = _f(athlete[stat_key])
+            break
+    return {
+        "name": athlete.get("displayName", ""),
+        "age": age,
+        "reach_in": reach_in,
+        "wins": (athlete.get("wins") or {}).get("value") if isinstance(athlete.get("wins"), dict) else athlete.get("wins"),
+        "losses": (athlete.get("losses") or {}).get("value") if isinstance(athlete.get("losses"), dict) else athlete.get("losses"),
+        "draws": (athlete.get("draws") or {}).get("value") if isinstance(athlete.get("draws"), dict) else athlete.get("draws"),
+    }
+
+
+def discover_espn_leagues(sport: str = "mma") -> dict:
+    """
+    Query ESPN's separate core API for the leagues it knows about under a
+    sport — same proven pattern fetchers/rugby.py:discover_leagues used to
+    find NRL's real numeric league ID after "nrl" 404'd. Returns
+    {sport, status, league_count, leagues: [{slug_from_ref, name, abbreviation}]}.
+    """
+    out: dict = {"sport": sport}
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{CORE_API_BASE}/{sport}/leagues", params={"limit": 100})
+            out["status"] = resp.status_code
+            if resp.status_code != 200:
+                out["raw_error"] = resp.text[:500]
+                return out
+            data = resp.json()
+            items = data.get("items", [])
+            out["league_count"] = len(items)
+            leagues = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                ref = item.get("$ref")
+                entry = {"ref": ref}
+                if ref:
+                    slug = ref.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+                    entry["slug_from_ref"] = slug
+                    try:
+                        ref_resp = client.get(ref)
+                        if ref_resp.status_code == 200:
+                            ref_data = ref_resp.json()
+                            entry["name"] = ref_data.get("name")
+                            entry["abbreviation"] = ref_data.get("abbreviation")
+                    except Exception as exc:
+                        entry["ref_fetch_exception"] = str(exc)
+                leagues.append(entry)
+            out["leagues"] = leagues
+    except Exception as exc:
+        out["exception"] = str(exc)
+    return out
 
 
 def _name_matches(query: str, candidate: str) -> bool:
@@ -275,29 +412,26 @@ def _method_rates(fights: list[dict]) -> dict:
 
 def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
     """
-    Main entry point — resolve both fighters against Tapology (record, bio,
-    fight history) and FightMatrix (ranking), merging into one dict per
-    fighter. A fighter's dict is {} (not a replacement-level default) only
-    when BOTH sources fail to resolve them — a fighter found on one source
-    but not the other still gets a partial profile, same "don't hallucinate
-    from nothing, but don't throw away partial real data either" stance as
-    fetchers/rugby.py.
+    Main entry point. PRIMARY source is ESPN (added 2026-07-15, added after
+    FightMatrix's ranking table turned out to be JS-rendered and Tapology
+    turned out Cloudflare-blocked) — resolves each fighter against ESPN's
+    /athletes listing for bio (age, reach, W-L-D). FightMatrix ranking is
+    still layered in as a supplementary signal when it resolves (its lookup
+    doesn't depend on the broken ranking-table scrape — the still-untested
+    question is whether ESPN's own sport/league slug guess is even right;
+    see diagnose()). A fighter's dict is {} only when ESPN also fails to
+    resolve them. Tapology stays disabled (confirmed Cloudflare-blocked).
     """
     result: dict = {"a": {}, "b": {}}
+    espn_athletes = fetch_espn_athletes()
     for key, name in (("a", name_a), ("b", name_b)):
         profile: dict = {}
-        # Tapology CONFIRMED DEAD 2026-07-15 (live /ufc-diag test): returns a
-        # real Cloudflare bot-challenge (403, "Just a moment...",
-        # challenges.cloudflare.com) — same category as ufcstats.com's block,
-        # not solvable without circumventing an explicit anti-bot measure.
-        # Skipped here rather than called on every prediction and failing
-        # every time; the functions stay in this file in case that changes.
-        # tap_match = search_tapology_fighter(name)
-        # if tap_match:
-        #     tap_profile = fetch_tapology_profile(tap_match["url"])
-        #     if tap_profile:
-        #         history = fetch_tapology_fight_history(tap_match["url"])
-        #         profile.update({**tap_profile, **_method_rates(history), "fight_history": history})
+
+        espn_match = lookup_espn_athlete(name, espn_athletes)
+        if espn_match and espn_match.get("id"):
+            bio = fetch_espn_athlete_bio(espn_match["id"])
+            if bio:
+                profile.update(bio)
 
         fm_match = lookup_fightmatrix_fighter(name)
         if fm_match:
@@ -312,13 +446,62 @@ def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
 
 def diagnose(sample_fighter: str = "Jon Jones") -> dict:
     """
-    One-shot diagnostic reporting the RAW HTTP status + response snippet for
-    both fightmatrix.com and tapology.com, built in from the start this time
-    (not added after a failure, like it was for ufcstats.com) — neither
-    site's markup has been live-verified from this session, so the first
-    real test should show exactly what's being served immediately.
+    One-shot diagnostic. Extended 2026-07-15 to test ESPN FIRST (added as
+    the new primary source after FightMatrix's ranking table turned out
+    JS-rendered and Tapology turned out Cloudflare-blocked) — same
+    "test the URL before trusting it" approach that found and fixed the
+    rugby ESPN league-ID bug: probes /athletes with the current ESPN_BASE
+    guess, and if that 404s, runs discover_espn_leagues() plus a few
+    candidate (sport, league) slugs automatically instead of guessing once
+    across another round-trip. Still also reports FightMatrix/Tapology
+    status for completeness.
     """
-    out: dict = {"fightmatrix_base": FIGHTMATRIX_BASE, "tapology_base": TAPOLOGY_BASE}
+    out: dict = {
+        "espn_base": ESPN_BASE,
+        "fightmatrix_base": FIGHTMATRIX_BASE, "tapology_base": TAPOLOGY_BASE,
+    }
+
+    # 0. ESPN /athletes probe (new primary source)
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{ESPN_BASE}/athletes", params={"limit": 100, "page": 1})
+            out["espn_athletes_status"] = resp.status_code
+            out["espn_athletes_url"] = str(resp.url)
+            if resp.status_code != 200:
+                out["espn_athletes_error_body"] = resp.text[:500]
+            else:
+                data = resp.json()
+                out["espn_athletes_top_level_keys"] = list(data.keys())
+                out["espn_athletes_count"] = len(data.get("athletes") or [])
+    except Exception as exc:
+        out["espn_athletes_exception"] = str(exc)
+
+    if out.get("espn_athletes_status") == 404:
+        out["espn_league_discovery"] = discover_espn_leagues("mma")
+        candidate_results = []
+        for sport, league in _ESPN_CANDIDATE_SLUGS:
+            try:
+                with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/athletes"
+                    resp = client.get(url, params={"limit": 10})
+                    candidate_results.append({
+                        "sport": sport, "league": league, "status": resp.status_code,
+                        "looks_ok": resp.status_code == 200,
+                    })
+            except Exception as exc:
+                candidate_results.append({"sport": sport, "league": league, "exception": str(exc)})
+        out["espn_candidate_slug_probe"] = candidate_results
+
+    try:
+        espn_athletes = fetch_espn_athletes(pages=1)
+        out["espn_parsed_athlete_count"] = len(espn_athletes)
+        out["espn_parsed_athlete_sample"] = espn_athletes[:5]
+        espn_match = lookup_espn_athlete(sample_fighter, espn_athletes)
+        out["espn_sample_matched"] = espn_match
+        if espn_match and espn_match.get("id"):
+            out["espn_parsed_bio"] = fetch_espn_athlete_bio(espn_match["id"])
+    except Exception as exc:
+        out["espn_parse_exception"] = str(exc)
 
     # 1. FightMatrix rankings page
     fm_html = ""

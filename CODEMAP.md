@@ -11394,11 +11394,83 @@ mutates: none
 name: FIGHTMATRIX_BASE / TAPOLOGY_BASE
 type: variable
 file: fetchers/ufc.py
-purpose: SWITCHED 2026-07-14 from ufcstats.com. Live-testing on Railway found ufcstats.com serves a JavaScript proof-of-work anti-bot challenge ("Checking your browser…") to any plain HTTP client — not something this repo will try to solve (that's circumventing an explicit anti-bot security measure, not reading a public page). Neither fightmatrix.com (Elo-style rankings) nor tapology.com (record/bio/fight history) has been live-verified either — this sandbox can't reach any external site — and unlike ufcstats.com's exact CSS classes (known with fair confidence before turning out to be blocked), these two sites' markup was never memorized with high confidence to begin with.
+purpose: SWITCHED 2026-07-14 from ufcstats.com. Live-testing on Railway found ufcstats.com serves a JavaScript proof-of-work anti-bot challenge ("Checking your browser…") to any plain HTTP client — not something this repo will try to solve (that's circumventing an explicit anti-bot security measure, not reading a public page). Neither fightmatrix.com (Elo-style rankings) nor tapology.com (record/bio/fight history) has been live-verified either — this sandbox can't reach any external site — and unlike ufcstats.com's exact CSS classes (known with fair confidence before turning out to be blocked), these two sites' markup was never memorized with high confidence to begin with. SUPERSEDED AS PRIMARY 2026-07-15 by ESPN_BASE (see below) after FightMatrix's ranking table turned out JS-rendered and Tapology turned out Cloudflare-blocked — FightMatrix functions stay wired in as a supplementary ranking signal, Tapology functions stay in the file but disabled (see enrich_ufc_fighters).
 inputs: none
 outputs: str
 calls: none
 called_by: fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history
+mutates: none
+---
+
+---
+name: ESPN_BASE / CORE_API_BASE / _ESPN_CANDIDATE_SLUGS
+type: variable
+file: fetchers/ufc.py
+purpose: Added 2026-07-15 as the new PRIMARY UFC data source, after FightMatrix's ranking table turned out to be JS-rendered (not in static HTML) and Tapology turned out to be Cloudflare-blocked. ESPN's site API is already proven reliable in this repo for baseball/soccer/tennis/rugby, but the exact sport/league slug for MMA has NOT been live-verified — same situation the rugby build was in before discovering NRL's real code was a numeric ID, not "nrl". "mma"/"ufc" is a guess based on ESPN's site structure (espn.com/mma/); CORE_API_BASE + _ESPN_CANDIDATE_SLUGS back it up via the same discovery-first approach that fixed the rugby bug, tested via diagnose() rather than assumed correct.
+inputs: none
+outputs: str / list[tuple]
+calls: none
+called_by: _espn_get (ESPN_BASE), discover_espn_leagues (CORE_API_BASE), diagnose (_ESPN_CANDIDATE_SLUGS)
+mutates: none
+---
+
+---
+name: _espn_get
+type: function
+file: fetchers/ufc.py
+purpose: GET from ESPN's site API (ESPN_BASE + path). Returns None on any failure — same fail-soft convention as every other ESPN fetcher in this repo (fetchers/rugby.py, fetchers/baseball.py, etc.).
+inputs: path: str, params: Optional[dict]
+outputs: Optional[dict]
+calls: httpx.Client.get
+called_by: fetch_espn_athletes, fetch_espn_athlete_bio
+mutates: none
+---
+
+---
+name: fetch_espn_athletes
+type: function
+file: fetchers/ufc.py
+purpose: Paginated /athletes listing — same pattern fetchers/tennis.py already uses successfully for ATP/WTA rankings (proven ESPN individual-athlete-sport shape: data["athletes"][].displayName/.id). Returns [{id, name}]; empty list on failure or if the sport/league slug guess is wrong.
+inputs: pages: int = 3
+outputs: list[dict]
+calls: _espn_get
+called_by: lookup_espn_athlete (default), enrich_ufc_fighters (shared call), diagnose
+mutates: none
+---
+
+---
+name: lookup_espn_athlete
+type: function
+file: fetchers/ufc.py
+purpose: Fuzzy-matches a fighter name against fetch_espn_athletes().
+inputs: name: str, athletes: Optional[list[dict]] = None
+outputs: Optional[dict]
+calls: fetch_espn_athletes (if not supplied), difflib.get_close_matches
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: fetch_espn_athlete_bio
+type: function
+file: fetchers/ufc.py
+purpose: /athletes/{id} — bio fields (age from dateOfBirth, reach, W-L-D). Field names are a best guess mirroring ESPN's standard athlete object shape used elsewhere in this repo (fetchers/tennis.py); not live-verified for MMA specifically — a real live test may reveal different field names, same risk class as every other ESPN assumption in this repo before it's actually exercised. Returns {} on failure.
+inputs: athlete_id: str
+outputs: dict {name, age, reach_in, wins, losses, draws}
+calls: _espn_get
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: discover_espn_leagues
+type: function
+file: fetchers/ufc.py
+purpose: Queries ESPN's separate core API for the leagues known under a sport — same proven pattern fetchers/rugby.py:discover_leagues used to find NRL's real numeric league ID after "nrl" 404'd. Called automatically by diagnose() when the primary /athletes guess 404s, instead of guessing a second slug across another round-trip.
+inputs: sport: str = "mma"
+outputs: dict {sport, status, league_count, leagues: [{ref, slug_from_ref, name, abbreviation}]}
+calls: httpx.Client.get
+called_by: diagnose
 mutates: none
 ---
 
@@ -11514,10 +11586,10 @@ mutates: none
 name: enrich_ufc_fighters
 type: function
 file: fetchers/ufc.py
-purpose: Main entry point — resolves both fighters against FightMatrix (ranking) for a profile dict per fighter. DISABLED 2026-07-15: the Tapology call path (record/bio/fight history) is commented out after live-testing confirmed Tapology returns a real Cloudflare bot-challenge (403) — same unsolvable-by-design category as ufcstats.com. The functions stay in this file in case that changes; calling them on every prediction when they fail 100% of the time was pure waste. A fighter's dict is {} only when FightMatrix also fails to resolve them.
+purpose: Main entry point. PRIMARY source is ESPN (added 2026-07-15) — resolves each fighter against ESPN's /athletes listing for bio (age, reach, W-L-D), whether ESPN's sport/league slug guess is even right is itself unconfirmed (see diagnose()). FightMatrix ranking is layered in as a supplementary signal when it resolves. Tapology stays disabled (confirmed Cloudflare-blocked 2026-07-15) — the Tapology call path from the previous version is removed here in favor of the ESPN primary path. A fighter's dict is {} only when ESPN also fails to resolve them.
 inputs: name_a: str, name_b: str
 outputs: dict {a: dict, b: dict}
-calls: lookup_fightmatrix_fighter
+calls: fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, lookup_fightmatrix_fighter
 called_by: run_ufc_analysis (analyze_ufc.py)
 mutates: none
 ---
@@ -11526,10 +11598,10 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/ufc.py
-purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. First live test (2026-07-15) confirmed Tapology is ALSO dead — a real Cloudflare bot-challenge (403, "Just a moment...", challenges.cloudflare.com), same category as ufcstats.com's block. FightMatrix came back 200 with real content (113KB) but fm_parsed_count was only 2, and both parsed "names" were literally the fighter-profile URL as text, not a name — strong evidence the real ranking table is JS-rendered and absent from the static HTML, with the 2 matches being unrelated incidental links. Extended same day: when parsed count is suspiciously low or a "name" looks like a URL, now also captures table_count/table_row_counts, a JS-framework heuristic (react/vue/__NEXT_DATA__), raw HTML around the first 3 matched anchors' parents, a snippet around the first "rank" keyword occurrence, and any /api//ajax//json/-shaped string literals found in the page (JS-rendered tables are often fed by a plain JSON endpoint worth hitting directly instead of fighting the rendered HTML).
+purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. First live test (2026-07-15) confirmed Tapology is ALSO dead (Cloudflare 403) and FightMatrix's ranking table is JS-rendered (fm_parsed_count=2, both "names" were literally the URL as text). Extended same day again after the user pointed out ESPN was available all along: now probes ESPN's /athletes FIRST (the new primary source, see ESPN_BASE), and if that 404s, automatically runs discover_espn_leagues() plus a few candidate (sport, league) slugs — same "test the URL before trusting it, try candidates on 404" approach that found and fixed the rugby ESPN league-ID bug — instead of guessing once across another round-trip. Still reports FightMatrix/Tapology status for completeness.
 inputs: sample_fighter: str = "Jon Jones"
-outputs: dict (raw status codes, content lengths, profile-link booleans, raw snippets when pages look wrong, table/anchor/API-hint diagnostics when FightMatrix's count looks suspicious, parsed samples at each stage)
-calls: httpx.Client.get, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
+outputs: dict (espn_athletes_status/espn_league_discovery/espn_candidate_slug_probe/espn_parsed_athlete_sample/espn_parsed_bio, plus the existing FightMatrix/Tapology raw status codes, content lengths, profile-link booleans, raw snippets, and table/anchor/API-hint diagnostics)
+calls: httpx.Client.get, fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, discover_espn_leagues, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
 called_by: ufc_diag (app.py)
 mutates: none
 ---
