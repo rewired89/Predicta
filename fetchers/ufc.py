@@ -334,6 +334,17 @@ def diagnose(sample_fighter: str = "Jones") -> dict:
             out["listing_has_expected_class"] = "b-statistics__table-row" in resp.text
             if resp.status_code != 200:
                 out["listing_error_body"] = resp.text[:500]
+            elif not out["listing_has_expected_class"]:
+                # 200 but not the real page — show the actual body so we can
+                # see what IS being served (bot-check, redirect notice,
+                # changed markup, etc.) instead of guessing again.
+                out["listing_raw_snippet"] = resp.text[:1500]
+                out["listing_title_tag"] = (
+                    re.search(r"<title[^>]*>(.*?)</title>", resp.text, re.IGNORECASE | re.DOTALL)
+                    .group(1).strip()
+                    if re.search(r"<title[^>]*>(.*?)</title>", resp.text, re.IGNORECASE | re.DOTALL)
+                    else None
+                )
     except Exception as exc:
         out["listing_exception"] = str(exc)
 
