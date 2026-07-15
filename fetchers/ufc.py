@@ -182,50 +182,12 @@ def _extract_method(text: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def fetch_espn_scoreboard_range(days_back: int = 400, before_date: Optional[str] = None) -> list[dict]:
-    """
-    Pull completed UFC bouts from ESPN's /scoreboard across a date range —
-    ports the exact same architecture fix that rescued rugby's broken
-    per-team endpoint: /athletes (fighter bio/profile lookups) is confirmed
-    404 on both the "ufc" slug and the numeric league id 3321 (see
-    diagnose()), but /scoreboard is CONFIRMED working (200, real event data)
-    with the "ufc" slug. So fighter data here is derived from aggregating
-    real fight results league-wide, not from a per-fighter profile call.
-
-    Each ESPN "competition" under an MMA event is a single bout between two
-    individual athletes — same competitor shape fetchers/tennis.py already
-    parses successfully for ATP/WTA (competitor["athlete"]["displayName"],
-    comp["winnerId"]), reused here rather than guessed fresh.
-
-    days_back defaults to 400 (vs rugby's 200) because UFC fighters
-    typically compete only 2-3 times a year — a shorter window would starve
-    most fighters of any fight history at all.
-
-    `before_date` ('YYYY-MM-DD', the match being predicted) excludes events
-    on or after that calendar day — same data-leakage guard as rugby's
-    fetch_scoreboard_range (an already-finished same-day fight shouldn't
-    feed the "prediction" of itself).
-
-    Each entry: {date, event_name, fighter_a_id, fighter_a_name,
-    fighter_b_id, fighter_b_name, winner_id, method, short_detail}.
-    Empty list on failure.
-    """
-    end = datetime.now(timezone.utc).date()
-    start = end - timedelta(days=days_back)
-    data = _espn_get("/scoreboard", {
-        "dates": f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}",
-        "limit": 300,
-    })
-    if not data:
-        return []
-    cutoff = None
-    if before_date:
-        try:
-            cutoff = datetime.strptime(before_date[:10], "%Y-%m-%d").date()
-        except ValueError:
-            cutoff = None
-
+def _parse_espn_mma_events(data: dict, cutoff) -> list[dict]:
+    """Extract completed-bout entries from one /scoreboard response payload.
+    Shared by fetch_espn_scoreboard_range's chunked calls."""
     out = []
+    if not data:
+        return out
     for ev in data.get("events") or []:
         event_name = ev.get("name", "") or ev.get("shortName", "")
         ev_date_str = (ev.get("date") or "")[:10]
@@ -266,6 +228,73 @@ def fetch_espn_scoreboard_range(days_back: int = 400, before_date: Optional[str]
                 "method": _extract_method(short_detail),
                 "short_detail": short_detail,
             })
+    return out
+
+
+def fetch_espn_scoreboard_range(
+    days_back: int = 400, before_date: Optional[str] = None, chunk_days: int = 90,
+) -> list[dict]:
+    """
+    Pull completed UFC bouts from ESPN's /scoreboard across a date range —
+    ports the exact same architecture fix that rescued rugby's broken
+    per-team endpoint: /athletes (fighter bio/profile lookups) is confirmed
+    404 on both the "ufc" slug and the numeric league id 3321 (see
+    diagnose()), but /scoreboard is CONFIRMED working (200, real event data)
+    with the "ufc" slug. So fighter data here is derived from aggregating
+    real fight results league-wide, not from a per-fighter profile call.
+
+    FIXED 2026-07-15 (live-tested via /ufc-diag): a single one-shot
+    dates=START-END call spanning the full days_back window came back with
+    ZERO events, even though the exact same endpoint with NO dates param at
+    all returned a real event. Rather than guess why a wide range breaks,
+    this now chunks the window into `chunk_days`-sized pieces (default 90
+    — the exact size fetchers/tennis.py:_espn_recent_matches already
+    proved works for ESPN's individual-athlete scoreboards) and aggregates
+    across them, mirroring tennis's proven windowing instead of rugby's
+    unproven-for-this-endpoint single wide range.
+
+    Each ESPN "competition" under an MMA event is a single bout between two
+    individual athletes — same competitor shape fetchers/tennis.py already
+    parses successfully for ATP/WTA (competitor["athlete"]["displayName"],
+    comp["winnerId"]), reused here rather than guessed fresh.
+
+    days_back defaults to 400 (vs rugby's 200) because UFC fighters
+    typically compete only 2-3 times a year — a shorter window would starve
+    most fighters of any fight history at all.
+
+    `before_date` ('YYYY-MM-DD', the match being predicted) excludes events
+    on or after that calendar day — same data-leakage guard as rugby's
+    fetch_scoreboard_range (an already-finished same-day fight shouldn't
+    feed the "prediction" of itself).
+
+    Each entry: {date, event_name, fighter_a_id, fighter_a_name,
+    fighter_b_id, fighter_b_name, winner_id, method, short_detail}.
+    Empty list on failure (or if ESPN genuinely has no historical MMA data
+    behind this endpoint — see diagnose()'s per-chunk event counts).
+    """
+    cutoff = None
+    if before_date:
+        try:
+            cutoff = datetime.strptime(before_date[:10], "%Y-%m-%d").date()
+        except ValueError:
+            cutoff = None
+
+    end = datetime.now(timezone.utc).date()
+    overall_start = end - timedelta(days=days_back)
+    out: list[dict] = []
+    seen = set()
+    window_end = end
+    while window_end > overall_start:
+        window_start = max(overall_start, window_end - timedelta(days=chunk_days))
+        data = _espn_get("/scoreboard", {
+            "dates": f"{window_start.strftime('%Y%m%d')}-{window_end.strftime('%Y%m%d')}",
+        })
+        for fight in _parse_espn_mma_events(data, cutoff):
+            key = (fight["date"], fight["fighter_a_id"], fight["fighter_b_id"])
+            if key not in seen:
+                seen.add(key)
+                out.append(fight)
+        window_end = window_start
     return out
 
 
@@ -690,12 +719,36 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
                     with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
                         url = f"https://site.api.espn.com/apis/site/v2/sports/mma/{path}/scoreboard"
                         resp = client.get(url)
-                        out[f"espn_scoreboard_probe_{label}"] = {
+                        entry = {
                             "path": str(path), "status": resp.status_code,
                             "looks_ok": resp.status_code == 200,
-                            "event_count": len(resp.json().get("events", [])) if resp.status_code == 200 else None,
-                            "body_snippet": resp.text[:300] if resp.status_code != 200 else None,
+                            "event_count": None, "body_snippet": None,
                         }
+                        if resp.status_code == 200:
+                            body = resp.json()
+                            events = body.get("events", [])
+                            entry["event_count"] = len(events)
+                            # FIXED 2026-07-15: previously only counted events
+                            # here, so we never actually SAW what this "1
+                            # event" the no-dates-param call finds really is
+                            # (upcoming vs final, real MMA bout vs something
+                            # else) — capture it directly instead of guessing.
+                            entry["events_sample"] = [
+                                {
+                                    "name": ev.get("name"),
+                                    "date": ev.get("date"),
+                                    "status": (ev.get("competitions") or [{}])[0]
+                                                .get("status", {}).get("type", {}).get("name"),
+                                    "competitor_names": [
+                                        (c.get("athlete") or c.get("team") or {}).get("displayName")
+                                        for c in (ev.get("competitions") or [{}])[0].get("competitors", [])
+                                    ],
+                                }
+                                for ev in events[:5]
+                            ]
+                        else:
+                            entry["body_snippet"] = resp.text[:300]
+                        out[f"espn_scoreboard_probe_{label}"] = entry
                 except Exception as exc:
                     out[f"espn_scoreboard_probe_{label}_exception"] = str(exc)
 
@@ -724,6 +777,41 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
             out["espn_sample_fighter_method_rates"] = _method_rates(fights)
     except Exception as exc:
         out["espn_scoreboard_range_exception"] = str(exc)
+
+    # 0c. FIXED 2026-07-15 (live-tested): a single one-shot dates=START-END
+    # call spanning ~400 days came back with ZERO events even though the
+    # SAME endpoint with no dates param at all found a real event —
+    # fetch_espn_scoreboard_range switched to chunked ~90-day windows to
+    # work around this (see its docstring). Report per-chunk raw counts +
+    # a raw body snippet for the most recent chunk here so if chunking
+    # still comes back empty, the actual response body (not just a count)
+    # is visible without yet another round trip.
+    chunk_probe = []
+    today = datetime.now(timezone.utc).date()
+    for weeks_back in (0, 13, 26, 39, 52):
+        w_end = today - timedelta(days=weeks_back * 7)
+        w_start = w_end - timedelta(days=90)
+        try:
+            with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                url = f"{ESPN_BASE}/scoreboard"
+                params = {"dates": f"{w_start.strftime('%Y%m%d')}-{w_end.strftime('%Y%m%d')}"}
+                resp = client.get(url, params=params)
+                entry = {
+                    "window": f"{w_start.isoformat()}..{w_end.isoformat()}",
+                    "status": resp.status_code,
+                }
+                if resp.status_code == 200:
+                    body = resp.json()
+                    entry["event_count"] = len(body.get("events", []))
+                    entry["top_level_keys"] = list(body.keys())
+                    if entry["event_count"] == 0:
+                        entry["raw_body_snippet"] = resp.text[:400]
+                else:
+                    entry["body_snippet"] = resp.text[:300]
+                chunk_probe.append(entry)
+        except Exception as exc:
+            chunk_probe.append({"window": f"{w_start.isoformat()}..{w_end.isoformat()}", "exception": str(exc)})
+    out["espn_scoreboard_chunk_probe"] = chunk_probe
 
     # 1. FightMatrix rankings page
     fm_html = ""
