@@ -2727,6 +2727,9 @@ def trade_dashboard():
   .runner-status {{ font-size: 1rem; font-weight: 600; }}
   .runner-detail {{ font-size: .8rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }}
   footer {{ text-align: center; font-size: .75rem; color: var(--muted); padding: 20px; }}
+  .nav-row {{ display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }}
+  .nav-row a {{ color: var(--muted); text-decoration: none; }}
+  .nav-row a:hover {{ color: var(--blue); text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -2737,6 +2740,13 @@ def trade_dashboard():
   </div>
 </header>
 <main>
+
+  <div class="nav-row">
+    <a href="/">← Home</a><span>·</span>
+    <a href="/trading">Stock Market</a><span>·</span>
+    <a href="/trading/high-value">High Value (query box)</a><span>·</span>
+    <a href="/trade/low-value/dashboard">Low Value dashboard</a>
+  </div>
 
   <!-- Phase banner -->
   <div class="phase-banner">

@@ -467,6 +467,26 @@ def get_universe_snapshots(days: int = 30) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_universe_snapshot_for_date(scan_date: str) -> Optional[dict]:
+    """
+    Most recent logged snapshot for an exact scan_date (YYYY-MM-DD, ET),
+    or None. Added 2026-07-14 so fetchers/low_value_runner.py's
+    get_daily_universe() can survive a process restart — its in-memory
+    _universe_cache alone doesn't, and this repo's Railway deployment
+    redeploys (restarting the process, wiping that dict) far more often
+    than once a day, which made "build the universe once per day" not
+    actually true in practice: a manual scan right after a redeploy looked
+    like a brand new, different build even minutes after an earlier one on
+    the same calendar day.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM low_value_universe_snapshot WHERE scan_date = ? ORDER BY logged_at DESC LIMIT 1",
+            (scan_date,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def log_manual_override(action: str, symbol: Optional[str] = None, details: Optional[dict] = None) -> int:
     """
     Records any manual order placed outside the automated signal pipeline

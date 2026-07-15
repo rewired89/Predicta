@@ -385,6 +385,9 @@ def render_low_value_dashboard() -> str:
   .muted-note {{ font-size: .82rem; color: var(--muted); font-style: italic; }}
   footer {{ text-align: center; font-size: .75rem; color: var(--muted); padding: 20px; }}
   a {{ color: var(--blue); }}
+  .nav-row {{ display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }}
+  .nav-row a {{ color: var(--muted); text-decoration: none; }}
+  .nav-row a:hover {{ color: var(--blue); text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -395,6 +398,13 @@ def render_low_value_dashboard() -> str:
   </div>
 </header>
 <main>
+
+  <div class="nav-row">
+    <a href="/">← Home</a><span>·</span>
+    <a href="/trading">Stock Market</a><span>·</span>
+    <a href="/trading/low-value">Low Value (query box)</a><span>·</span>
+    <a href="/trade/dashboard">High Value dashboard</a>
+  </div>
 
   {scan_banner_html}
   {data_source_warning}

@@ -168,10 +168,12 @@ def _in_scan_window() -> bool:
 
 def get_daily_universe(force_refresh: bool = False) -> list[str]:
     """
-    Today's Low Value universe, cached in-memory for the day. Logs a snapshot
-    (including the volatility-floor stagnant_filtered_count, Kimi review
-    2026-07-07 follow-up) to low_value_universe_snapshot on every fresh scan
-    (not on cache hits).
+    Today's Low Value universe, cached in-memory for the day AND persisted
+    to the DB (see the 2026-07-14 note below) so a same-day rebuild can't
+    happen just because the process restarted. Logs a snapshot (including
+    the volatility-floor stagnant_filtered_count, Kimi review 2026-07-07
+    follow-up) to low_value_universe_snapshot on every fresh scan (not on
+    cache hits or DB-snapshot reuse).
     """
     today_str = _et_now().strftime("%Y-%m-%d")
     if not force_refresh and today_str in _universe_cache:
@@ -193,6 +195,38 @@ def get_daily_universe(force_refresh: bool = False) -> list[str]:
     with _build_lock:
         if not force_refresh and today_str in _universe_cache:
             return _universe_cache[today_str]
+
+        # 2026-07-14 production report: a user ran two manual scans ~20
+        # minutes apart, same calendar day, market closed, and got a
+        # different set of stocks each time — looked like "the model
+        # rescans and changes its mind for no reason." Real cause: this
+        # repo's Railway deployment redeploys (restarting the whole
+        # process) far more often than once a day, and _universe_cache is
+        # an in-memory dict — a redeploy between the two scans silently
+        # wiped it, so the second scan saw an empty cache and built a
+        # genuinely new universe from scratch, even though it was still
+        # "today" in ET. log_universe_snapshot() already writes every real
+        # build to the DB — check there first (DB-durable, survives a
+        # restart) before paying for a whole new build_low_value_universe()
+        # pass just because the in-memory cache happens to be cold.
+        if not force_refresh:
+            from fetchers.trading_logger import get_universe_snapshot_for_date
+            snap = get_universe_snapshot_for_date(today_str)
+            if snap and snap.get("symbols_json"):
+                import json as _json
+                try:
+                    universe = _json.loads(snap["symbols_json"])
+                except (TypeError, ValueError):
+                    universe = None
+                if universe is not None:
+                    _universe_cache.clear()
+                    _universe_cache[today_str] = universe
+                    log.info(
+                        f"[LOW_VALUE] Reusing DB-persisted universe snapshot for {today_str} "
+                        f"({len(universe)} symbols) — in-memory cache was cold, likely a recent restart"
+                    )
+                    return universe
+
         universe, stats = build_low_value_universe(today_str, max_candidates=UNIVERSE_SCAN_MAX_CANDIDATES)
         _universe_cache.clear()   # only ever keep today's entry
         _universe_cache[today_str] = universe
@@ -267,12 +301,24 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     if not syms:
         return []
 
-    existing_open = len(_load_open_positions())
+    open_positions = _load_open_positions()
+    existing_open = len(open_positions)
+    # 2026-07-14: nothing previously stopped run_low_value_scan from
+    # re-evaluating and re-logging a BRAND NEW trade for a symbol that
+    # already has an open Low Value position — the loop only tracked a
+    # total count against LOW_VALUE_MAX_CONCURRENT_POSITIONS, never which
+    # specific symbols were already held. Running the scan twice in the
+    # same day (nothing about the universe or the open positions has
+    # changed) could double up on the same symbol instead of leaving it
+    # alone until it actually closes.
+    already_open_symbols = {p["symbol"] for p in open_positions}
     news_by_symbol = scan_universe_news(syms)
     trade_ids: list[int] = []
     min_score = LOW_VALUE_SPRINT_MIN_SCORE if LOW_VALUE_DATA_COLLECTION_SPRINT_MODE else ENTRY_THRESHOLD
 
     for sym in syms:
+        if sym in already_open_symbols:
+            continue
         if existing_open + len(trade_ids) >= LOW_VALUE_MAX_CONCURRENT_POSITIONS:
             _run_log.append({
                 "ts": _et_now().isoformat(), "event": "PORTFOLIO_CAP_SKIP", "sym": sym,
