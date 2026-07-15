@@ -494,6 +494,9 @@ async function runAnalysis() {
       throw new Error(err.detail || 'Request failed');
     }
     data = await resp.json();
+    if (data.status === 'insufficient_data') {
+      throw new Error(data.narrative || 'No live data found for either team — check the names and try again.');
+    }
     setStep(3, 'done'); setStep(4, 'active');
     await stepDelay(100);
     setStep(4, 'done'); setStep(5, 'active');
