@@ -1,7 +1,7 @@
 """
 End-to-end UFC analysis pipeline.
 
-  query → ESPN /scoreboard-derived fight record + FightMatrix ranking (both fighters)
+  query → Sherdog record/bio/fight history (+ Wikipedia fallback) + FightMatrix ranking (both fighters)
         → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class)
         → blend with a stats-based logistic (models/ufc_model.py)
         → method-of-victory model (KO/TKO, submission, decision)
@@ -9,12 +9,13 @@ End-to-end UFC analysis pipeline.
         → narrative
         → result dict
 
-CHANGED 2026-07-15: fighter enrichment now comes from ESPN's /scoreboard
-(fetchers/ufc.py:enrich_ufc_fighters), not FightMatrix+Tapology bio scrapes
-— ESPN's /athletes endpoint is confirmed dead for MMA, but /scoreboard is
-confirmed live, so real win/loss record + method-of-victory rates are
-derived from aggregated fight results instead. FightMatrix ranking is still
-layered in as a supplementary signal; Tapology stays disabled.
+CHANGED 2026-07-15 (second time same day): fighter enrichment now comes
+from Sherdog (fetchers/ufc.py:enrich_ufc_fighters), with Wikipedia as a
+fallback when Sherdog doesn't resolve a fighter — ESPN is dropped from the
+active pipeline after its /scoreboard endpoint's historical-range behavior
+stayed unconfirmed through repeated live tests (its code stays in
+fetchers/ufc.py, just unused here). FightMatrix ranking is still layered
+in as a supplementary signal; Tapology stays disabled.
 
 Mirrors analyze_rugby.py's shape. Key differences from every score-based
 sport in this repo (soccer/baseball/rugby):
@@ -157,7 +158,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     odds_b = _as_decimal(parsed.get("odds_b_american"), parsed.get("odds_b_decimal"))
     has_odds = odds_a is not None and odds_b is not None
 
-    # ── ESPN scoreboard-derived record + FightMatrix ranking enrichment ─────
+    # ── Sherdog (+ Wikipedia fallback) record + FightMatrix ranking enrich ──
     try:
         enriched = enrich_ufc_fighters(fighter_a, fighter_b, before_date=match_date)
         steps.append({
@@ -172,7 +173,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     if not enriched["a"] and not enriched["b"]:
         steps.append({
             "step": "insufficient_data", "status": "halt",
-            "reason": "No live ESPN fight history or FightMatrix ranking reachable for either fighter.",
+            "reason": "No live Sherdog/Wikipedia fight history or FightMatrix ranking reachable for either fighter.",
         })
         return {
             "status": "insufficient_data", "sport": "ufc",
@@ -279,19 +280,25 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             )
             match_id = cur.lastrowid
 
-        # ESPN /scoreboard-derived record/finish-rate fields + FightMatrix
-        # ranking (switched 2026-07-15 — ESPN's /athletes bio endpoint is
-        # confirmed dead for MMA; reach_in/age are no longer available from
-        # any live source, see fetchers/ufc.py docstring)
+        # Sherdog/Wikipedia-derived record/finish-rate/bio fields +
+        # FightMatrix ranking (switched 2026-07-15, second time same day —
+        # ESPN dropped from the active pipeline, see fetchers/ufc.py
+        # docstring). reach_in/age/height_in ARE available again here when
+        # Sherdog's bio parse succeeds (unlike the ESPN-only period), but
+        # still fall back gracefully to None when it doesn't.
         sigs_to_log = [
             ("fm_rank", fighter_a, enriched["a"].get("fm_rank"), "fightmatrix"),
-            ("win_ko_rate", fighter_a, enriched["a"].get("win_ko_rate"), "espn_scoreboard"),
-            ("win_sub_rate", fighter_a, enriched["a"].get("win_sub_rate"), "espn_scoreboard"),
-            ("espn_fight_count", fighter_a, enriched["a"].get("espn_fight_count"), "espn_scoreboard"),
+            ("win_ko_rate", fighter_a, enriched["a"].get("win_ko_rate"), "sherdog_wikipedia"),
+            ("win_sub_rate", fighter_a, enriched["a"].get("win_sub_rate"), "sherdog_wikipedia"),
+            ("fight_history_count", fighter_a, enriched["a"].get("fight_history_count"), "sherdog_wikipedia"),
+            ("reach_in", fighter_a, enriched["a"].get("reach_in"), "sherdog"),
+            ("age", fighter_a, enriched["a"].get("age"), "sherdog"),
             ("fm_rank", fighter_b, enriched["b"].get("fm_rank"), "fightmatrix"),
-            ("win_ko_rate", fighter_b, enriched["b"].get("win_ko_rate"), "espn_scoreboard"),
-            ("win_sub_rate", fighter_b, enriched["b"].get("win_sub_rate"), "espn_scoreboard"),
-            ("espn_fight_count", fighter_b, enriched["b"].get("espn_fight_count"), "espn_scoreboard"),
+            ("win_ko_rate", fighter_b, enriched["b"].get("win_ko_rate"), "sherdog_wikipedia"),
+            ("win_sub_rate", fighter_b, enriched["b"].get("win_sub_rate"), "sherdog_wikipedia"),
+            ("fight_history_count", fighter_b, enriched["b"].get("fight_history_count"), "sherdog_wikipedia"),
+            ("reach_in", fighter_b, enriched["b"].get("reach_in"), "sherdog"),
+            ("age", fighter_b, enriched["b"].get("age"), "sherdog"),
         ]
         for name, participant, val, source in sigs_to_log:
             v = _safe_float(val)
@@ -334,7 +341,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "narrative": narrative,
         "prob_a": round(prob_a * 100, 1), "prob_b": round(prob_b * 100, 1),
         "data_confidence": confidence, "data_completeness": data_completeness,
-        "data_sources": ["espn_scoreboard", "fightmatrix", "glicko2"],
+        "data_sources": ["sherdog", "wikipedia", "fightmatrix", "glicko2"],
         "model_explanation": explanation,
         "bet_recommendations": recs, "kelly": kelly,
         "market_comparison": edge_summary,

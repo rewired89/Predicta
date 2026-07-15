@@ -3,28 +3,33 @@ UFC data scraper. History: ufcstats.com (JS anti-bot proof-of-work
 challenge, declined to solve) → fightmatrix.com + tapology.com (Tapology
 confirmed Cloudflare-blocked; FightMatrix's ranking table confirmed
 JS-rendered, not in static HTML) → ESPN (2026-07-15, per direct user
-request — "Did we have ESPN's MMA all along?"). See CLAUDE.md's UFC
-section for the full story.
+request) → ESPN's /athletes confirmed dead, /scoreboard confirmed live but
+its historical-range query behavior was still unconfirmed after hours of
+live-testing → Sherdog + Wikipedia (2026-07-15, per direct user request —
+tired of chasing ESPN with no working end-to-end result). See CLAUDE.md's
+UFC section for the full story.
 
-CURRENT PRIMARY SOURCE (2026-07-15): ESPN's /scoreboard endpoint, NOT
-/athletes. Live testing found /athletes (fighter bio/profile lookups)
-404s for MMA on both the "ufc" slug and the numeric league id (3321) —
-ESPN's site API appears to simply not expose per-fighter profiles for MMA.
-/scoreboard (event/fight results), by contrast, is CONFIRMED working (200,
-real event data) with the "ufc" slug. So fighter data is derived by
-aggregating real fight results league-wide (fetch_espn_scoreboard_range)
-and deriving each fighter's record + finish-method rates from it
-client-side (_fighter_fights_from_scoreboard, _method_rates) — the same
-architecture fix that rescued rugby's broken per-team /schedule endpoint
-in fetchers/rugby.py.
+CURRENT PRIMARY SOURCES: sherdog.com (dedicated MMA stats database — the
+site most public MMA-scraping projects target; plain server-rendered HTML,
+not a JS SPA like FightMatrix, no known Cloudflare/bot-wall like Tapology)
+for record + fight history + bio, with Wikipedia as a fallback when Sherdog
+doesn't resolve a fighter — Wikipedia is guaranteed not bot-blocked (has an
+official, scraping-friendly Action API) and most UFC fighter pages carry a
+structured "Mixed martial arts record" wikitable. Neither has been
+live-verified from this sandbox (same limitation as every source in this
+file — this repo's dev environment can't reach any external site), so both
+are built diagnostic-first (see diagnose()) and lean on best-effort TEXT
+PATTERN extraction (numbers/keywords) rather than assuming exact CSS
+classes or wikitable column order, the same resilience approach already
+used for Tapology.
 
-This gives real win/loss record + method-of-victory rates, but NOT
-reach/age bio data (ESPN has no working bio endpoint for MMA). FightMatrix
-ranking is layered in as a supplementary signal (its own lookup doesn't
-depend on the broken ranking-table scrape) for models/ufc_model.py's
-stats_win_prob, which degrades gracefully to ranking + Glicko-2 alone when
-reach/age are None. Tapology's call path stays disabled (confirmed
-Cloudflare-blocked, 403 "Just a moment…").
+FightMatrix ranking stays layered in as a supplementary signal for
+models/ufc_model.py's stats_win_prob (its own lookup doesn't depend on the
+broken ranking-table scrape). ESPN's fetch functions (fetch_espn_athletes,
+fetch_espn_scoreboard_range, etc.) and Tapology's functions are LEFT IN THE
+FILE but NOT called from enrich_ufc_fighters anymore — parked in case a
+future fix makes them useful, not deleted, per this repo's "don't erase
+work that might matter later" convention.
 """
 from __future__ import annotations
 import re
@@ -36,6 +41,16 @@ from bs4 import BeautifulSoup
 
 FIGHTMATRIX_BASE = "https://www.fightmatrix.com"
 TAPOLOGY_BASE = "https://www.tapology.com"
+
+# Sherdog + Wikipedia — added 2026-07-15 as the new PRIMARY sources, after
+# hours of live-testing left ESPN's /scoreboard endpoint's historical-range
+# behavior still unconfirmed (see module docstring / CLAUDE.md). Sherdog is
+# the dedicated MMA stats database most public scraping projects target;
+# Wikipedia is the fallback precisely because it CANNOT be bot-walled (it
+# has an official API built for exactly this kind of read access).
+SHERDOG_BASE = "https://www.sherdog.com"
+WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
+_SHERDOG_PROFILE_RE = re.compile(r"/fighter/[^\"'>\s]+-\d+")
 
 # ESPN — added 2026-07-15 as the new PRIMARY source, after FightMatrix's
 # ranking table turned out to be JS-rendered (not in static HTML) and
@@ -390,6 +405,253 @@ def _name_matches(query: str, candidate: str) -> bool:
     return difflib.SequenceMatcher(None, q, c).ratio() >= 0.72
 
 
+# ── Sherdog: PRIMARY — record, bio, fight history with method-of-victory ────
+
+def search_sherdog_fighter(name: str) -> Optional[dict]:
+    """
+    Search sherdog.com for a fighter profile link. Finds candidates by URL
+    PATTERN (/fighter/{Name-With-Dashes}-{id}) rather than a guessed CSS
+    class, same convention this file already uses for FightMatrix/Tapology
+    (path patterns survive markup/redesign changes better than class
+    names). Returns {name, url} for the best fuzzy match, or None.
+    """
+    html = _get(f"{SHERDOG_BASE}/search", {"q": name})
+    if not html:
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    candidates = []
+    seen = set()
+    for a in soup.find_all("a", href=_SHERDOG_PROFILE_RE):
+        href = a.get("href", "")
+        if href in seen:
+            continue
+        seen.add(href)
+        text = a.get_text(strip=True)
+        if text:
+            candidates.append({"name": text, "url": href if href.startswith("http") else f"{SHERDOG_BASE}{href}"})
+    if not candidates:
+        return None
+    for c in candidates:
+        if c["name"].lower() == name.lower().strip():
+            return c
+    for c in candidates:
+        if _name_matches(name, c["name"]):
+            return c
+    return candidates[0]
+
+
+def fetch_sherdog_profile(url: str) -> dict:
+    """
+    Scrape a Sherdog fighter profile for record + bio. Uses best-effort TEXT
+    PATTERN matching (numbers/keyword regexes over the page's plain text)
+    rather than assuming exact CSS classes, since Sherdog's markup hasn't
+    been live-verified from this sandbox — same resilience approach already
+    used for fetch_tapology_profile. Individual fields are None when their
+    pattern isn't found rather than guessed. Returns {} on failure. Keys:
+    name, wins, losses, draws, height_in, reach_in, age.
+    """
+    html = _get(url)
+    if not html:
+        return {}
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True)
+
+    name_el = soup.find(attrs={"itemprop": "name"}) or soup.find("h1") or soup.find("title")
+    name = name_el.get_text(strip=True) if name_el else ""
+
+    wins = losses = draws = None
+    m = re.search(r"\b(\d{1,3})-(\d{1,3})-(\d{1,3})\b", text)
+    if m:
+        wins, losses, draws = int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+    height_in = None
+    m = re.search(r"HEIGHT[:\s]*(\d)['’]\s*(\d{1,2})", text, re.IGNORECASE)
+    if m:
+        height_in = int(m.group(1)) * 12 + int(m.group(2))
+
+    reach_in = None
+    m = re.search(r'REACH[:\s]*(\d{2,3})\s*"?', text, re.IGNORECASE)
+    if m:
+        reach_in = float(m.group(1))
+
+    age = None
+    m = re.search(r"AGE[:\s]*(\d{2})", text, re.IGNORECASE)
+    if m:
+        age = float(m.group(1))
+    if age is None:
+        m = re.search(r"\b(19|20)\d{2}[.\-/](0[1-9]|1[0-2])[.\-/](0[1-9]|[12]\d|3[01])\b", text)
+        if m:
+            try:
+                dob = datetime.strptime(m.group(0).replace("/", "-").replace(".", "-"), "%Y-%m-%d")
+                age = (datetime.now() - dob).days / 365.25
+            except Exception:
+                age = None
+
+    return {
+        "name": name, "wins": wins, "losses": losses, "draws": draws,
+        "height_in": height_in, "reach_in": reach_in, "age": age,
+    }
+
+
+def fetch_sherdog_fight_history(url: str, limit: int = 15) -> list[dict]:
+    """
+    Extract a fighter's fight history from their Sherdog profile page.
+    Tries a table whose header row mentions "method" or "opponent" first
+    (flexible header matching rather than an exact class name, since the
+    real markup hasn't been live-verified); falls back to the same
+    "Win/Loss ... Method" text-pattern scan fetch_tapology_fight_history
+    already uses if no such table is found. Returns [{result, opponent,
+    method}]. Empty list on failure.
+    """
+    html = _get(url)
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    fights = []
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+        header_text = rows[0].get_text(" ", strip=True).lower()
+        if "method" not in header_text and "opponent" not in header_text:
+            continue
+        for row in rows[1:]:
+            cells = row.find_all(["td", "th"])
+            if len(cells) < 3:
+                continue
+            cell_texts = [c.get_text(" ", strip=True) for c in cells]
+            result_text = cell_texts[0].lower()
+            if "win" in result_text:
+                result = "W"
+            elif "los" in result_text:
+                result = "L"
+            else:
+                continue
+            opponent = cell_texts[1] if len(cell_texts) > 1 else ""
+            method = next(
+                (c for c in cell_texts[2:] if re.search(r"decision|submission|\bko\b|\btko\b|dq", c, re.IGNORECASE)),
+                "",
+            )
+            fights.append({"result": result, "opponent": opponent, "method": method})
+        if fights:
+            break
+    if not fights:
+        text = soup.get_text(" ", strip=True)
+        for m in re.finditer(
+            r"\b(Win|Loss)\b[^.]{0,60}?\b(Decision|Submission|KO|TKO|DQ)\b",
+            text, re.IGNORECASE,
+        ):
+            result = "W" if m.group(1).lower() == "win" else "L"
+            fights.append({"result": result, "method": m.group(2)})
+    return fights[:limit]
+
+
+# ── Wikipedia: fallback — guaranteed reachable, structured record table ─────
+
+def _wikipedia_search(name: str) -> Optional[str]:
+    """Find the best-matching Wikipedia page title for a fighter name via
+    the official search API. Returns None on failure or no results."""
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(WIKIPEDIA_API, params={
+                "action": "query", "list": "search",
+                "srsearch": f"{name} mixed martial artist",
+                "format": "json", "srlimit": 5,
+            })
+            resp.raise_for_status()
+            results = resp.json().get("query", {}).get("search", [])
+            return results[0].get("title") if results else None
+    except Exception:
+        return None
+
+
+def fetch_wikipedia_mma_record(name: str) -> list[dict]:
+    """
+    Fetch a fighter's MMA fight history from their Wikipedia page. Wikipedia
+    is not anti-bot-blocked (it has an official, scraping-friendly Action
+    API) — used here specifically as the source that CAN'T hit the same
+    Cloudflare/JS-challenge walls that killed ufcstats.com/Tapology and the
+    JS-rendering issue that killed FightMatrix's ranking table. Most UFC
+    fighter pages carry a "Mixed martial arts record" wikitable via a
+    common template, but this parses it via flexible header-name matching
+    (not an assumed fixed column order) since the exact table hasn't been
+    live-verified from this sandbox. Returns [{result: 'W'|'L'|'D'|'NC',
+    opponent, method, event, date}]. Empty list on failure or if no record
+    table is found (e.g. the fighter has no Wikipedia page).
+    """
+    title = _wikipedia_search(name)
+    if not title:
+        return []
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(WIKIPEDIA_API, params={
+                "action": "parse", "page": title, "prop": "text", "format": "json",
+            })
+            resp.raise_for_status()
+            html = resp.json().get("parse", {}).get("text", {}).get("*", "")
+    except Exception:
+        return []
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+    heading = None
+    for tag in soup.find_all(["h2", "h3"]):
+        if "mixed martial arts record" in tag.get_text(" ", strip=True).lower():
+            heading = tag
+            break
+
+    table = None
+    if heading is not None:
+        node = heading.find_next(["table", "h2", "h3"])
+        if node is not None and node.name == "table":
+            table = node
+    if table is None:
+        table = soup.find("table", class_="wikitable")
+    if table is None:
+        return []
+
+    rows = table.find_all("tr")
+    if not rows:
+        return []
+    header_cells = [c.get_text(" ", strip=True).lower() for c in rows[0].find_all(["th", "td"])]
+
+    def _col(name_frag: str) -> Optional[int]:
+        for i, h in enumerate(header_cells):
+            if name_frag in h:
+                return i
+        return None
+
+    res_i, opp_i = _col("res"), _col("opponent")
+    method_i, event_i, date_i = _col("method"), _col("event"), _col("date")
+
+    fights = []
+    for row in rows[1:]:
+        cells = [c.get_text(" ", strip=True) for c in row.find_all(["th", "td"])]
+        if len(cells) < 3:
+            continue
+
+        def _get(i: Optional[int]) -> str:
+            return cells[i] if i is not None and i < len(cells) else ""
+
+        res_text = _get(res_i).lower()
+        if res_text.startswith("win"):
+            result = "W"
+        elif res_text.startswith("loss") or res_text.startswith("lose"):
+            result = "L"
+        elif res_text.startswith("draw"):
+            result = "D"
+        elif res_text.startswith("nc") or "no contest" in res_text:
+            result = "NC"
+        else:
+            continue
+        fights.append({
+            "result": result, "opponent": _get(opp_i),
+            "method": _get(method_i), "event": _get(event_i), "date": _get(date_i),
+        })
+    return fights
+
+
 # ── FightMatrix: Elo-style ranking (secondary signal, not per-fight stats) ────
 
 def fetch_fightmatrix_rankings() -> list[dict]:
@@ -582,46 +844,72 @@ def _method_rates(fights: list[dict]) -> dict:
 
 def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = None) -> dict:
     """
-    Main entry point. PRIMARY source is ESPN's /scoreboard (switched
-    2026-07-15, same day as the ESPN-primary switch itself) — NOT /athletes.
-    Live testing found ESPN's /athletes endpoint (fighter bio/profile
-    lookups) 404s for MMA on both the "ufc" slug and the numeric league id
-    3321, while /scoreboard (event/fight results) is CONFIRMED working (200,
-    real event data) with the "ufc" slug. Rather than keep depending on the
-    dead endpoint, this ports the exact fix that rescued rugby's broken
-    per-team /schedule endpoint: pull a shared league-wide /scoreboard range
-    once (fetch_espn_scoreboard_range) and derive each fighter's real
-    win/loss record + finish-method rates from it client-side
-    (_fighter_fights_from_scoreboard + _method_rates), instead of a
-    per-fighter profile call.
+    Main entry point. REWRITTEN 2026-07-15 (second rewrite same day) — after
+    hours of live-testing left ESPN's /scoreboard historical-range behavior
+    still unconfirmed, per direct user request this drops ESPN from the
+    active pipeline entirely (its functions stay in the file, just unused
+    here) in favor of two sources that don't depend on that one endpoint's
+    quirks:
 
-    This gives a real record and method-of-victory signal (feeds
-    models/ufc_model.py:method_of_victory directly) but NOT reach/age bio
-    data — ESPN doesn't expose that without a working /athletes endpoint.
+      1. Sherdog (PRIMARY) — search_sherdog_fighter → fetch_sherdog_profile
+         (bio: wins/losses/draws/height/reach/age) + fetch_sherdog_fight_history
+         (per-fight result/opponent/method, feeds _method_rates).
+      2. Wikipedia (FALLBACK) — fetch_wikipedia_mma_record, used only to
+         fill in win/loss/method data when Sherdog doesn't resolve the
+         fighter or returns no fight history. Wikipedia can't hit a
+         Cloudflare/JS-challenge wall the way ufcstats.com/Tapology did,
+         so it's the most bot-wall-resistant option available here.
+
     FightMatrix ranking is still layered in as a supplementary signal for
-    the win-probability side (models/ufc_model.py:stats_win_prob degrades
-    gracefully when reach/age are None, relying on ranking + Glicko-2
-    instead). Tapology stays disabled (confirmed Cloudflare-blocked).
+    models/ufc_model.py:stats_win_prob (degrades gracefully to Glicko-2
+    alone when neither ranking nor reach/age resolve). Tapology and ESPN
+    stay disabled/unused here (Tapology confirmed Cloudflare-blocked; ESPN
+    demoted per user request after its scoreboard-range behavior stayed
+    unconfirmed through repeated live tests).
 
-    A fighter's dict is {} only when neither ESPN scoreboard history nor
-    FightMatrix ranking resolves them.
+    A fighter's dict is {} only when Sherdog, Wikipedia, AND FightMatrix all
+    fail to resolve them.
+
+    `before_date` is accepted for call-site compatibility (analyze_ufc.py
+    passes match_date) but neither Sherdog nor Wikipedia support a
+    date-filtered query the way ESPN's /scoreboard did — the leakage guard
+    here instead excludes any fight against `name_b`/`name_a` directly from
+    each other's history (see below), which is actually more precise than a
+    date cutoff for this specific case.
     """
     result: dict = {"a": {}, "b": {}}
-    events = fetch_espn_scoreboard_range(before_date=before_date)
+    opponent_of = {"a": name_b, "b": name_a}
     for key, name in (("a", name_a), ("b", name_b)):
         profile: dict = {}
 
-        fights = _fighter_fights_from_scoreboard(name, events)
+        sherdog_match = search_sherdog_fighter(name)
+        fights: list[dict] = []
+        if sherdog_match:
+            bio = fetch_sherdog_profile(sherdog_match["url"])
+            if bio:
+                profile.update(bio)
+            fights = fetch_sherdog_fight_history(sherdog_match["url"])
+
+        if not fights:
+            fights = fetch_wikipedia_mma_record(name)
+
+        # Data-leakage guard (same class as rugby's before_date exclusion):
+        # if these two fighters already fought and that bout is sitting in
+        # the career history returned above (e.g. a same-day query made
+        # after the result is in), its own outcome/method shouldn't feed
+        # the "prediction" of itself. Match by opponent name rather than by
+        # date since neither source is queried with a date filter here.
+        opponent = opponent_of[key]
+        fights = [f for f in fights if not _name_matches(opponent, f.get("opponent") or "")]
+
         if fights:
-            profile["wins"] = sum(1 for f in fights if f["result"] == "W")
-            profile["losses"] = sum(1 for f in fights if f["result"] == "L")
-            # ESPN's scoreboard doesn't distinguish a draw/no-contest from an
-            # unresolved winner_id (excluded above) — reporting 0 rather than
-            # guessing at a real draw count.
-            profile["draws"] = 0
+            if profile.get("wins") is None:
+                profile["wins"] = sum(1 for f in fights if f["result"] == "W")
+                profile["losses"] = sum(1 for f in fights if f["result"] == "L")
+                profile["draws"] = sum(1 for f in fights if f["result"] == "D")
             profile.update(_method_rates(fights))
-            profile["espn_fight_count"] = len(fights)
-            profile["name"] = name
+            profile["fight_history_count"] = len(fights)
+            profile.setdefault("name", name)
 
         fm_match = lookup_fightmatrix_fighter(name)
         if fm_match:
@@ -636,22 +924,57 @@ def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = N
 
 def diagnose(sample_fighter: str = "Jon Jones") -> dict:
     """
-    One-shot diagnostic. Extended 2026-07-15 to test ESPN FIRST (added as
-    the new primary source after FightMatrix's ranking table turned out
-    JS-rendered and Tapology turned out Cloudflare-blocked) — same
-    "test the URL before trusting it" approach that found and fixed the
-    rugby ESPN league-ID bug: probes /athletes with the current ESPN_BASE
-    guess, and if that 404s, runs discover_espn_leagues() plus a few
-    candidate (sport, league) slugs automatically instead of guessing once
-    across another round-trip. Still also reports FightMatrix/Tapology
-    status for completeness.
+    One-shot diagnostic. REORDERED 2026-07-15 (second time same day) to
+    test Sherdog + Wikipedia FIRST — the new primary/fallback sources,
+    switched to after ESPN's /scoreboard historical-range behavior stayed
+    unconfirmed through repeated live tests. Same "test the URL before
+    trusting it" approach used throughout this file: raw status/content
+    checks before any parsed-data assertions. ESPN/FightMatrix/Tapology
+    probes are KEPT below for reference (none of those sources are deleted,
+    just no longer called from enrich_ufc_fighters) — see module docstring.
     """
     out: dict = {
+        "sherdog_base": SHERDOG_BASE, "wikipedia_api": WIKIPEDIA_API,
         "espn_base": ESPN_BASE,
         "fightmatrix_base": FIGHTMATRIX_BASE, "tapology_base": TAPOLOGY_BASE,
     }
 
-    # 0. ESPN /athletes probe (new primary source)
+    # 0. Sherdog search + profile + fight history (NEW PRIMARY)
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{SHERDOG_BASE}/search", params={"q": sample_fighter})
+            out["sherdog_search_status"] = resp.status_code
+            out["sherdog_search_url"] = str(resp.url)
+            out["sherdog_content_length"] = len(resp.text)
+            out["sherdog_has_profile_links"] = bool(_SHERDOG_PROFILE_RE.search(resp.text))
+            if resp.status_code != 200 or not out["sherdog_has_profile_links"]:
+                out["sherdog_raw_snippet"] = resp.text[:1500]
+    except Exception as exc:
+        out["sherdog_search_exception"] = str(exc)
+
+    try:
+        match = search_sherdog_fighter(sample_fighter)
+        out["sherdog_sample_matched"] = match
+        if match:
+            out["sherdog_parsed_profile"] = fetch_sherdog_profile(match["url"])
+            out["sherdog_parsed_history_sample"] = fetch_sherdog_fight_history(match["url"], limit=5)
+    except Exception as exc:
+        out["sherdog_parse_exception"] = str(exc)
+
+    # 0a. Wikipedia record table (NEW FALLBACK — can't be bot-walled)
+    try:
+        title = _wikipedia_search(sample_fighter)
+        out["wikipedia_matched_title"] = title
+        if title:
+            fights = fetch_wikipedia_mma_record(sample_fighter)
+            out["wikipedia_parsed_fight_count"] = len(fights)
+            out["wikipedia_parsed_sample"] = fights[:5]
+    except Exception as exc:
+        out["wikipedia_exception"] = str(exc)
+
+    # 1. ESPN /athletes probe (PARKED — no longer called from
+    # enrich_ufc_fighters, kept here only in case a future ESPN fix makes
+    # it worth revisiting)
     try:
         with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
             resp = client.get(f"{ESPN_BASE}/athletes", params={"limit": 100, "page": 1})
