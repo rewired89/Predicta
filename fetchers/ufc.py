@@ -1,38 +1,34 @@
 """
-UFC data scraper — fightmatrix.com (rankings) + tapology.com (records, bio,
-fight history). Switched 2026-07-14 from ufcstats.com after live-testing on
-Railway showed ufcstats.com serves a JavaScript proof-of-work anti-bot
-challenge ("Checking your browser…") to any plain HTTP client — a wall this
-scraper cannot and will not try to solve (that's circumventing a site's
-explicit anti-bot security measure, not just reading a public page). See
-CLAUDE.md's UFC section for the full story.
+UFC data scraper. History: ufcstats.com (JS anti-bot proof-of-work
+challenge, declined to solve) → fightmatrix.com + tapology.com (Tapology
+confirmed Cloudflare-blocked; FightMatrix's ranking table confirmed
+JS-rendered, not in static HTML) → ESPN (2026-07-15, per direct user
+request — "Did we have ESPN's MMA all along?"). See CLAUDE.md's UFC
+section for the full story.
 
-Neither fightmatrix.com nor tapology.com has been live-verified from this
-session either — this repo's dev sandbox can't reach ANY external site
-(confirmed for espn.com, ufcstats.com, and now these two as well), and
-unlike ufcstats.com's exact CSS classes (which were at least confidently
-known before turning out to be blocked), the precise markup of these two
-sites was never memorized with high confidence to begin with. To reduce
-how much can go wrong on the first live test, fighter-profile links are
-found by URL PATTERN (a distinctive path segment like
-"/fightcenter/fighters/12345-name") rather than by guessing CSS class
-names — path patterns tend to survive markup/redesign changes better than
-class names do. diagnose() is built in from the start (not bolted on after
-a failure, like it was for ufcstats.com) so the first real test surfaces
-the actual page content immediately.
+CURRENT PRIMARY SOURCE (2026-07-15): ESPN's /scoreboard endpoint, NOT
+/athletes. Live testing found /athletes (fighter bio/profile lookups)
+404s for MMA on both the "ufc" slug and the numeric league id (3321) —
+ESPN's site API appears to simply not expose per-fighter profiles for MMA.
+/scoreboard (event/fight results), by contrast, is CONFIRMED working (200,
+real event data) with the "ufc" slug. So fighter data is derived by
+aggregating real fight results league-wide (fetch_espn_scoreboard_range)
+and deriving each fighter's record + finish-method rates from it
+client-side (_fighter_fights_from_scoreboard, _method_rates) — the same
+architecture fix that rescued rugby's broken per-team /schedule endpoint
+in fetchers/rugby.py.
 
-Data available here is deliberately less rich than ufcstats.com would have
-been: FightMatrix gives an Elo-style ranking (used the same way
-analyze_esports.py turns a world ranking into a rating — see
-models/ufc_model.py), Tapology gives W-L-D record, height/reach/age, and
-fight history with method-of-victory. Neither exposes ufcstats.com-level
-per-minute striking/grappling stats (SLpM, TD accuracy, etc.), so
-models/ufc_model.py's stats-based win-probability signal now runs on
-ranking + reach + age instead.
+This gives real win/loss record + method-of-victory rates, but NOT
+reach/age bio data (ESPN has no working bio endpoint for MMA). FightMatrix
+ranking is layered in as a supplementary signal (its own lookup doesn't
+depend on the broken ranking-table scrape) for models/ufc_model.py's
+stats_win_prob, which degrades gracefully to ranking + Glicko-2 alone when
+reach/age are None. Tapology's call path stays disabled (confirmed
+Cloudflare-blocked, 403 "Just a moment…").
 """
 from __future__ import annotations
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -171,6 +167,140 @@ def fetch_espn_athlete_bio(athlete_id: str) -> dict:
         "losses": (athlete.get("losses") or {}).get("value") if isinstance(athlete.get("losses"), dict) else athlete.get("losses"),
         "draws": (athlete.get("draws") or {}).get("value") if isinstance(athlete.get("draws"), dict) else athlete.get("draws"),
     }
+
+
+_METHOD_RE = re.compile(r"\b(KO/TKO|TKO|KO|Submission|Decision|DQ)\b", re.IGNORECASE)
+
+
+def _extract_method(text: str) -> Optional[str]:
+    """Pull a finish method out of ESPN's shortDetail text (e.g. 'Final -
+    Submission, Rd 2, 2:34'). Returns None when no recognizable method
+    keyword is present, rather than guessing."""
+    if not text:
+        return None
+    m = _METHOD_RE.search(text)
+    return m.group(1) if m else None
+
+
+def fetch_espn_scoreboard_range(days_back: int = 400, before_date: Optional[str] = None) -> list[dict]:
+    """
+    Pull completed UFC bouts from ESPN's /scoreboard across a date range —
+    ports the exact same architecture fix that rescued rugby's broken
+    per-team endpoint: /athletes (fighter bio/profile lookups) is confirmed
+    404 on both the "ufc" slug and the numeric league id 3321 (see
+    diagnose()), but /scoreboard is CONFIRMED working (200, real event data)
+    with the "ufc" slug. So fighter data here is derived from aggregating
+    real fight results league-wide, not from a per-fighter profile call.
+
+    Each ESPN "competition" under an MMA event is a single bout between two
+    individual athletes — same competitor shape fetchers/tennis.py already
+    parses successfully for ATP/WTA (competitor["athlete"]["displayName"],
+    comp["winnerId"]), reused here rather than guessed fresh.
+
+    days_back defaults to 400 (vs rugby's 200) because UFC fighters
+    typically compete only 2-3 times a year — a shorter window would starve
+    most fighters of any fight history at all.
+
+    `before_date` ('YYYY-MM-DD', the match being predicted) excludes events
+    on or after that calendar day — same data-leakage guard as rugby's
+    fetch_scoreboard_range (an already-finished same-day fight shouldn't
+    feed the "prediction" of itself).
+
+    Each entry: {date, event_name, fighter_a_id, fighter_a_name,
+    fighter_b_id, fighter_b_name, winner_id, method, short_detail}.
+    Empty list on failure.
+    """
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days_back)
+    data = _espn_get("/scoreboard", {
+        "dates": f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}",
+        "limit": 300,
+    })
+    if not data:
+        return []
+    cutoff = None
+    if before_date:
+        try:
+            cutoff = datetime.strptime(before_date[:10], "%Y-%m-%d").date()
+        except ValueError:
+            cutoff = None
+
+    out = []
+    for ev in data.get("events") or []:
+        event_name = ev.get("name", "") or ev.get("shortName", "")
+        ev_date_str = (ev.get("date") or "")[:10]
+        if cutoff is not None:
+            try:
+                if datetime.strptime(ev_date_str, "%Y-%m-%d").date() >= cutoff:
+                    continue
+            except ValueError:
+                pass
+        for comp in ev.get("competitions") or []:
+            status = comp.get("status", {}).get("type", {}).get("name", "")
+            if status != "STATUS_FINAL":
+                continue
+            competitors = comp.get("competitors", [])
+            if len(competitors) < 2:
+                continue
+            a, b = competitors[0], competitors[1]
+            a_athlete = a.get("athlete") or a.get("team") or {}
+            b_athlete = b.get("athlete") or b.get("team") or {}
+            a_name = a_athlete.get("displayName", "")
+            b_name = b_athlete.get("displayName", "")
+            if not a_name or not b_name:
+                continue
+
+            winner_id = comp.get("winnerId")
+            if winner_id is None:
+                winner_id = next((c.get("id") for c in competitors if c.get("winner") is True), None)
+
+            short_detail = comp.get("status", {}).get("type", {}).get("shortDetail", "") or ""
+            out.append({
+                "date": ev_date_str,
+                "event_name": event_name,
+                "fighter_a_id": str(a.get("id") or a_athlete.get("id") or ""),
+                "fighter_a_name": a_name,
+                "fighter_b_id": str(b.get("id") or b_athlete.get("id") or ""),
+                "fighter_b_name": b_name,
+                "winner_id": str(winner_id) if winner_id is not None else None,
+                "method": _extract_method(short_detail),
+                "short_detail": short_detail,
+            })
+    return out
+
+
+def _fighter_fights_from_scoreboard(name: str, events: list[dict], limit: int = 20) -> list[dict]:
+    """
+    Filter a shared fetch_espn_scoreboard_range() result down to one
+    fighter's bouts, matched by name, most recent first:
+    [{date, opponent, result: 'W'|'L', method}].
+
+    Bouts where the winner can't be resolved (winner_id missing — could be
+    a draw or no-contest, ESPN doesn't distinguish here) are excluded rather
+    than guessed, mirroring this repo's "don't fabricate from ambiguous
+    data" convention.
+    """
+    name_lo = name.lower().strip()
+    fights = []
+    for ev in events:
+        a_lo, b_lo = ev["fighter_a_name"].lower(), ev["fighter_b_name"].lower()
+        if name_lo == a_lo or name_lo in a_lo or a_lo in name_lo:
+            is_a = True
+        elif name_lo == b_lo or name_lo in b_lo or b_lo in name_lo:
+            is_a = False
+        else:
+            continue
+        if ev["winner_id"] is None:
+            continue
+        self_id = ev["fighter_a_id"] if is_a else ev["fighter_b_id"]
+        opponent = ev["fighter_b_name"] if is_a else ev["fighter_a_name"]
+        result = "W" if ev["winner_id"] == self_id else "L"
+        fights.append({
+            "date": ev["date"], "opponent": opponent,
+            "result": result, "method": ev["method"],
+        })
+    fights.sort(key=lambda f: f["date"], reverse=True)
+    return fights[:limit]
 
 
 def discover_espn_leagues(sport: str = "mma") -> dict:
@@ -399,15 +529,18 @@ def fetch_tapology_fight_history(url: str, limit: int = 15) -> list[dict]:
 
 def _method_rates(fights: list[dict]) -> dict:
     """Same shape/logic as before — win/loss method shares, None (not 0) when
-    a fighter has zero fights of that outcome type."""
+    a fighter has zero fights of that outcome type. Fights with no resolved
+    method (ESPN's shortDetail didn't match a known keyword) are excluded
+    from the share's denominator rather than treated as a decision."""
     wins = [f for f in fights if f["result"] == "W"]
     losses = [f for f in fights if f["result"] == "L"]
 
     def _share(items: list[dict], keyword: str) -> Optional[float]:
-        if not items:
+        known = [f for f in items if f.get("method")]
+        if not known:
             return None
-        n = sum(1 for f in items if keyword in f["method"].lower())
-        return n / len(items)
+        n = sum(1 for f in known if keyword in f["method"].lower())
+        return n / len(known)
 
     return {
         "win_ko_rate":  _share(wins, "ko"),
@@ -418,28 +551,48 @@ def _method_rates(fights: list[dict]) -> dict:
     }
 
 
-def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
+def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = None) -> dict:
     """
-    Main entry point. PRIMARY source is ESPN (added 2026-07-15, added after
-    FightMatrix's ranking table turned out to be JS-rendered and Tapology
-    turned out Cloudflare-blocked) — resolves each fighter against ESPN's
-    /athletes listing for bio (age, reach, W-L-D). FightMatrix ranking is
-    still layered in as a supplementary signal when it resolves (its lookup
-    doesn't depend on the broken ranking-table scrape — the still-untested
-    question is whether ESPN's own sport/league slug guess is even right;
-    see diagnose()). A fighter's dict is {} only when ESPN also fails to
-    resolve them. Tapology stays disabled (confirmed Cloudflare-blocked).
+    Main entry point. PRIMARY source is ESPN's /scoreboard (switched
+    2026-07-15, same day as the ESPN-primary switch itself) — NOT /athletes.
+    Live testing found ESPN's /athletes endpoint (fighter bio/profile
+    lookups) 404s for MMA on both the "ufc" slug and the numeric league id
+    3321, while /scoreboard (event/fight results) is CONFIRMED working (200,
+    real event data) with the "ufc" slug. Rather than keep depending on the
+    dead endpoint, this ports the exact fix that rescued rugby's broken
+    per-team /schedule endpoint: pull a shared league-wide /scoreboard range
+    once (fetch_espn_scoreboard_range) and derive each fighter's real
+    win/loss record + finish-method rates from it client-side
+    (_fighter_fights_from_scoreboard + _method_rates), instead of a
+    per-fighter profile call.
+
+    This gives a real record and method-of-victory signal (feeds
+    models/ufc_model.py:method_of_victory directly) but NOT reach/age bio
+    data — ESPN doesn't expose that without a working /athletes endpoint.
+    FightMatrix ranking is still layered in as a supplementary signal for
+    the win-probability side (models/ufc_model.py:stats_win_prob degrades
+    gracefully when reach/age are None, relying on ranking + Glicko-2
+    instead). Tapology stays disabled (confirmed Cloudflare-blocked).
+
+    A fighter's dict is {} only when neither ESPN scoreboard history nor
+    FightMatrix ranking resolves them.
     """
     result: dict = {"a": {}, "b": {}}
-    espn_athletes = fetch_espn_athletes()
+    events = fetch_espn_scoreboard_range(before_date=before_date)
     for key, name in (("a", name_a), ("b", name_b)):
         profile: dict = {}
 
-        espn_match = lookup_espn_athlete(name, espn_athletes)
-        if espn_match and espn_match.get("id"):
-            bio = fetch_espn_athlete_bio(espn_match["id"])
-            if bio:
-                profile.update(bio)
+        fights = _fighter_fights_from_scoreboard(name, events)
+        if fights:
+            profile["wins"] = sum(1 for f in fights if f["result"] == "W")
+            profile["losses"] = sum(1 for f in fights if f["result"] == "L")
+            # ESPN's scoreboard doesn't distinguish a draw/no-contest from an
+            # unresolved winner_id (excluded above) — reporting 0 rather than
+            # guessing at a real draw count.
+            profile["draws"] = 0
+            profile.update(_method_rates(fights))
+            profile["espn_fight_count"] = len(fights)
+            profile["name"] = name
 
         fm_match = lookup_fightmatrix_fighter(name)
         if fm_match:
@@ -556,6 +709,21 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
             out["espn_parsed_bio"] = fetch_espn_athlete_bio(espn_match["id"])
     except Exception as exc:
         out["espn_parse_exception"] = str(exc)
+
+    # 0b. Confirm the /scoreboard-based derivation that enrich_ufc_fighters
+    # now actually uses (added 2026-07-15, same day /athletes was confirmed
+    # dead for MMA) — parses real fight history for sample_fighter instead
+    # of just probing raw HTTP status.
+    try:
+        events = fetch_espn_scoreboard_range()
+        out["espn_scoreboard_range_event_count"] = len(events)
+        out["espn_scoreboard_range_sample"] = events[:3]
+        fights = _fighter_fights_from_scoreboard(sample_fighter, events)
+        out["espn_sample_fighter_fights"] = fights
+        if fights:
+            out["espn_sample_fighter_method_rates"] = _method_rates(fights)
+    except Exception as exc:
+        out["espn_scoreboard_range_exception"] = str(exc)
 
     # 1. FightMatrix rankings page
     fm_html = ""

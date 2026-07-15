@@ -11406,7 +11406,7 @@ mutates: none
 name: ESPN_BASE / CORE_API_BASE / _ESPN_CANDIDATE_SLUGS
 type: variable
 file: fetchers/ufc.py
-purpose: Added 2026-07-15 as the new PRIMARY UFC data source, after FightMatrix's ranking table turned out to be JS-rendered (not in static HTML) and Tapology turned out to be Cloudflare-blocked. ESPN's site API is already proven reliable in this repo for baseball/soccer/tennis/rugby, but the exact sport/league slug for MMA has NOT been live-verified — same situation the rugby build was in before discovering NRL's real code was a numeric ID, not "nrl". "mma"/"ufc" is a guess based on ESPN's site structure (espn.com/mma/); CORE_API_BASE + _ESPN_CANDIDATE_SLUGS back it up via the same discovery-first approach that fixed the rugby bug, tested via diagnose() rather than assumed correct.
+purpose: Added 2026-07-15 as the new PRIMARY UFC data source, after FightMatrix's ranking table turned out to be JS-rendered (not in static HTML) and Tapology turned out to be Cloudflare-blocked. ESPN's site API is already proven reliable in this repo for baseball/soccer/tennis/rugby. "mma"/"ufc" turned out to be CONFIRMED CORRECT for /scoreboard (200, real event data) but CONFIRMED WRONG for /athletes (404 on both the slug and the numeric league id 3321) — ESPN's site API simply doesn't expose per-fighter profiles for MMA, a different failure mode than rugby's (where the numeric id was the fix for everything). fetch_espn_scoreboard_range uses this same ESPN_BASE + "/scoreboard" and is the actual primary data path now (see enrich_ufc_fighters).
 inputs: none
 outputs: str / list[tuple]
 calls: none
@@ -11458,6 +11458,42 @@ purpose: /athletes/{id} — bio fields (age from dateOfBirth, reach, W-L-D). Fie
 inputs: athlete_id: str
 outputs: dict {name, age, reach_in, wins, losses, draws}
 calls: _espn_get
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: _extract_method / _METHOD_RE
+type: function / variable
+file: fetchers/ufc.py
+purpose: Added 2026-07-15. Pulls a finish-method keyword (KO/TKO/Submission/Decision/DQ) out of ESPN's competition status shortDetail text (e.g. "Final - Submission, Rd 2, 2:34"). Returns None when no keyword matches, rather than guessing a decision by default.
+inputs: text: str
+outputs: Optional[str]
+calls: re.search
+called_by: fetch_espn_scoreboard_range
+mutates: none
+---
+
+---
+name: fetch_espn_scoreboard_range
+type: function
+file: fetchers/ufc.py
+purpose: Added 2026-07-15, PRIMARY UFC data path — pulls completed UFC bouts from ESPN's /scoreboard across a date range (default 400 days back, longer than rugby's 200 since UFC fighters fight only 2-3x/year). Ports the exact architecture fix that rescued rugby's broken per-team /schedule endpoint: /athletes (fighter bio/profile lookups) is confirmed 404 for MMA on both the "ufc" slug and the numeric league id 3321 (see diagnose()), but /scoreboard is CONFIRMED working (200, real event data) with the "ufc" slug. Each ESPN "competition" here is a single bout between two individual athletes — same competitor shape fetchers/tennis.py already parses successfully (competitor["athlete"]["displayName"], comp["winnerId"]). `before_date` excludes events on/after that calendar day (same data-leakage guard as rugby's fetch_scoreboard_range). Empty list on failure.
+inputs: days_back: int = 400, before_date: Optional[str] = None
+outputs: list[dict] {date, event_name, fighter_a_id, fighter_a_name, fighter_b_id, fighter_b_name, winner_id, method, short_detail}
+calls: _espn_get, _extract_method
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: _fighter_fights_from_scoreboard
+type: function
+file: fetchers/ufc.py
+purpose: Added 2026-07-15. Filters a shared fetch_espn_scoreboard_range() result down to one fighter's bouts (matched by name), most recent first. Bouts where winner_id can't be resolved (draw/no-contest — ESPN doesn't distinguish here) are excluded rather than guessed, mirroring this repo's "don't fabricate from ambiguous data" convention (same as rugby's before_date leakage guard).
+inputs: name: str, events: list[dict], limit: int = 20
+outputs: list[dict] {date, opponent, result: 'W'|'L', method}
+calls: none
 called_by: enrich_ufc_fighters, diagnose
 mutates: none
 ---
@@ -11562,11 +11598,11 @@ mutates: none
 name: fetch_tapology_fight_history
 type: function
 file: fetchers/ufc.py
-purpose: Best-effort extraction of a fighter's fight history from their Tapology profile page text, scanning for "Win/Loss via Decision/Submission/KO/TKO/DQ" style patterns. Returns [] (not an error) if the pattern isn't found — models/ufc_model.py's method_of_victory() falls back to league-average finish rates in that case, same as a fighter with genuinely zero fight history.
+purpose: Best-effort extraction of a fighter's fight history from their Tapology profile page text, scanning for "Win/Loss via Decision/Submission/KO/TKO/DQ" style patterns. Returns [] (not an error) if the pattern isn't found — models/ufc_model.py's method_of_victory() falls back to league-average finish rates in that case, same as a fighter with genuinely zero fight history. NOT called from enrich_ufc_fighters as of 2026-07-15 (Tapology call path disabled, confirmed Cloudflare-blocked) — kept live only via diagnose() in case Tapology ever becomes reachable again.
 inputs: url: str, limit: int = 15
 outputs: list[dict] {result, method}
 calls: _get, BeautifulSoup, re.finditer
-called_by: _method_rates, enrich_ufc_fighters, diagnose
+called_by: diagnose
 mutates: none
 ---
 
@@ -11574,11 +11610,11 @@ mutates: none
 name: _method_rates
 type: function
 file: fetchers/ufc.py
-purpose: From a fight-history list, computes win_ko_rate/win_sub_rate (share of WINS by that method) and loss_ko_rate/loss_sub_rate (share of LOSSES by that method — a durability/susceptibility proxy consumed by models/ufc_model.method_of_victory). Returns None (not 0.0) for a rate when the fighter has zero fights of that outcome type, so "never finished" isn't indistinguishable from "no data."
+purpose: From a fight-history list, computes win_ko_rate/win_sub_rate (share of WINS by that method) and loss_ko_rate/loss_sub_rate (share of LOSSES by that method — a durability/susceptibility proxy consumed by models/ufc_model.method_of_victory). Returns None (not 0.0) for a rate when the fighter has zero fights of that outcome type, so "never finished" isn't indistinguishable from "no data." UPDATED 2026-07-15: now used on ESPN scoreboard-derived fights (method may be None when shortDetail didn't match a keyword) — the share denominator excludes fights with an unresolved method instead of crashing on `.lower()` of None.
 inputs: fights: list[dict]
 outputs: dict {win_ko_rate, win_sub_rate, loss_ko_rate, loss_sub_rate, n_wins, n_losses}
 calls: none
-called_by: enrich_ufc_fighters
+called_by: enrich_ufc_fighters, diagnose
 mutates: none
 ---
 
@@ -11586,10 +11622,10 @@ mutates: none
 name: enrich_ufc_fighters
 type: function
 file: fetchers/ufc.py
-purpose: Main entry point. PRIMARY source is ESPN (added 2026-07-15) — resolves each fighter against ESPN's /athletes listing for bio (age, reach, W-L-D), whether ESPN's sport/league slug guess is even right is itself unconfirmed (see diagnose()). FightMatrix ranking is layered in as a supplementary signal when it resolves. Tapology stays disabled (confirmed Cloudflare-blocked 2026-07-15) — the Tapology call path from the previous version is removed here in favor of the ESPN primary path. A fighter's dict is {} only when ESPN also fails to resolve them.
-inputs: name_a: str, name_b: str
-outputs: dict {a: dict, b: dict}
-calls: fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, lookup_fightmatrix_fighter
+purpose: Main entry point. REWRITTEN 2026-07-15 — PRIMARY source is now ESPN's /scoreboard, NOT /athletes. Live testing confirmed /athletes 404s for MMA on both the "ufc" slug and the numeric league id 3321, while /scoreboard is CONFIRMED working (200, real event data). Ports the same architecture fix that rescued rugby's broken /teams/{id}/schedule endpoint: pulls a shared fetch_espn_scoreboard_range() once, then derives each fighter's real win/loss record + method-of-victory rates via _fighter_fights_from_scoreboard + _method_rates, instead of a per-fighter profile call. Gives real record/finish-rate signal but NOT reach/age (ESPN has no working bio endpoint for MMA) — models/ufc_model.py's stats_win_prob degrades gracefully to ranking + Glicko-2 when those are None. FightMatrix ranking still layered in as a supplementary signal. Tapology stays disabled (confirmed Cloudflare-blocked). A fighter's dict is {} only when neither ESPN scoreboard history nor FightMatrix ranking resolves them.
+inputs: name_a: str, name_b: str, before_date: Optional[str] = None
+outputs: dict {a: dict, b: dict} — each with wins/losses/draws/win_ko_rate/win_sub_rate/loss_ko_rate/loss_sub_rate/espn_fight_count/name (from ESPN) plus fm_rank/fm_rating (from FightMatrix) when resolved
+calls: fetch_espn_scoreboard_range, _fighter_fights_from_scoreboard, _method_rates, lookup_fightmatrix_fighter
 called_by: run_ufc_analysis (analyze_ufc.py)
 mutates: none
 ---
@@ -11598,10 +11634,10 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/ufc.py
-purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. Live-testing 2026-07-15 found: Tapology dead (Cloudflare 403); FightMatrix's ranking table JS-rendered; ESPN's core API confirms "ufc" (id 3321) is a real registered league, but the site API 404s on /athletes for BOTH the slug and the numeric id — unlike rugby's bug (where the numeric id fixed it), this is a different signal: ESPN may simply not expose per-fighter profiles for MMA via /athletes at all, even though the league is registered. Extended same day: now also probes /scoreboard (a different endpoint — event schedules/results, not fighter profiles) for both the slug and numeric id, since that may still work even if /athletes doesn't.
+purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. Live-testing 2026-07-15 found: Tapology dead (Cloudflare 403); FightMatrix's ranking table JS-rendered; ESPN's core API confirms "ufc" (id 3321) is a real registered league, but the site API 404s on /athletes for BOTH the slug and the numeric id — unlike rugby's bug (where the numeric id fixed it), this is a different signal: ESPN may simply not expose per-fighter profiles for MMA via /athletes at all, even though the league is registered. /scoreboard, by contrast, is CONFIRMED working (200, real event) for both the slug and numeric id. Extended same day again: now also runs fetch_espn_scoreboard_range + _fighter_fights_from_scoreboard + _method_rates for sample_fighter to confirm the actual derivation enrich_ufc_fighters uses in production, not just the raw HTTP status.
 inputs: sample_fighter: str = "Jon Jones"
-outputs: dict (espn_athletes_status/espn_league_discovery/espn_candidate_slug_probe/espn_ufc_league_entry/espn_numeric_id_probe/espn_scoreboard_probe_slug/espn_scoreboard_probe_numeric_id/espn_parsed_athlete_sample/espn_parsed_bio, plus the existing FightMatrix/Tapology raw status codes, content lengths, profile-link booleans, raw snippets, and table/anchor/API-hint diagnostics)
-calls: httpx.Client.get, fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, discover_espn_leagues, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
+outputs: dict (espn_athletes_status/espn_league_discovery/espn_candidate_slug_probe/espn_ufc_league_entry/espn_numeric_id_probe/espn_scoreboard_probe_slug/espn_scoreboard_probe_numeric_id/espn_parsed_athlete_sample/espn_parsed_bio/espn_scoreboard_range_event_count/espn_scoreboard_range_sample/espn_sample_fighter_fights/espn_sample_fighter_method_rates, plus the existing FightMatrix/Tapology raw status codes, content lengths, profile-link booleans, raw snippets, and table/anchor/API-hint diagnostics)
+calls: httpx.Client.get, fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, discover_espn_leagues, fetch_espn_scoreboard_range, _fighter_fights_from_scoreboard, _method_rates, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
 called_by: ufc_diag (app.py)
 mutates: none
 ---
@@ -11730,9 +11766,9 @@ mutates: none
 name: run_ufc_analysis
 type: function
 file: analyze_ufc.py
-purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → FightMatrix ranking + Tapology record/bio/history (fetchers/ufc, switched 2026-07-14 off ufcstats.com after it turned out to serve a JS anti-bot challenge) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model, now ranking+reach+age based) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. Returns {"status": "insufficient_data", ...} without persisting when neither source has data for either fighter.
+purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → ESPN /scoreboard-derived record + finish rates + FightMatrix ranking (fetchers/ufc, REWRITTEN 2026-07-15: /athletes confirmed dead for MMA, /scoreboard confirmed live — see fetchers/ufc.py:enrich_ufc_fighters; passes before_date=match_date same leakage guard as rugby) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model, ranking+reach+age based, reach/age now typically None since ESPN has no MMA bio endpoint) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners (now fed by real ESPN fight-history finish rates instead of Tapology's) → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals (fm_rank/win_ko_rate/win_sub_rate/espn_fight_count per fighter)/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. Returns {"status": "insufficient_data", ...} without persisting when neither source has data for either fighter.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score)
+outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score; data_sources is now ["espn_scoreboard", "fightmatrix", "glicko2"])
 calls: ai_agent_ufc.parse_ufc_query, fetchers.ufc.enrich_ufc_fighters, models.glicko.Glicko2Model, models.ufc_model.composite_win_prob/method_of_victory/explain, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_ufc.generate_ufc_narrative, db.database.get_db
 called_by: analyze_ufc_endpoint (app.py)
 mutates: matches table (sport='ufc'), signals table, predictions table
@@ -11798,7 +11834,7 @@ mutates: none
 name: ufc.html
 type: template
 file: templates/ufc.html
-purpose: UFC analysis UI — matchup query box (optional American odds), step tracker, fighter cards (record, FightMatrix rank, age, reach), win-probability bars with a "draws not modeled" note, a 3-column method-of-victory grid (KO/TKO, submission, decision per fighter + overall finish/distance %), market comparison/Kelly card, recommendation card, AI narrative, collapsible pipeline trace. Carries an on-page amber caveat about provisional constants and unmodeled ring-rust. Visual structure/CSS copied from templates/rugby.html (same reasoning as rugby copying esports.html — closest existing analog). FIXED 2026-07-12 (found live-testing, same bug as rugby.html): runAnalysis() rendered a full results view even for {"status":"insufficient_data",...} responses (no prob_a/prob_b fields), showing a misleading "0%/0%" win probability with empty fighter-card stats. Now checks data.status and shows the pipeline's own narrative as an error instead. UPDATED 2026-07-14: fighter cards swapped SLpM/SApM/TD avg-def (ufcstats.com fields, no longer fetched) for FightMatrix Rank and Age; hero text updated to describe the FightMatrix+Tapology source switch.
+purpose: UFC analysis UI — matchup query box (optional American odds), step tracker, fighter cards (record, FightMatrix rank, win KO/TKO rate, win submission rate), win-probability bars with a "draws not modeled" note, a 3-column method-of-victory grid (KO/TKO, submission, decision per fighter + overall finish/distance %), market comparison/Kelly card, recommendation card, AI narrative, collapsible pipeline trace. Carries an on-page amber caveat about provisional constants and unmodeled ring-rust. Visual structure/CSS copied from templates/rugby.html (same reasoning as rugby copying esports.html — closest existing analog). FIXED 2026-07-12 (found live-testing, same bug as rugby.html): runAnalysis() rendered a full results view even for {"status":"insufficient_data",...} responses (no prob_a/prob_b fields), showing a misleading "0%/0%" win probability with empty fighter-card stats. Now checks data.status and shows the pipeline's own narrative as an error instead. UPDATED 2026-07-14: fighter cards swapped SLpM/SApM/TD avg-def (ufcstats.com fields, no longer fetched) for FightMatrix Rank and Age. UPDATED 2026-07-15 (again, same day as the ESPN /scoreboard primary-source switch): Age/Reach stat rows replaced with Win KO/TKO Rate and Win Submission Rate bound to fa.win_ko_rate/fa.win_sub_rate — ESPN has no working MMA bio endpoint (reach/age are no longer available from any live source), but /scoreboard gives real finish-rate data instead; hero text and step-tracker label updated to describe ESPN fight history + FightMatrix rank.
 inputs: none
 outputs: HTML
 calls: /analyze-ufc (fetch, JS)
