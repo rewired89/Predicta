@@ -525,6 +525,27 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
             except Exception as exc:
                 out["espn_numeric_id_probe_exception"] = str(exc)
 
+            # /athletes (fighter profiles/rosters) 404ing on both the slug
+            # and the numeric id is a different signal than rugby's bug —
+            # ESPN may simply not expose per-fighter profiles for MMA at
+            # all, even though the league itself is registered. /scoreboard
+            # (event schedules/results) is a DIFFERENT endpoint that may
+            # still work — worth checking before concluding ESPN has
+            # nothing usable here.
+            for label, path in (("slug", "ufc"), ("numeric_id", ufc_entry["id"])):
+                try:
+                    with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                        url = f"https://site.api.espn.com/apis/site/v2/sports/mma/{path}/scoreboard"
+                        resp = client.get(url)
+                        out[f"espn_scoreboard_probe_{label}"] = {
+                            "path": str(path), "status": resp.status_code,
+                            "looks_ok": resp.status_code == 200,
+                            "event_count": len(resp.json().get("events", [])) if resp.status_code == 200 else None,
+                            "body_snippet": resp.text[:300] if resp.status_code != 200 else None,
+                        }
+                except Exception as exc:
+                    out[f"espn_scoreboard_probe_{label}_exception"] = str(exc)
+
     try:
         espn_athletes = fetch_espn_athletes(pages=1)
         out["espn_parsed_athlete_count"] = len(espn_athletes)
