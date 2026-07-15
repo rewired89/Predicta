@@ -202,8 +202,21 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             "data_confidence": "none", "steps": steps,
         }
 
-    a_complete = "full" if enriched["a"].get("fm_rank") is not None else "minimal"
-    b_complete = "full" if enriched["b"].get("fm_rank") is not None else "minimal"
+    # FIXED 2026-07-15 (live-tested — user reported PASS on every fight
+    # regardless of how lopsided the win probability looked): this used to
+    # key "full" vs "minimal" off fm_rank, but FightMatrix's ranking table
+    # is confirmed JS-rendered/unscrapeable (see fetchers/ufc.py), so
+    # fm_rank is essentially NEVER resolved — meaning every prediction was
+    # silently landing in the "minimal" bucket and getting the escalated
+    # 68%/60% BET/LEAN thresholds instead of the intended 65%/58%, no
+    # matter how much real Sherdog data was actually available. Now keyed
+    # off Sherdog's own fight_history_count (a real signal we control and
+    # that's actually populated), with fm_rank as a bonus, not a gate.
+    MIN_FIGHTS_FOR_FULL_CONFIDENCE = 5
+    a_hist = enriched["a"].get("fight_history_count") or 0
+    b_hist = enriched["b"].get("fight_history_count") or 0
+    a_complete = "full" if a_hist >= MIN_FIGHTS_FOR_FULL_CONFIDENCE else "minimal"
+    b_complete = "full" if b_hist >= MIN_FIGHTS_FOR_FULL_CONFIDENCE else "minimal"
     data_completeness = {
         "a": a_complete, "b": b_complete,
         "either_partial": a_complete != "full" or b_complete != "full",

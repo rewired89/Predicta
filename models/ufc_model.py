@@ -45,6 +45,8 @@ RANKING_SCALE       = 1.0    # logistic scale on the ranking+reach+age composite
 REACH_COEF          = 0.015  # per inch of reach advantage
 AGE_DECLINE_START    = 34.0  # UFC performance decline typically starts mid-30s
 AGE_DECLINE_PER_YEAR = 0.03  # score penalty per year past AGE_DECLINE_START
+RECORD_COEF           = 1.5   # weight on shrunk win-rate differential (added 2026-07-15)
+RECORD_SHRINKAGE_FIGHTS = 10.0  # fights needed before win-rate is trusted at full weight
 MODEL_PROB_CAP       = 0.82  # provisional cap — MMA has bigger mismatches than
                               # team sports, but no fighter should be modeled
                               # as a near-lock; mirrors the baseball/rugby cap culture
@@ -78,12 +80,39 @@ def _rating_from_rank(rank: Optional[int]) -> Optional[float]:
     return max(1300.0, 2200.0 - 400.0 * math.log10(max(1, rank)))
 
 
+def _shrunk_win_rate(fighter: dict) -> Optional[float]:
+    """
+    ADDED 2026-07-15 — win rate shrunk toward 0.5 by sample size (same
+    shrinkage convention models/rugby_model.py's SHRINKAGE_K already uses),
+    so a 3-0 prospect isn't treated as equivalent to a proven 30-3 veteran.
+    Fixes a real gap found live-testing: stats_win_prob previously used
+    ONLY FightMatrix ranking + reach + age — none of which reliably resolve
+    (FightMatrix's ranking table is confirmed JS-rendered/unscrapeable, and
+    reach is missing for most Sherdog profiles) — so a fighter's actual
+    win-loss record, now reliably available from Sherdog, never moved the
+    predicted probability at all. Two fighters with wildly different
+    records (e.g. 23-3 vs 1-1) would get an identical ~50/50 call. Returns
+    None (not 0.5) when wins/losses aren't available, so "no record data"
+    still reads as "no signal" rather than a fabricated coin flip.
+    """
+    wins, losses = fighter.get("wins"), fighter.get("losses")
+    if wins is None or losses is None:
+        return None
+    total = wins + losses
+    if total <= 0:
+        return None
+    raw = wins / total
+    weight = min(1.0, total / RECORD_SHRINKAGE_FIGHTS)
+    return 0.5 + (raw - 0.5) * weight
+
+
 def stats_win_prob(fighter_a: dict, fighter_b: dict) -> float:
     """
-    Logistic win probability for A from FightMatrix ranking + reach + age.
-    Returns 0.5 when neither fighter has a usable ranking or reach/age
-    signal (caller should treat that as "no signal", same as any other
-    missing-data default in this repo).
+    Logistic win probability for A from FightMatrix ranking + reach + age +
+    (added 2026-07-15) shrunk win-rate differential. Returns 0.5 when none
+    of ranking, reach/age, or record are available (caller should treat
+    that as "no signal", same as any other missing-data default in this
+    repo).
     """
     rating_a = _rating_from_rank(fighter_a.get("fm_rank"))
     rating_b = _rating_from_rank(fighter_b.get("fm_rank"))
@@ -94,7 +123,13 @@ def stats_win_prob(fighter_a: dict, fighter_b: dict) -> float:
     reach_adv = (fighter_a.get("reach_in") or 0.0) - (fighter_b.get("reach_in") or 0.0)
     age_pen = _age_penalty(fighter_b.get("age")) - _age_penalty(fighter_a.get("age"))
 
-    score = rank_diff + reach_adv * REACH_COEF + age_pen
+    record_a = _shrunk_win_rate(fighter_a)
+    record_b = _shrunk_win_rate(fighter_b)
+    record_diff = 0.0
+    if record_a is not None and record_b is not None:
+        record_diff = record_a - record_b
+
+    score = rank_diff + reach_adv * REACH_COEF + age_pen + record_diff * RECORD_COEF
     return _sigmoid(score * RANKING_SCALE)
 
 

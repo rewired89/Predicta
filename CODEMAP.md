@@ -11707,14 +11707,14 @@ mutates: none
 ## models/ufc_model.py
 
 ---
-name: DEFAULT_GLICKO_RD / CONFIDENT_RD / RANKING_SCALE / REACH_COEF / AGE_DECLINE_START / AGE_DECLINE_PER_YEAR / MODEL_PROB_CAP / LEAGUE_AVG_LOSS_KO_RATE / LEAGUE_AVG_LOSS_SUB_RATE / LEAGUE_AVG_WIN_KO_RATE / LEAGUE_AVG_WIN_SUB_RATE
+name: DEFAULT_GLICKO_RD / CONFIDENT_RD / RANKING_SCALE / REACH_COEF / AGE_DECLINE_START / AGE_DECLINE_PER_YEAR / RECORD_COEF / RECORD_SHRINKAGE_FIGHTS / MODEL_PROB_CAP / LEAGUE_AVG_LOSS_KO_RATE / LEAGUE_AVG_LOSS_SUB_RATE / LEAGUE_AVG_WIN_KO_RATE / LEAGUE_AVG_WIN_SUB_RATE
 type: variable
 file: models/ufc_model.py
-purpose: Provisional starting constants — NOT fitted to real UFC history (same "build environment can't reach the data source" limitation as rugby). CONFIDENT_RD=60 is roughly what Glicko-2 RD looks like after ~10+ recorded fights; DEFAULT_GLICKO_RD=350 is models/glicko.py's unrated default. MODEL_PROB_CAP=0.82 (slightly looser than rugby's 0.78 — MMA mismatches run bigger — but still bounded, same "no near-certainty claims" culture as the baseball/rugby caps). LEAGUE_AVG_* rates are rough historical UFC finish-rate estimates used only when a fighter has zero fight history to compute their own rate from. RENAMED 2026-07-14: STATS_SCALE → RANKING_SCALE when stats_win_prob switched from ufcstats.com striking/TD stats to FightMatrix ranking (see stats_win_prob below).
+purpose: Provisional starting constants — NOT fitted to real UFC history (same "build environment can't reach the data source" limitation as rugby). CONFIDENT_RD=60 is roughly what Glicko-2 RD looks like after ~10+ recorded fights; DEFAULT_GLICKO_RD=350 is models/glicko.py's unrated default. MODEL_PROB_CAP=0.82 (slightly looser than rugby's 0.78 — MMA mismatches run bigger — but still bounded, same "no near-certainty claims" culture as the baseball/rugby caps). LEAGUE_AVG_* rates are rough historical UFC finish-rate estimates used only when a fighter has zero fight history to compute their own rate from. RENAMED 2026-07-14: STATS_SCALE → RANKING_SCALE when stats_win_prob switched from ufcstats.com striking/TD stats to FightMatrix ranking (see stats_win_prob below). ADDED 2026-07-15 (live-tested — user reported PASS on every fight regardless of how one-sided the real records were): RECORD_COEF=1.5 weights a shrunk win-rate differential (see _shrunk_win_rate) into stats_win_prob; RECORD_SHRINKAGE_FIGHTS=10.0 is the fight count at which a fighter's win rate is trusted at full weight (fewer fights shrink toward 0.5, same shrinkage convention as models/rugby_model.py's SHRINKAGE_K), so a 3-0 prospect isn't treated as equivalent evidence to a proven 30-3 veteran.
 inputs: none
 outputs: float
 calls: none
-called_by: stats_win_prob, composite_win_prob, method_of_victory
+called_by: stats_win_prob, _shrunk_win_rate, composite_win_prob, method_of_victory
 mutates: none
 ---
 
@@ -11731,13 +11731,25 @@ mutates: none
 ---
 
 ---
+name: _shrunk_win_rate
+type: function
+file: models/ufc_model.py
+purpose: ADDED 2026-07-15, fixes a real gap found live-testing the real UI: stats_win_prob previously used ONLY FightMatrix ranking + reach + age — none of which reliably resolve (FightMatrix's ranking table is confirmed JS-rendered/unscrapeable; reach is missing for most Sherdog profiles) — so two fighters with wildly different real win-loss records (e.g. 23-3 vs 1-1) got an identical ~50/50 call, and the user correctly flagged the model recommending PASS on every single fight regardless of how lopsided the records looked. Computes wins/(wins+losses), shrunk toward 0.5 by fight count (same shrinkage convention as models/rugby_model.py's SHRINKAGE_K) so a 3-0 prospect isn't treated as equivalent to a proven 30-3 fighter. Returns None (not 0.5) when wins/losses aren't available.
+inputs: fighter: dict
+outputs: Optional[float]
+calls: none
+called_by: stats_win_prob
+mutates: none
+---
+
+---
 name: stats_win_prob
 type: function
 file: models/ufc_model.py
-purpose: Logistic win probability for fighter A from FightMatrix ranking + reach + age. CHANGED 2026-07-14: previously ran on ufcstats.com's per-minute striking/TD stats (SLpM, TD accuracy, etc.) — switched off ufcstats.com after it turned out to serve a JS anti-bot challenge to any non-browser client (see fetchers/ufc.py's module docstring). Neither fightmatrix.com nor tapology.com expose that per-minute granularity, so this now runs on rank_diff (via _rating_from_rank, standard /400 Elo scaling — contributes 0 when either fighter is unranked) plus reach advantage and age-decline penalty past 34. Returns 0.5 (no signal) when neither fighter has a usable ranking or reach/age.
+purpose: Logistic win probability for fighter A from FightMatrix ranking + reach + age + (ADDED 2026-07-15) a shrunk win-rate differential via _shrunk_win_rate — verified against synthetic data: a 10-0 vs 12-1 pair (both excellent, similar sample size) now gets a mild 53/47 edge instead of a dead 50/50, and a 23-3 veteran beats a thin 1-0 debut record 62/38 instead of looking identical. CHANGED 2026-07-14: previously ran on ufcstats.com's per-minute striking/TD stats (SLpM, TD accuracy, etc.) — switched off ufcstats.com after it turned out to serve a JS anti-bot challenge to any non-browser client (see fetchers/ufc.py's module docstring). Returns 0.5 (no signal) when NONE of ranking, reach/age, or record are available.
 inputs: fighter_a: dict, fighter_b: dict
 outputs: float
-calls: _rating_from_rank, math.exp (via _sigmoid), _age_penalty
+calls: _rating_from_rank, _shrunk_win_rate, math.exp (via _sigmoid), _age_penalty
 called_by: composite_win_prob
 mutates: none
 ---
@@ -11826,9 +11838,9 @@ mutates: none
 name: run_ufc_analysis
 type: function
 file: analyze_ufc.py
-purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → Sherdog record/bio/fight-history (NO fallback, third rewrite same day per direct user request — "real-time stats, not non-updated shit from Wikipedia") + FightMatrix ranking (fetchers/ufc, see fetchers/ufc.py:enrich_ufc_fighters; leakage guard is opponent-name-based, before_date kept only for call-site compatibility) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model, ranking+reach+age based — reach/age available when Sherdog's bio parse succeeds) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners (fed by real Sherdog fight-history finish rates) → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals (fm_rank/win_ko_rate/win_sub_rate/fight_history_count/reach_in/age per fighter)/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. CHANGED: now checks `sherdog_resolved` per fighter (not just dict truthiness) and returns {"status": "insufficient_data", "narrative": "Unable to fetch data for {names}...", ...} without persisting whenever Sherdog fails EITHER fighter — not only when both are totally empty.
+purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → Sherdog record/bio/fight-history (NO fallback, third rewrite same day per direct user request — "real-time stats, not non-updated shit from Wikipedia") + FightMatrix ranking (fetchers/ufc, see fetchers/ufc.py:enrich_ufc_fighters; leakage guard is opponent-name-based, before_date kept only for call-site compatibility) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model, ranking+reach+age+shrunk-win-rate based — see stats_win_prob) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners (fed by real Sherdog fight-history finish rates) → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals (fm_rank/win_ko_rate/win_sub_rate/fight_history_count/reach_in/age per fighter)/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. CHANGED: now checks `sherdog_resolved` per fighter (not just dict truthiness) and returns {"status": "insufficient_data", "narrative": "Unable to fetch data for {names}...", ...} without persisting whenever Sherdog fails EITHER fighter — not only when both are totally empty. FIXED 2026-07-15 (live-tested — user reported PASS on every fight regardless of the real win probability shown): `a_complete`/`b_complete` (which drive the escalated 68%/60% vs standard 65%/58% BET/LEAN thresholds via `partial_data`) used to key off `fm_rank`, which is essentially NEVER resolved since FightMatrix's ranking table is confirmed unscrapeable — meaning every single UFC prediction was silently landing in the "minimal"/escalated-threshold bucket regardless of actual data quality. Now keyed off Sherdog's own `fight_history_count` (>= `MIN_FIGHTS_FOR_FULL_CONFIDENCE` = 5 fights = "full"), a real, controllable signal — fm_rank stays a bonus, not a gate.
 inputs: user_query: str, bankroll: float = 1000.0
-outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score; data_sources is now ["sherdog", "fightmatrix", "glicko2"]; data_completeness "full" now means Sherdog + FightMatrix rank both resolved, "minimal" means Sherdog only)
+outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score; data_sources is now ["sherdog", "fightmatrix", "glicko2"]; data_completeness "full" now means >=5 real Sherdog fights found, "minimal" means fewer)
 calls: ai_agent_ufc.parse_ufc_query, fetchers.ufc.enrich_ufc_fighters, models.glicko.Glicko2Model, models.ufc_model.composite_win_prob/method_of_victory/explain, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_ufc.generate_ufc_narrative, db.database.get_db
 called_by: analyze_ufc_endpoint (app.py)
 mutates: matches table (sport='ufc'), signals table, predictions table
