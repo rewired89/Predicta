@@ -194,7 +194,7 @@ def render_low_value_dashboard() -> str:
     with get_db() as conn:
         closed_rows = conn.execute(
             """
-            SELECT symbol, side, entry_time, exit_time, pnl_dollars, pnl_pct,
+            SELECT symbol, side, entry_time, exit_time, entry_price, exit_price, pnl_dollars, pnl_pct,
                    exit_reason, entry_score, lv_thesis_type, lv_signals_json
             FROM intraday_trades
             WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NOT NULL
@@ -314,8 +314,8 @@ def render_low_value_dashboard() -> str:
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
               <div class="trade-info">
                 <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {_display_name(t['symbol'])}</span>
-                <span class="trade-detail">Signal strength {t.get('entry_score') or '—'}/100 (not a win probability) · {_thesis_label(t.get('lv_thesis_type'))}</span>
-                <span class="trade-time">opened {t['entry_time'][:16]} UTC</span>
+                <span class="trade-detail">Entered at ${t['entry_price']:,.2f}/share (real stock price) · Signal strength {t.get('entry_score') or '—'}/100 (not a win probability) · {_thesis_label(t.get('lv_thesis_type'))}</span>
+                <span class="trade-time">opened {t['entry_time'][:16]} UTC — this is a fixed $25 paper position, not shares bought at full account size</span>
                 {_signals_breakdown_html(t.get('lv_signals_json'))}
               </div>
             </div>"""
@@ -326,7 +326,10 @@ def render_low_value_dashboard() -> str:
         f"""<div class="exit-block">
               <div class="exit-item" style="border-bottom:none; padding:0;">
                 <span>{"BUY" if t.get('side')=='long' else "SHORT" if t.get('side') else ''} {_display_name(t['symbol'])} · {_thesis_label(t.get('lv_thesis_type'))} · {_exit_label(t.get('exit_reason'))}</span>
-                <span style="color:{_pnl_color(t.get('pnl_dollars'))}">{_pnl_sign(t.get('pnl_dollars'))}</span>
+                <span style="color:{_pnl_color(t.get('pnl_dollars'))}">P&amp;L: {_pnl_sign(t.get('pnl_dollars'))}</span>
+              </div>
+              <div style="font-size:.76rem; color:var(--muted); margin-top:2px;">
+                Real stock price: ${t['entry_price']:,.2f}/share → ${t['exit_price']:,.2f}/share ({t.get('pnl_pct') or 0:+.1f}%) — the P&amp;L above is on a fixed $25 paper position, not the share price itself
               </div>
               {_signals_breakdown_html(t.get('lv_signals_json'))}
             </div>"""
