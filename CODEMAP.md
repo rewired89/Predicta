@@ -11430,11 +11430,11 @@ mutates: none
 name: lookup_fighter
 type: function
 file: fetchers/ufc.py
-purpose: Resolves a free-text fighter name to a ufcstats.com entry — tries the query's last word as the last-name initial (site is indexed by last name), then exact/substring/difflib fuzzy match against that letter's full listing. Returns None if nothing matches.
+purpose: Resolves a free-text fighter name to a ufcstats.com entry. FIXED 2026-07-12 (found live-testing a real fighter — "Dricus Du Plessis" returned no data): originally guessed a single last-name initial from just the LAST space-separated word ("Plessis" → 'P'), but ufcstats.com alphabetizes compound surnames (Du Plessis, Dos Santos, Dos Anjos, Da Silva — common in UFC) under the full surname's first letter ('D'), so it searched the wrong page entirely. Now tries multiple candidate initials (full surname after the first name token, AND the final word alone) before giving up, mirroring the "don't guess once, try candidates" fix from the rugby ESPN league-ID bug.
 inputs: name: str
 outputs: Optional[dict]
 calls: search_fighters_by_letter, difflib.get_close_matches
-called_by: enrich_ufc_fighters
+called_by: enrich_ufc_fighters, diagnose
 mutates: none
 ---
 

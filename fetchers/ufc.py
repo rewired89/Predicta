@@ -96,31 +96,47 @@ def search_fighters_by_letter(last_initial: str) -> list[dict]:
 def lookup_fighter(name: str) -> Optional[dict]:
     """
     Resolve a free-text fighter name to a ufcstats.com fighter entry.
-    Tries the last word of the query as the last-name initial (ufcstats.com's
-    listing is indexed by last name), then substring/fuzzy-matches the full
-    "First Last" against that letter's page. Returns None if nothing matches.
+
+    FIXED 2026-07-12 (found live-testing a real fighter — "Dricus Du
+    Plessis" returned no data): the original version guessed a single
+    last-name initial from the LAST space-separated word only — "Plessis"
+    for "Dricus Du Plessis" — and searched ufcstats.com's alphabetical
+    listing under 'P'. But the site alphabetizes compound surnames (Du
+    Plessis, Dos Santos, Dos Anjos, Da Silva — common among UFC fighters)
+    under the FULL surname's first letter, i.e. 'D', so it was searching
+    the wrong page entirely regardless of whether the scraper itself
+    worked. Now tries every plausible last-name initial (whole surname
+    after the first token, AND just the final word) instead of guessing
+    once, mirroring the "don't guess a single slug, try candidates"
+    lesson from the rugby ESPN league-ID bug.
     """
     name = name.strip()
     if not name:
         return None
-    last_word = name.split()[-1]
-    candidates = search_fighters_by_letter(last_word[0])
-    if not candidates:
-        return None
+    words = name.split()
+    candidate_letters: list[str] = []
+    if len(words) >= 2:
+        candidate_letters.append(words[1][0])   # full surname after first name, e.g. "Du Plessis" → 'D'
+    candidate_letters.append(words[-1][0])       # last single word, e.g. "Plessis" → 'P' / "Usman" → 'U'
+    seen = set()
+    candidate_letters = [c.lower() for c in candidate_letters if not (c.lower() in seen or seen.add(c.lower()))]
 
     name_lo = name.lower()
-    for c in candidates:
-        if c["name"].lower() == name_lo:
-            return c
-    for c in candidates:
-        if name_lo in c["name"].lower() or c["name"].lower() in name_lo:
-            return c
-
-    import difflib
-    names = [c["name"].lower() for c in candidates]
-    close = difflib.get_close_matches(name_lo, names, n=1, cutoff=0.6)
-    if close:
-        return next((c for c in candidates if c["name"].lower() == close[0]), None)
+    for letter in candidate_letters:
+        candidates = search_fighters_by_letter(letter)
+        if not candidates:
+            continue
+        for c in candidates:
+            if c["name"].lower() == name_lo:
+                return c
+        for c in candidates:
+            if name_lo in c["name"].lower() or c["name"].lower() in name_lo:
+                return c
+        import difflib
+        names = [c["name"].lower() for c in candidates]
+        close = difflib.get_close_matches(name_lo, names, n=1, cutoff=0.6)
+        if close:
+            return next((c for c in candidates if c["name"].lower() == close[0]), None)
     return None
 
 
@@ -325,8 +341,10 @@ def diagnose(sample_fighter: str = "Jones") -> dict:
     out["parsed_fighter_count"] = len(parsed)
     out["parsed_fighter_sample"] = parsed[:5]
 
-    # 2. If lookup_fighter resolves the sample name, probe its detail page raw
-    match = lookup_fighter(sample_fighter) if parsed else None
+    # 2. lookup_fighter now tries multiple candidate initials itself (fixed
+    # 2026-07-12 for compound surnames like "Du Plessis") — call it directly
+    # rather than gating on this single-letter `parsed` probe above.
+    match = lookup_fighter(sample_fighter)
     out["sample_fighter_matched"] = match
     if match:
         fighter_url = f"{BASE}{match['url']}" if match["url"].startswith("/") else match["url"]
