@@ -11466,9 +11466,9 @@ mutates: none
 name: discover_espn_leagues
 type: function
 file: fetchers/ufc.py
-purpose: Queries ESPN's separate core API for the leagues known under a sport — same proven pattern fetchers/rugby.py:discover_leagues used to find NRL's real numeric league ID after "nrl" 404'd. Called automatically by diagnose() when the primary /athletes guess 404s, instead of guessing a second slug across another round-trip.
+purpose: Queries ESPN's separate core API for the leagues known under a sport — same proven pattern fetchers/rugby.py:discover_leagues used to find NRL's real numeric league ID after "nrl" 404'd. Called automatically by diagnose() when the primary /athletes guess 404s, instead of guessing a second slug across another round-trip. Live-tested 2026-07-15: found 48 MMA leagues including "ufc" (name "Ultimate Fighting Championship") — but the site API still 404'd on that readable slug, same bug class as rugby needing numeric "3" instead of "nrl". Now also captures each league's numeric `id` field from the resolved reference (previously only name/abbreviation), so diagnose() can test the site API with the numeric id directly instead of the slug that resolves fine on the core API but not the site API.
 inputs: sport: str = "mma"
-outputs: dict {sport, status, league_count, leagues: [{ref, slug_from_ref, name, abbreviation}]}
+outputs: dict {sport, status, league_count, leagues: [{ref, slug_from_ref, name, abbreviation, id}]}
 calls: httpx.Client.get
 called_by: diagnose
 mutates: none
@@ -11598,9 +11598,9 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/ufc.py
-purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. First live test (2026-07-15) confirmed Tapology is ALSO dead (Cloudflare 403) and FightMatrix's ranking table is JS-rendered (fm_parsed_count=2, both "names" were literally the URL as text). Extended same day again after the user pointed out ESPN was available all along: now probes ESPN's /athletes FIRST (the new primary source, see ESPN_BASE), and if that 404s, automatically runs discover_espn_leagues() plus a few candidate (sport, league) slugs — same "test the URL before trusting it, try candidates on 404" approach that found and fixed the rugby ESPN league-ID bug — instead of guessing once across another round-trip. Still reports FightMatrix/Tapology status for completeness.
+purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. First live test (2026-07-15) confirmed Tapology is ALSO dead (Cloudflare 403) and FightMatrix's ranking table is JS-rendered (fm_parsed_count=2, both "names" were literally the URL as text). Extended same day again after the user pointed out ESPN was available all along: probes ESPN's /athletes FIRST, and on 404 runs discover_espn_leagues(). That live test found "ufc" as a real league name via the core API but the SITE API still 404'd on that readable slug — same bug class as rugby needing numeric "3" instead of "nrl". Extended again same day: when the core-API discovery 404s the readable slug, diagnose() now finds the UFC league entry specifically and auto-tests the site API with its numeric `id` field directly (espn_numeric_id_probe), instead of stopping at "the slug doesn't work" and waiting for another round-trip.
 inputs: sample_fighter: str = "Jon Jones"
-outputs: dict (espn_athletes_status/espn_league_discovery/espn_candidate_slug_probe/espn_parsed_athlete_sample/espn_parsed_bio, plus the existing FightMatrix/Tapology raw status codes, content lengths, profile-link booleans, raw snippets, and table/anchor/API-hint diagnostics)
+outputs: dict (espn_athletes_status/espn_league_discovery/espn_candidate_slug_probe/espn_ufc_league_entry/espn_numeric_id_probe/espn_parsed_athlete_sample/espn_parsed_bio, plus the existing FightMatrix/Tapology raw status codes, content lengths, profile-link booleans, raw snippets, and table/anchor/API-hint diagnostics)
 calls: httpx.Client.get, fetch_espn_athletes, lookup_espn_athlete, fetch_espn_athlete_bio, discover_espn_leagues, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
 called_by: ufc_diag (app.py)
 mutates: none

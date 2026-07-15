@@ -206,6 +206,14 @@ def discover_espn_leagues(sport: str = "mma") -> dict:
                             ref_data = ref_resp.json()
                             entry["name"] = ref_data.get("name")
                             entry["abbreviation"] = ref_data.get("abbreviation")
+                            # FIXED 2026-07-15 (same bug class as rugby's ESPN
+                            # league-ID fix): the readable slug_from_ref
+                            # ("ufc") is NOT what the site API needs — like
+                            # rugby-league needing numeric "3" instead of
+                            # "nrl", the site API 404s on "mma/ufc" even
+                            # though this slug resolves fine here. Capture
+                            # the numeric id too so diagnose() can test it.
+                            entry["id"] = ref_data.get("id")
                     except Exception as exc:
                         entry["ref_fetch_exception"] = str(exc)
                 leagues.append(entry)
@@ -477,7 +485,8 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
         out["espn_athletes_exception"] = str(exc)
 
     if out.get("espn_athletes_status") == 404:
-        out["espn_league_discovery"] = discover_espn_leagues("mma")
+        discovery = discover_espn_leagues("mma")
+        out["espn_league_discovery"] = discovery
         candidate_results = []
         for sport, league in _ESPN_CANDIDATE_SLUGS:
             try:
@@ -491,6 +500,30 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
             except Exception as exc:
                 candidate_results.append({"sport": sport, "league": league, "exception": str(exc)})
         out["espn_candidate_slug_probe"] = candidate_results
+
+        # FIXED 2026-07-15 (same bug class as rugby's ESPN league-ID fix):
+        # the readable slug ("ufc") resolves fine via the core API but the
+        # site API 404s on it anyway — like rugby-league needing numeric "3"
+        # instead of "nrl", the site API likely needs the league's numeric
+        # id. Auto-test the UFC entry's numeric id directly instead of
+        # guessing again across another round-trip.
+        ufc_entry = next(
+            (l for l in discovery.get("leagues", []) if l.get("abbreviation") == "UFC" or l.get("slug_from_ref") == "ufc"),
+            None,
+        )
+        out["espn_ufc_league_entry"] = ufc_entry
+        if ufc_entry and ufc_entry.get("id"):
+            try:
+                with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/mma/{ufc_entry['id']}/athletes"
+                    resp = client.get(url, params={"limit": 10})
+                    out["espn_numeric_id_probe"] = {
+                        "id": ufc_entry["id"], "status": resp.status_code,
+                        "looks_ok": resp.status_code == 200,
+                        "body_snippet": resp.text[:500] if resp.status_code == 200 else resp.text[:300],
+                    }
+            except Exception as exc:
+                out["espn_numeric_id_probe_exception"] = str(exc)
 
     try:
         espn_athletes = fetch_espn_athletes(pages=1)
