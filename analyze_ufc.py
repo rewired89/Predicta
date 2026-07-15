@@ -1,7 +1,7 @@
 """
 End-to-end UFC analysis pipeline.
 
-  query → Sherdog record/bio/fight history (+ Wikipedia fallback) + FightMatrix ranking (both fighters)
+  query → Sherdog record/bio/fight history + FightMatrix ranking (both fighters)
         → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class)
         → blend with a stats-based logistic (models/ufc_model.py)
         → method-of-victory model (KO/TKO, submission, decision)
@@ -9,13 +9,17 @@ End-to-end UFC analysis pipeline.
         → narrative
         → result dict
 
-CHANGED 2026-07-15 (second time same day): fighter enrichment now comes
-from Sherdog (fetchers/ufc.py:enrich_ufc_fighters), with Wikipedia as a
-fallback when Sherdog doesn't resolve a fighter — ESPN is dropped from the
-active pipeline after its /scoreboard endpoint's historical-range behavior
-stayed unconfirmed through repeated live tests (its code stays in
-fetchers/ufc.py, just unused here). FightMatrix ranking is still layered
-in as a supplementary signal; Tapology stays disabled.
+CHANGED 2026-07-15 (third time same day): Sherdog is now the ONLY
+fight-history source (fetchers/ufc.py:enrich_ufc_fighters) — a same-day
+Wikipedia fallback was tried and then dropped per direct user request
+("real-time stats, not non-updated shit from Wikipedia"). If Sherdog can't
+resolve either fighter, this pipeline halts and returns an explicit
+"Unable to fetch data" response rather than proceeding on FightMatrix
+ranking alone. ESPN is dropped from the active pipeline too (its code
+stays in fetchers/ufc.py, just unused here) after its /scoreboard
+endpoint's historical-range behavior stayed unconfirmed through repeated
+live tests. FightMatrix ranking is still layered in as a supplementary
+signal on top of real Sherdog data; Tapology stays disabled.
 
 Mirrors analyze_rugby.py's shape. Key differences from every score-based
 sport in this repo (soccer/baseball/rugby):
@@ -158,38 +162,48 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     odds_b = _as_decimal(parsed.get("odds_b_american"), parsed.get("odds_b_decimal"))
     has_odds = odds_a is not None and odds_b is not None
 
-    # ── Sherdog (+ Wikipedia fallback) record + FightMatrix ranking enrich ──
+    # ── Sherdog record + FightMatrix ranking enrichment ─────────────────────
+    # CHANGED 2026-07-15 (per direct user request — "real-time stats, not
+    # non-updated shit from Wikipedia"): Sherdog is the ONLY fight-history
+    # source, no fallback. enrich_ufc_fighters reports sherdog_resolved per
+    # fighter; this halts with an explicit "Unable to fetch data" response
+    # when either side is False, instead of quietly proceeding on
+    # FightMatrix ranking alone.
     try:
         enriched = enrich_ufc_fighters(fighter_a, fighter_b, before_date=match_date)
+        a_resolved = enriched["a"].get("sherdog_resolved", False)
+        b_resolved = enriched["b"].get("sherdog_resolved", False)
         steps.append({
             "step": "fighter_enrich",
-            "status": "ok" if (enriched["a"] and enriched["b"]) else "partial",
-            "a_fields": len(enriched["a"]), "b_fields": len(enriched["b"]),
+            "status": "ok" if (a_resolved and b_resolved) else "partial",
+            "a_sherdog_resolved": a_resolved, "b_sherdog_resolved": b_resolved,
         })
     except Exception as exc:
         enriched = {"a": {}, "b": {}}
+        a_resolved = b_resolved = False
         steps.append({"step": "fighter_enrich", "status": "error", "error": str(exc)})
 
-    if not enriched["a"] and not enriched["b"]:
+    if not a_resolved or not b_resolved:
+        missing = [n for n, ok in ((fighter_a, a_resolved), (fighter_b, b_resolved)) if not ok]
         steps.append({
             "step": "insufficient_data", "status": "halt",
-            "reason": "No live Sherdog/Wikipedia fight history or FightMatrix ranking reachable for either fighter.",
+            "reason": f"Sherdog could not fetch real fight-history data for: {', '.join(missing)}.",
         })
         return {
             "status": "insufficient_data", "sport": "ufc",
             "fighter_a": fighter_a, "fighter_b": fighter_b, "date": match_date,
             "recommendation": "PASS",
             "narrative": (
-                f"No data available for {fighter_a} vs {fighter_b}. "
+                f"Unable to fetch data for {', '.join(missing)}. "
                 "Recommended action: PASS. We do not generate predictions from "
-                "training-data hallucinations because they cannot be verified "
-                "against real career stats."
+                "training-data hallucinations or stale fallback sources because "
+                "they cannot be verified against real, current career stats."
             ),
             "data_confidence": "none", "steps": steps,
         }
 
-    a_complete = "full" if enriched["a"] else "minimal"
-    b_complete = "full" if enriched["b"] else "minimal"
+    a_complete = "full" if enriched["a"].get("fm_rank") is not None else "minimal"
+    b_complete = "full" if enriched["b"].get("fm_rank") is not None else "minimal"
     data_completeness = {
         "a": a_complete, "b": b_complete,
         "either_partial": a_complete != "full" or b_complete != "full",
@@ -280,23 +294,23 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             )
             match_id = cur.lastrowid
 
-        # Sherdog/Wikipedia-derived record/finish-rate/bio fields +
-        # FightMatrix ranking (switched 2026-07-15, second time same day —
-        # ESPN dropped from the active pipeline, see fetchers/ufc.py
-        # docstring). reach_in/age/height_in ARE available again here when
-        # Sherdog's bio parse succeeds (unlike the ESPN-only period), but
-        # still fall back gracefully to None when it doesn't.
+        # Sherdog-derived record/finish-rate/bio fields + FightMatrix
+        # ranking (switched 2026-07-15, third time same day — Wikipedia
+        # fallback dropped per direct user request, Sherdog is now the sole
+        # fight-history source, see fetchers/ufc.py docstring). reach_in/
+        # age/height_in ARE available here when Sherdog's bio parse
+        # succeeds, but still fall back gracefully to None when it doesn't.
         sigs_to_log = [
             ("fm_rank", fighter_a, enriched["a"].get("fm_rank"), "fightmatrix"),
-            ("win_ko_rate", fighter_a, enriched["a"].get("win_ko_rate"), "sherdog_wikipedia"),
-            ("win_sub_rate", fighter_a, enriched["a"].get("win_sub_rate"), "sherdog_wikipedia"),
-            ("fight_history_count", fighter_a, enriched["a"].get("fight_history_count"), "sherdog_wikipedia"),
+            ("win_ko_rate", fighter_a, enriched["a"].get("win_ko_rate"), "sherdog"),
+            ("win_sub_rate", fighter_a, enriched["a"].get("win_sub_rate"), "sherdog"),
+            ("fight_history_count", fighter_a, enriched["a"].get("fight_history_count"), "sherdog"),
             ("reach_in", fighter_a, enriched["a"].get("reach_in"), "sherdog"),
             ("age", fighter_a, enriched["a"].get("age"), "sherdog"),
             ("fm_rank", fighter_b, enriched["b"].get("fm_rank"), "fightmatrix"),
-            ("win_ko_rate", fighter_b, enriched["b"].get("win_ko_rate"), "sherdog_wikipedia"),
-            ("win_sub_rate", fighter_b, enriched["b"].get("win_sub_rate"), "sherdog_wikipedia"),
-            ("fight_history_count", fighter_b, enriched["b"].get("fight_history_count"), "sherdog_wikipedia"),
+            ("win_ko_rate", fighter_b, enriched["b"].get("win_ko_rate"), "sherdog"),
+            ("win_sub_rate", fighter_b, enriched["b"].get("win_sub_rate"), "sherdog"),
+            ("fight_history_count", fighter_b, enriched["b"].get("fight_history_count"), "sherdog"),
             ("reach_in", fighter_b, enriched["b"].get("reach_in"), "sherdog"),
             ("age", fighter_b, enriched["b"].get("age"), "sherdog"),
         ]
@@ -341,7 +355,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "narrative": narrative,
         "prob_a": round(prob_a * 100, 1), "prob_b": round(prob_b * 100, 1),
         "data_confidence": confidence, "data_completeness": data_completeness,
-        "data_sources": ["sherdog", "wikipedia", "fightmatrix", "glicko2"],
+        "data_sources": ["sherdog", "fightmatrix", "glicko2"],
         "model_explanation": explanation,
         "bet_recommendations": recs, "kelly": kelly,
         "market_comparison": edge_summary,

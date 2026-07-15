@@ -5,31 +5,36 @@ confirmed Cloudflare-blocked; FightMatrix's ranking table confirmed
 JS-rendered, not in static HTML) → ESPN (2026-07-15, per direct user
 request) → ESPN's /athletes confirmed dead, /scoreboard confirmed live but
 its historical-range query behavior was still unconfirmed after hours of
-live-testing → Sherdog + Wikipedia (2026-07-15, per direct user request —
-tired of chasing ESPN with no working end-to-end result). See CLAUDE.md's
-UFC section for the full story.
+live-testing → Sherdog + Wikipedia fallback (2026-07-15) → Wikipedia
+dropped same day, per direct user request ("real-time stats, not
+non-updated shit from Wikipedia") — Sherdog is now the ONLY fight-history
+source, no fallback. See CLAUDE.md's UFC section for the full story.
 
-CURRENT PRIMARY SOURCES: sherdog.com (dedicated MMA stats database — the
-site most public MMA-scraping projects target; plain server-rendered HTML,
-not a JS SPA like FightMatrix, no known Cloudflare/bot-wall like Tapology)
-for record + fight history + bio, with Wikipedia as a fallback when Sherdog
-doesn't resolve a fighter — Wikipedia is guaranteed not bot-blocked (has an
-official, scraping-friendly Action API) and most UFC fighter pages carry a
-structured "Mixed martial arts record" wikitable. Neither has been
-live-verified from this sandbox (same limitation as every source in this
-file — this repo's dev environment can't reach any external site), so both
-are built diagnostic-first (see diagnose()) and lean on best-effort TEXT
-PATTERN extraction (numbers/keywords) rather than assuming exact CSS
-classes or wikitable column order, the same resilience approach already
-used for Tapology.
+CURRENT PRIMARY (AND ONLY) FIGHT-HISTORY SOURCE: sherdog.com — the
+dedicated MMA stats database most public MMA-scraping projects target;
+plain server-rendered HTML, not a JS SPA like FightMatrix, no known
+Cloudflare/bot-wall like Tapology. Not live-verified from this sandbox
+(same limitation as every source in this file — this repo's dev
+environment can't reach any external site), so it's built diagnostic-first
+(see diagnose()) and leans on best-effort TEXT PATTERN extraction
+(numbers/keywords) rather than assuming exact CSS classes, the same
+resilience approach already used for Tapology.
+
+If Sherdog doesn't resolve BOTH fighters' fight history, enrich_ufc_fighters
+reports `sherdog_resolved: False` on the missing side and
+run_ufc_analysis (analyze_ufc.py) halts with an explicit "Unable to fetch
+data" response rather than quietly proceeding on FightMatrix ranking alone
+— no fallback source, by design, per direct user request.
 
 FightMatrix ranking stays layered in as a supplementary signal for
 models/ufc_model.py's stats_win_prob (its own lookup doesn't depend on the
-broken ranking-table scrape). ESPN's fetch functions (fetch_espn_athletes,
-fetch_espn_scoreboard_range, etc.) and Tapology's functions are LEFT IN THE
-FILE but NOT called from enrich_ufc_fighters anymore — parked in case a
-future fix makes them useful, not deleted, per this repo's "don't erase
-work that might matter later" convention.
+broken ranking-table scrape) — but only ever a supplement to real Sherdog
+data, never a substitute for it. ESPN's fetch functions
+(fetch_espn_athletes, fetch_espn_scoreboard_range, etc.), Tapology's
+functions, and fetch_wikipedia_mma_record/_wikipedia_search are LEFT IN THE
+FILE but NOT called from enrich_ufc_fighters — parked in case a future fix
+or a future ask brings one of them back, not deleted, per this repo's
+"don't erase work that might matter later" convention.
 """
 from __future__ import annotations
 import re
@@ -844,38 +849,34 @@ def _method_rates(fights: list[dict]) -> dict:
 
 def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = None) -> dict:
     """
-    Main entry point. REWRITTEN 2026-07-15 (second rewrite same day) — after
-    hours of live-testing left ESPN's /scoreboard historical-range behavior
-    still unconfirmed, per direct user request this drops ESPN from the
-    active pipeline entirely (its functions stay in the file, just unused
-    here) in favor of two sources that don't depend on that one endpoint's
-    quirks:
+    Main entry point. REWRITTEN 2026-07-15 (third rewrite same day) — per
+    direct user request, Wikipedia is dropped as a fallback ("real-time
+    stats, not non-updated shit from Wikipedia"). Sherdog is now the ONLY
+    fight-history source, no fallback:
 
-      1. Sherdog (PRIMARY) — search_sherdog_fighter → fetch_sherdog_profile
-         (bio: wins/losses/draws/height/reach/age) + fetch_sherdog_fight_history
-         (per-fight result/opponent/method, feeds _method_rates).
-      2. Wikipedia (FALLBACK) — fetch_wikipedia_mma_record, used only to
-         fill in win/loss/method data when Sherdog doesn't resolve the
-         fighter or returns no fight history. Wikipedia can't hit a
-         Cloudflare/JS-challenge wall the way ufcstats.com/Tapology did,
-         so it's the most bot-wall-resistant option available here.
+      Sherdog — search_sherdog_fighter → fetch_sherdog_profile (bio:
+      wins/losses/draws/height/reach/age) + fetch_sherdog_fight_history
+      (per-fight result/opponent/method, feeds _method_rates).
+
+    Every returned profile carries `sherdog_resolved: bool` — True only if
+    Sherdog both found the fighter AND returned at least one parseable
+    fight (after the leakage-exclusion below). run_ufc_analysis
+    (analyze_ufc.py) checks this flag directly and halts with an explicit
+    "Unable to fetch data" response when either fighter's is False, rather
+    than quietly proceeding on FightMatrix ranking alone — no silent
+    fallback, by design.
 
     FightMatrix ranking is still layered in as a supplementary signal for
-    models/ufc_model.py:stats_win_prob (degrades gracefully to Glicko-2
-    alone when neither ranking nor reach/age resolve). Tapology and ESPN
-    stay disabled/unused here (Tapology confirmed Cloudflare-blocked; ESPN
-    demoted per user request after its scoreboard-range behavior stayed
-    unconfirmed through repeated live tests).
-
-    A fighter's dict is {} only when Sherdog, Wikipedia, AND FightMatrix all
-    fail to resolve them.
+    models/ufc_model.py:stats_win_prob, but only ever on top of real
+    Sherdog data — never a substitute for it. fetch_wikipedia_mma_record
+    stays in the file (parked, not deleted) but is not called here. Tapology
+    and ESPN also stay disabled/unused (see module docstring).
 
     `before_date` is accepted for call-site compatibility (analyze_ufc.py
-    passes match_date) but neither Sherdog nor Wikipedia support a
-    date-filtered query the way ESPN's /scoreboard did — the leakage guard
-    here instead excludes any fight against `name_b`/`name_a` directly from
-    each other's history (see below), which is actually more precise than a
-    date cutoff for this specific case.
+    passes match_date) but Sherdog doesn't support a date-filtered query —
+    the leakage guard here instead excludes any fight against
+    `name_b`/`name_a` directly from each other's history (see below), which
+    is actually more precise than a date cutoff for this specific case.
     """
     result: dict = {"a": {}, "b": {}}
     opponent_of = {"a": name_b, "b": name_a}
@@ -890,17 +891,16 @@ def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = N
                 profile.update(bio)
             fights = fetch_sherdog_fight_history(sherdog_match["url"])
 
-        if not fights:
-            fights = fetch_wikipedia_mma_record(name)
-
         # Data-leakage guard (same class as rugby's before_date exclusion):
         # if these two fighters already fought and that bout is sitting in
         # the career history returned above (e.g. a same-day query made
         # after the result is in), its own outcome/method shouldn't feed
         # the "prediction" of itself. Match by opponent name rather than by
-        # date since neither source is queried with a date filter here.
+        # date since Sherdog isn't queried with a date filter here.
         opponent = opponent_of[key]
         fights = [f for f in fights if not _name_matches(opponent, f.get("opponent") or "")]
+
+        profile["sherdog_resolved"] = bool(sherdog_match) and bool(fights)
 
         if fights:
             if profile.get("wins") is None:
@@ -917,21 +917,25 @@ def enrich_ufc_fighters(name_a: str, name_b: str, before_date: Optional[str] = N
             profile["fm_rating"] = fm_match.get("rating")
             profile.setdefault("name", fm_match["name"])
 
-        if profile:
-            result[key] = profile
+        # Always store the profile (even if Sherdog found nothing) so
+        # sherdog_resolved is visible to the caller — an empty {} would
+        # hide WHY there's no data, same "diagnose don't guess" spirit as
+        # the rest of this file.
+        result[key] = profile
     return result
 
 
 def diagnose(sample_fighter: str = "Jon Jones") -> dict:
     """
     One-shot diagnostic. REORDERED 2026-07-15 (second time same day) to
-    test Sherdog + Wikipedia FIRST — the new primary/fallback sources,
-    switched to after ESPN's /scoreboard historical-range behavior stayed
-    unconfirmed through repeated live tests. Same "test the URL before
-    trusting it" approach used throughout this file: raw status/content
-    checks before any parsed-data assertions. ESPN/FightMatrix/Tapology
-    probes are KEPT below for reference (none of those sources are deleted,
-    just no longer called from enrich_ufc_fighters) — see module docstring.
+    test Sherdog FIRST — the sole fight-history source as of the same day's
+    third rewrite (Wikipedia was tried as a fallback, then dropped per
+    direct user request: "real-time stats, not non-updated shit from
+    Wikipedia"). Same "test the URL before trusting it" approach used
+    throughout this file: raw status/content checks before any parsed-data
+    assertions. The Wikipedia probe below is KEPT for reference only (it's
+    parked, not called from enrich_ufc_fighters anymore); ESPN/FightMatrix/
+    Tapology probes are likewise kept for reference — see module docstring.
     """
     out: dict = {
         "sherdog_base": SHERDOG_BASE, "wikipedia_api": WIKIPEDIA_API,
