@@ -461,8 +461,18 @@ def fetch_sherdog_profile(url: str) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
 
-    name_el = soup.find(attrs={"itemprop": "name"}) or soup.find("h1") or soup.find("title")
+    name_el = soup.find(attrs={"itemprop": "name"}) or soup.find("h1")
     name = name_el.get_text(strip=True) if name_el else ""
+    # FIXED 2026-07-15 (live-tested via /ufc-diag): itemprop="name"/h1 came
+    # back empty for a real fighter page. Sherdog's <title> reliably
+    # includes the fighter's name followed by a separator ("Name | Sherdog
+    # MMA Stats, Pictures, News, Videos, Biography" or similar) — fall back
+    # to that, splitting on the first separator rather than trusting h1.
+    if not name and soup.title:
+        title_text = soup.title.get_text(strip=True)
+        # Split on "|" or an en-dash "–" only — NOT a plain hyphen "-",
+        # which would wrongly truncate hyphenated names like "St-Pierre".
+        name = re.split(r"\s*[|–]\s*", title_text)[0].strip()
 
     wins = losses = draws = None
     m = re.search(r"\b(\d{1,3})-(\d{1,3})-(\d{1,3})\b", text)
@@ -537,6 +547,18 @@ def fetch_sherdog_fight_history(url: str, limit: int = 15) -> list[dict]:
                 (c for c in cell_texts[2:] if re.search(r"decision|submission|\bko\b|\btko\b|dq", c, re.IGNORECASE)),
                 "",
             )
+            # FIXED 2026-07-15 (live-tested via /ufc-diag): Sherdog's method
+            # cell packs the referee's name in right after the method text
+            # with no separator (e.g. "TKO (Punches) Morgan Sickinger"), and
+            # get_text(" ") joins them into one string. The method itself
+            # always ends at the closing paren of its detail, so truncate
+            # there instead of keeping the trailing referee name. Doesn't
+            # change win_ko_rate/win_sub_rate classification (the keyword
+            # match already worked either way) — this is a display/data-
+            # cleanliness fix, not a functional one.
+            m_paren = re.search(r"^.*?\)", method)
+            if m_paren:
+                method = m_paren.group(0)
             fights.append({"result": result, "opponent": opponent, "method": method})
         if fights:
             break
