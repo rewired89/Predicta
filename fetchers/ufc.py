@@ -1,20 +1,34 @@
 """
-UFC data scraper — ufcstats.com.
+UFC data scraper — fightmatrix.com (rankings) + tapology.com (records, bio,
+fight history). Switched 2026-07-14 from ufcstats.com after live-testing on
+Railway showed ufcstats.com serves a JavaScript proof-of-work anti-bot
+challenge ("Checking your browser…") to any plain HTTP client — a wall this
+scraper cannot and will not try to solve (that's circumventing a site's
+explicit anti-bot security measure, not just reading a public page). See
+CLAUDE.md's UFC section for the full story.
 
-Unlike ESPN (used by fetchers/baseball.py, fetchers/rugby.py, etc.), UFC Stats
-has no JSON API at all, official or hidden — every scraper (including the
-well-known public ones this repo's approach mirrors) reads the site's plain
-HTML tables directly with requests+BeautifulSoup. There's no Cloudflare wall
-here (unlike FanGraphs/BoxRec) — same "clean HTML, no rate limiting" reasoning
-that made Kimi recommend UFC as more tractable than Boxing.
+Neither fightmatrix.com nor tapology.com has been live-verified from this
+session either — this repo's dev sandbox can't reach ANY external site
+(confirmed for espn.com, ufcstats.com, and now these two as well), and
+unlike ufcstats.com's exact CSS classes (which were at least confidently
+known before turning out to be blocked), the precise markup of these two
+sites was never memorized with high confidence to begin with. To reduce
+how much can go wrong on the first live test, fighter-profile links are
+found by URL PATTERN (a distinctive path segment like
+"/fightcenter/fighters/12345-name") rather than by guessing CSS class
+names — path patterns tend to survive markup/redesign changes better than
+class names do. diagnose() is built in from the start (not bolted on after
+a failure, like it was for ufcstats.com) so the first real test surfaces
+the actual page content immediately.
 
-NOTE: this repo's remote build/test containers cannot reach external sites at
-all (confirmed for both espn.com and ufcstats.com from this sandbox — same
-"remote container egress policy" documented in fetchers/baseball.py). The CSS
-class names and page layout below are based on ufcstats.com's long-stable,
-widely-scraped structure (unchanged for years across public scraper projects)
-but have NOT been live-verified from this session. Confirm against a real
-response once deployed (Railway) or run locally, same as the rugby ESPN slug.
+Data available here is deliberately less rich than ufcstats.com would have
+been: FightMatrix gives an Elo-style ranking (used the same way
+analyze_esports.py turns a world ranking into a rating — see
+models/ufc_model.py), Tapology gives W-L-D record, height/reach/age, and
+fight history with method-of-victory. Neither exposes ufcstats.com-level
+per-minute striking/grappling stats (SLpM, TD accuracy, etc.), so
+models/ufc_model.py's stats-based win-probability signal now runs on
+ranking + reach + age instead.
 """
 from __future__ import annotations
 import re
@@ -24,7 +38,8 @@ from typing import Optional
 import httpx
 from bs4 import BeautifulSoup
 
-BASE = "http://ufcstats.com"
+FIGHTMATRIX_BASE = "https://www.fightmatrix.com"
+TAPOLOGY_BASE = "https://www.tapology.com"
 TIMEOUT = 20.0
 
 _HEADERS = {
@@ -35,6 +50,9 @@ _HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+
+_FM_PROFILE_RE = re.compile(r"/fighter-profile/[^\"'>\s]+")
+_TAP_PROFILE_RE = re.compile(r"/fightcenter/fighters/\d+-[^\"'>\s]+")
 
 
 def _get(url: str, params: Optional[dict] = None) -> str:
@@ -49,10 +67,9 @@ def _get(url: str, params: Optional[dict] = None) -> str:
 
 
 def _f(val, default: Optional[float] = None) -> Optional[float]:
-    """Parse a stat cell like '4.52', '58%', '--' into a float, or default."""
     if val is None:
         return default
-    s = str(val).strip().rstrip("%")
+    s = str(val).strip().rstrip("%").rstrip('"')
     if not s or s == "--":
         return default
     try:
@@ -61,213 +78,183 @@ def _f(val, default: Optional[float] = None) -> Optional[float]:
         return default
 
 
-def search_fighters_by_letter(last_initial: str) -> list[dict]:
+def _name_matches(query: str, candidate: str) -> bool:
+    q, c = query.lower().strip(), candidate.lower().strip()
+    if q == c or q in c or c in q:
+        return True
+    import difflib
+    return difflib.SequenceMatcher(None, q, c).ratio() >= 0.72
+
+
+# ── FightMatrix: Elo-style ranking (secondary signal, not per-fight stats) ────
+
+def fetch_fightmatrix_rankings() -> list[dict]:
     """
-    Return every fighter whose last name starts with `last_initial` from
-    /statistics/fighters?char={letter}&page=all.
-    Each entry: {name, url, wins, losses, draws}. Empty list on failure.
+    Scrape fightmatrix.com's main rankings page for fighter profile links.
+    Finds candidates by URL PATTERN (/fighter-profile/...) rather than a
+    guessed CSS class, then best-effort extracts a rank + rating from the
+    enclosing table row's text (both may be None if the row shape isn't
+    what's expected — the caller treats a fighter with no rating as
+    "unranked", not an error).
+    Each entry: {name, url, rank, rating}. Empty list on failure.
     """
-    html = _get(f"{BASE}/statistics/fighters", {"char": last_initial.lower(), "page": "all"})
+    html = _get(f"{FIGHTMATRIX_BASE}/mma-ranks/")
     if not html:
         return []
     soup = BeautifulSoup(html, "html.parser")
     out = []
-    for row in soup.select("tr.b-statistics__table-row"):
-        cells = row.select("td.b-statistics__table-col")
-        if len(cells) < 10:
+    seen_urls = set()
+    for a in soup.find_all("a", href=_FM_PROFILE_RE):
+        href = a.get("href", "")
+        if href in seen_urls:
             continue
-        first_a = cells[0].select_one("a")
-        last_a = cells[1].select_one("a")
-        if not first_a or not last_a:
+        seen_urls.add(href)
+        name = a.get_text(strip=True)
+        if not name:
             continue
-        first = first_a.get_text(strip=True)
-        last = last_a.get_text(strip=True)
-        url = first_a.get("href", "")
+        row = a.find_parent("tr")
+        rank, rating = None, None
+        if row:
+            cells = [c.get_text(strip=True) for c in row.find_all(["td", "th"])]
+            for cell in cells:
+                if rank is None and re.fullmatch(r"#?\d{1,3}", cell):
+                    rank = int(cell.lstrip("#"))
+                elif rating is None and re.fullmatch(r"\d{3,4}", cell):
+                    rating = int(cell)
         out.append({
-            "name": f"{first} {last}".strip(),
-            "url": url,
-            "wins":   _f(cells[7].get_text(strip=True), 0),
-            "losses": _f(cells[8].get_text(strip=True), 0),
-            "draws":  _f(cells[9].get_text(strip=True), 0),
+            "name": name,
+            "url": href if href.startswith("http") else f"{FIGHTMATRIX_BASE}{href}",
+            "rank": rank, "rating": rating,
         })
     return out
 
 
-def lookup_fighter(name: str) -> Optional[dict]:
-    """
-    Resolve a free-text fighter name to a ufcstats.com fighter entry.
-
-    FIXED 2026-07-12 (found live-testing a real fighter — "Dricus Du
-    Plessis" returned no data): the original version guessed a single
-    last-name initial from the LAST space-separated word only — "Plessis"
-    for "Dricus Du Plessis" — and searched ufcstats.com's alphabetical
-    listing under 'P'. But the site alphabetizes compound surnames (Du
-    Plessis, Dos Santos, Dos Anjos, Da Silva — common among UFC fighters)
-    under the FULL surname's first letter, i.e. 'D', so it was searching
-    the wrong page entirely regardless of whether the scraper itself
-    worked. Now tries every plausible last-name initial (whole surname
-    after the first token, AND just the final word) instead of guessing
-    once, mirroring the "don't guess a single slug, try candidates"
-    lesson from the rugby ESPN league-ID bug.
-    """
-    name = name.strip()
-    if not name:
+def lookup_fightmatrix_fighter(name: str, rankings: Optional[list[dict]] = None) -> Optional[dict]:
+    """Fuzzy-match a fighter name against fetch_fightmatrix_rankings()."""
+    rankings = rankings if rankings is not None else fetch_fightmatrix_rankings()
+    if not rankings:
         return None
-    words = name.split()
-    candidate_letters: list[str] = []
-    if len(words) >= 2:
-        candidate_letters.append(words[1][0])   # full surname after first name, e.g. "Du Plessis" → 'D'
-    candidate_letters.append(words[-1][0])       # last single word, e.g. "Plessis" → 'P' / "Usman" → 'U'
-    seen = set()
-    candidate_letters = [c.lower() for c in candidate_letters if not (c.lower() in seen or seen.add(c.lower()))]
-
-    name_lo = name.lower()
-    for letter in candidate_letters:
-        candidates = search_fighters_by_letter(letter)
-        if not candidates:
-            continue
-        for c in candidates:
-            if c["name"].lower() == name_lo:
-                return c
-        for c in candidates:
-            if name_lo in c["name"].lower() or c["name"].lower() in name_lo:
-                return c
-        import difflib
-        names = [c["name"].lower() for c in candidates]
-        close = difflib.get_close_matches(name_lo, names, n=1, cutoff=0.6)
-        if close:
-            return next((c for c in candidates if c["name"].lower() == close[0]), None)
+    for r in rankings:
+        if r["name"].lower() == name.lower().strip():
+            return r
+    for r in rankings:
+        if _name_matches(name, r["name"]):
+            return r
     return None
 
 
-_STAT_LABELS = {
-    "Height:": "height", "Weight:": "weight_class_raw", "Reach:": "reach",
-    "STANCE:": "stance", "DOB:": "dob",
-    "SLpM:": "slpm", "Str. Acc.:": "str_acc",
-    "SApM:": "sapm", "Str. Def:": "str_def",
-    "TD Avg.:": "td_avg", "TD Acc.:": "td_acc",
-    "TD Def.:": "td_def", "Sub. Avg.:": "sub_avg",
-}
+# ── Tapology: record, bio, fight history with method-of-victory ─────────────
+
+def search_tapology_fighter(name: str) -> Optional[dict]:
+    """
+    Search tapology.com for a fighter by name. Finds candidate profile links
+    by URL PATTERN (/fightcenter/fighters/{id}-{slug}) rather than a guessed
+    CSS class. Returns {name, url} for the best fuzzy-match, or None.
+    """
+    html = _get(f"{TAPOLOGY_BASE}/search", {"term": name})
+    if not html:
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    candidates = []
+    seen_urls = set()
+    for a in soup.find_all("a", href=_TAP_PROFILE_RE):
+        href = a.get("href", "")
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+        text = a.get_text(strip=True)
+        if text:
+            candidates.append({"name": text, "url": href if href.startswith("http") else f"{TAPOLOGY_BASE}{href}"})
+    if not candidates:
+        return None
+    for c in candidates:
+        if c["name"].lower() == name.lower().strip():
+            return c
+    for c in candidates:
+        if _name_matches(name, c["name"]):
+            return c
+    return candidates[0]
 
 
-def fetch_fighter_profile(fighter_url: str) -> dict:
+def fetch_tapology_profile(url: str) -> dict:
     """
-    Scrape a fighter's ufcstats.com detail page for career stats + bio.
-    Returns {} on failure. Keys: name, record (wins/losses/draws),
-    wins_by_ko, wins_by_sub, wins_by_dec, height_in, reach_in, stance, dob,
-    slpm, str_acc, sapm, str_def, td_avg, td_acc, td_def, sub_avg.
+    Scrape a Tapology fighter profile for record + bio. Best-effort text
+    pattern matching rather than strict CSS selectors, since the exact
+    markup hasn't been live-verified — returns {} on failure, and individual
+    fields are None when their pattern isn't found rather than guessed.
+    Keys: name, wins, losses, draws, height_in, reach_in, age.
     """
-    html = _get(fighter_url)
+    html = _get(url)
     if not html:
         return {}
     soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True)
 
-    name_el = soup.select_one("span.b-content__title-highlight")
-    name = name_el.get_text(strip=True) if name_el else ""
+    title_el = soup.find("h1") or soup.find("title")
+    name = title_el.get_text(strip=True) if title_el else ""
 
-    record_el = soup.select_one("span.b-content__title-record")
-    wins = losses = draws = 0
-    if record_el:
-        m = re.search(r"(\d+)-(\d+)-(\d+)", record_el.get_text(strip=True))
-        if m:
-            wins, losses, draws = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    wins = losses = draws = None
+    m = re.search(r"Pro\s+MMA\s+Record[:\s]*(\d+)-(\d+)-(\d+)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"\b(\d{1,2})-(\d{1,2})-(\d{1,2})\b", text)
+    if m:
+        wins, losses, draws = int(m.group(1)), int(m.group(2)), int(m.group(3))
 
-    raw: dict = {}
-    for li in soup.select("li.b-list__box-list-item"):
-        label_el = li.select_one("i.b-list__box-item-title")
-        if not label_el:
-            continue
-        label = label_el.get_text(strip=True)
-        key = _STAT_LABELS.get(label)
-        if not key:
-            continue
-        full_text = li.get_text(strip=True)
-        value = full_text[len(label):].strip()
-        raw[key] = value
+    reach_in = None
+    m = re.search(r'Reach[:\s]*(\d{2,3})\s*"?', text, re.IGNORECASE)
+    if m:
+        reach_in = float(m.group(1))
 
-    def _inches(text: Optional[str]) -> Optional[float]:
-        if not text:
-            return None
-        m = re.match(r"(\d+)'\s*(\d+)", text)
-        if m:
-            return int(m.group(1)) * 12 + int(m.group(2))
-        m2 = re.match(r'(\d+)"', text)
-        if m2:
-            return float(m2.group(1))
-        return None
+    height_in = None
+    m = re.search(r"Height[:\s]*(\d)['’]\s*(\d{1,2})", text, re.IGNORECASE)
+    if m:
+        height_in = int(m.group(1)) * 12 + int(m.group(2))
 
     age = None
-    if raw.get("dob"):
-        try:
-            dob = datetime.strptime(raw["dob"], "%b %d, %Y")
-            age = (datetime.now() - dob).days / 365.25
-        except Exception:
-            age = None
+    m = re.search(r"Age[:\s]*(\d{2})", text, re.IGNORECASE)
+    if m:
+        age = float(m.group(1))
+    if age is None:
+        m = re.search(r"\b(19|20)\d{2}[.\-/](0[1-9]|1[0-2])[.\-/](0[1-9]|[12]\d|3[01])\b", text)
+        if m:
+            try:
+                dob = datetime.strptime(m.group(0).replace("/", "-").replace(".", "-"), "%Y-%m-%d")
+                age = (datetime.now() - dob).days / 365.25
+            except Exception:
+                age = None
 
     return {
-        "name": name,
-        "wins": wins, "losses": losses, "draws": draws,
-        "height_in": _inches(raw.get("height")),
-        "reach_in":  _f(raw.get("reach", "").rstrip('"') if raw.get("reach") else None),
-        "stance":    raw.get("stance"),
-        "age":       age,
-        "slpm":    _f(raw.get("slpm")),
-        "str_acc": _f(raw.get("str_acc")),
-        "sapm":    _f(raw.get("sapm")),
-        "str_def": _f(raw.get("str_def")),
-        "td_avg":  _f(raw.get("td_avg")),
-        "td_acc":  _f(raw.get("td_acc")),
-        "td_def":  _f(raw.get("td_def")),
-        "sub_avg": _f(raw.get("sub_avg")),
+        "name": name, "wins": wins, "losses": losses, "draws": draws,
+        "height_in": height_in, "reach_in": reach_in, "age": age,
     }
 
 
-def fetch_fight_history(fighter_url: str, limit: int = 15) -> list[dict]:
+def fetch_tapology_fight_history(url: str, limit: int = 15) -> list[dict]:
     """
-    Scrape a fighter's recent fight history table (most recent first):
-      [{result: 'W'|'L'|'D'|'NC', opponent, method, round, event, date}]
-    `method` is the raw ufcstats.com string (e.g. "KO/TKO", "Submission",
-    "Decision - Unanimous"), used by models/ufc_model.py to derive each
-    fighter's KO-rate / sub-rate and KO-susceptibility / sub-susceptibility.
-    Empty list on failure.
+    Best-effort extraction of a fighter's fight history from their Tapology
+    profile page — scans for "Result via Method" style text patterns
+    (e.g. "Win via Submission", "Loss via KO/TKO", "Win via Decision").
+    Returns [{result: 'W'|'L', method}]. Empty list if the pattern isn't
+    found (fails soft — models/ufc_model.py falls back to league-average
+    finish rates when this is empty, same as a fighter with no history).
     """
-    html = _get(fighter_url)
+    html = _get(url)
     if not html:
         return []
-    soup = BeautifulSoup(html, "html.parser")
+    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
     fights = []
-    for row in soup.select("tbody.b-fight-details__table-body > tr"):
-        cells = row.select("td.b-fight-details__table-col")
-        if len(cells) < 10:
-            continue
-        result_flair = cells[0].select_one("a.b-flag, i.b-flag")
-        result_text = (result_flair.get_text(strip=True) if result_flair
-                       else cells[0].get_text(strip=True))
-        result = "W" if "win" in result_text.lower() else (
-            "L" if "loss" in result_text.lower() else
-            "NC" if "nc" in result_text.lower() else "D"
-        )
-        opp_a = cells[1].select_one("a")
-        opponent = opp_a.get_text(strip=True) if opp_a else ""
-        method = cells[7].get_text(" ", strip=True) if len(cells) > 7 else ""
-        rnd = cells[8].get_text(strip=True) if len(cells) > 8 else ""
-        event_a = cells[6].select_one("a") if len(cells) > 6 else None
-        event = event_a.get_text(strip=True) if event_a else ""
-        fights.append({
-            "result": result, "opponent": opponent, "method": method,
-            "round": rnd, "event": event,
-        })
+    for m in re.finditer(
+        r"\b(Win|Loss)\b[^.]{0,40}?\b(Decision|Submission|KO|TKO|DQ)\b",
+        text, re.IGNORECASE,
+    ):
+        result = "W" if m.group(1).lower() == "win" else "L"
+        fights.append({"result": result, "method": m.group(2)})
     return fights[:limit]
 
 
 def _method_rates(fights: list[dict]) -> dict:
-    """
-    From a fight history list, compute:
-      wins_by_ko/sub/dec (share of WINS by method) and
-      losses_by_ko/sub (share of LOSSES by method — durability/susceptibility proxy).
-    All None when the relevant outcome count is 0 (not 0.0 — avoids a fighter
-    with zero losses looking identical to one who's simply never been finished).
-    """
+    """Same shape/logic as before — win/loss method shares, None (not 0) when
+    a fighter has zero fights of that outcome type."""
     wins = [f for f in fights if f["result"] == "W"]
     losses = [f for f in fights if f["result"] == "L"]
 
@@ -288,101 +275,84 @@ def _method_rates(fights: list[dict]) -> dict:
 
 def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
     """
-    Main entry point — resolve both fighter names and return
-    {"a": {...profile, ...method_rates}, "b": {...}}.
-    A fighter's dict is {} (not a replacement-level default) when they can't
-    be resolved, matching this repo's "don't hallucinate from nothing"
-    convention (see analyze_soccer.py, fetchers/rugby.py).
+    Main entry point — resolve both fighters against Tapology (record, bio,
+    fight history) and FightMatrix (ranking), merging into one dict per
+    fighter. A fighter's dict is {} (not a replacement-level default) only
+    when BOTH sources fail to resolve them — a fighter found on one source
+    but not the other still gets a partial profile, same "don't hallucinate
+    from nothing, but don't throw away partial real data either" stance as
+    fetchers/rugby.py.
     """
     result: dict = {"a": {}, "b": {}}
     for key, name in (("a", name_a), ("b", name_b)):
-        match = lookup_fighter(name)
-        if not match:
-            continue
-        profile = fetch_fighter_profile(f"{BASE}{match['url']}" if match["url"].startswith("/") else match["url"])
-        if not profile:
-            continue
-        history = fetch_fight_history(match["url"])
-        rates = _method_rates(history)
-        result[key] = {**profile, **rates, "fight_history": history}
+        profile: dict = {}
+        tap_match = search_tapology_fighter(name)
+        if tap_match:
+            tap_profile = fetch_tapology_profile(tap_match["url"])
+            if tap_profile:
+                history = fetch_tapology_fight_history(tap_match["url"])
+                profile.update({**tap_profile, **_method_rates(history), "fight_history": history})
+
+        fm_match = lookup_fightmatrix_fighter(name)
+        if fm_match:
+            profile["fm_rank"] = fm_match.get("rank")
+            profile["fm_rating"] = fm_match.get("rating")
+            profile.setdefault("name", fm_match["name"])
+
+        if profile:
+            result[key] = profile
     return result
 
 
-def diagnose(sample_fighter: str = "Jones") -> dict:
+def diagnose(sample_fighter: str = "Jon Jones") -> dict:
     """
     One-shot diagnostic reporting the RAW HTTP status + response snippet for
-    ufcstats.com, instead of the silent {} enrich_ufc_fighters returns on any
-    failure. Added 2026-07-12 (same pattern as fetchers/rugby.py:diagnose,
-    fetchers/nrfi_odds.py:diagnose) after a user report that no fighter stats
-    ever come back. Since this repo's dev sandbox can't reach ufcstats.com at
-    all (confirmed both http and https, same proxy block as espn.com), the
-    scraper's CSS-class assumptions were never live-verified — this checks
-    each stage in order so a failure shows up as a specific status code /
-    missing selector instead of a generic empty result.
+    both fightmatrix.com and tapology.com, built in from the start this time
+    (not added after a failure, like it was for ufcstats.com) — neither
+    site's markup has been live-verified from this session, so the first
+    real test should show exactly what's being served immediately.
     """
-    out: dict = {"base": BASE}
+    out: dict = {"fightmatrix_base": FIGHTMATRIX_BASE, "tapology_base": TAPOLOGY_BASE}
 
-    # 1. Raw fetch of the alphabetical listing page
-    letter = sample_fighter[0].lower() if sample_fighter else "a"
-    url = f"{BASE}/statistics/fighters"
+    # 1. FightMatrix rankings page
     try:
         with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
-            resp = client.get(url, params={"char": letter, "page": "all"})
-            out["listing_status"] = resp.status_code
-            out["listing_url"] = str(resp.url)
-            out["listing_content_length"] = len(resp.text)
-            out["listing_has_expected_class"] = "b-statistics__table-row" in resp.text
-            if resp.status_code != 200:
-                out["listing_error_body"] = resp.text[:500]
-            elif not out["listing_has_expected_class"]:
-                # 200 but not the real page — show the actual body so we can
-                # see what IS being served (bot-check, redirect notice,
-                # changed markup, etc.) instead of guessing again.
-                out["listing_raw_snippet"] = resp.text[:1500]
-                out["listing_title_tag"] = (
-                    re.search(r"<title[^>]*>(.*?)</title>", resp.text, re.IGNORECASE | re.DOTALL)
-                    .group(1).strip()
-                    if re.search(r"<title[^>]*>(.*?)</title>", resp.text, re.IGNORECASE | re.DOTALL)
-                    else None
-                )
+            resp = client.get(f"{FIGHTMATRIX_BASE}/mma-ranks/")
+            out["fm_status"] = resp.status_code
+            out["fm_content_length"] = len(resp.text)
+            out["fm_has_profile_links"] = bool(_FM_PROFILE_RE.search(resp.text))
+            if resp.status_code != 200 or not out["fm_has_profile_links"]:
+                out["fm_raw_snippet"] = resp.text[:1500]
     except Exception as exc:
-        out["listing_exception"] = str(exc)
+        out["fm_exception"] = str(exc)
 
-    parsed = search_fighters_by_letter(letter)
-    out["parsed_fighter_count"] = len(parsed)
-    out["parsed_fighter_sample"] = parsed[:5]
+    try:
+        rankings = fetch_fightmatrix_rankings()
+        out["fm_parsed_count"] = len(rankings)
+        out["fm_parsed_sample"] = rankings[:5]
+    except Exception as exc:
+        out["fm_parse_exception"] = str(exc)
 
-    # 2. lookup_fighter now tries multiple candidate initials itself (fixed
-    # 2026-07-12 for compound surnames like "Du Plessis") — call it directly
-    # rather than gating on this single-letter `parsed` probe above.
-    match = lookup_fighter(sample_fighter)
-    out["sample_fighter_matched"] = match
-    if match:
-        fighter_url = f"{BASE}{match['url']}" if match["url"].startswith("/") else match["url"]
-        try:
-            with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
-                resp = client.get(fighter_url)
-                out["profile_status"] = resp.status_code
-                out["profile_content_length"] = len(resp.text)
-                out["profile_has_expected_classes"] = {
-                    "b-content__title-highlight": "b-content__title-highlight" in resp.text,
-                    "b-list__box-list-item": "b-list__box-list-item" in resp.text,
-                    "b-fight-details__table-body": "b-fight-details__table-body" in resp.text,
-                }
-                if resp.status_code != 200:
-                    out["profile_error_body"] = resp.text[:500]
-        except Exception as exc:
-            out["profile_exception"] = str(exc)
+    # 2. Tapology search
+    try:
+        with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
+            resp = client.get(f"{TAPOLOGY_BASE}/search", params={"term": sample_fighter})
+            out["tap_search_status"] = resp.status_code
+            out["tap_search_url"] = str(resp.url)
+            out["tap_content_length"] = len(resp.text)
+            out["tap_has_profile_links"] = bool(_TAP_PROFILE_RE.search(resp.text))
+            if resp.status_code != 200 or not out["tap_has_profile_links"]:
+                out["tap_raw_snippet"] = resp.text[:1500]
+    except Exception as exc:
+        out["tap_exception"] = str(exc)
 
-        try:
-            out["parsed_profile"] = fetch_fighter_profile(fighter_url)
-        except Exception as exc:
-            out["parsed_profile_exception"] = str(exc)
-
-        try:
-            history = fetch_fight_history(fighter_url, limit=3)
-            out["parsed_fight_history_sample"] = history
-        except Exception as exc:
-            out["parsed_fight_history_exception"] = str(exc)
+    try:
+        match = search_tapology_fighter(sample_fighter)
+        out["tap_sample_matched"] = match
+        if match:
+            out["tap_parsed_profile"] = fetch_tapology_profile(match["url"])
+            out["tap_parsed_history_sample"] = fetch_tapology_fight_history(match["url"], limit=3)
+    except Exception as exc:
+        out["tap_parse_exception"] = str(exc)
 
     return out

@@ -11391,14 +11391,26 @@ mutates: none
 ## fetchers/ufc.py
 
 ---
-name: BASE
+name: FIGHTMATRIX_BASE / TAPOLOGY_BASE
 type: variable
 file: fetchers/ufc.py
-purpose: ufcstats.com base URL. Unlike ESPN (rugby/baseball/soccer/tennis), UFC Stats has no JSON API — this is a plain HTML scrape via requests+BeautifulSoup. NOTE — not live-verified from a Claude Code session: this repo's remote containers cannot reach external sites at all (confirmed 2026-07-12 for both espn.com and ufcstats.com from this sandbox's proxy). The CSS class names below are based on ufcstats.com's long-stable, widely-scraped structure, not a live-confirmed response. Verify once deployed (Railway) or run locally.
+purpose: SWITCHED 2026-07-14 from ufcstats.com. Live-testing on Railway found ufcstats.com serves a JavaScript proof-of-work anti-bot challenge ("Checking your browser…") to any plain HTTP client — not something this repo will try to solve (that's circumventing an explicit anti-bot security measure, not reading a public page). Neither fightmatrix.com (Elo-style rankings) nor tapology.com (record/bio/fight history) has been live-verified either — this sandbox can't reach any external site — and unlike ufcstats.com's exact CSS classes (known with fair confidence before turning out to be blocked), these two sites' markup was never memorized with high confidence to begin with.
 inputs: none
 outputs: str
 calls: none
-called_by: _get
+called_by: fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history
+mutates: none
+---
+
+---
+name: _FM_PROFILE_RE / _TAP_PROFILE_RE
+type: variable
+file: fetchers/ufc.py
+purpose: Fighter-profile-link regexes (/fighter-profile/... for FightMatrix, /fightcenter/fighters/\d+-... for Tapology). Deliberately matches by URL PATH PATTERN rather than a guessed CSS class name — path patterns tend to survive markup/redesign changes better than class names, a lesson taken directly from ufcstats.com's CSS-class guesses turning out to be moot anyway once the bot-block was found.
+inputs: none
+outputs: re.Pattern
+calls: none
+called_by: fetch_fightmatrix_rankings, search_tapology_fighter, diagnose
 mutates: none
 ---
 
@@ -11406,59 +11418,83 @@ mutates: none
 name: _get
 type: function
 file: fetchers/ufc.py
-purpose: GET a ufcstats.com page with a browser User-Agent; returns '' on any failure (network, non-2xx) rather than raising — same fail-soft convention as fetchers/ittf.py._get.
+purpose: GET a page with a browser User-Agent; returns '' on any failure (network, non-2xx) rather than raising — same fail-soft convention as fetchers/ittf.py._get.
 inputs: url: str, params: Optional[dict]
 outputs: str
 calls: httpx.Client.get
-called_by: search_fighters_by_letter, fetch_fighter_profile, fetch_fight_history
+called_by: fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history
 mutates: none
 ---
 
 ---
-name: search_fighters_by_letter
+name: _name_matches
 type: function
 file: fetchers/ufc.py
-purpose: Scrapes /statistics/fighters?char={letter}&page=all — ufcstats.com's alphabetical (by last name) fighter listing, since the site has no name-search endpoint. Returns [{name, url, wins, losses, draws}]; empty list on failure.
-inputs: last_initial: str
-outputs: list[dict]
-calls: _get
-called_by: lookup_fighter
+purpose: Shared fuzzy name-match helper (substring or difflib.SequenceMatcher ratio ≥0.72) used by both the FightMatrix and Tapology lookups.
+inputs: query: str, candidate: str
+outputs: bool
+calls: difflib.SequenceMatcher
+called_by: lookup_fightmatrix_fighter, search_tapology_fighter
 mutates: none
 ---
 
 ---
-name: lookup_fighter
+name: fetch_fightmatrix_rankings
 type: function
 file: fetchers/ufc.py
-purpose: Resolves a free-text fighter name to a ufcstats.com entry. FIXED 2026-07-12 (found live-testing a real fighter — "Dricus Du Plessis" returned no data): originally guessed a single last-name initial from just the LAST space-separated word ("Plessis" → 'P'), but ufcstats.com alphabetizes compound surnames (Du Plessis, Dos Santos, Dos Anjos, Da Silva — common in UFC) under the full surname's first letter ('D'), so it searched the wrong page entirely. Now tries multiple candidate initials (full surname after the first name token, AND the final word alone) before giving up, mirroring the "don't guess once, try candidates" fix from the rugby ESPN league-ID bug.
-inputs: name: str
-outputs: Optional[dict]
-calls: search_fighters_by_letter, difflib.get_close_matches
-called_by: enrich_ufc_fighters, diagnose
-mutates: none
----
-
----
-name: fetch_fighter_profile
-type: function
-file: fetchers/ufc.py
-purpose: Scrapes a fighter's ufcstats.com detail page for career stats (SLpM, Str. Acc., SApM, Str. Def, TD Avg/Acc/Def, Sub. Avg) and bio (height, reach, stance, age derived from DOB, W-L-D record). Empty dict on failure.
-inputs: fighter_url: str
-outputs: dict {name, wins, losses, draws, height_in, reach_in, stance, age, slpm, str_acc, sapm, str_def, td_avg, td_acc, td_def, sub_avg}
+purpose: Scrapes fightmatrix.com's main rankings page for fighter-profile links (by URL pattern, see _FM_PROFILE_RE), then best-effort extracts a rank + rating from the enclosing table row's cell text (regex-matched integer shapes — a #1-3 digit cell as rank, a 3-4 digit cell as rating). Either may come back None if the row shape isn't what's guessed; the caller treats that as "unranked," not an error. Empty list on failure.
+inputs: none
+outputs: list[dict] {name, url, rank, rating}
 calls: _get, BeautifulSoup
+called_by: lookup_fightmatrix_fighter, diagnose
+mutates: none
+---
+
+---
+name: lookup_fightmatrix_fighter
+type: function
+file: fetchers/ufc.py
+purpose: Fuzzy-matches a fighter name against fetch_fightmatrix_rankings(). Returns None for an unranked fighter (most UFC fighters won't be in FightMatrix's ranked list) rather than treating that as a failure.
+inputs: name: str, rankings: Optional[list[dict]] = None
+outputs: Optional[dict]
+calls: fetch_fightmatrix_rankings (if rankings not supplied), _name_matches
 called_by: enrich_ufc_fighters
 mutates: none
 ---
 
 ---
-name: fetch_fight_history
+name: search_tapology_fighter
 type: function
 file: fetchers/ufc.py
-purpose: Scrapes a fighter's recent-fights table (most recent first) — result, opponent, method, round, event. Known limitation: the per-fighter table has no separate date column, so precise days-since-last-fight (true "ring rust") isn't computable without an additional per-event page fetch — not implemented in v1. Empty list on failure.
-inputs: fighter_url: str, limit: int = 15
-outputs: list[dict] {result, opponent, method, round, event}
-calls: _get, BeautifulSoup
-called_by: _method_rates, enrich_ufc_fighters
+purpose: Searches tapology.com/search?term={name}, finds candidate fighter-profile links by URL pattern (see _TAP_PROFILE_RE), and fuzzy-matches the best one. Falls back to the first candidate if no fuzzy match clears the bar (search results are usually already relevance-sorted). Returns None if the search itself returns no fighter-profile links at all.
+inputs: name: str
+outputs: Optional[dict] {name, url}
+calls: _get, BeautifulSoup, _name_matches
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: fetch_tapology_profile
+type: function
+file: fetchers/ufc.py
+purpose: Scrapes a Tapology fighter profile page for record + bio via best-effort TEXT PATTERN regexes (not strict CSS selectors, since the exact markup hasn't been live-verified) — W-L-D record, reach, height, age (from an explicit age field or, failing that, a date-of-birth-shaped pattern). Individual fields are None when their pattern isn't found, not guessed. Returns {} on failure to fetch at all.
+inputs: url: str
+outputs: dict {name, wins, losses, draws, height_in, reach_in, age}
+calls: _get, BeautifulSoup, re.search
+called_by: enrich_ufc_fighters, diagnose
+mutates: none
+---
+
+---
+name: fetch_tapology_fight_history
+type: function
+file: fetchers/ufc.py
+purpose: Best-effort extraction of a fighter's fight history from their Tapology profile page text, scanning for "Win/Loss via Decision/Submission/KO/TKO/DQ" style patterns. Returns [] (not an error) if the pattern isn't found — models/ufc_model.py's method_of_victory() falls back to league-average finish rates in that case, same as a fighter with genuinely zero fight history.
+inputs: url: str, limit: int = 15
+outputs: list[dict] {result, method}
+calls: _get, BeautifulSoup, re.finditer
+called_by: _method_rates, enrich_ufc_fighters, diagnose
 mutates: none
 ---
 
@@ -11478,10 +11514,10 @@ mutates: none
 name: enrich_ufc_fighters
 type: function
 file: fetchers/ufc.py
-purpose: Main entry point — resolves both fighter names and returns {"a": {...profile, ...method_rates, fight_history}, "b": {...}}. A fighter's dict is {} (not a replacement-level default) when unresolved, matching this repo's "don't hallucinate from nothing" convention.
+purpose: Main entry point — resolves both fighters against Tapology (record/bio/fight history) and FightMatrix (ranking), merging into one profile dict per fighter. A fighter found on ONE source but not the other still gets a partial profile (not thrown away) — a fighter's dict is only {} when BOTH sources fail to resolve them, same "don't hallucinate from nothing, don't discard partial real data either" stance as fetchers/rugby.py.
 inputs: name_a: str, name_b: str
 outputs: dict {a: dict, b: dict}
-calls: lookup_fighter, fetch_fighter_profile, fetch_fight_history, _method_rates
+calls: search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, _method_rates, lookup_fightmatrix_fighter
 called_by: run_ufc_analysis (analyze_ufc.py)
 mutates: none
 ---
@@ -11490,10 +11526,10 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/ufc.py
-purpose: One-shot diagnostic (added 2026-07-12, same pattern as fetchers/rugby.py:diagnose) reporting the RAW HTTP status + response body/content-length for the alphabetical fighter listing (/statistics/fighters) and a sample fighter's detail page, instead of the silent {} enrich_ufc_fighters returns on any failure. Built after a user report that no fighter stats ever come back — this repo's dev sandbox can't reach ufcstats.com at all (confirmed both http/https, same proxy allowlist block as espn.com), so the scraper's CSS-class assumptions (b-statistics__table-row, b-content__title-highlight, b-list__box-list-item, b-fight-details__table-body) were never live-verified. Checks each stage in order (listing status → parsed count → detail page status → expected-class presence → parsed profile/history) so a failure shows up as a specific cause instead of a generic empty result. **Bug fixed 2026-07-13:** step 2 called `lookup_fighter(sample_fighter, parsed)` with 2 positional args against a 1-arg signature — fixed, now calls `lookup_fighter(sample_fighter)`. **Extended same day after a live Railway test:** listing_status came back 200 but content_length was only ~3KB (a real listing page with dozens of fighter rows should be tens of KB) and listing_has_expected_class was false — ufcstats.com is returning SOME 200 response, just not the real fighter table. Since we don't know if it's a bot-check page, a redirect notice, or genuinely changed markup, the diagnostic now captures listing_raw_snippet (first 1500 chars of the actual body) and listing_title_tag whenever status is 200 but the expected class is missing, instead of just a boolean — surfacing what IS being served rather than only confirming what isn't.
-inputs: sample_fighter: str = "Jones"
-outputs: dict (raw status codes, content lengths, expected-class booleans, listing_raw_snippet/listing_title_tag when the listing looks wrong, parsed samples at each stage)
-calls: httpx.Client.get, search_fighters_by_letter, lookup_fighter, fetch_fighter_profile, fetch_fight_history, re.search
+purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com — since neither fightmatrix.com's nor tapology.com's markup has been live-verified, the first real test should show exactly what's being served immediately: raw status/content-length/profile-link-presence for FightMatrix's rankings page and a Tapology search, plus a raw snippet whenever the page doesn't look right, plus a full parse attempt on a sample fighter.
+inputs: sample_fighter: str = "Jon Jones"
+outputs: dict (raw status codes, content lengths, profile-link booleans, raw snippets when pages look wrong, parsed samples at each stage)
+calls: httpx.Client.get, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history
 called_by: ufc_diag (app.py)
 mutates: none
 ---
@@ -11503,10 +11539,10 @@ mutates: none
 ## models/ufc_model.py
 
 ---
-name: DEFAULT_GLICKO_RD / CONFIDENT_RD / STATS_SCALE / REACH_COEF / AGE_DECLINE_START / AGE_DECLINE_PER_YEAR / MODEL_PROB_CAP / LEAGUE_AVG_LOSS_KO_RATE / LEAGUE_AVG_LOSS_SUB_RATE / LEAGUE_AVG_WIN_KO_RATE / LEAGUE_AVG_WIN_SUB_RATE
+name: DEFAULT_GLICKO_RD / CONFIDENT_RD / RANKING_SCALE / REACH_COEF / AGE_DECLINE_START / AGE_DECLINE_PER_YEAR / MODEL_PROB_CAP / LEAGUE_AVG_LOSS_KO_RATE / LEAGUE_AVG_LOSS_SUB_RATE / LEAGUE_AVG_WIN_KO_RATE / LEAGUE_AVG_WIN_SUB_RATE
 type: variable
 file: models/ufc_model.py
-purpose: Provisional starting constants — NOT fitted to real UFC history (same "build environment can't reach the data source" limitation as rugby). CONFIDENT_RD=60 is roughly what Glicko-2 RD looks like after ~10+ recorded fights; DEFAULT_GLICKO_RD=350 is models/glicko.py's unrated default. MODEL_PROB_CAP=0.82 (slightly looser than rugby's 0.78 — MMA mismatches run bigger — but still bounded, same "no near-certainty claims" culture as the baseball/rugby caps). LEAGUE_AVG_* rates are rough historical UFC finish-rate estimates used only when a fighter has zero fight history to compute their own rate from.
+purpose: Provisional starting constants — NOT fitted to real UFC history (same "build environment can't reach the data source" limitation as rugby). CONFIDENT_RD=60 is roughly what Glicko-2 RD looks like after ~10+ recorded fights; DEFAULT_GLICKO_RD=350 is models/glicko.py's unrated default. MODEL_PROB_CAP=0.82 (slightly looser than rugby's 0.78 — MMA mismatches run bigger — but still bounded, same "no near-certainty claims" culture as the baseball/rugby caps). LEAGUE_AVG_* rates are rough historical UFC finish-rate estimates used only when a fighter has zero fight history to compute their own rate from. RENAMED 2026-07-14: STATS_SCALE → RANKING_SCALE when stats_win_prob switched from ufcstats.com striking/TD stats to FightMatrix ranking (see stats_win_prob below).
 inputs: none
 outputs: float
 calls: none
@@ -11515,13 +11551,25 @@ mutates: none
 ---
 
 ---
+name: _rating_from_rank
+type: function
+file: models/ufc_model.py
+purpose: Added 2026-07-14. Converts a FightMatrix rank to an Elo-like rating — the exact same formula analyze_esports.py's _elo_from_ranking uses (rank 1 ≈ 2200, floors at 1300). Returns None (not a default rating) for an unranked fighter, so "unranked" reads as "no signal from this term," not "assumed weak" — most UFC fighters won't be in FightMatrix's ranked list.
+inputs: rank: Optional[int]
+outputs: Optional[float]
+calls: math.log10
+called_by: stats_win_prob
+mutates: none
+---
+
+---
 name: stats_win_prob
 type: function
 file: models/ufc_model.py
-purpose: Logistic win probability for fighter A from career stats alone — striking differential (SLpM-SApM), takedown edge (TD rate × opponent's TD defense gap), reach advantage, and age-decline penalty past 34. Returns 0.5 (no signal) when both fighters have no usable stats.
+purpose: Logistic win probability for fighter A from FightMatrix ranking + reach + age. CHANGED 2026-07-14: previously ran on ufcstats.com's per-minute striking/TD stats (SLpM, TD accuracy, etc.) — switched off ufcstats.com after it turned out to serve a JS anti-bot challenge to any non-browser client (see fetchers/ufc.py's module docstring). Neither fightmatrix.com nor tapology.com expose that per-minute granularity, so this now runs on rank_diff (via _rating_from_rank, standard /400 Elo scaling — contributes 0 when either fighter is unranked) plus reach advantage and age-decline penalty past 34. Returns 0.5 (no signal) when neither fighter has a usable ranking or reach/age.
 inputs: fighter_a: dict, fighter_b: dict
 outputs: float
-calls: math.exp (via _sigmoid), _age_penalty
+calls: _rating_from_rank, math.exp (via _sigmoid), _age_penalty
 called_by: composite_win_prob
 mutates: none
 ---
@@ -11610,7 +11658,7 @@ mutates: none
 name: run_ufc_analysis
 type: function
 file: analyze_ufc.py
-purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → ufcstats.com scrape (fetchers/ufc) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. Returns {"status": "insufficient_data", ...} without persisting when ufcstats.com has no data for either fighter.
+purpose: Full UFC pipeline entry point — parse query (ai_agent_ufc) → FightMatrix ranking + Tapology record/bio/history (fetchers/ufc, switched 2026-07-14 off ufcstats.com after it turned out to serve a JS anti-bot challenge) → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class) → stats-logistic blend (models/ufc_model, now ranking+reach+age based) → MODEL_PROB_CAP safety clamp → method-of-victory model for both possible winners → markets (method of victory, fight-finishes%, goes-the-distance%) → bet recommendations + Kelly stake → persist match/signals/prediction (sport='ufc', prob_draw hardcoded 0.0 — draws are rare and explicitly NOT modeled) → narrate. Returns {"status": "insufficient_data", ...} without persisting when neither source has data for either fighter.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict (see analyze_rugby.run_rugby_analysis's return shape for the parallel fields; UFC-specific additions are markets.method_of_victory/fight_finishes_pct/goes_the_distance_pct, and there's no margin/totals market since there's no score)
 calls: ai_agent_ufc.parse_ufc_query, fetchers.ufc.enrich_ufc_fighters, models.glicko.Glicko2Model, models.ufc_model.composite_win_prob/method_of_victory/explain, models.kelly.market_edge_summary/kelly_stake, _bet_recommendations, ai_agent_ufc.generate_ufc_narrative, db.database.get_db
@@ -11678,7 +11726,7 @@ mutates: none
 name: ufc.html
 type: template
 file: templates/ufc.html
-purpose: UFC analysis UI — matchup query box (optional American odds), step tracker, fighter cards (record, SLpM/SApM, TD avg/def, reach), win-probability bars with a "draws not modeled" note, a 3-column method-of-victory grid (KO/TKO, submission, decision per fighter + overall finish/distance %), market comparison/Kelly card, recommendation card, AI narrative, collapsible pipeline trace. Carries an on-page amber caveat about provisional constants and unmodeled ring-rust. Visual structure/CSS copied from templates/rugby.html (same reasoning as rugby copying esports.html — closest existing analog). FIXED 2026-07-12 (found live-testing, same bug as rugby.html): runAnalysis() rendered a full results view even for {"status":"insufficient_data",...} responses (no prob_a/prob_b fields), showing a misleading "0%/0%" win probability with empty fighter-card stats. Now checks data.status and shows the pipeline's own narrative as an error instead.
+purpose: UFC analysis UI — matchup query box (optional American odds), step tracker, fighter cards (record, FightMatrix rank, age, reach), win-probability bars with a "draws not modeled" note, a 3-column method-of-victory grid (KO/TKO, submission, decision per fighter + overall finish/distance %), market comparison/Kelly card, recommendation card, AI narrative, collapsible pipeline trace. Carries an on-page amber caveat about provisional constants and unmodeled ring-rust. Visual structure/CSS copied from templates/rugby.html (same reasoning as rugby copying esports.html — closest existing analog). FIXED 2026-07-12 (found live-testing, same bug as rugby.html): runAnalysis() rendered a full results view even for {"status":"insufficient_data",...} responses (no prob_a/prob_b fields), showing a misleading "0%/0%" win probability with empty fighter-card stats. Now checks data.status and shows the pipeline's own narrative as an error instead. UPDATED 2026-07-14: fighter cards swapped SLpM/SApM/TD avg-def (ufcstats.com fields, no longer fetched) for FightMatrix Rank and Age; hero text updated to describe the FightMatrix+Tapology source switch.
 inputs: none
 outputs: HTML
 calls: /analyze-ufc (fetch, JS)

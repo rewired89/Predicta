@@ -259,8 +259,8 @@
   <div class="hero">
     <div class="hero-eyebrow">UFC / MMA · Glicko-2 + Stats Logistic · Method of Victory</div>
     <h1 class="hero-title">UFC <span class="accent">Analysis</span></h1>
-    <p class="hero-sub">Career striking/grappling stats scraped from ufcstats.com, blended with Glicko-2 (weight-class scoped, uncertainty-aware) — plus a separate method-of-victory model for KO/TKO, submission, and decision odds.</p>
-    <p class="hero-note">v1 model — league-average finish rates, blend weights, and the probability cap are provisional starting estimates, not yet backtested against real UFC results. Ring-rust (days since last fight) is not modeled yet. Treat outputs as directional until calibrated.</p>
+    <p class="hero-sub">FightMatrix ranking + Tapology record/bio/fight history, blended with Glicko-2 (weight-class scoped, uncertainty-aware) — plus a separate method-of-victory model for KO/TKO, submission, and decision odds.</p>
+    <p class="hero-note">v1 model — league-average finish rates, blend weights, and the probability cap are provisional starting estimates, not yet backtested against real UFC results. Switched off ufcstats.com 2026-07-14 (it blocks automated requests with a JS anti-bot challenge) — the current sources don't expose per-minute striking/grappling stats, so the model leans more on ranking + Glicko-2. Ring-rust (days since last fight) is not modeled yet. Treat outputs as directional until calibrated.</p>
   </div>
 
   <!-- Query Card -->
@@ -306,7 +306,7 @@
   <!-- Step tracker -->
   <div class="steps-row" id="stepsRow" style="display:none">
     <div class="step"><div class="step-dot" id="s1">1</div><div class="step-label">Parse query</div></div>
-    <div class="step"><div class="step-dot" id="s2">2</div><div class="step-label">ufcstats.com scrape</div></div>
+    <div class="step"><div class="step-dot" id="s2">2</div><div class="step-label">FightMatrix + Tapology scrape</div></div>
     <div class="step"><div class="step-dot" id="s3">3</div><div class="step-label">Glicko-2 + stats blend</div></div>
     <div class="step"><div class="step-dot" id="s4">4</div><div class="step-label">Method of victory</div></div>
     <div class="step"><div class="step-dot" id="s5">5</div><div class="step-label">Generate narrative</div></div>
@@ -330,10 +330,9 @@
         <div class="team-name" id="fighterAName">—</div>
         <div class="team-sub" id="fighterARecord">—</div>
         <div class="team-stats">
-          <div class="stat-row"><span class="stat-label">Sig. Strikes Landed/Min</span><span class="stat-value cyan" id="fighterASlpm">—</span></div>
-          <div class="stat-row"><span class="stat-label">Sig. Strikes Absorbed/Min</span><span class="stat-value" id="fighterASapm">—</span></div>
-          <div class="stat-row"><span class="stat-label">Takedown Avg / Def</span><span class="stat-value green" id="fighterATd">—</span></div>
-          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value" id="fighterAReach">—</span></div>
+          <div class="stat-row"><span class="stat-label">FightMatrix Rank</span><span class="stat-value cyan" id="fighterARank">—</span></div>
+          <div class="stat-row"><span class="stat-label">Age</span><span class="stat-value" id="fighterAAge">—</span></div>
+          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value green" id="fighterAReach">—</span></div>
         </div>
       </div>
 
@@ -343,10 +342,9 @@
         <div class="team-name" id="fighterBName">—</div>
         <div class="team-sub" id="fighterBRecord">—</div>
         <div class="team-stats">
-          <div class="stat-row"><span class="stat-label">Sig. Strikes Landed/Min</span><span class="stat-value cyan" id="fighterBSlpm">—</span></div>
-          <div class="stat-row"><span class="stat-label">Sig. Strikes Absorbed/Min</span><span class="stat-value" id="fighterBSapm">—</span></div>
-          <div class="stat-row"><span class="stat-label">Takedown Avg / Def</span><span class="stat-value green" id="fighterBTd">—</span></div>
-          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value" id="fighterBReach">—</span></div>
+          <div class="stat-row"><span class="stat-label">FightMatrix Rank</span><span class="stat-value cyan" id="fighterBRank">—</span></div>
+          <div class="stat-row"><span class="stat-label">Age</span><span class="stat-value" id="fighterBAge">—</span></div>
+          <div class="stat-row"><span class="stat-label">Reach</span><span class="stat-value green" id="fighterBReach">—</span></div>
         </div>
       </div>
     </div>
@@ -550,12 +548,10 @@ function renderResults(d) {
   document.getElementById('fighterBName').textContent = d.fighter_b || '—';
   document.getElementById('fighterARecord').textContent = (fa.wins != null) ? `${fa.wins}-${fa.losses}-${fa.draws}` : '—';
   document.getElementById('fighterBRecord').textContent = (fb.wins != null) ? `${fb.wins}-${fb.losses}-${fb.draws}` : '—';
-  document.getElementById('fighterASlpm').textContent = fa.slpm != null ? fa.slpm.toFixed(2) : '—';
-  document.getElementById('fighterBSlpm').textContent = fb.slpm != null ? fb.slpm.toFixed(2) : '—';
-  document.getElementById('fighterASapm').textContent = fa.sapm != null ? fa.sapm.toFixed(2) : '—';
-  document.getElementById('fighterBSapm').textContent = fb.sapm != null ? fb.sapm.toFixed(2) : '—';
-  document.getElementById('fighterATd').textContent = (fa.td_avg != null) ? `${fa.td_avg}/${fa.td_def ?? '—'}%` : '—';
-  document.getElementById('fighterBTd').textContent = (fb.td_avg != null) ? `${fb.td_avg}/${fb.td_def ?? '—'}%` : '—';
+  document.getElementById('fighterARank').textContent = fa.fm_rank != null ? '#' + fa.fm_rank : 'Unranked';
+  document.getElementById('fighterBRank').textContent = fb.fm_rank != null ? '#' + fb.fm_rank : 'Unranked';
+  document.getElementById('fighterAAge').textContent = fa.age != null ? Math.round(fa.age) : '—';
+  document.getElementById('fighterBAge').textContent = fb.age != null ? Math.round(fb.age) : '—';
   document.getElementById('fighterAReach').textContent = fa.reach_in != null ? fa.reach_in + '"' : '—';
   document.getElementById('fighterBReach').textContent = fb.reach_in != null ? fb.reach_in + '"' : '—';
 

@@ -5,12 +5,11 @@ Two separate pieces, per Kimi's original brief — this is NOT a score model
 (there's no continuous "score" in MMA the way there is in soccer/rugby):
 
   1. Win probability — Glicko-2 (models/glicko.py, reused as-is, scoped
-     sport="ufc" and surface=weight_class) blended with a stats-based logistic
-     built from striking differential, takedown edge, reach, and age. The
-     blend weight leans on Glicko-2 more as its RD (rating uncertainty)
-     shrinks, and leans on raw stats more when RD is still high (a fighter
-     with few logged fights) — the same "RD = doubt" framing used to justify
-     Glicko-2 over plain Elo for this sport in the first place.
+     sport="ufc" and surface=weight_class) blended with a stats-based
+     logistic. The blend weight leans on Glicko-2 more as its RD (rating
+     uncertainty) shrinks, and leans on raw stats more when RD is still high
+     (a fighter with few logged fights) — the same "RD = doubt" framing used
+     to justify Glicko-2 over plain Elo for this sport in the first place.
 
   2. Method of victory — P(KO/TKO), P(submission), P(decision), conditional on
      each fighter winning. Built from that fighter's own finish-rate history
@@ -18,10 +17,21 @@ Two separate pieces, per Kimi's original brief — this is NOT a score model
      they've been finished that way). This is a categorical model, not a
      score distribution — closer in spirit to a classifier than to Dixon-Coles.
 
+CHANGED 2026-07-14: the stats-based signal used to run on ufcstats.com's
+per-minute striking/takedown stats (SLpM, TD accuracy, etc.). ufcstats.com
+turned out to serve a JavaScript anti-bot challenge to any non-browser
+client — not something this repo will try to defeat (see fetchers/ufc.py's
+module docstring) — so fetchers/ufc.py switched to fightmatrix.com
+(Elo-style ranking) + tapology.com (record/bio/history), neither of which
+exposes that per-minute granularity. `stats_win_prob` now runs on
+FightMatrix ranking (converted to an Elo-like rating the same way
+analyze_esports.py turns a world ranking into a rating) plus reach and age
+— a real signal, just less rich than the original plan.
+
 Known v1 limitation (not fixed here): true "ring rust" needs days-since-last-
 fight, which needs a per-event date lookup this fetcher doesn't do yet (see
-fetchers/ufc.py: fetch_fight_history docstring). Also, models/glicko.py's RD
-only updates on a recorded win/loss — it does not grow RD for elapsed time
+fetchers/ufc.py: fetch_tapology_fight_history's docstring). Also, models/glicko.py's
+RD only updates on a recorded win/loss — it does not grow RD for elapsed time
 with no fights, so a 3-year-layoff fighter won't show extra uncertainty from
 that alone. Both are open items, not silently papered over.
 """
@@ -31,7 +41,7 @@ from typing import Optional
 
 DEFAULT_GLICKO_RD = 350.0   # models/glicko.py DEFAULT_RD — max uncertainty (unrated fighter)
 CONFIDENT_RD       = 60.0   # roughly what RD looks like after ~10+ recorded fights
-STATS_SCALE         = 0.35   # logistic scale on the composite stats score
+RANKING_SCALE       = 1.0    # logistic scale on the ranking+reach+age composite score
 REACH_COEF          = 0.015  # per inch of reach advantage
 AGE_DECLINE_START    = 34.0  # UFC performance decline typically starts mid-30s
 AGE_DECLINE_PER_YEAR = 0.03  # score penalty per year past AGE_DECLINE_START
@@ -55,31 +65,37 @@ def _age_penalty(age: Optional[float]) -> float:
     return (age - AGE_DECLINE_START) * AGE_DECLINE_PER_YEAR
 
 
+def _rating_from_rank(rank: Optional[int]) -> Optional[float]:
+    """
+    Same formula analyze_esports.py's _elo_from_ranking uses: rank 1 ≈ 2200,
+    floors at 1300. Returns None (not a default rating) for an unranked
+    fighter — the composite score below treats "unranked" as no signal from
+    this term, not as "bad," since plenty of real UFC fighters won't be in
+    FightMatrix's top rankings.
+    """
+    if not rank or rank <= 0:
+        return None
+    return max(1300.0, 2200.0 - 400.0 * math.log10(max(1, rank)))
+
+
 def stats_win_prob(fighter_a: dict, fighter_b: dict) -> float:
     """
-    Logistic win probability for A from career stats alone — striking
-    differential, takedown edge, reach, and age decline. Returns 0.5 when
-    both fighters have no usable stats (caller should treat that as "no
-    signal", same as any other missing-data default in this repo).
+    Logistic win probability for A from FightMatrix ranking + reach + age.
+    Returns 0.5 when neither fighter has a usable ranking or reach/age
+    signal (caller should treat that as "no signal", same as any other
+    missing-data default in this repo).
     """
-    slpm_a = fighter_a.get("slpm") or 0.0
-    sapm_a = fighter_a.get("sapm") or 0.0
-    slpm_b = fighter_b.get("slpm") or 0.0
-    sapm_b = fighter_b.get("sapm") or 0.0
-    striking_diff = (slpm_a - sapm_a) - (slpm_b - sapm_b)
-
-    td_a = (fighter_a.get("td_avg") or 0.0) * ((fighter_a.get("td_acc") or 0.0) / 100.0)
-    td_b = (fighter_b.get("td_avg") or 0.0) * ((fighter_b.get("td_acc") or 0.0) / 100.0)
-    td_def_a = (fighter_a.get("td_def") or 0.0) / 100.0
-    td_def_b = (fighter_b.get("td_def") or 0.0) / 100.0
-    td_edge = (td_a * (1 - td_def_b)) - (td_b * (1 - td_def_a))
+    rating_a = _rating_from_rank(fighter_a.get("fm_rank"))
+    rating_b = _rating_from_rank(fighter_b.get("fm_rank"))
+    rank_diff = 0.0
+    if rating_a is not None and rating_b is not None:
+        rank_diff = (rating_a - rating_b) / 400.0   # standard Elo scaling
 
     reach_adv = (fighter_a.get("reach_in") or 0.0) - (fighter_b.get("reach_in") or 0.0)
-
     age_pen = _age_penalty(fighter_b.get("age")) - _age_penalty(fighter_a.get("age"))
 
-    score = striking_diff + td_edge + reach_adv * REACH_COEF + age_pen
-    return _sigmoid(score * STATS_SCALE)
+    score = rank_diff + reach_adv * REACH_COEF + age_pen
+    return _sigmoid(score * RANKING_SCALE)
 
 
 def composite_win_prob(

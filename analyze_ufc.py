@@ -1,7 +1,7 @@
 """
 End-to-end UFC analysis pipeline.
 
-  query → ufcstats.com scrape (career stats + recent fight history, both fighters)
+  query → FightMatrix ranking + Tapology record/bio/fight history (both fighters)
         → Glicko-2 rating (models/glicko.py, sport="ufc", surface=weight_class)
         → blend with a stats-based logistic (models/ufc_model.py)
         → method-of-victory model (KO/TKO, submission, decision)
@@ -114,7 +114,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     """
     Full UFC pipeline.
       1. Parse query → fighter_a/fighter_b/weight_class/odds via Claude
-      2. Scrape ufcstats.com for both fighters (career stats + fight history)
+      2. Resolve both fighters against FightMatrix (ranking) + Tapology (record/bio/history)
       3. Glicko-2 rating (scoped by weight_class) + stats-based logistic blend
       4. Method-of-victory model for both possible winners
       5. Compute markets (moneyline, method of victory, goes-the-distance) + bet recs
@@ -150,22 +150,22 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
     odds_b = _as_decimal(parsed.get("odds_b_american"), parsed.get("odds_b_decimal"))
     has_odds = odds_a is not None and odds_b is not None
 
-    # ── ufcstats.com enrichment ──────────────────────────────────────────────
+    # ── FightMatrix + Tapology enrichment ────────────────────────────────────
     try:
         enriched = enrich_ufc_fighters(fighter_a, fighter_b)
         steps.append({
-            "step": "ufcstats_enrich",
+            "step": "fighter_enrich",
             "status": "ok" if (enriched["a"] and enriched["b"]) else "partial",
             "a_fields": len(enriched["a"]), "b_fields": len(enriched["b"]),
         })
     except Exception as exc:
         enriched = {"a": {}, "b": {}}
-        steps.append({"step": "ufcstats_enrich", "status": "error", "error": str(exc)})
+        steps.append({"step": "fighter_enrich", "status": "error", "error": str(exc)})
 
     if not enriched["a"] and not enriched["b"]:
         steps.append({
             "step": "insufficient_data", "status": "halt",
-            "reason": "No live ufcstats.com data reachable for either fighter.",
+            "reason": "No live FightMatrix/Tapology data reachable for either fighter.",
         })
         return {
             "status": "insufficient_data", "sport": "ufc",
@@ -272,22 +272,20 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             )
             match_id = cur.lastrowid
 
+        # FightMatrix ranking + Tapology bio fields (switched 2026-07-14 from
+        # ufcstats.com's SLpM/SApM/TD stats — see fetchers/ufc.py docstring)
         sigs_to_log = [
-            ("slpm", fighter_a, enriched["a"].get("slpm")),
-            ("sapm", fighter_a, enriched["a"].get("sapm")),
-            ("td_avg", fighter_a, enriched["a"].get("td_avg")),
-            ("td_def", fighter_a, enriched["a"].get("td_def")),
+            ("fm_rank", fighter_a, enriched["a"].get("fm_rank")),
             ("reach_in", fighter_a, enriched["a"].get("reach_in")),
-            ("slpm", fighter_b, enriched["b"].get("slpm")),
-            ("sapm", fighter_b, enriched["b"].get("sapm")),
-            ("td_avg", fighter_b, enriched["b"].get("td_avg")),
-            ("td_def", fighter_b, enriched["b"].get("td_def")),
+            ("age", fighter_a, enriched["a"].get("age")),
+            ("fm_rank", fighter_b, enriched["b"].get("fm_rank")),
             ("reach_in", fighter_b, enriched["b"].get("reach_in")),
+            ("age", fighter_b, enriched["b"].get("age")),
         ]
         for name, participant, val in sigs_to_log:
             v = _safe_float(val)
             if v is not None:
-                log_signal(match_id, name, participant, signal_value=v, source="ufcstats")
+                log_signal(match_id, name, participant, signal_value=v, source="fightmatrix_tapology")
 
         top_rec = (recs or [{}])[0]
         if top_rec.get("verdict"):
@@ -325,7 +323,7 @@ def run_ufc_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         "narrative": narrative,
         "prob_a": round(prob_a * 100, 1), "prob_b": round(prob_b * 100, 1),
         "data_confidence": confidence, "data_completeness": data_completeness,
-        "data_sources": ["ufcstats", "glicko2"],
+        "data_sources": ["fightmatrix", "tapology", "glicko2"],
         "model_explanation": explanation,
         "bet_recommendations": recs, "kelly": kelly,
         "market_comparison": edge_summary,
