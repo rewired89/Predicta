@@ -11514,10 +11514,10 @@ mutates: none
 name: enrich_ufc_fighters
 type: function
 file: fetchers/ufc.py
-purpose: Main entry point — resolves both fighters against Tapology (record/bio/fight history) and FightMatrix (ranking), merging into one profile dict per fighter. A fighter found on ONE source but not the other still gets a partial profile (not thrown away) — a fighter's dict is only {} when BOTH sources fail to resolve them, same "don't hallucinate from nothing, don't discard partial real data either" stance as fetchers/rugby.py.
+purpose: Main entry point — resolves both fighters against FightMatrix (ranking) for a profile dict per fighter. DISABLED 2026-07-15: the Tapology call path (record/bio/fight history) is commented out after live-testing confirmed Tapology returns a real Cloudflare bot-challenge (403) — same unsolvable-by-design category as ufcstats.com. The functions stay in this file in case that changes; calling them on every prediction when they fail 100% of the time was pure waste. A fighter's dict is {} only when FightMatrix also fails to resolve them.
 inputs: name_a: str, name_b: str
 outputs: dict {a: dict, b: dict}
-calls: search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, _method_rates, lookup_fightmatrix_fighter
+calls: lookup_fightmatrix_fighter
 called_by: run_ufc_analysis (analyze_ufc.py)
 mutates: none
 ---
@@ -11526,10 +11526,10 @@ mutates: none
 name: diagnose
 type: function
 file: fetchers/ufc.py
-purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com — since neither fightmatrix.com's nor tapology.com's markup has been live-verified, the first real test should show exactly what's being served immediately: raw status/content-length/profile-link-presence for FightMatrix's rankings page and a Tapology search, plus a raw snippet whenever the page doesn't look right, plus a full parse attempt on a sample fighter.
+purpose: One-shot diagnostic, built in FROM THE START this time (2026-07-14) rather than added after a failure like it was for ufcstats.com. First live test (2026-07-15) confirmed Tapology is ALSO dead — a real Cloudflare bot-challenge (403, "Just a moment...", challenges.cloudflare.com), same category as ufcstats.com's block. FightMatrix came back 200 with real content (113KB) but fm_parsed_count was only 2, and both parsed "names" were literally the fighter-profile URL as text, not a name — strong evidence the real ranking table is JS-rendered and absent from the static HTML, with the 2 matches being unrelated incidental links. Extended same day: when parsed count is suspiciously low or a "name" looks like a URL, now also captures table_count/table_row_counts, a JS-framework heuristic (react/vue/__NEXT_DATA__), raw HTML around the first 3 matched anchors' parents, a snippet around the first "rank" keyword occurrence, and any /api//ajax//json/-shaped string literals found in the page (JS-rendered tables are often fed by a plain JSON endpoint worth hitting directly instead of fighting the rendered HTML).
 inputs: sample_fighter: str = "Jon Jones"
-outputs: dict (raw status codes, content lengths, profile-link booleans, raw snippets when pages look wrong, parsed samples at each stage)
-calls: httpx.Client.get, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history
+outputs: dict (raw status codes, content lengths, profile-link booleans, raw snippets when pages look wrong, table/anchor/API-hint diagnostics when FightMatrix's count looks suspicious, parsed samples at each stage)
+calls: httpx.Client.get, fetch_fightmatrix_rankings, search_tapology_fighter, fetch_tapology_profile, fetch_tapology_fight_history, re.findall
 called_by: ufc_diag (app.py)
 mutates: none
 ---

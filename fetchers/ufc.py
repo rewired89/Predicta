@@ -286,12 +286,18 @@ def enrich_ufc_fighters(name_a: str, name_b: str) -> dict:
     result: dict = {"a": {}, "b": {}}
     for key, name in (("a", name_a), ("b", name_b)):
         profile: dict = {}
-        tap_match = search_tapology_fighter(name)
-        if tap_match:
-            tap_profile = fetch_tapology_profile(tap_match["url"])
-            if tap_profile:
-                history = fetch_tapology_fight_history(tap_match["url"])
-                profile.update({**tap_profile, **_method_rates(history), "fight_history": history})
+        # Tapology CONFIRMED DEAD 2026-07-15 (live /ufc-diag test): returns a
+        # real Cloudflare bot-challenge (403, "Just a moment...",
+        # challenges.cloudflare.com) — same category as ufcstats.com's block,
+        # not solvable without circumventing an explicit anti-bot measure.
+        # Skipped here rather than called on every prediction and failing
+        # every time; the functions stay in this file in case that changes.
+        # tap_match = search_tapology_fighter(name)
+        # if tap_match:
+        #     tap_profile = fetch_tapology_profile(tap_match["url"])
+        #     if tap_profile:
+        #         history = fetch_tapology_fight_history(tap_match["url"])
+        #         profile.update({**tap_profile, **_method_rates(history), "fight_history": history})
 
         fm_match = lookup_fightmatrix_fighter(name)
         if fm_match:
@@ -315,9 +321,11 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
     out: dict = {"fightmatrix_base": FIGHTMATRIX_BASE, "tapology_base": TAPOLOGY_BASE}
 
     # 1. FightMatrix rankings page
+    fm_html = ""
     try:
         with httpx.Client(timeout=TIMEOUT, headers=_HEADERS, follow_redirects=True) as client:
             resp = client.get(f"{FIGHTMATRIX_BASE}/mma-ranks/")
+            fm_html = resp.text
             out["fm_status"] = resp.status_code
             out["fm_content_length"] = len(resp.text)
             out["fm_has_profile_links"] = bool(_FM_PROFILE_RE.search(resp.text))
@@ -330,6 +338,41 @@ def diagnose(sample_fighter: str = "Jon Jones") -> dict:
         rankings = fetch_fightmatrix_rankings()
         out["fm_parsed_count"] = len(rankings)
         out["fm_parsed_sample"] = rankings[:5]
+
+        # Suspicious: technically found >=1 profile link, but too few for a
+        # real rankings page, or the "name" text looks like a URL (both
+        # signs the real ranking table isn't in this static HTML at all —
+        # likely rendered client-side via JS). Capture real structural
+        # evidence instead of guessing why.
+        looks_url = any(r["name"].startswith("http") for r in rankings)
+        if fm_html and (len(rankings) < 10 or looks_url):
+            soup = BeautifulSoup(fm_html, "html.parser")
+            tables = soup.find_all("table")
+            out["fm_table_count"] = len(tables)
+            out["fm_table_row_counts"] = [len(t.find_all("tr")) for t in tables[:5]]
+            out["fm_looks_js_rendered"] = bool(
+                re.search(r"\breact\b|\bvue\b|__NEXT_DATA__|application/json", fm_html, re.IGNORECASE)
+            )
+            # If the table is JS-rendered, it's often populated by a plain
+            # JSON/AJAX endpoint referenced in a <script> tag — worth finding
+            # directly rather than fighting the rendered HTML.
+            api_hints = re.findall(
+                r"[\"'](/[^\"'\s]*(?:api|ajax|json|data)[^\"'\s]*)[\"']",
+                fm_html, re.IGNORECASE,
+            )
+            out["fm_possible_api_endpoints"] = list(dict.fromkeys(api_hints))[:10]
+            # Raw HTML around each matched anchor, so we can see its real
+            # surrounding markup instead of just the extracted (wrong) text.
+            anchor_context = []
+            for a in soup.find_all("a", href=_FM_PROFILE_RE)[:3]:
+                anchor_context.append(str(a.parent)[:400])
+            out["fm_anchor_context"] = anchor_context
+            # Snippet around the first occurrence of "rank" (case-insensitive)
+            # to see whatever static table markup does exist, if any.
+            m = re.search(r"rank", fm_html, re.IGNORECASE)
+            if m:
+                start = max(0, m.start() - 200)
+                out["fm_rank_keyword_snippet"] = fm_html[start:start + 800]
     except Exception as exc:
         out["fm_parse_exception"] = str(exc)
 
