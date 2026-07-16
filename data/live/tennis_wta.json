@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-15T17:59:57.512394+00:00",
+  "fetched_at": "2026-07-16T12:13:03.150754+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-07-14T21:43Z"
+            "lastUpdated": "2026-07-15T14:36Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-07-14T21:43Z"
+            "lastUpdated": "2026-07-15T14:36Z"
           }
         ],
         "calendarType": "day",
@@ -12533,20 +12533,20 @@
               {
                 "id": "178639",
                 "uid": "s:850~l:900~e:306-2026~c:178639",
-                "date": "2026-07-16T09:00Z",
-                "startDate": "2026-07-16T09:00Z",
+                "date": "2026-07-16T09:05Z",
+                "startDate": "2026-07-16T09:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 5:00 AM EDT",
-                    "shortDetail": "7/16 - 5:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12558,7 +12558,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(7) Thiago Agustin Tirante (ARG) bt Nikoloz Basilashvili (GEO) 7-5 3-6 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12569,9 +12574,24 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "d7013896-f27c-1590-01c8-3df0a2781e16",
                       "displayName": "Thiago Agustin Tirante",
@@ -12609,6 +12629,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "5dc21899-ba8c-2090-ba30-c0169a979977",
                       "displayName": "Nikoloz Basilashvili",
@@ -12656,10 +12691,10 @@
               {
                 "id": "178641",
                 "uid": "s:850~l:900~e:306-2026~c:178641",
-                "date": "2026-07-16T10:30Z",
-                "startDate": "2026-07-16T10:30Z",
+                "date": "2026-07-16T12:10Z",
+                "startDate": "2026-07-16T12:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -12668,8 +12703,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:30 AM EDT",
-                    "shortDetail": "7/16 - 6:30 AM EDT"
+                    "detail": "Thu, July 16th at 8:10 AM EDT",
+                    "shortDetail": "7/16 - 8:10 AM EDT"
                   }
                 },
                 "venue": {
@@ -12779,10 +12814,10 @@
               {
                 "id": "178638",
                 "uid": "s:850~l:900~e:306-2026~c:178638",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
+                "date": "2026-07-16T13:00Z",
+                "startDate": "2026-07-16T13:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -12791,8 +12826,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "detail": "Thu, July 16th at 9:00 AM EDT",
+                    "shortDetail": "7/16 - 9:00 AM EDT"
                   }
                 },
                 "venue": {
@@ -12902,8 +12937,8 @@
               {
                 "id": "178643",
                 "uid": "s:850~l:900~e:306-2026~c:178643",
-                "date": "2026-07-16T13:30Z",
-                "startDate": "2026-07-16T13:30Z",
+                "date": "2026-07-16T14:30Z",
+                "startDate": "2026-07-16T14:30Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -12914,8 +12949,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 9:30 AM EDT",
-                    "shortDetail": "7/16 - 9:30 AM EDT"
+                    "detail": "Thu, July 16th at 10:30 AM EDT",
+                    "shortDetail": "7/16 - 10:30 AM EDT"
                   }
                 },
                 "venue": {
@@ -13256,16 +13291,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4010",
+                    "uid": "s:850~l:900~a:4010",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "d7013896-f27c-1590-01c8-3df0a2781e16",
+                      "displayName": "Thiago Agustin Tirante",
+                      "shortName": "T. Tirante",
+                      "fullName": "Thiago Agustin Tirante",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4010/thiago-agustin-tirante",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -15588,20 +15649,20 @@
               {
                 "id": "178669",
                 "uid": "s:850~l:900~e:306-2026~c:178669",
-                "date": "2026-07-16T09:00Z",
-                "startDate": "2026-07-16T09:00Z",
+                "date": "2026-07-16T09:05Z",
+                "startDate": "2026-07-16T09:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 5:00 AM EDT",
-                    "shortDetail": "7/16 - 5:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15613,7 +15674,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Jean-Julien Rojer (NED) & Theodore Winegar (USA) bt (3) Sander Arends (NED) & David Pel (NED) 6-3 2-6 1-0 (10-5)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15624,9 +15690,25 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sander Arends / David Pel",
                       "shortDisplayName": "S. Arends / D. Pel",
@@ -15699,6 +15781,22 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Jean-Julien Rojer / Theodore Winegar",
                       "shortDisplayName": "J. Rojer / T. Winegar",
@@ -15781,20 +15879,20 @@
               {
                 "id": "178671",
                 "uid": "s:850~l:900~e:306-2026~c:178671",
-                "date": "2026-07-16T10:30Z",
-                "startDate": "2026-07-16T10:30Z",
+                "date": "2026-07-16T10:40Z",
+                "startDate": "2026-07-16T10:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:30 AM EDT",
-                    "shortDetail": "7/16 - 6:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15806,7 +15904,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Theo Arribage (FRA) & Francisco Cabral (POR) bt Joshua Paris (GBR) & Adolfo Daniel Vallejo (PAR) 2-6 6-3 1-0 (10-4)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15817,6 +15920,22 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Joshua Paris / Adolfo Daniel Vallejo",
                       "shortDisplayName": "J. Paris / A. Vallejo",
@@ -15889,9 +16008,25 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Theo Arribage / Francisco Cabral",
                       "shortDisplayName": "T. Arribage / F. Cabral",
@@ -15974,10 +16109,10 @@
               {
                 "id": "178668",
                 "uid": "s:850~l:900~e:306-2026~c:178668",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
+                "date": "2026-07-16T12:15Z",
+                "startDate": "2026-07-16T12:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -15986,8 +16121,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "detail": "Thu, July 16th at 8:15 AM EDT",
+                    "shortDetail": "7/16 - 8:15 AM EDT"
                   }
                 },
                 "venue": {
@@ -16198,30 +16333,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:900~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
+                    "id": "1573-16698",
+                    "uid": "s:850~l:900~t:1573-16698",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Jean-Julien Rojer / Theodore Winegar",
+                      "shortDisplayName": "J. Rojer / T. Winegar",
+                      "athletes": [
+                        {
+                          "guid": "52cd6d44-419d-dc35-1bb3-0067f1dab92a",
+                          "displayName": "Jean-Julien Rojer",
+                          "shortName": "J. Rojer",
+                          "fullName": "Jean-Julien Rojer",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                            "alt": "Netherlands",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1573/jean-julien-rojer",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "e0f61830-e62b-39a2-82cc-f86c64681063",
+                          "displayName": "Theodore Winegar",
+                          "shortName": "T. Winegar",
+                          "fullName": "Theodore Winegar",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16698/theodore-winegar",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -16344,26 +16549,75 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "10882-3825",
+                    "uid": "s:850~l:900~t:10882-3825",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Theo Arribage / Francisco Cabral",
+                      "shortDisplayName": "T. Arribage / F. Cabral",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "479a0413-c0d6-3397-bef1-933e7da879ba",
+                          "displayName": "Theo Arribage",
+                          "shortName": "T. Arribage",
+                          "fullName": "Theo Arribage",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10882/theo-arribage",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "c0eea9d0-55ff-645e-c27f-6ae5715f2b6d",
+                          "displayName": "Francisco Cabral",
+                          "shortName": "F. Cabral",
+                          "fullName": "Francisco Cabral",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/por.png",
+                            "alt": "Portugal",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3825/francisco-cabral",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -21653,17 +21907,17 @@
                 "date": "2026-07-15T17:40Z",
                 "startDate": "2026-07-15T17:40Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -21677,7 +21931,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Alycia Parks (USA) leads Mai Hontama (JPN) 3-1",
+                    "text": "Alycia Parks (USA) bt Mai Hontama (JPN) 6-7 (4-7) 6-2 7-5",
                     "type": "event"
                   }
                 ],
@@ -21691,9 +21945,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -21733,9 +21998,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -21788,17 +22064,17 @@
                 "date": "2026-07-15T18:05Z",
                 "startDate": "2026-07-15T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 15th at 2:05 PM EDT",
-                    "shortDetail": "7/15 - 2:05 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -21810,7 +22086,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Sara Bejlek (CZE) bt Lilli Tagger (AUT) 6-2 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -21821,9 +22102,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "6367c1ef-3c93-376d-a8b4-13be71e53c5a",
                       "displayName": "Sara Bejlek",
@@ -21861,6 +22153,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "ad383fbd-1102-3d1a-bae1-31664ecd93d6",
                       "displayName": "Lilli Tagger",
@@ -21908,9 +22211,9 @@
               {
                 "id": "180312",
                 "uid": "s:850~l:900~e:1069-2026~c:180312",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
+                "date": "2026-07-16T14:30Z",
+                "startDate": "2026-07-16T14:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -21920,13 +22223,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, July 16th at 10:30 AM EDT",
+                    "shortDetail": "7/16 - 10:30 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Athens, Greece",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -22029,257 +22332,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "180313",
-                "uid": "s:850~l:900~e:1069-2026~c:180313",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Athens, Greece",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "4263",
-                    "uid": "s:850~l:900~a:4263",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "8878a495-6895-372a-82c5-f7121b0370fb",
-                      "displayName": "Miriana Tona",
-                      "shortName": "M. Tona",
-                      "fullName": "Miriana Tona",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
-                        "alt": "Italy",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/4263/miriana-tona",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "3792",
-                    "uid": "s:850~l:900~a:3792",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 1
-                    },
-                    "athlete": {
-                      "guid": "07389b23-ae27-7fb4-88c2-826251cf1bc1",
-                      "displayName": "Clara Tauson",
-                      "shortName": "C. Tauson",
-                      "fullName": "Clara Tauson",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/den.png",
-                        "alt": "Denmark",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/3792/clara-tauson",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1069,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "180314",
-                "uid": "s:850~l:900~e:1069-2026~c:180314",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Athens, Greece",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "5299",
-                    "uid": "s:850~l:900~a:5299",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "8ae7596e-be40-3f15-b307-e71734a3fece",
-                      "displayName": "Carole Monnet",
-                      "shortName": "C. Monnet",
-                      "fullName": "Carole Monnet",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
-                        "alt": "France",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/5299/carole-monnet",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "2042",
-                    "uid": "s:850~l:900~a:2042",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 3
-                    },
-                    "athlete": {
-                      "guid": "22c6138f-4536-293a-6673-6b65f9af45d7",
-                      "displayName": "Barbora Krejcikova",
-                      "shortName": "B. Krejcikova",
-                      "fullName": "Barbora Krejcikova",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                        "alt": "Czechia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2042/barbora-krejcikova",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1069,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "181607",
                 "uid": "s:850~l:900~e:1069-2026~c:181607",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
+                "date": "2026-07-16T14:30Z",
+                "startDate": "2026-07-16T14:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -22289,13 +22346,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, July 16th at 10:30 AM EDT",
+                    "shortDetail": "7/16 - 10:30 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Athens, Greece",
-                  "court": ""
+                  "court": "Grandstand"
                 },
                 "format": {
                   "regulation": {
@@ -22398,6 +22455,252 @@
                 "wasSuspended": false
               },
               {
+                "id": "180314",
+                "uid": "s:850~l:900~e:1069-2026~c:180314",
+                "date": "2026-07-16T16:30Z",
+                "startDate": "2026-07-16T16:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, July 16th at 12:30 PM EDT",
+                    "shortDetail": "7/16 - 12:30 PM EDT"
+                  }
+                },
+                "venue": {
+                  "fullName": "Athens, Greece",
+                  "court": "Center Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "5299",
+                    "uid": "s:850~l:900~a:5299",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "8ae7596e-be40-3f15-b307-e71734a3fece",
+                      "displayName": "Carole Monnet",
+                      "shortName": "C. Monnet",
+                      "fullName": "Carole Monnet",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5299/carole-monnet",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "2042",
+                    "uid": "s:850~l:900~a:2042",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "athlete": {
+                      "guid": "22c6138f-4536-293a-6673-6b65f9af45d7",
+                      "displayName": "Barbora Krejcikova",
+                      "shortName": "B. Krejcikova",
+                      "fullName": "Barbora Krejcikova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2042/barbora-krejcikova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1069,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "180313",
+                "uid": "s:850~l:900~e:1069-2026~c:180313",
+                "date": "2026-07-16T18:00Z",
+                "startDate": "2026-07-16T18:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, July 16th at 2:00 PM EDT",
+                    "shortDetail": "7/16 - 2:00 PM EDT"
+                  }
+                },
+                "venue": {
+                  "fullName": "Athens, Greece",
+                  "court": "Center Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "4263",
+                    "uid": "s:850~l:900~a:4263",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "8878a495-6895-372a-82c5-f7121b0370fb",
+                      "displayName": "Miriana Tona",
+                      "shortName": "M. Tona",
+                      "fullName": "Miriana Tona",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4263/miriana-tona",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "3792",
+                    "uid": "s:850~l:900~a:3792",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
+                    "athlete": {
+                      "guid": "07389b23-ae27-7fb4-88c2-826251cf1bc1",
+                      "displayName": "Clara Tauson",
+                      "shortName": "C. Tauson",
+                      "fullName": "Clara Tauson",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/den.png",
+                        "alt": "Denmark",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3792/clara-tauson",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1069,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
                 "id": "181634",
                 "uid": "s:850~l:900~e:1069-2026~c:181634",
                 "date": "2026-07-17T04:00Z",
@@ -22431,16 +22734,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "7819",
+                    "uid": "s:850~l:900~a:7819",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 5
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6367c1ef-3c93-376d-a8b4-13be71e53c5a",
+                      "displayName": "Sara Bejlek",
+                      "shortName": "S. Bejlek",
+                      "fullName": "Sara Bejlek",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7819/sara-bejlek",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -22642,16 +22971,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5309",
+                    "uid": "s:850~l:900~a:5309",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "c9236c27-4296-3453-8ce8-c95d00702e9f",
+                      "displayName": "Alycia Parks",
+                      "shortName": "A. Parks",
+                      "fullName": "Alycia Parks",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5309/alycia-parks",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -24738,17 +25090,17 @@
                 "date": "2026-07-15T18:05Z",
                 "startDate": "2026-07-15T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 15th at 2:05 PM EDT",
-                    "shortDetail": "7/15 - 2:05 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -24760,7 +25112,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Madeleine Brooks (GBR) & Isabelle Haverlag (NED) bt Momoko Kobori (JPN) & Peangtarn Plipuech (THA) 4-6 6-4 1-0 (10-7)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -24771,6 +25128,22 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 7,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Momoko Kobori / Peangtarn Plipuech",
                       "shortDisplayName": "M. Kobori / P. Plipuech",
@@ -24843,6 +25216,22 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Madeleine Brooks / Isabelle Haverlag",
                       "shortDisplayName": "M. Brooks / I. Haverlag",
@@ -24923,11 +25312,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "180306",
-                "uid": "s:850~l:900~e:1069-2026~c:180306",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
+                "id": "180305",
+                "uid": "s:850~l:900~e:1069-2026~c:180305",
+                "date": "2026-07-16T16:00Z",
+                "startDate": "2026-07-16T16:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -24937,13 +25326,206 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, July 16th at 12:00 PM EDT",
+                    "shortDetail": "7/16 - 12:00 PM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Athens, Greece",
-                  "court": ""
+                  "court": "Grandstand"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "16558-6124",
+                    "uid": "s:850~l:900~t:16558-6124",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "roster": {
+                      "displayName": "Madeleine Brooks / Isabelle Haverlag",
+                      "shortDisplayName": "M. Brooks / I. Haverlag",
+                      "athletes": [
+                        {
+                          "guid": "995b05a9-81c6-38e7-be77-f1492d6e4a12",
+                          "displayName": "Madeleine Brooks",
+                          "shortName": "M. Brooks",
+                          "fullName": "Madeleine Brooks",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16558/madeleine-brooks",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "f9496b8f-7478-3c05-a029-5649931c5a14",
+                          "displayName": "Isabelle Haverlag",
+                          "shortName": "I. Haverlag",
+                          "fullName": "Isabelle Haverlag",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                            "alt": "Netherlands",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/6124/isabelle-haverlag",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "12295-723",
+                    "uid": "s:850~l:900~t:12295-723",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "roster": {
+                      "displayName": "Eudice Wong Chong / Katarzyna Piter",
+                      "shortDisplayName": "E. Chong / K. Piter",
+                      "athletes": [
+                        {
+                          "guid": "c37ffda0-b0fd-390e-bd48-ac9d21afcdb3",
+                          "displayName": "Eudice Wong Chong",
+                          "shortName": "E. Chong",
+                          "fullName": "Eudice Wong Chong",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/hkg.png",
+                            "alt": "Hong Kong",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/12295/eudice-wong-chong",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "f94ddbb6-26db-f882-57aa-d6709328488a",
+                          "displayName": "Katarzyna Piter",
+                          "shortName": "K. Piter",
+                          "fullName": "Katarzyna Piter",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
+                            "alt": "Poland",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/723/katarzyna-piter",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1069,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "180306",
+                "uid": "s:850~l:900~e:1069-2026~c:180306",
+                "date": "2026-07-16T17:30Z",
+                "startDate": "2026-07-16T17:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, July 16th at 1:30 PM EDT",
+                    "shortDetail": "7/16 - 1:30 PM EDT"
+                  }
+                },
+                "venue": {
+                  "fullName": "Athens, Greece",
+                  "court": "Grandstand"
                 },
                 "format": {
                   "regulation": {
@@ -25116,157 +25698,10 @@
                 "wasSuspended": false
               },
               {
-                "id": "180305",
-                "uid": "s:850~l:900~e:1069-2026~c:180305",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Athens, Greece",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
-                    "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
-                      "athletes": [
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        },
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "12295-723",
-                    "uid": "s:850~l:900~t:12295-723",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 3
-                    },
-                    "roster": {
-                      "displayName": "Eudice Wong Chong / Katarzyna Piter",
-                      "shortDisplayName": "E. Chong / K. Piter",
-                      "athletes": [
-                        {
-                          "guid": "c37ffda0-b0fd-390e-bd48-ac9d21afcdb3",
-                          "displayName": "Eudice Wong Chong",
-                          "shortName": "E. Chong",
-                          "fullName": "Eudice Wong Chong",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/hkg.png",
-                            "alt": "Hong Kong",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/12295/eudice-wong-chong",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "f94ddbb6-26db-f882-57aa-d6709328488a",
-                          "displayName": "Katarzyna Piter",
-                          "shortName": "K. Piter",
-                          "fullName": "Katarzyna Piter",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
-                            "alt": "Poland",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/723/katarzyna-piter",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1069,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "180302",
                 "uid": "s:850~l:900~e:1069-2026~c:180302",
-                "date": "2026-07-16T04:00Z",
-                "startDate": "2026-07-16T04:00Z",
+                "date": "2026-07-17T04:00Z",
+                "startDate": "2026-07-17T04:00Z",
                 "timeValid": false,
                 "recent": false,
                 "status": {
@@ -31398,17 +31833,17 @@
                 "date": "2026-07-15T17:55Z",
                 "startDate": "2026-07-15T17:55Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -31422,7 +31857,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Elina Avanesyan (ARM) leads (2) Petra Marcinko (CRO) 1-0",
+                    "text": "(2) Petra Marcinko (CRO) bt Elina Avanesyan (ARM) 7-6 (7-3) 7-6 (7-5)",
                     "type": "event"
                   }
                 ],
@@ -31436,13 +31871,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -31482,10 +31924,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -31520,11 +31969,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 874,
                 "type": {
                   "id": "2",
@@ -31540,20 +31984,20 @@
               {
                 "id": "179307",
                 "uid": "s:850~l:900~e:874-2026~c:179307",
-                "date": "2026-07-16T10:00Z",
-                "startDate": "2026-07-16T10:00Z",
+                "date": "2026-07-16T10:05Z",
+                "startDate": "2026-07-16T10:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:00 AM EDT",
-                    "shortDetail": "7/16 - 6:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -31565,7 +32009,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Mayar Sherif (EGY) bt Kaitlin Quevedo (ESP) 6-3 7-6 (7-2)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -31576,6 +32025,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "dd910467-923d-35e9-a3fd-a2f884b49732",
                       "displayName": "Kaitlin Quevedo",
@@ -31613,6 +32074,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "e5fc710c-ad06-1c7e-c436-a81cbaddf64a",
                       "displayName": "Mayar Sherif",
@@ -31660,10 +32133,10 @@
               {
                 "id": "179306",
                 "uid": "s:850~l:900~e:874-2026~c:179306",
-                "date": "2026-07-16T11:30Z",
-                "startDate": "2026-07-16T11:30Z",
+                "date": "2026-07-16T12:20Z",
+                "startDate": "2026-07-16T12:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -31672,8 +32145,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 7:30 AM EDT",
-                    "shortDetail": "7/16 - 7:30 AM EDT"
+                    "detail": "Thu, July 16th at 8:20 AM EDT",
+                    "shortDetail": "7/16 - 8:20 AM EDT"
                   }
                 },
                 "venue": {
@@ -32131,16 +32604,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "8404",
+                    "uid": "s:850~l:900~a:8404",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "7e66c796-9e24-395c-b51a-ec55582f65ef",
+                      "displayName": "Petra Marcinko",
+                      "shortName": "P. Marcinko",
+                      "fullName": "Petra Marcinko",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cro.png",
+                        "alt": "Croatia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8404/petra-marcinko",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -32325,16 +32824,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2179",
+                    "uid": "s:850~l:900~a:2179",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e5fc710c-ad06-1c7e-c436-a81cbaddf64a",
+                      "displayName": "Mayar Sherif",
+                      "shortName": "M. Sherif",
+                      "fullName": "Mayar Sherif",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/egy.png",
+                        "alt": "Egypt",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2179/mayar-sherif",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -34601,20 +35123,20 @@
               {
                 "id": "179333",
                 "uid": "s:850~l:900~e:874-2026~c:179333",
-                "date": "2026-07-16T10:00Z",
-                "startDate": "2026-07-16T10:00Z",
+                "date": "2026-07-16T10:05Z",
+                "startDate": "2026-07-16T10:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:00 AM EDT",
-                    "shortDetail": "7/16 - 6:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -34626,7 +35148,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Miriam Skoch (CZE) & Jesika Maleckova (CZE) bt Nicole Fossa Huergo (ARG) & Lara Salden (BEL) 6-3 4-6 1-0 (17-15)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -34637,9 +35164,25 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 17,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Miriam Skoch / Jesika Maleckova",
                       "shortDisplayName": "M. Skoch / J. Maleckova",
@@ -34712,6 +35255,22 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 15,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Nicole Fossa Huergo / Lara Salden",
                       "shortDisplayName": "N. Fossa Huergo / L. Salden",
@@ -34794,10 +35353,10 @@
               {
                 "id": "179344",
                 "uid": "s:850~l:900~e:874-2026~c:179344",
-                "date": "2026-07-16T11:30Z",
-                "startDate": "2026-07-16T11:30Z",
+                "date": "2026-07-16T12:15Z",
+                "startDate": "2026-07-16T12:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -34806,8 +35365,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 7:30 AM EDT",
-                    "shortDetail": "7/16 - 7:30 AM EDT"
+                    "detail": "Thu, July 16th at 8:15 AM EDT",
+                    "shortDetail": "7/16 - 8:15 AM EDT"
                   }
                 },
                 "venue": {
@@ -34990,7 +35549,7 @@
                 "date": "2026-07-16T13:00Z",
                 "startDate": "2026-07-16T13:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -35282,26 +35841,75 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "7830-2048",
+                    "uid": "s:850~l:900~t:7830-2048",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Miriam Skoch / Jesika Maleckova",
+                      "shortDisplayName": "M. Skoch / J. Maleckova",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "fbd87f8b-f62e-39e9-a9d1-521268092336",
+                          "displayName": "Miriam Skoch",
+                          "shortName": "M. Skoch",
+                          "fullName": "Miriam Skoch",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/7830/miriam-skoch",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "97af06ec-0016-5336-1caa-2660e5bc5d4b",
+                          "displayName": "Jesika Maleckova",
+                          "shortName": "J. Maleckova",
+                          "fullName": "Jesika Maleckova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2048/jesika-maleckova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -40397,17 +41005,17 @@
                 "date": "2026-07-15T17:35Z",
                 "startDate": "2026-07-15T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -40421,7 +41029,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Nuria Brancaccio (ITA) & Tyra Caterina Grant (ITA) leads Lola Radivojevic (SER) & Dalila Spiteri (ITA) 5-1",
+                    "text": "Nuria Brancaccio (ITA) & Tyra Caterina Grant (ITA) bt Lola Radivojevic (SER) & Dalila Spiteri (ITA) 6-1 6-2",
                     "type": "event"
                   }
                 ],
@@ -40435,10 +41043,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -40513,10 +41126,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -40586,11 +41204,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1017,
                 "type": {
                   "id": "4",
@@ -40609,17 +41222,17 @@
                 "date": "2026-07-15T17:55Z",
                 "startDate": "2026-07-15T17:55Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -40633,7 +41246,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(1) Estelle Cascino (FRA) & Shuo Feng (CHN) leads Lucia Bronzetti (ITA) & Martina Trevisan (ITA) 1-0",
+                    "text": "(1) Estelle Cascino (FRA) & Shuo Feng (CHN) bt Lucia Bronzetti (ITA) & Martina Trevisan (ITA) 6-2 2-6 1-0 (10-8)",
                     "type": "event"
                   }
                 ],
@@ -40647,9 +41260,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 8,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -40724,12 +41348,23 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -41302,30 +41937,149 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
+                    "id": "5168-14606",
+                    "uid": "s:850~l:900~t:5168-14606",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Nuria Brancaccio / Tyra Caterina Grant",
+                      "shortDisplayName": "N. Brancaccio / T. Grant",
+                      "athletes": [
+                        {
+                          "guid": "e3f277f8-68b4-3312-b720-4be8ebe45e0c",
+                          "displayName": "Nuria Brancaccio",
+                          "shortName": "N. Brancaccio",
+                          "fullName": "Nuria Brancaccio",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5168/nuria-brancaccio",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "4de89c8d-9ddf-3bec-9ffc-9acc44333516",
+                          "displayName": "Tyra Caterina Grant",
+                          "shortName": "T. Grant",
+                          "fullName": "Tyra Caterina Grant",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/14606/tyra-caterina-grant",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
+                    "id": "3841-5256",
+                    "uid": "s:850~l:900~t:3841-5256",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 1
+                    },
+                    "roster": {
+                      "displayName": "Estelle Cascino / Feng Shuo",
+                      "shortDisplayName": "E. Cascino / S. Feng",
+                      "athletes": [
+                        {
+                          "guid": "76c2b9ea-54fb-644a-4bc8-efbb8c997ac9",
+                          "displayName": "Estelle Cascino",
+                          "shortName": "E. Cascino",
+                          "fullName": "Estelle Cascino",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3841/estelle-cascino",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "0c1eec10-b928-39fb-a0b4-00aadd464841",
+                          "displayName": "Feng Shuo",
+                          "shortName": "S. Feng",
+                          "fullName": "Feng Shuo",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5256/feng-shuo",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -46418,20 +47172,20 @@
               {
                 "id": "179190",
                 "uid": "s:850~l:900~e:1071-2026~c:179190",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
+                "date": "2026-07-16T12:05Z",
+                "startDate": "2026-07-16T12:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -46443,7 +47197,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Viktoria Hruncakova (SVK) leads Vera Zvonareva (RUS) 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -46454,6 +47213,12 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "eb113891-6f89-4a18-b452-f692962c36ac",
                       "displayName": "Viktoria Hruncakova",
@@ -46491,6 +47256,12 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "a0867a1c-8c2d-0ae8-5b7f-24ccaba28ad5",
                       "displayName": "Vera Zvonareva",
@@ -46523,6 +47294,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1071,
                 "type": {
                   "id": "2",
@@ -46538,10 +47314,10 @@
               {
                 "id": "179194",
                 "uid": "s:850~l:900~e:1071-2026~c:179194",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
+                "date": "2026-07-16T12:10Z",
+                "startDate": "2026-07-16T12:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -46550,8 +47326,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "detail": "Thu, July 16th at 8:10 AM EDT",
+                    "shortDetail": "7/16 - 8:10 AM EDT"
                   }
                 },
                 "venue": {
@@ -47296,8 +48072,8 @@
                 "wasSuspended": false
               },
               {
-                "id": "179200",
-                "uid": "s:850~l:900~e:1071-2026~c:179200",
+                "id": "179199",
+                "uid": "s:850~l:900~e:1071-2026~c:179199",
                 "date": "2026-07-18T04:00Z",
                 "startDate": "2026-07-18T04:00Z",
                 "timeValid": false,
@@ -47370,8 +48146,8 @@
                 "wasSuspended": false
               },
               {
-                "id": "179199",
-                "uid": "s:850~l:900~e:1071-2026~c:179199",
+                "id": "179200",
+                "uid": "s:850~l:900~e:1071-2026~c:179200",
                 "date": "2026-07-18T04:00Z",
                 "startDate": "2026-07-18T04:00Z",
                 "timeValid": false,
@@ -49071,22 +49847,222 @@
                 "wasSuspended": false
               },
               {
-                "id": "179206",
-                "uid": "s:850~l:900~e:1071-2026~c:179206",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
-                "timeValid": true,
+                "id": "179205",
+                "uid": "s:850~l:900~e:1071-2026~c:179205",
+                "date": "2026-07-16T04:00Z",
+                "startDate": "2026-07-16T04:00Z",
+                "timeValid": false,
                 "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "40",
+                    "name": "STATUS_WALKOVER",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Walkover",
+                    "detail": "Walkover",
+                    "shortDetail": "Walkover"
+                  }
+                },
+                "venue": {
+                  "fullName": "Istanbul, T\u00fcrkiye",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "Tatiana Prozorova (RUS) & Alexandra Shubladze (RUS) bt (2) Lucie Havlickova (CZE) & Gabriela Knutson (CZE) w/o",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "7434-13314",
+                    "uid": "s:850~l:900~t:7434-13314",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "winner": false,
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Lucie Havlickova / Gabriela Knutson",
+                      "shortDisplayName": "L. Havlickova / G. Knutson",
+                      "athletes": [
+                        {
+                          "guid": "6d98a3d7-c696-3f4d-86d8-b62f02dbd404",
+                          "displayName": "Lucie Havlickova",
+                          "shortName": "L. Havlickova",
+                          "fullName": "Lucie Havlickova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/7434/lucie-havlickova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "769d1701-f945-3c08-ba5c-b8a58196a2a6",
+                          "displayName": "Gabriela Knutson",
+                          "shortName": "G. Knutson",
+                          "fullName": "Gabriela Knutson",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/13314/gabriela-knutson",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "12846-10858",
+                    "uid": "s:850~l:900~t:12846-10858",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": true,
+                    "roster": {
+                      "displayName": "Tatiana Prozorova / Alexandra Shubladze",
+                      "shortDisplayName": "T. Prozorova / A. Shubladze",
+                      "athletes": [
+                        {
+                          "guid": "49f49102-5352-3be8-8b0c-4a9c42d17b6c",
+                          "displayName": "Tatiana Prozorova",
+                          "shortName": "T. Prozorova",
+                          "fullName": "Tatiana Prozorova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/12846/tatiana-prozorova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "3aac91c6-eb93-31e4-9854-95db62382893",
+                          "displayName": "Alexandra Shubladze",
+                          "shortName": "A. Shubladze",
+                          "fullName": "Alexandra Shubladze",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10858/alexandra-shubladze",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1071,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "179206",
+                "uid": "s:850~l:900~e:1071-2026~c:179206",
+                "date": "2026-07-16T12:05Z",
+                "startDate": "2026-07-16T12:05Z",
+                "timeValid": true,
+                "recent": true,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -49098,7 +50074,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Yujia Huang (CHN) & Ying Zhang (CHN) leads Priska Nugroho (INA) & Varvara Panshina (RUS) 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -49109,9 +50090,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Yujia Huang / Zhang Ying",
                       "shortDisplayName": "Y. Huang / Y. Zhang",
@@ -49184,6 +50171,12 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Priska Nugroho / Varvara Panshina",
                       "shortDisplayName": "P. Nugroho / V. Panshina",
@@ -49251,6 +50244,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1071,
                 "type": {
                   "id": "4",
@@ -49861,206 +50859,6 @@
                 "round": {
                   "id": "6",
                   "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "179205",
-                "uid": "s:850~l:900~e:1071-2026~c:179205",
-                "date": "2026-07-17T04:00Z",
-                "startDate": "2026-07-17T04:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "40",
-                    "name": "STATUS_WALKOVER",
-                    "state": "post",
-                    "completed": true,
-                    "description": "Walkover",
-                    "detail": "Walkover",
-                    "shortDetail": "Walkover"
-                  }
-                },
-                "venue": {
-                  "fullName": "Istanbul, T\u00fcrkiye",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [
-                  {
-                    "text": "Tatiana Prozorova (RUS) & Alexandra Shubladze (RUS) bt (2) Lucie Havlickova (CZE) & Gabriela Knutson (CZE) w/o",
-                    "type": "event"
-                  }
-                ],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "7434-13314",
-                    "uid": "s:850~l:900~t:7434-13314",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
-                    "winner": false,
-                    "curatedRank": {
-                      "current": 2
-                    },
-                    "roster": {
-                      "displayName": "Lucie Havlickova / Gabriela Knutson",
-                      "shortDisplayName": "L. Havlickova / G. Knutson",
-                      "athletes": [
-                        {
-                          "guid": "6d98a3d7-c696-3f4d-86d8-b62f02dbd404",
-                          "displayName": "Lucie Havlickova",
-                          "shortName": "L. Havlickova",
-                          "fullName": "Lucie Havlickova",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                            "alt": "Czechia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/7434/lucie-havlickova",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "769d1701-f945-3c08-ba5c-b8a58196a2a6",
-                          "displayName": "Gabriela Knutson",
-                          "shortName": "G. Knutson",
-                          "fullName": "Gabriela Knutson",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                            "alt": "Czechia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/13314/gabriela-knutson",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "12846-10858",
-                    "uid": "s:850~l:900~t:12846-10858",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "winner": true,
-                    "roster": {
-                      "displayName": "Tatiana Prozorova / Alexandra Shubladze",
-                      "shortDisplayName": "T. Prozorova / A. Shubladze",
-                      "athletes": [
-                        {
-                          "guid": "49f49102-5352-3be8-8b0c-4a9c42d17b6c",
-                          "displayName": "Tatiana Prozorova",
-                          "shortName": "T. Prozorova",
-                          "fullName": "Tatiana Prozorova",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                            "alt": "Russia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/12846/tatiana-prozorova",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "3aac91c6-eb93-31e4-9854-95db62382893",
-                          "displayName": "Alexandra Shubladze",
-                          "shortName": "A. Shubladze",
-                          "fullName": "Alexandra Shubladze",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                            "alt": "Russia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/10858/alexandra-shubladze",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1071,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
                 },
                 "wasSuspended": false
               },
@@ -53725,15 +54523,15 @@
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 5:00 AM EDT",
-                    "shortDetail": "7/16 - 5:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -53745,7 +54543,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Sinja Kraus (AUT) bt Eva Bennemann (GER) 6-1 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -53756,9 +54559,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "e6642736-511e-3338-a95b-e8b576051d74",
                       "displayName": "Sinja Kraus",
@@ -53796,6 +54610,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "369e6b33-a6ce-3a49-bfe1-006111589889",
                       "displayName": "Eva Bennemann",
@@ -53843,20 +54668,20 @@
               {
                 "id": "179149",
                 "uid": "s:850~l:900~e:1072-2026~c:179149",
-                "date": "2026-07-16T10:30Z",
-                "startDate": "2026-07-16T10:30Z",
+                "date": "2026-07-16T10:20Z",
+                "startDate": "2026-07-16T10:20Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:30 AM EDT",
-                    "shortDetail": "7/16 - 6:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -53868,7 +54693,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Gina Feistel (POL) bt (6) Laura Samson (CZE) 6-3 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -53879,9 +54709,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
                       "displayName": "Laura Samson",
@@ -53919,6 +54760,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "ac152239-eae8-3f27-b63f-93369c280143",
                       "displayName": "Gina Feistel",
@@ -53966,20 +54818,20 @@
               {
                 "id": "179156",
                 "uid": "s:850~l:900~e:1072-2026~c:179156",
-                "date": "2026-07-16T10:30Z",
-                "startDate": "2026-07-16T10:30Z",
+                "date": "2026-07-16T10:35Z",
+                "startDate": "2026-07-16T10:35Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 16th at 6:30 AM EDT",
-                    "shortDetail": "7/16 - 6:30 AM EDT"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -53991,7 +54843,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(7) Jeline Vandromme (BEL) bt Polona Hercog (SLO) 6-4 3-0 ret",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -54002,9 +54859,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "b335c79a-cac7-3280-85d3-cf316c083d1f",
                       "displayName": "Jeline Vandromme",
@@ -54042,6 +54910,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "aeb4f263-714c-9587-d0d4-c8c2fa30a6fc",
                       "displayName": "Polona Hercog",
@@ -54089,10 +54968,10 @@
               {
                 "id": "179140",
                 "uid": "s:850~l:900~e:1072-2026~c:179140",
-                "date": "2026-07-16T12:00Z",
-                "startDate": "2026-07-16T12:00Z",
+                "date": "2026-07-16T12:15Z",
+                "startDate": "2026-07-16T12:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 2,
                   "type": {
@@ -54101,8 +54980,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, July 16th at 8:00 AM EDT",
-                    "shortDetail": "7/16 - 8:00 AM EDT"
+                    "detail": "Thu, July 16th at 8:15 AM EDT",
+                    "shortDetail": "7/16 - 8:15 AM EDT"
                   }
                 },
                 "venue": {
@@ -54235,7 +55114,7 @@
                 "date": "2026-07-16T12:30Z",
                 "startDate": "2026-07-16T12:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -54386,16 +55265,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "13369",
+                    "uid": "s:850~l:900~a:13369",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "ac152239-eae8-3f27-b63f-93369c280143",
+                      "displayName": "Gina Feistel",
+                      "shortName": "G. Feistel",
+                      "fullName": "Gina Feistel",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
+                        "alt": "Poland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/13369/gina-feistel",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -54486,16 +55388,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "15755",
+                    "uid": "s:850~l:900~a:15755",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b335c79a-cac7-3280-85d3-cf316c083d1f",
+                      "displayName": "Jeline Vandromme",
+                      "shortName": "J. Vandromme",
+                      "fullName": "Jeline Vandromme",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/15755/jeline-vandromme",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -54660,16 +55588,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "7797",
+                    "uid": "s:850~l:900~a:7797",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e6642736-511e-3338-a95b-e8b576051d74",
+                      "displayName": "Sinja Kraus",
+                      "shortName": "S. Kraus",
+                      "fullName": "Sinja Kraus",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                        "alt": "Austria",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7797/sinja-kraus",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
