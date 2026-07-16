@@ -1,0 +1,18 @@
+{
+  "start": "2024-01-01",
+  "end": "2026-07-15",
+  "warmup_calendar_days": 40,
+  "timeframe": "1Day",
+  "feed": "iex",
+  "adjustment": "split",
+  "entry_threshold": 40.0,
+  "target_pct": 0.50,
+  "stop_pct": -0.50,
+  "max_hold_trading_days": 5,
+  "max_concurrent_positions": 3,
+  "position_dollars": 25.0,
+  "slippage_bps": 5.0,
+  "initial_cash": 100.0,
+  "initial_cash_note": "Deliberately small: production sizes every trade at a fixed $25 regardless of account size (see strategy_spec.json), so there is no natural 'account equity' to compare against. $100 = 3 concurrent $25 positions + a small buffer, chosen so total-return% reflects return on capital actually put at risk rather than an arbitrary large bankroll diluting the percentage. Override with --initial-cash if you want a different bankroll-relative return.",
+  "benchmark_symbol": "SPY"
+}

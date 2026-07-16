@@ -1,0 +1,66 @@
+{
+  "strategy_name": "low_value_price_composite_v1_partial",
+  "based_on": "models/trading/low_value/thesis_tracker.py (production Low Value engine)",
+  "deviation_from_production": "Backtests ONLY the 4 signals computable from historical daily bars (price_vs_20d_low, rsi_14, volume_spike, sector_relative_strength = 55% of production's weight). The other 4 production signals (insider_buying_30d 20%, short_interest_pct 10%, cash_burn_months 10%, news_sentiment 5% = 45% of weight) require point-in-time historical data (insider Form 4 filings, FINRA short interest, fundamentals, news sentiment as-of a past date) that has no historical query API in this codebase's fetchers (openinsider.py, finra.py, finnhub.py, sec_edgar.py are all 'as-of-today' lookups). This is a deliberate, disclosed scope reduction, not a hidden simplification.",
+  "asset_class": "us_equity",
+  "universe": {
+    "source": "Live output of models.trading.low_value.scanner.build_low_value_universe(), snapshotted ONCE on the day the backtest is run (via fetch_universe.py), then held FIXED for the entire historical lookback window.",
+    "assumption": "Membership is NOT re-verified day-by-day across history (would require historical market-cap/bankruptcy/earnings-blackout data this codebase cannot fetch point-in-time). The backtest asks 'how would today's real qualifying universe's price/technical composite have performed historically', not 'how would the full daily-rebuilt scanner have performed'.",
+    "price_ceiling": 20.0,
+    "min_avg_daily_volume_20d": 100000
+  },
+  "timeframe": "1Day",
+  "data_source": "Alpaca CLI (alpaca data bars), feed=iex (free tier, matches fetchers/alpaca.py production convention), adjustment=split",
+  "signals": {
+    "price_vs_20d_low": {"weight": 0.20, "fn": "thesis_tracker._score_price_vs_20d_low"},
+    "rsi_14": {"weight": 0.15, "fn": "thesis_tracker._score_rsi_14"},
+    "volume_spike": {"weight": 0.10, "fn": "thesis_tracker._score_volume_spike"},
+    "sector_relative_strength": {"weight": 0.10, "fn": "thesis_tracker._score_sector_relative_strength"}
+  },
+  "signal_weight_redistribution": "Same algorithm as production compute_thesis_score: any of the 4 signals returning None (insufficient warmup history) is excluded and its weight redistributed proportionally across the signals that ARE available that day. A day with zero available signals produces no score (no trade).",
+  "sector_etf_mapping": {
+    "source": "thesis_tracker.sector_etf_for_symbol() called ONCE per symbol on the day the backtest is run (live Finnhub industry lookup), then held fixed for the whole window.",
+    "assumption": "Sector/industry classification does not change day-to-day, so using today's classification for the whole historical window is treated as immaterial and disclosed rather than re-verified per day.",
+    "default_when_unmapped": "SPY (broad market)"
+  },
+  "entry_rule": {
+    "direction": "long_only",
+    "rationale": "Production docstring frames this as a 'buy the fear' contrarian thesis; low_value_runner.py sizing/exit language (target/stop on a single position) is long-only. No short-side execution rule exists anywhere in the production runner, so SELL/STRONG_SELL composite readings are treated as no-trade in this backtest, not shorted.",
+    "trigger": "composite >= ENTRY_THRESHOLD (40.0), evaluated on bar T's close",
+    "signal_timing": "completed daily bar close",
+    "fill_timing": "next trading day's open (T+1)",
+    "fill_model": "next_open bar-proxy with 5 bps slippage (no quotes available from daily bars)",
+    "position_sizing": "models.trading.shared.kelly.low_value_position_size() — fixed $25 notional per trade, fractional shares",
+    "max_concurrent_positions": 3,
+    "entry_priority_when_multiple_signals_same_day": "Deterministic: symbols sorted alphabetically; fills available slots in that order. Documented as an arbitrary tie-break, not a production behavior (production's single daily runner naturally never sees this tie since it processes sequentially)."
+  },
+  "exit_rule": {
+    "deviation_from_production": "Production's exit also includes a NEGATIVE_THESES->POSITIVE_CATALYST news-flag resolution path. That path requires historical news data with per-day sentiment/category flags, which is not available for backtesting, so it is OMITTED here. Only the two objective price rules and the time-based rule are modeled.",
+    "target_pct": 0.50,
+    "stop_pct": -0.50,
+    "max_hold_trading_days": 5,
+    "evaluation_timing": "checked against bar T's close (unrealized P&L on the position's average entry price)",
+    "fill_timing": "next trading day's open (T+1)",
+    "fill_model": "next_open bar-proxy with 5 bps slippage",
+    "intrabar_conflict_policy": "N/A at daily granularity beyond fill_model; if both stop and target would be breached within the same historical close-to-close move, the stop is checked first (conservative)."
+  },
+  "benchmark": {
+    "symbol": "SPY",
+    "type": "buy_and_hold",
+    "fill_model": "same next_open convention, single lump-sum entry at the backtest's first available trading day, same initial cash basis as the strategy"
+  },
+  "fees": {
+    "modeled": false,
+    "rationale": "SEC Section 31 fee and FINRA TAF are both charged as a tiny fraction of a cent per $25 notional trade (sub-cent territory) and this sandbox could not fetch/verify current rates from Alpaca's Brokerage Fee Schedule PDF (files.alpaca.markets/disclosures/library/BrokFeeSched.pdf returned 403 to this environment's fetch tool). Fees are excluded and documented as excluded rather than guessed. See fee_source.json (generated at run time) for the disclosure and PDF link required by the backtesting skill.",
+    "slippage_bps": 5
+  },
+  "look_ahead_bias_controls": [
+    "Signal computed strictly from bars up to and including T's close; never from T+1 or later.",
+    "Fills always execute at T+1 open, never at T's own close/open.",
+    "Universe/sector-map snapshot is taken on the run date, used only to select which symbols to study and how to map them to a sector ETF — not used as a historical per-day filter."
+  ],
+  "known_biases_not_controlled": [
+    "Survivorship bias: universe is snapshotted from TODAY's live scan, so any symbol that would have qualified for Low Value historically but has since been delisted, acquired, or otherwise dropped from today's tradable-asset list is invisible to this backtest.",
+    "No walk-forward/out-of-sample split is applied; ENTRY_THRESHOLD, target/stop percentages, and hold-days are production's existing constants, not fit to this backtest window, so overfitting risk here is limited to the fact these constants themselves are still v1/uncalibrated per CLAUDE.md's Low Value section."
+  ]
+}

@@ -15,3 +15,20 @@ data/nrfi_checkpoint_*.csv
 
 # FanGraphs member CSV exports (local build inputs for the feature store)
 data/fangraphs*.csv
+
+# alpaca-trading-backtest skill run outputs — generated per execution, not committed
+# (the run.py/strategy_spec.json/config.json/README.md skeleton IS committed)
+runs/*/raw/*.json
+runs/*/normalized/*.csv
+runs/*/universe.json
+runs/*/sector_map.json
+runs/*/trades.csv
+runs/*/round_trips.csv
+runs/*/equity.csv
+runs/*/benchmark_equity.csv
+runs/*/summary.json
+runs/*/data_fingerprint.json
+runs/*/warnings.json
+runs/*/fee_source.json
+runs/*/report.md
+runs/*/notes.md
