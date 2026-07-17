@@ -11,7 +11,10 @@ import json
 from datetime import datetime, timezone
 
 from db.database import get_db
-from fetchers.low_value_runner import get_runner_status
+from fetchers.low_value_runner import (
+    get_runner_status, _trading_days_elapsed, _et_now,
+    LOW_VALUE_TARGET_PCT, LOW_VALUE_STOP_PCT, LOW_VALUE_HOLD_DAYS,
+)
 from fetchers.trading_logger import get_universe_snapshots
 from fetchers.finnhub import get_cached_company_name
 from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
@@ -33,6 +36,59 @@ def _pnl_sign(val) -> str:
     if val is None:
         return "—"
     return f"+${val:,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
+
+
+# Added 2026-07-16 (per Kimi's review — "communication crisis, not a modeling
+# crisis"): the +50%/-50% target/stop and the 5-trading-day time limit were
+# always computed and enforced live (fetchers/low_value_runner.py:
+# check_low_value_exits), but never surfaced anywhere a user could see them —
+# a position card showed entry price and score, nothing about what would
+# actually make the model sell. These two helpers turn entry_price/side into
+# the real dollar levels check_low_value_exits() checks against, and the
+# time-limit progress, so the dashboard and chat brief can show exactly what
+# check_low_value_exits() is enforcing instead of leaving it implicit.
+#
+# The -50% level is deliberately labeled "Catastrophe Cap," not "stop-loss"
+# (Kimi's framing, adopted as-is): per Kimi's simulation, a thesis-wrong
+# position bleeding ~2%/day exits via the 5-day time limit around -10%, long
+# before ever reaching -50% — so the 5-day time limit is the position's real,
+# primary risk control, and the -50% level is a rarely-triggered backstop for
+# a much sharper single-day move. Showing it as "stop-loss" implied it was
+# doing routine risk management it mostly isn't; the distance itself is NOT
+# changed here (zero resolved trades exist yet to calibrate a better number
+# against — see CLAUDE.md's Low Value section), only how it's labeled/shown.
+def _target_stop_prices(entry_price: float, side: str) -> dict:
+    if side == "short":
+        target = entry_price * (1 - LOW_VALUE_TARGET_PCT)
+        catastrophe_cap = entry_price * (1 + LOW_VALUE_STOP_PCT)
+    else:
+        target = entry_price * (1 + LOW_VALUE_TARGET_PCT)
+        catastrophe_cap = entry_price * (1 - LOW_VALUE_STOP_PCT)
+    return {"target_price": round(target, 2), "catastrophe_cap_price": round(catastrophe_cap, 2)}
+
+
+def _time_exit_progress(entry_time_iso: str) -> dict:
+    days_held = _trading_days_elapsed(entry_time_iso, _et_now())
+    days_held = min(days_held, LOW_VALUE_HOLD_DAYS)
+    return {
+        "days_held": days_held,
+        "hold_limit_days": LOW_VALUE_HOLD_DAYS,
+        "label": f"Primary exit: 5-trading-day time limit (day {days_held} of {LOW_VALUE_HOLD_DAYS})",
+    }
+
+
+def _exit_levels_html(t: dict) -> str:
+    """Open-position card line showing the real dollar levels check_low_value_exits()
+    is already enforcing — see the module-level comment above _target_stop_prices."""
+    levels = _target_stop_prices(t["entry_price"], t["side"])
+    progress = _time_exit_progress(t["entry_time"])
+    return (
+        f'<span class="trade-detail">'
+        f'Target ${levels["target_price"]:,.2f} (+50%) · '
+        f'Catastrophe cap ${levels["catastrophe_cap_price"]:,.2f} (-50%, rarely triggered) · '
+        f'{progress["label"]}'
+        f'</span>'
+    )
 
 
 # Plain-English translations (2026-07-13, user-requested — the raw
@@ -69,8 +125,8 @@ THESIS_TYPE_LABELS: dict[str, str] = {
 
 EXIT_REASON_LABELS: dict[str, str] = {
     "TARGET":          "hit its +50% profit target",
-    "STOP":             "hit its -50% stop-loss",
-    "TIME":             "closed — 5 trading days passed with no target/stop hit",
+    "STOP":             "hit its -50% catastrophe cap (a rarely-triggered backstop, not the position's primary risk control — see TIME)",
+    "TIME":             "closed — 5-trading-day time limit reached with no target/catastrophe-cap hit (this is the position's PRIMARY exit control)",
     "THESIS_RESOLVED":  "closed — the negative story reversed as expected",
 }
 
@@ -155,11 +211,18 @@ def get_low_value_brief(days: int = 7) -> dict:
             """,
             (f"-{days}",),
         ).fetchall()
-        open_count = conn.execute(
-            "SELECT COUNT(*) FROM intraday_trades WHERE engine='low_value' AND is_hypothetical=1 AND exit_time IS NULL"
-        ).fetchone()[0]
+        open_rows = conn.execute(
+            """
+            SELECT symbol, side, entry_price, entry_time
+            FROM intraday_trades
+            WHERE engine='low_value' AND is_hypothetical=1 AND exit_time IS NULL
+            ORDER BY entry_time DESC
+            """
+        ).fetchall()
 
     closed = [dict(r) for r in closed_rows]
+    open_t = [dict(r) for r in open_rows]
+    open_count = len(open_t)
     n_closed = len(closed)
     win_rate = total_pnl = None
     if n_closed:
@@ -170,10 +233,27 @@ def get_low_value_brief(days: int = 7) -> dict:
     recent_snapshots = get_universe_snapshots(days=1)
     universe_size = recent_snapshots[0]["symbol_count"] if recent_snapshots else 0
 
+    # open_positions stays a plain count (unchanged shape — existing frontend
+    # renders it directly as a number); open_positions_detail is new and
+    # additive, carrying the per-symbol target/catastrophe-cap/time-limit
+    # levels that were previously invisible outside the dashboard HTML page.
+    open_positions_detail = []
+    for t in open_t:
+        levels = _target_stop_prices(t["entry_price"], t["side"])
+        progress = _time_exit_progress(t["entry_time"])
+        open_positions_detail.append({
+            "symbol": t["symbol"],
+            "side": t["side"],
+            "entry_price": round(t["entry_price"], 2),
+            **levels,
+            **progress,
+        })
+
     return {
         "mode": "brief",
         "days": days,
         "universe_size": universe_size,
+        "open_positions_detail": open_positions_detail,
         "open_positions": open_count,
         "closed_trades": n_closed,
         "win_rate": win_rate,
@@ -315,6 +395,7 @@ def render_low_value_dashboard() -> str:
               <div class="trade-info">
                 <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {_display_name(t['symbol'])}</span>
                 <span class="trade-detail">Entered at ${t['entry_price']:,.2f}/share (real stock price) · Signal strength {t.get('entry_score') or '—'}/100 (not a win probability) · {_thesis_label(t.get('lv_thesis_type'))}</span>
+                {_exit_levels_html(t)}
                 <span class="trade-time">opened {t['entry_time'][:16]} UTC — this is a fixed $25 paper position, not shares bought at full account size</span>
                 {_signals_breakdown_html(t.get('lv_signals_json'))}
               </div>
