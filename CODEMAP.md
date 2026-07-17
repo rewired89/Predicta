@@ -12005,19 +12005,19 @@ called_by: nothing yet (manual research artifact) — README.md documents the tw
 mutates: writes its own artifact files into this run folder only; does not touch the live app's DB or any other pipeline
 ---
 
-## Low Value target/stop/time-limit visibility fix (added 2026-07-16, per Kimi's review)
+## Low Value target/stop/time-limit visibility fix (added 2026-07-16, per Kimi's review; language rewritten same day per direct user request)
 
-User noticed the Low Value engine never showed a stop-loss/sell price alongside its buy recommendations. Investigation found the +50%/-50%/5-day exit rule was already fully implemented and enforced (fetchers/low_value_runner.py: check_low_value_exits, unchanged by this fix) but never surfaced anywhere a user could see it — a "communication crisis, not a modeling crisis" per Kimi's review. Kimi's recommendation, implemented as-is: display the existing levels, relabel -50% as a rarely-triggered "Catastrophe Cap" rather than "stop-loss" (the 5-trading-day time limit is the position's actual primary risk control per Kimi's GBM simulation — a thesis-wrong position bleeding ~2%/day exits via TIME around -10%, long before ever reaching -50%), and explicitly defer the question of whether -50% is the right distance until 50+ resolved trades exist to measure against (zero exist today). Does NOT change LOW_VALUE_TARGET_PCT/LOW_VALUE_STOP_PCT/LOW_VALUE_HOLD_DAYS themselves.
+User noticed the Low Value engine never showed a stop-loss/sell price alongside its buy recommendations. Investigation found the +50%/-50%/5-day exit rule was already fully implemented and enforced (fetchers/low_value_runner.py: check_low_value_exits, unchanged by this fix) but never surfaced anywhere a user could see it — a "communication crisis, not a modeling crisis" per Kimi's review. First pass implemented Kimi's exact wording (display the levels, relabel -50% as "Catastrophe Cap," call the 5-day time limit the position's primary exit control). Second pass, same day: user said the jargon itself ("Target," "Catastrophe cap," percentages) was still unusable by a non-trader, and this tool is meant for non-experts too — rewrote every exit-condition string as a plain instruction ("Sell for a profit if the price rises to $X") instead of a labeled number, with explicit long/short-aware phrasing (a short position's "profit" direction is the opposite of a long's, so the sentence text itself has to flip, not just the number). Neither pass changed LOW_VALUE_TARGET_PCT/LOW_VALUE_STOP_PCT/LOW_VALUE_HOLD_DAYS themselves — display only.
 
 ---
 name: _target_stop_prices
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: entry_price + side -> real dollar target/catastrophe-cap levels, mirroring check_low_value_exits()'s pct_move direction logic exactly (long: target=entry*1.5, cap=entry*0.5; short: mirrored).
+purpose: entry_price + side -> real dollar target/catastrophe-cap levels, mirroring check_low_value_exits()'s pct_move direction logic exactly (long: target=entry*1.5, cap=entry*0.5; short: mirrored). Internal building block for _plain_exit_instructions — not called directly by the dashboard/brief anymore as of the plain-language rewrite.
 inputs: entry_price (float), side ("long" | "short")
 outputs: dict {target_price, catastrophe_cap_price}
 calls: LOW_VALUE_TARGET_PCT, LOW_VALUE_STOP_PCT (imported from fetchers.low_value_runner)
-called_by: get_low_value_brief, _exit_levels_html
+called_by: _plain_exit_instructions
 mutates: none
 ---
 
@@ -12025,11 +12025,23 @@ mutates: none
 name: _time_exit_progress
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: entry_time -> trading days held so far (capped at the hold limit) and a plain-English "day X of 5" label marking the 5-day time limit as the PRIMARY exit control, not the -50% cap.
+purpose: entry_time -> trading days held so far (capped at the hold limit) and days_remaining. Internal building block for _plain_exit_instructions.
 inputs: entry_time_iso (str)
-outputs: dict {days_held, hold_limit_days, label}
+outputs: dict {days_held, hold_limit_days, days_remaining}
 calls: fetchers.low_value_runner._trading_days_elapsed, _et_now, LOW_VALUE_HOLD_DAYS
-called_by: get_low_value_brief, _exit_levels_html
+called_by: _plain_exit_instructions
+mutates: none
+---
+
+---
+name: _plain_exit_instructions
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: added 2026-07-16 (plain-language rewrite) — the single place that turns entry_price/side/entry_time into non-jargon sentences: profit_line ("Sell for a profit if the price rises to $X" / the mirrored "buy it back" phrasing for a short), loss_line (same, for the catastrophe cap), time_line ("closes automatically in N more trading days / today"). Computed once here and reused by both the dashboard HTML and the chat-brief JSON so wording can't drift between the two surfaces.
+inputs: entry_price (float), side ("long" | "short"), entry_time_iso (str)
+outputs: dict {target_price, catastrophe_cap_price, days_held, hold_limit_days, days_remaining, profit_line, loss_line, time_line}
+calls: _target_stop_prices, _time_exit_progress
+called_by: _exit_levels_html, get_low_value_brief
 mutates: none
 ---
 
@@ -12037,10 +12049,10 @@ mutates: none
 name: _exit_levels_html
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: renders the target/catastrophe-cap/time-limit line now shown on every open-position dashboard card (previously only entry price + signal score were shown).
+purpose: renders the plain-language profit/loss/time-limit block now shown on every open-position dashboard card (previously only entry price + signal score were shown; the first display fix showed labeled numbers, the same-day follow-up replaced that with the _plain_exit_instructions sentences).
 inputs: t (dict — open-position row with entry_price, side, entry_time)
-outputs: HTML string (one <span class="trade-detail">)
-calls: _target_stop_prices, _time_exit_progress
+outputs: HTML string (one <div class="trade-detail"> containing 3 lines: ✅ profit_line, ⚠️ loss_line, ⏰ time_line)
+calls: _plain_exit_instructions
 called_by: render_low_value_dashboard (open_rows_html)
 mutates: none
 ---
@@ -12049,10 +12061,10 @@ mutates: none
 name: get_low_value_brief (extended)
 type: function
 file: fetchers/low_value_dashboard.py
-purpose: extended 2026-07-16 to add open_positions_detail (list of {symbol, side, entry_price, target_price, catastrophe_cap_price, days_held, hold_limit_days, label} per open position) to the JSON response the chat query box (/trade/low-value/query) returns. open_positions stays a plain count, unchanged, for frontend backward compatibility — open_positions_detail is purely additive. Previously this endpoint returned only an integer count with no per-symbol detail at all.
+purpose: extended 2026-07-16 to add open_positions_detail (list of {symbol, side, entry_price, ...the _plain_exit_instructions fields} per open position) to the JSON response the chat query box (/trade/low-value/query) returns, so the same plain-language sentences shown on the dashboard also appear in chat. open_positions stays a plain count, unchanged, for frontend backward compatibility — open_positions_detail is purely additive. Previously this endpoint returned only an integer count with no per-symbol detail at all.
 inputs: days (int)
 outputs: dict — see get_low_value_brief docstring; open_positions_detail is the new field
-calls: _target_stop_prices, _time_exit_progress
+calls: _plain_exit_instructions
 called_by: low_value_query (app.py POST /trade/low-value/query)
 mutates: none
 ---

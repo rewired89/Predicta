@@ -153,9 +153,12 @@ async function lvRunQuery() {
         `Total P&L: ${data.total_pnl !== null ? "$" + data.total_pnl.toFixed(2) : "—"}`,
       ];
       if (data.open_positions_detail && data.open_positions_detail.length) {
-        lines.push("", "Open positions — target / catastrophe cap / time limit:");
+        lines.push("", "What to do with your open positions:");
         data.open_positions_detail.forEach(p => {
-          lines.push(`  ${p.symbol} · entered $${p.entry_price.toFixed(2)} · target $${p.target_price.toFixed(2)} (+50%) · catastrophe cap $${p.catastrophe_cap_price.toFixed(2)} (-50%, rarely triggered) · day ${p.days_held} of ${p.hold_limit_days} (5-day time limit is the PRIMARY exit)`);
+          lines.push(`  ${p.symbol} (bought at $${p.entry_price.toFixed(2)}):`);
+          lines.push(`    ✅ ${p.profit_line}`);
+          lines.push(`    ⚠️ ${p.loss_line}`);
+          lines.push(`    ⏰ ${p.time_line}`);
         });
       }
       if (data.recent_trades && data.recent_trades.length) {

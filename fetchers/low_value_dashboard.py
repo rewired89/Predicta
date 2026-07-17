@@ -73,21 +73,63 @@ def _time_exit_progress(entry_time_iso: str) -> dict:
     return {
         "days_held": days_held,
         "hold_limit_days": LOW_VALUE_HOLD_DAYS,
-        "label": f"Primary exit: 5-trading-day time limit (day {days_held} of {LOW_VALUE_HOLD_DAYS})",
+        "days_remaining": max(LOW_VALUE_HOLD_DAYS - days_held, 0),
+    }
+
+
+# Plain-language version of the same target/cap/time-limit levels, written so
+# someone who has never traded before knows exactly what to do — not just
+# what the numbers are. Computed once here and reused by BOTH the dashboard
+# HTML and the chat brief JSON, so the wording never drifts between the two
+# (2026-07-16, user-requested — the first version used trading jargon like
+# "Target," "Catastrophe cap," and percentages, which isn't usable by someone
+# who isn't already a trader; this tool is meant for non-experts too).
+def _plain_exit_instructions(entry_price: float, side: str, entry_time_iso: str) -> dict:
+    levels = _target_stop_prices(entry_price, side)
+    progress = _time_exit_progress(entry_time_iso)
+    target = levels["target_price"]
+    cap = levels["catastrophe_cap_price"]
+    days_remaining = progress["days_remaining"]
+
+    # A LONG position profits when the price goes UP; a SHORT position
+    # profits when the price goes DOWN — the sentences have to say the
+    # opposite thing depending on which one this is, or they'd be backwards.
+    if side == "short":
+        profit_line = f"Buy it back and close this out for a profit if the price drops to ${target:,.2f}."
+        loss_line = f"Buy it back and close this out to limit the loss if the price rises to ${cap:,.2f} (rare — most positions never get this far)."
+    else:
+        profit_line = f"Sell for a profit if the price rises to ${target:,.2f}."
+        loss_line = f"Sell to limit the loss if the price drops to ${cap:,.2f} (rare — most positions never fall this far)."
+
+    if days_remaining <= 0:
+        time_line = "If neither of those has happened yet, the system closes this position today no matter the price."
+    else:
+        day_word = "day" if days_remaining == 1 else "days"
+        time_line = f"If neither of those happens, the system automatically closes this position in {days_remaining} more trading {day_word}, no matter the price."
+
+    return {
+        "target_price": target,
+        "catastrophe_cap_price": cap,
+        "days_held": progress["days_held"],
+        "hold_limit_days": progress["hold_limit_days"],
+        "days_remaining": days_remaining,
+        "profit_line": profit_line,
+        "loss_line": loss_line,
+        "time_line": time_line,
     }
 
 
 def _exit_levels_html(t: dict) -> str:
-    """Open-position card line showing the real dollar levels check_low_value_exits()
-    is already enforcing — see the module-level comment above _target_stop_prices."""
-    levels = _target_stop_prices(t["entry_price"], t["side"])
-    progress = _time_exit_progress(t["entry_time"])
+    """Open-position card block telling a non-trader exactly what to do — see
+    the comment above _plain_exit_instructions for why the wording is built
+    there once instead of duplicated per-caller."""
+    instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"])
     return (
-        f'<span class="trade-detail">'
-        f'Target ${levels["target_price"]:,.2f} (+50%) · '
-        f'Catastrophe cap ${levels["catastrophe_cap_price"]:,.2f} (-50%, rarely triggered) · '
-        f'{progress["label"]}'
-        f'</span>'
+        f'<div class="trade-detail" style="margin-top:4px; line-height:1.6;">'
+        f'<div>✅ {instr["profit_line"]}</div>'
+        f'<div>⚠️ {instr["loss_line"]}</div>'
+        f'<div>⏰ {instr["time_line"]}</div>'
+        f'</div>'
     )
 
 
@@ -124,10 +166,10 @@ THESIS_TYPE_LABELS: dict[str, str] = {
 }
 
 EXIT_REASON_LABELS: dict[str, str] = {
-    "TARGET":          "hit its +50% profit target",
-    "STOP":             "hit its -50% catastrophe cap (a rarely-triggered backstop, not the position's primary risk control — see TIME)",
-    "TIME":             "closed — 5-trading-day time limit reached with no target/catastrophe-cap hit (this is the position's PRIMARY exit control)",
-    "THESIS_RESOLVED":  "closed — the negative story reversed as expected",
+    "TARGET":          "sold for a profit — the price moved 50% in our favor",
+    "STOP":             "sold to limit the loss — the price moved 50% against us (this is rare; most losing trades exit via the 5-day time limit below, at a much smaller loss)",
+    "TIME":             "sold automatically after 5 trading days — the price never reached the profit point or the loss-limit point",
+    "THESIS_RESOLVED":  "sold — the bad news that caused the price drop turned out to be temporary, like the model expected",
 }
 
 # Per-signal plain-English translator (2026-07-13, user-requested — "the
@@ -239,14 +281,12 @@ def get_low_value_brief(days: int = 7) -> dict:
     # levels that were previously invisible outside the dashboard HTML page.
     open_positions_detail = []
     for t in open_t:
-        levels = _target_stop_prices(t["entry_price"], t["side"])
-        progress = _time_exit_progress(t["entry_time"])
+        instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"])
         open_positions_detail.append({
             "symbol": t["symbol"],
             "side": t["side"],
             "entry_price": round(t["entry_price"], 2),
-            **levels,
-            **progress,
+            **instr,
         })
 
     return {
