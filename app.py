@@ -2372,7 +2372,10 @@ def trade_dashboard():
         open_rows = conn.execute(
             """
             SELECT symbol, side, entry_time, entry_score, entry_price,
-                   stop_price, target_price
+                   stop_price, target1_price, target_price,
+                   vwap_score, or_score, rsi_score, relvol_score,
+                   gap_score, trend_score, bollinger_score, volsurge_score,
+                   ngram_signal, ngram_confidence
             FROM intraday_trades
             WHERE is_hypothetical = 1 AND exit_time IS NULL
             ORDER BY entry_time DESC
@@ -2560,6 +2563,98 @@ def trade_dashboard():
         }
         return m.get(label, label)
 
+    # Added 2026-07-18, direct user request — same plain-language treatment
+    # already built for the Low Value dashboard (fetchers/low_value_dashboard.py:
+    # _plain_why/_plain_confidence/_plain_exit_instructions), ported to High
+    # Value. High Value already stored stop_price/target_price/target1_price
+    # and every individual signal's raw score per trade, but the open-position
+    # card only ever showed "BUY · score 62" — no why, no target, no stop.
+    # Reconstructs a plain "why" from the stored per-signal scores (the
+    # human-readable label text intraday.py's _sig_* functions generate at
+    # scan time is never persisted, only the numeric score, so this is a
+    # sign/magnitude-based re-translation grounded in what each signal
+    # literally measures — not a byte-exact replay of the original label).
+    def _hv_signal_phrase(name, score):
+        if score is None or abs(score) < 10:
+            return None
+        pos = score > 0
+        if name == "vwap":
+            return ("trading above its average price today, a sign of buying pressure" if pos else
+                    "trading below its average price today, a sign of selling pressure")
+        if name == "or":
+            return ("broken out above this morning's early trading range" if pos else
+                    "broken down below this morning's early trading range")
+        if name == "rsi":
+            if abs(score) >= 20:
+                return ("oversold on a short-term basis and due for a bounce" if pos else
+                        "overbought on a short-term basis and due for a pullback")
+            return "showing short-term bullish momentum" if pos else "showing short-term bearish momentum"
+        if name == "relvol":
+            return ("trading on unusually heavy volume for this time of day" if pos else
+                    "trading on unusually light volume for this time of day")
+        if name == "gap":
+            return "today's opening gap supports the bullish case" if pos else "today's opening gap supports the bearish case"
+        if name == "trend":
+            return ("above its short-term trend average, a bullish backdrop" if pos else
+                    "below its short-term trend average, a bearish backdrop")
+        if name == "bollinger":
+            return ("near the bottom of its recent trading range, a spot that often bounces" if pos else
+                    "stretched near the top of its recent trading range, arguably overbought")
+        if name == "volsurge":
+            return "seeing a burst of volume in the last few minutes" if pos else None
+        return None
+
+    def _hv_plain_why(t):
+        cols = [
+            ("vwap", t.get("vwap_score")), ("or", t.get("or_score")), ("rsi", t.get("rsi_score")),
+            ("relvol", t.get("relvol_score")), ("gap", t.get("gap_score")), ("trend", t.get("trend_score")),
+            ("bollinger", t.get("bollinger_score")), ("volsurge", t.get("volsurge_score")),
+        ]
+        scored = [(name, sc, _hv_signal_phrase(name, sc)) for name, sc in cols]
+        scored = [(name, sc, ph) for name, sc, ph in scored if ph]
+        scored.sort(key=lambda x: abs(x[1]), reverse=True)
+        top = scored[:2]
+        if not top:
+            return "No single signal stood out strongly — this entry came from several smaller factors adding up together."
+        sentence = " and ".join(ph for _, _, ph in top)
+        sentence = sentence[0].upper() + sentence[1:] + "."
+        ngram_signal = t.get("ngram_signal")
+        ngram_conf = t.get("ngram_confidence")
+        if ngram_signal and ngram_signal != "NONE" and ngram_conf and ngram_conf > 20:
+            side_word = "UP" if t.get("side") == "long" else "DOWN"
+            if ngram_signal == side_word:
+                sentence += " A recurring short-term price pattern also points the same direction."
+        return sentence
+
+    def _hv_plain_confidence(score):
+        if score is None:
+            return "Confidence: unknown"
+        a = abs(score)
+        if a >= 60:
+            return "Confidence: very strong — multiple signals strongly agree"
+        if a >= 20:
+            return "Confidence: moderate — the minimum bar the model requires to act at all"
+        return "Confidence: weak"
+
+    def _hv_plain_exit(t):
+        side = t.get("side")
+        stop = t.get("stop_price")
+        target1 = t.get("target1_price")
+        target = t.get("target_price")
+        lines = []
+        if target:
+            lines.append(f"✅ {'Sell' if side == 'long' else 'Buy it back'} for a profit if the price "
+                         f"{'rises' if side == 'long' else 'drops'} to ${target:,.2f}.")
+        if target1 and target1 != target:
+            lines.append(f"🎯 A partial profit-taking price is ${target1:,.2f} — the model may "
+                         f"{'sell' if side == 'long' else 'buy back'} part of the position there first.")
+        if stop:
+            lines.append(f"⚠️ {'Sell' if side == 'long' else 'Buy it back'} to limit the loss if the price "
+                         f"{'drops' if side == 'long' else 'rises'} to ${stop:,.2f}.")
+        lines.append("⏰ If neither of those happens, the position closes automatically by the end of "
+                     "today's trading session — High Value never holds overnight.")
+        return "".join(f"<div>{l}</div>" for l in lines)
+
     def _pnl_color(pnl):
         if pnl is None: return "#64748b"
         return "#22c55e" if pnl >= 0 else "#ef4444"
@@ -2616,14 +2711,25 @@ def trade_dashboard():
         sym   = t.get("symbol", "?")
         side  = "BUY" if t.get("side") == "long" else "SELL"
         score = t.get("entry_score") or 0
+        entry_price = t.get("entry_price")
         entry_str = (t.get("entry_time") or "")[:16].replace("T", " ")
         open_html += f"""
         <div class="trade-row">
           <span class="trade-icon">⏳</span>
           <div class="trade-info">
-            <span class="trade-sym">{sym}</span>
-            <span class="trade-detail">{side} · score {score:.0f}</span>
+            <span class="trade-sym">{side} {sym}</span>
+            <div class="trade-why">{_hv_plain_why(t)}</div>
+            <span class="trade-detail">{"Bought" if t.get("side") == "long" else "Shorted"} at ${entry_price:,.2f}/share · {_hv_plain_confidence(score)}</span>
+            {_hv_plain_exit(t)}
             <span class="trade-time">Entered {entry_str}</span>
+            <details style="margin-top:6px;">
+              <summary style="cursor:pointer; font-size:.78rem; color:var(--muted);">See the technical details (raw score {score:.0f}/100)</summary>
+              <div style="font-size:.78rem; color:var(--muted); margin-top:6px;">
+                VWAP {t.get("vwap_score") or 0:+.0f} · Opening range {t.get("or_score") or 0:+.0f} · RSI {t.get("rsi_score") or 0:+.0f} ·
+                Rel. volume {t.get("relvol_score") or 0:+.0f} · Gap {t.get("gap_score") or 0:+.0f} · Trend {t.get("trend_score") or 0:+.0f} ·
+                Bollinger {t.get("bollinger_score") or 0:+.0f} · Volume surge {t.get("volsurge_score") or 0:+.0f}
+              </div>
+            </details>
           </div>
         </div>"""
 
@@ -2728,6 +2834,7 @@ def trade_dashboard():
   .trade-info {{ flex: 1; min-width: 0; }}
   .trade-sym {{ font-weight: 700; font-size: .95rem; margin-right: 6px; }}
   .trade-detail {{ font-size: .8rem; color: var(--muted); }}
+  .trade-why {{ font-size: .88rem; color: var(--text); margin: 4px 0; line-height: 1.5; }}
   .trade-time {{ display: block; font-size: .72rem; color: var(--muted); margin-top: 2px; }}
   .trade-pnl {{ font-weight: 700; font-size: .9rem; flex-shrink: 0; }}
   .tod-row {{ margin-bottom: 12px; }}

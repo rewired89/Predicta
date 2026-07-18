@@ -12424,3 +12424,31 @@ calls: _plain_why (new), _plain_confidence (new)
 called_by: low_value_query (app.py POST /trade/low-value/query)
 mutates: none
 ---
+
+## High Value: concrete plain-language trade card (added 2026-07-18)
+
+User clarified: they want High Value (this codebase's actual day-trading engine — 5-min bars, force-closed same day) to get the same plain-language treatment just built for Low Value, and confirmed Low Value should stay as-is (a multi-day "spot good stocks people missed" engine, not day trading). Investigation found High Value's open-position card was even sparser than Low Value's had been: "BUY · score 62" and an entry timestamp — no why, and no target/stop shown at all despite stop_price/target_price/target1_price already being computed and stored per trade at entry time (compute_exit_action/_trade_levels in intraday.py) and already present in the DB query, just never rendered.
+
+---
+name: _hv_signal_phrase / _hv_plain_why / _hv_plain_confidence / _hv_plain_exit
+type: function (4, nested inside trade_dashboard, matching that function's existing _wr_text/_r_text/_exit_plain/_tod_plain convention)
+file: app.py
+purpose: added 2026-07-18 — High Value's equivalent of Low Value's _plain_why/_plain_confidence/_plain_exit_instructions (fetchers/low_value_dashboard.py). Reconstructs a plain "why" from the 8 stored per-signal scores (vwap_score, or_score, rsi_score, relvol_score, gap_score, trend_score, bollinger_score, volsurge_score) plus ngram_signal/ngram_confidence — picks the top 2 by |score|, translates each via _hv_signal_phrase (sign/magnitude-based, grounded in what each signal's _sig_* function in intraday.py actually measures; the exact original label text isn't persisted to the DB, only the numeric score, so this is a re-translation not a byte-exact replay). _hv_plain_exit covers stop, final target, AND the partial target1 (previously not even selected by the dashboard's SQL query), plus a fixed "closes by end of today's trading session — High Value never holds overnight" line, since every High Value position is same-day by construction. Verified end-to-end for both long (AAPL, oversold+breakout+ngram-confirm) and short (TSLA, overbought+below-VWAP+ngram-confirm, correctly mirrored "buy it back" phrasing) via a real FastAPI dashboard render, not just a compile check.
+inputs: t (dict — open-position row, now including the 8 per-signal score columns, ngram fields, and target1_price)
+outputs: str / str / str / HTML string
+calls: none (pure string logic)
+called_by: trade_dashboard (open_html)
+mutates: none
+---
+
+---
+name: trade_dashboard (extended, plain trade card + SQL)
+type: function
+file: app.py
+purpose: extended 2026-07-18 — open_rows SQL SELECT gained target1_price and all 8 per-signal score columns plus ngram_signal/ngram_confidence (previously only symbol/side/entry_time/entry_score/entry_price/stop_price/target_price). open_html restructured to lead with side+symbol, then _hv_plain_why, then entry price + _hv_plain_confidence, then _hv_plain_exit's target/partial-target/stop/EOD-close lines, with the raw per-signal score dump moved into a collapsed <details>/<summary> block — same pattern as Low Value's 2026-07-18 change.
+inputs: none
+outputs: HTML (open-position card restructured; other cards unchanged)
+calls: _hv_plain_why, _hv_plain_confidence, _hv_plain_exit (new)
+called_by: GET /trade/dashboard
+mutates: none
+---
