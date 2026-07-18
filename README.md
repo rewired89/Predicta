@@ -594,6 +594,41 @@ Two **independent** engines — separate signal logic, separate background threa
 sharing only the Alpaca market-data fetcher and the `intraday_trades` DB table (scoped
 by an `engine` column). "Two tabs, two engines. No mixing."
 
+**Style, stated plainly (per direct user question, 2026-07-18):** High Value is this
+codebase's actual **day-trading** engine — 5-minute bars, every position force-closed
+by end of day, never held overnight. Low Value is a **multi-day swing** engine — scans
+once daily, holds 1–5 trading days. They are not two speeds of the same thing; if you
+want same-day trades, that's High Value, not Low Value.
+
+**Trading-model audit (2026-07-16 to 2026-07-18)** — user asked four direct questions
+(which variables are missing / overweighted / mislabeled as protective-vs-risky / how
+confident should the scores really be) across every engine. Answered, then fixed in
+three tiers, all now shipped:
+- **Tier 0 (visibility)** — surfaced facts the calibration machinery already computed
+  but never displayed: Low Value's stop-loss/target/time-limit (was fully enforced,
+  never shown), a phase/readiness confidence banner and per-signal win-rate report for
+  Low Value (High Value already had both), all later rewritten into plain,
+  non-jargon sentences on both dashboards (see "Plain-language trade cards" below).
+- **Tier 1 (wire up existing calibration)** — `compute_dynamic_weights()`,
+  `check_signal_kill_switches()`, and `compute_ngram_blend_weight()` all existed and
+  computed real, data-driven recalibration from closed-trade outcomes, but nothing
+  called them from live scoring. Now wired in, still gated behind their original
+  trade-count thresholds (100 for High Value's dynamic weights, 50 for Low Value's,
+  50-per-signal for the kill switch, 20+20 for n-gram calibration) — **no behavior
+  changes below those thresholds.**
+- **Tier 2 (new capabilities)** — cross-engine open-position visibility
+  (`GET /trade/exposure`, read-only, no combined cap — see "Portfolio controls"
+  below), a symmetric macro-overlay shadow-log (`long_term_force_expansion`, logged
+  only, never gates anything — see the macro overlay section below), a dilution
+  warning flag on Low Value's `cash_burn_months` signal (SEC 8-K Item 3.02, score
+  unchanged), and a hard shortability gate before Low Value logs a SHORT (Alpaca's
+  real `shortable` flag — a binary tradability fact, not a guessed threshold, so this
+  one does block).
+
+Full technical detail and open questions for review: `trading_model_4kimi.md` (High
+Value + the cross-engine/audit-level items) and `low_value_trading4kimi.md` (Low
+Value-specific items).
+
 ### High Value — Intraday Paper Trading
 
 8-signal ensemble on 5-minute bars, weighted and normalized to −100..+100:
@@ -628,7 +663,22 @@ floor, zero on market-closed), and an **n-gram pattern blend**.
 next bar's direction from historical frequency tables built from 6+ months of data.
 Only fires at >52% historical directional edge with enough sample occurrences;
 3-bar context was tested and rejected (too weak, ~0.05-0.12 autocorrelation, too close
-to the 50% noise floor).
+to the 50% noise floor). **Calibrated blend (2026-07-18):** once 20+ agree AND 20+
+disagree trades exist (`compute_ngram_blend_weight()`), the agree/disagree adjustment
+switches from the hardcoded confidence-scaled boost / flat ×0.7 above to the real,
+measured multiplier for each cohort — falls back to the original hardcoded behavior
+below that threshold.
+
+**Dynamic weight + kill-switch wiring (2026-07-18):** the `WEIGHTS` dict above is now
+the STATIC FALLBACK, not necessarily the live weights. `_effective_weights()`
+(`intraday.py`) overrides it with `compute_dynamic_weights()`'s empirically-derived
+weights once 100+ closed trades exist AND a real edge is found, and — independently,
+gated at just 50 trades for that one signal — zeroes out any individual signal
+`check_signal_kill_switches()` has proven harmful (Wilson CI upper bound below 48%).
+Both the raw composite sum and its own normalization ceiling use the same effective
+weights, so a killed/reweighted signal's influence shrinks symmetrically rather than
+just compressing the whole score toward zero. **No effect on current scoring** — these
+gates haven't opened yet; this only changes what happens once real data crosses them.
 
 **Macro regime overlay** (Bridgewater "Four Boxes" / Dalio "3 forces", via FRED —
 `fetchers/fred.py`, needs `FRED_API_KEY`, fails safe when absent):
@@ -640,6 +690,14 @@ long_term_force_contraction = True if:
 ```
 Read-only and additive — elevates the day's regime to EXTREME (which changes model
 behavior elsewhere) alongside an intraday SPY-gap threshold; never a standalone gate.
+**Symmetric shadow-log (2026-07-18):** `long_term_force_expansion` mirrors the credit-
+spread half only (HY-OAS more than 2 std devs *below* its mean = calm/favorable, a
+legitimate symmetric reading) — logged alongside the existing tag but never read by
+the regime gate itself. Debt/GDP is deliberately NOT mirrored: Dalio's own long-term
+debt-cycle framing is asymmetric (slow multi-decade rise, sharp deleveraging fall), so
+a "low debt/GDP is bullish" signal would be a fabricated number, not a real one. Before
+this, the overlay only ever recorded bad regimes — there was no data trail to check
+whether a favorable-regime adjustment would ever have helped.
 
 **Position sizing / sprint mode**: see [§10](#10-position-sizing-sports-paper-mode--trading-engines)
 for ATR sizing. `DATA_COLLECTION_SPRINT_MODE = True`, `SPRINT_MIN_SCORE = 10` (vs. the
@@ -650,6 +708,40 @@ strict floor would take, with zero data loss (`entry_score` is always stored).
 **Portfolio controls**: max 3 concurrent positions (the 8-symbol tech-heavy watchlist
 is a single correlated cluster, not diversified sectors — capping total exposure
 substitutes for real pairwise-correlation math), force-close at 15:50 ET.
+**Cross-engine exposure (2026-07-18):** `GET /trade/exposure` and a dashboard card on
+both engines report OPEN POSITION COUNTS across High Value + Low Value + Pairs
+together — read-only, no combined cap enforced (Pairs has no cap of its own at all,
+and there's no validated "safe combined limit" number to gate on yet).
+
+**Low-price watchlist mode (2026-07-18, user request — "not interested in day-trading
+$100+ stocks"):** `ACTIVE_UNIVERSE_MODE` picks between `RUNNER_SYMBOLS` (the original
+8-name large-cap list above, unchanged and still fully defined — nothing was deleted)
+and a lower-priced candidate pool, currently the ACTIVE mode:
+```python
+LOW_PRICE_CEILING = 70.0
+LOW_PRICE_WATCHLIST_CANDIDATES = [
+    "F", "INTC", "T", "PFE", "CSCO", "BAC", "SOFI", "PLTR",
+    "NIO", "SNAP", "UBER", "RIVN", "WBD", "KO", "NOK",
+]
+```
+`get_active_watchlist()` re-checks every candidate's REAL current price via a live
+Alpaca snapshot at scan time and drops anything at or above the ceiling — the
+candidate list itself is not the enforcement mechanism, since prices drift and no
+sandbox here can verify them ahead of time. Fails toward an EMPTY scan on a
+snapshot-fetch error, not toward `RUNNER_SYMBOLS` — a data hiccup shouldn't silently
+put the user back into $100+ names they explicitly opted out of. Switch
+`ACTIVE_UNIVERSE_MODE` back to `"large_cap"` any time to fully restore the original
+watchlist.
+
+**Plain-language trade card (2026-07-18):** `/trade/dashboard`'s open-position cards
+now lead with a concrete, non-jargon sentence (`_hv_plain_why` — built from the top 2
+strongest-scoring signals, e.g. "oversold on a short-term basis and due for a bounce
+and broken out above this morning's early trading range"), a plain confidence
+descriptor (`_hv_plain_confidence`) instead of a bare score, and the actual
+target/partial-target/stop-loss prices plus a fixed reminder that every position
+closes by end of day — all of which were already computed and stored per trade, just
+never rendered before this. The raw per-signal score breakdown is still available in
+a collapsed "See the technical details" section.
 
 ---
 
@@ -734,6 +826,47 @@ logged so a day with zero results is diagnosable instead of a silent empty unive
 **Exits** (checked once daily, not intraday — this engine holds multi-day by design):
 target +50%, stop −50%, 5-trading-day time limit, or (only for a negative-news-flagged
 entry) a fresh positive-catalyst headline confirming the reversal thesis played out.
+**Plain-language trade card (2026-07-16/18):** these exit levels were always computed
+and enforced but never shown anywhere — the dashboard and chat brief now lead every
+open position with a concrete non-jargon sentence (`_plain_why` — thesis description
+plus a grounding fact, e.g. "It's trading at $9.99, only 2% above its lowest price in
+the last 20 days"), a plain confidence descriptor, and the real target/stop/time-limit
+prices ("Sell for a profit if the price rises to $X" / "Sell to limit the loss if it
+drops to $Y" / "closes automatically in N more trading days"). The -50% level is
+explicitly NOT called a "stop-loss" in the UI — the 5-day time limit is the position's
+actual primary exit control; a thesis-wrong position bleeding ~2%/day exits via the
+time limit around -10%, long before ever reaching -50%.
+
+**Dynamic weights (2026-07-18):** `SIGNAL_WEIGHTS` above is now the static fallback.
+`_effective_signal_weights()` overrides it with `compute_low_value_dynamic_weights()`
+once 50+ closed trades exist and a real edge is found — the same wiring pattern as
+High Value, but built fresh here since the existing `compute_dynamic_weights()` only
+reads High Value's dedicated DB columns, not Low Value's JSON-stored signals. Uses
+`avg_pnl_pct` (not `avg_r`) as the edge-magnitude term, since Low Value never sets
+`risk_dollars` (fixed $25 sizing has no ATR stop to normalize against) so `pnl_r` is
+always `None` here — `pnl_pct` is a fair substitute specifically because every trade
+shares the same ±50% target/stop distance.
+
+**Per-signal calibration (2026-07-16):** `low_value_per_signal_accuracy_report()`
+mirrors High Value's per-signal win-rate report, reading each signal's stored score
+out of `lv_signals_json` (was already logged per trade, just never aggregated). This
+is what makes "is `short_interest_pct`'s squeeze-potential framing actually right, or
+is it backwards" answerable from real data instead of staying a permanent guess —
+previously Low Value could only report win rate per THESIS TYPE, not per signal.
+
+**Dilution warning (2026-07-18):** `cash_burn_months`'s detail now includes
+`recent_dilutive_filing` — True if SEC EDGAR shows an 8-K Item 3.02 (a completed
+dilutive share sale, not just a shelf registration) in the last 90 days. Shown as a
+UI warning only; the SCORE is unchanged, since there's no calibration data yet on how
+much a recent dilution should discount a runway estimate.
+
+**Short-borrow gate (2026-07-18):** before logging a composite-driven SHORT,
+`run_low_value_scan()` checks Alpaca's real `shortable` flag for the symbol. Explicitly
+`False` → skipped, not logged (these sub-$20 names are frequently not shortable at
+all, so some prior "short" history here could represent trades that could never
+actually execute). Unknown (API error) does NOT block — an unconfirmed answer isn't
+evidence the trade is impossible. Unlike a signal weight, this is a hard tradability
+fact, so it's a real gate rather than another guessed threshold.
 
 ---
 
@@ -976,3 +1109,22 @@ If you're reviewing this system, here's where independent judgment would help mo
     baseball's own early losses when thresholds started too loose). Is borrowing
     another sport's thresholds a reasonable placeholder, or does it risk masking how
     uncalibrated these models really are?
+
+11. **Low Value's dynamic-weight formula uses `avg_pnl_pct` as the edge-magnitude
+    term** (2026-07-18) instead of the true R-multiple High Value's version uses,
+    since Low Value never sets `risk_dollars`. Is that a sound substitute given every
+    Low Value trade shares the same ±50% target/stop distance, or does it introduce a
+    subtle bias vs. real R-multiples?
+
+12. **High Value's low-price watchlist candidates** (F, INTC, T, PFE, CSCO, BAC, SOFI,
+    PLTR, NIO, SNAP, UBER, RIVN, WBD, KO, NOK — 2026-07-18) were chosen for liquidity/
+    name recognition, not backtested. The live $70 price filter enforces the ceiling
+    correctly regardless, but is this a sound day-trading candidate *pool*, or do any
+    of these (e.g. PLTR's/NIO's news-driven gap risk) need the regime-conditioning
+    logic — tuned around the original 8-large-cap list — to change too?
+
+13. **`get_active_watchlist()` fails toward an empty scan on a snapshot error**, not
+    toward the large-cap list, on the reasoning that silently reverting to $100+
+    stocks would violate the user's stated preference more than skipping a day would.
+    Is that the right default, or should a persistent fetch failure eventually fall
+    back rather than skip indefinitely?

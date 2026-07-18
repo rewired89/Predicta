@@ -1,6 +1,6 @@
 # Predicta Trading Model — Technical Overview for Kimi
 
-Date: 2026-07-06 (updated after round-1 review — see Section 8)
+Date: 2026-07-06 (updated after round-1 review — see Section 8; most recently updated 2026-07-18, see Section 8.12)
 Purpose: Full technical dump of the current trading system for feedback review.
 
 ---
@@ -680,6 +680,145 @@ diagram showed — every other DB-writing fetcher in this codebase
 mix I/O concerns into `models/` for no functional gain. The behavioral ask
 (engine-tagged shared logger) is fully met; only the physical file location
 differs from the diagram.
+
+---
+
+### 8.12 Round 7 — User-driven trading-model audit and fixes (2026-07-16 to 2026-07-18)
+
+Not a Kimi round — the user directly asked four audit questions across every trading
+engine (which variables are missing / overweighted / mislabeled as protective-vs-risky
+/ how confident should the scores really be), then asked for a fix proposal. Answered
+with a code-grounded audit, then built a 3-tier plan the user approved, then a series
+of follow-on requests (day-trading clarification, plain-language cards, low-price
+watchlist). Recording all of it here since it materially changed how scores are
+computed and displayed.
+
+**Tier 0 — visibility (2026-07-16).** High Value's dashboard already had a mature
+"Phase + readiness" confidence banner and per-signal accuracy report (`per_signal_
+accuracy_report`) — this section covers what changed for High Value specifically;
+Low Value's equivalent additions are in `low_value_trading4kimi.md`. Nothing in this
+tier touched High Value's scoring.
+
+**Tier 1 — wire up existing calibration machinery, still gated (2026-07-16).**
+`compute_dynamic_weights()`, `check_signal_kill_switches()`, and `compute_ngram_
+blend_weight()` all existed, computed real recalibration from closed-trade data, and
+were never called from live scoring — `WEIGHTS` stayed frozen at the original guesses
+regardless of what real trades proved.
+- `_effective_weights()` (`intraday.py`): returns `WEIGHTS` unless `calibration_
+  globally_active()` (100+ closed trades) AND `compute_dynamic_weights()` finds real
+  edge (`status == "dynamic"`); independently zeroes any `get_active_kill_switches()`
+  signal regardless of the 100-trade gate (kill-switch has its own 50-trade-per-signal
+  floor). Cached 5 minutes — this runs once per symbol per scan tick.
+- `_composite()` now calls `_effective_weights()` for BOTH the raw score sum and its
+  own normalization ceiling, using the same weights for both — a zeroed/reweighted
+  signal's contribution shrinks symmetrically instead of just compressing the whole
+  score toward zero.
+- N-gram blend: `_calibrated_ngram_multipliers()` returns `compute_ngram_blend_
+  weight()`'s real agree/disagree multipliers once 20+20 trades exist in each cohort;
+  below that, the original hardcoded confidence-scaled boost / flat ×0.7 is unchanged.
+- Verified with synthetic trade data for every path: static fallback at 0 trades,
+  kill-switch zeroing independent of the weight-recalibration gate (a killed `rsi`
+  signal zeroed out even while a synthetic 100-trade dataset gave it a real 0.5
+  dynamic weight), dynamic weights actually shifting composite behavior once the gate
+  opens, and n-gram multipliers coming back >1 for an outperforming agree cohort and
+  <1 for an underperforming disagree cohort.
+
+**Tier 2 — new capabilities (2026-07-17).**
+1. **Cross-engine exposure** (`models/trading/shared/exposure.py`, new;
+   `GET /trade/exposure`; dashboard cards on both engines). Each engine caps its own
+   concurrent positions independently (High Value 3, Low Value 3, Pairs 0 — no cap
+   exists), but nothing added them up. Deliberately READ-ONLY — reports position
+   COUNTS (not dollars, since the three engines size positions too differently to
+   compare in dollar terms yet) and does not enforce any combined limit, since there's
+   no validated "safe combined cap" number and guessing one would repeat exactly the
+   mistake this whole audit was correcting.
+2. **Symmetric macro shadow-log** (`fetchers/high_value_runner.py:_fetch_macro_
+   tags()`). `long_term_force_contraction` (built round 6, section 8.10) only ever
+   penalized a bad regime; `long_term_force_expansion` mirrors ONLY the credit-spread
+   half (HY-OAS >2 std devs BELOW its mean = calm/favorable — a legitimate symmetric
+   reading), shadow-logged and never read by `_fetch_market_regime`'s actual gate.
+   Debt/GDP deliberately NOT mirrored — Dalio's own long-term debt-cycle framing is
+   asymmetric (slow multi-decade rise, sharp deleveraging fall), so a "low debt/GDP is
+   bullish" signal would be a fabricated number, not a real one. Verified with
+   synthetic FRED data for both the expansion and contraction cases; confirmed the
+   regime gate itself is untouched.
+3. Dilution warning + short-borrow gate — both primarily Low Value changes, detailed
+   in `low_value_trading4kimi.md`. The shortability check (`fetchers/alpaca.py:
+   get_asset_shortability()`, real `shortable`/`easy_to_borrow` fields from Alpaca's
+   asset record) is shared infrastructure, callable by either engine.
+
+**Plain-language trade card (2026-07-18).** User, unprompted by Kimi, pointed out
+they're not a trader and "if the model starts talking to me in technical terms, I'm
+screwed." High Value's open-position card went from `"BUY · score 62"` and a
+timestamp — no why, no target, no stop shown despite `stop_price`/`target1_price`/
+`target_price` already being computed and stored per trade — to a full plain card:
+- `_hv_plain_why(t)`: reconstructs a concrete sentence from the top 2 strongest-
+  scoring stored signals (`vwap_score`/`or_score`/`rsi_score`/`relvol_score`/
+  `gap_score`/`trend_score`/`bollinger_score`/`volsurge_score`) via `_hv_signal_
+  phrase()`, a sign/magnitude-based translator grounded in what each `_sig_*`
+  function actually measures. **Not a byte-exact replay** of the original label text
+  those functions generate at scan time — that text is never persisted to the DB,
+  only the numeric score, so this is a re-translation. Flagging this as a design
+  choice worth a second opinion (see open questions below).
+- `_hv_plain_confidence(score)`: "very strong"/"strong"/"moderate" instead of a bare
+  number.
+- `_hv_plain_exit(t)`: stop, final target, partial target1 (previously not even
+  selected by the dashboard's SQL query), and a fixed "closes by end of today's
+  trading session — High Value never holds overnight" line, since every High Value
+  position is same-day by construction.
+- Raw per-signal scores moved into a collapsed `<details>` block, not removed.
+- Verified end-to-end via a real FastAPI dashboard render for both a long position
+  (correct "sell for a profit"/"sell to limit the loss" phrasing) and a short
+  position (correctly mirrored "buy it back" phrasing in both directions).
+
+**Low-price watchlist mode (2026-07-18).** User clarified their actual objection to
+"day trading" wasn't the mechanic, it was the price tier — not interested in $100+
+names like AAPL/AMZN, which is why they'd originally asked about Low Value at all.
+Wants High Value's real day-trading engine to run a lower-priced universe instead,
+**without losing the existing watchlist**.
+- `ACTIVE_UNIVERSE_MODE`: `"large_cap"` (unchanged `RUNNER_SYMBOLS`, the original
+  8-name list, still fully defined) vs `"low_price"` (currently active).
+- `get_active_watchlist()`: in low_price mode, filters `LOW_PRICE_WATCHLIST_
+  CANDIDATES` (F, INTC, T, PFE, CSCO, BAC, SOFI, PLTR, NIO, SNAP, UBER, RIVN, WBD,
+  KO, NOK) against a LIVE Alpaca price snapshot at call time, keeping only symbols
+  actually under `LOW_PRICE_CEILING` ($70) right now. The candidate list is
+  explicitly NOT the enforcement mechanism — no sandbox access to verify current
+  prices, so the real ceiling is checked live, not assumed. Fails toward an EMPTY
+  list on a snapshot error, not toward `RUNNER_SYMBOLS` — silently reverting to
+  $100+ stocks would violate the user's stated preference more than skipping a scan.
+- All symbol-list call sites (`run_open_scan`, `start_runner`, `get_runner_status`,
+  the screener-brief chat trigger, the dashboard's inventory snapshot) now resolve
+  through this function instead of the raw constant. Dashboard header shows
+  "Low-Price Mode (under $70)" so the active mode is never ambiguous.
+- Verified with mocked prices: two candidates that had run past $70 (PLTR $185,
+  UBER $85) were correctly excluded from both `get_runner_status()` and the rendered
+  dashboard; the large-cap list remained fully intact and recoverable in the status
+  response's `large_cap_symbols` field.
+
+**Round 7 open questions for Kimi:**
+
+1. `_hv_signal_phrase()` re-translates a stored numeric score back into plain English
+   by sign/magnitude, since the original label text each `_sig_*` function generates
+   at scan time (e.g. `"Momentum: above VWAP in uptrend"`) is never persisted to the
+   DB. Should the label text itself be added as a new stored column going forward, so
+   future dashboards don't need to reverse-engineer it — and is there a risk the
+   current re-translation drifts from the real label semantics if `_sig_*`'s bucket
+   boundaries change later without this translator being updated in lockstep?
+2. Is the low-price candidate pool (F, INTC, T, PFE, CSCO, BAC, SOFI, PLTR, NIO, SNAP,
+   UBER, RIVN, WBD, KO, NOK) a sound day-trading universe, or do any of these need
+   the regime-conditioning logic (tuned around the original correlated tech-cluster
+   assumption) revisited — PLTR and NIO in particular have very different volatility/
+   news-gap profiles than the original 8-name list.
+3. Should `ACTIVE_UNIVERSE_MODE` eventually support scanning BOTH lists at once
+   (with `MAX_CONCURRENT_POSITIONS` scoped per-list) rather than an either/or toggle,
+   once there's calibration data to check whether mixing price tiers actually hurts
+   the way the original design comment warned mixing volatility regimes would?
+4. The cross-engine exposure aggregator is count-based, not dollar-based, since Pairs
+   has no position-sizing at all. Worth building a dollar-based version now, or does
+   that need Pairs to get real sizing first?
+5. Is failing toward an empty watchlist on a snapshot error (rather than falling back
+   to `RUNNER_SYMBOLS`) the right default long-term, or should a PERSISTENT failure
+   (e.g. 3+ consecutive days) eventually fall back rather than skip indefinitely?
 
 ---
 

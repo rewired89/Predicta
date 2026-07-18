@@ -1,6 +1,6 @@
 # Low Value Trades — Technical Dump for Kimi Review
 
-Date: 2026-07-07
+Date: 2026-07-07 (most recently updated 2026-07-18, see Section 18)
 Purpose: full technical dump of the new Low Value contrarian sub-$20 engine,
 built per your round-6 follow-up feedback. Separate document from
 `trading_model_4kimi.md` (which covers the existing High Value engine and
@@ -664,3 +664,164 @@ drop sharply on the dashboard's funnel line. If it doesn't, the market-cap
 lookup itself needs a closer look (bad key, Finnhub rate-limiting, etc.) —
 that's the first thing to check at the start of the next session if the
 universe is still coming back empty.
+
+---
+
+## 18. User-driven audit and fixes (2026-07-16 to 2026-07-18)
+
+Not a Kimi round — the user directly asked four audit questions across every
+trading engine (missing / overweighted / mislabeled-as-protective / confidence
+variables), then a fix proposal, then several follow-on requests. This section
+covers the Low Value-specific parts; the High Value / cross-engine parts are in
+`trading_model_4kimi.md`'s Section 8.12.
+
+### 18.1 Stop-loss/target visibility was the trigger
+
+User noticed Low Value's BUY recommendations never came with a sell price. Turned
+out the +50%/-50%/5-trading-day exit rule was fully implemented and enforced
+(`check_low_value_exits()` — unchanged by any of this) but never surfaced anywhere
+a user could see it. First fix: computed target/catastrophe-cap/time-limit prices
+from `entry_price`/`side`/`entry_time` and showed them on the dashboard and in the
+chat brief, labeling -50% a "Catastrophe Cap" (not "stop-loss") since the 5-day
+time limit is the position's actual primary exit control — a thesis-wrong position
+bleeding ~2%/day exits via TIME around -10%, long before ever reaching -50%.
+
+### 18.2 Plain-language rewrite (same day, immediately after)
+
+User said even the labeled-number version ("Target $18.00 (+50%) · Catastrophe cap
+$6.00 (-50%, rarely triggered)") was still unusable — not a trader, technical
+language loses them entirely. Rewrote every exit condition as a direct instruction:
+"Sell for a profit if the price rises to $18.00" / "Sell to limit the loss if the
+price drops to $6.00 (rare...)" / "closes automatically in N more trading days."
+Short positions get mirrored phrasing (profit direction is the opposite of long).
+Closed-trade exit-reason labels got the same treatment. No change to the underlying
+±50%/5-day levels — display only.
+
+### 18.3 Tier 0 — per-signal calibration + confidence banner (2026-07-16)
+
+High Value's dashboard already had a mature "Phase + readiness" banner and a
+per-signal win-rate report; Low Value had neither.
+- `low_value_per_signal_accuracy_report()`: mirrors High Value's per-signal
+  methodology but reads Low Value's 8 signals from `lv_signals_json` (already
+  logged per trade for display, just never aggregated) instead of dedicated DB
+  columns. This is what makes "is `short_interest_pct`'s squeeze-potential framing
+  actually right, or backwards" answerable from real data — previously Low Value
+  could only report win rate per THESIS TYPE, not per individual signal.
+- `_phase_and_verdict()`: Low Value's own version of High Value's phase/verdict
+  cascade, using its existing 20/50/100-trade tiers and win_rate + total-$-P&L
+  (Low Value doesn't track R-multiples — see 18.4 for why).
+- Both verified end-to-end against a real DB insert and all four phase/verdict
+  branches unit-tested directly.
+
+### 18.4 Tier 1 — dynamic weights (2026-07-18)
+
+`compute_dynamic_weights()` (High Value's version) is hardcoded to High Value's
+dedicated DB columns and can't read Low Value's JSON-stored signals, so this
+needed new code, not a parameterization:
+- `compute_low_value_dynamic_weights()`: same formula shape as High Value's
+  (`raw = max(0, (win_rate - 0.5) * edge)`, normalized, falls back to static
+  `SIGNAL_WEIGHTS` when no signal shows edge), sourced from `low_value_per_
+  signal_accuracy_report()`'s new `avg_pnl_pct` field instead of `avg_r`. Low
+  Value's `pnl_r` is ALWAYS `None` — `log_low_value_trade()` never sets
+  `risk_dollars` (fixed $25 sizing has no ATR-based stop distance to normalize
+  against), and `log_trade_exit()`'s `pnl_r` formula divides by `risk_dollars`.
+  `pnl_pct` is a fair substitute specifically because every Low Value trade
+  shares the same ±50% target/stop distance, unlike High Value where stop
+  distance varies by ATR.
+- `_effective_signal_weights()` (`thesis_tracker.py`): mirrors High Value's
+  `_effective_weights()`, gated at 50 trades (`low_value_calibration_readiness()`
+  `dynamic_weights_ready`) instead of High Value's 100-trade global gate, per
+  Low Value's own documented tier from Section 7 above. `compute_thesis_score()`
+  now calls this instead of referencing `SIGNAL_WEIGHTS` directly — the existing
+  missing-signal weight-redistribution logic is unchanged and applies on top of
+  whichever weight set (static or dynamic) is active.
+- Verified with synthetic data: at 60 total trades where `insider_buying_30d` was
+  the only signal that actually discriminated between wins/losses, dynamic
+  weights correctly gave it ~90% of the composite weight vs its static 20%.
+
+### 18.5 Tier 2 — dilution warning + short-borrow gate (2026-07-18)
+
+Two items held back in the original Tier 2 proposal for lack of data-source
+verification — both turned out buildable:
+- **`has_recent_dilutive_filing()`** (`fetchers/sec_edgar.py`): mirrors the
+  existing bankruptcy-filing check exactly (same submissions.json source, same
+  fail-safe-to-False convention), checking 8-K Item 3.02 (Unregistered Sales of
+  Equity Securities — a COMPLETED dilutive sale, not a shelf registration that
+  may never be drawn) in the last 90 days. Feeds `_score_cash_burn()`'s detail
+  dict as `recent_dilutive_filing` — a warning flag ONLY, the numeric score is
+  unchanged, since there's no calibration data on how much a recent dilution
+  should discount a runway estimate. Verified: a mocked 20-month-runway
+  candidate with a recent 3.02 filing still scored 100.0, only the detail flag
+  flipped.
+- **`get_asset_shortability()`** (`fetchers/alpaca.py`): Alpaca's per-symbol
+  asset record exposes real `shortable`/`easy_to_borrow` booleans. Wired into
+  `run_low_value_scan()` as a HARD gate before logging a SHORT — unlike a
+  signal weight, shortability is a binary tradability fact, not a guessed
+  threshold, so gating on it doesn't repeat this project's "don't guess a
+  number" mistake. `shortable is False` → skipped, not logged (sub-$20
+  micro-caps are frequently not shortable at all — some of Low Value's prior
+  "short" history could represent trades that could never actually execute).
+  `shortable is None` (API error/missing field) does NOT block — an unconfirmed
+  answer isn't evidence the trade is impossible. Verified end-to-end (mocking
+  `run_open_scan`'s dependencies, not just the helper in isolation): False
+  blocks and logs a `SHORT_BLOCKED_NOT_SHORTABLE` event, True proceeds, None
+  fails open.
+- Cross-engine exposure visibility (`GET /trade/exposure`) also applies to Low
+  Value's dashboard — shared infrastructure, detailed in
+  `trading_model_4kimi.md` Section 8.12.
+
+### 18.6 Plain-language trade card (2026-07-18)
+
+Same day High Value got this treatment (see the other doc's Section 8.12), Low
+Value's cards were upgraded further — from the 18.2 exit-instructions-only
+version to a full concrete recommendation:
+- `_plain_why(symbol, thesis_type, signals_json)`: one sentence combining the
+  existing plain thesis-type description (`THESIS_TYPE_LABELS`) with a concrete
+  grounding fact pulled from `price_vs_20d_low`'s detail when available — e.g.
+  "Sold off hard and fast — the bet is sellers overshot and it bounces back...
+  It's trading at $9.99, only 2% above its lowest price in the last 20 days."
+- `_plain_confidence(score)`: "very strong"/"strong"/"moderate" instead of a
+  bare "62/100."
+- Raw 8-signal breakdown moved into a collapsed "See the technical details"
+  block on the dashboard, still fully available.
+- Same `why`/`confidence` fields added to the chat brief's `open_positions_
+  detail`, so the dashboard and chat box now show identical plain-language
+  cards.
+- Verified end-to-end against a real DB insert on both surfaces.
+
+### 18.7 Confirmed: Low Value stays exactly as designed
+
+User explicitly confirmed, after the day-trading question came up: Low Value
+should stay as-is — a multi-day "spot good stocks people missed and they're
+supposed to go up in a few days" engine, not day trading. All day-trading-related
+requests (the $70 low-price watchlist, etc.) went to High Value instead
+(`trading_model_4kimi.md` Section 8.12). Nothing about Low Value's core
+±50%/5-day exit rule, universe scanner, or thesis-scoring logic changed as a
+result of this round — only visibility, calibration wiring, and two new data
+checks (dilution, shortability).
+
+### Round 18 open questions for Kimi
+
+1. `compute_low_value_dynamic_weights()`'s use of `avg_pnl_pct / 100` as the "R"
+   substitute in the `(win_rate - 0.5) * edge` formula — sound given every trade
+   shares the same ±50% target/stop, or does it introduce bias vs. true
+   R-multiples that a future fix should address by actually setting
+   `risk_dollars` on Low Value trades (even though there's no ATR-based stop to
+   derive it from)?
+2. The dilution check's 90-day window (`has_recent_dilutive_filing`) is
+   independent of the entry thesis's own 5-trading-day hold — should it instead
+   scale with (or be checked fresh at) the hold window, since a dilutive filing
+   from day 60 of a 90-day lookback but well before a 5-day hold started is less
+   relevant than one from the last week?
+3. The shortability gate fails OPEN on an unknown answer. Given this is still
+   100% paper trading (no real capital at risk from a bad hypothetical short),
+   is failing open the right default, or should "unknown" also block, on the
+   principle of not logging a trade that can't be confirmed real even in a
+   simulation meant to be trustworthy practice data?
+4. Now that per-signal calibration is finally possible for Low Value
+   (`low_value_per_signal_accuracy_report`), what's the right minimum sample
+   size before trusting a "this signal is net negative" read enough to build a
+   Low Value kill-switch too (mirroring High Value's `SIGNAL_KILL_MIN_TRADES =
+   50`)? There's no Low Value kill-switch at all yet — dynamic weights can
+   demote a bad signal toward zero, but nothing persists a hard "stop using
+   this" flag the way High Value's does.

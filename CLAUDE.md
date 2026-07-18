@@ -43,6 +43,15 @@
 - Will be activated when 100+ resolved predictions exist in DB (MIN_SAMPLES = 100)
 - Sport-specific feature schemas are ready: BASEBALL_FEATURES, TENNIS_FEATURES, SOCCER_FEATURES, TABLE_TENNIS_FEATURES
 
+## Trading Models
+
+Two independent paper-trading engines — **High Value** (`models/trading/high_value/`, day trading, 5-min bars, force-closed same day, never held overnight) and **Low Value** (`models/trading/low_value/`, multi-day swing, "spot beaten-down stocks people missed," 1-5 trading-day holds). Full technical detail: `README.md`'s "Trading Models" section (architecture + formulas), `LOW_VALUE_README.md` (Low Value build spec), `trading_model_4kimi.md` / `low_value_trading4kimi.md` (full review history + open questions for Kimi).
+
+- **Trading-model audit (2026-07-16 to 07-18):** user asked 4 direct questions (missing/overweighted/mislabeled-as-protective/confidence-level) across every engine; answered and fixed in 3 tiers — Tier 0 (surface facts the calibration machinery already computed, e.g. Low Value's stop-loss was always enforced but never shown), Tier 1 (wire `compute_dynamic_weights()`/kill-switch/n-gram calibration into live scoring, still gated behind their existing 100/50/20+20-trade thresholds — **no behavior change below those thresholds**), Tier 2 (cross-engine exposure visibility at `GET /trade/exposure`, a symmetric Dalio macro shadow-log `long_term_force_expansion` that never gates anything, a Low Value dilution warning flag, and a hard shortability gate before Low Value logs a SHORT).
+- **Plain-language trade cards (2026-07-18):** both dashboards (`/trade/dashboard`, `/trade/low-value/dashboard`) now lead every open position with a concrete non-jargon sentence (why + confidence + real target/stop/time-limit prices) instead of a raw score — user explicitly is not a trader and needs plain instructions, not technical labels. Raw signal breakdowns still available in a collapsed "technical details" section.
+- **High Value low-price watchlist mode (2026-07-18):** user doesn't want to day-trade $100+ names like AAPL/AMZN. `ACTIVE_UNIVERSE_MODE = "low_price"` is now active — `get_active_watchlist()` filters a lower-priced candidate pool against a **live** Alpaca price snapshot at scan time (ceiling $70, `LOW_PRICE_CEILING`), not a hardcoded assumption about current prices. The original 8-symbol large-cap list (`RUNNER_SYMBOLS`) is untouched and fully restorable by switching the constant back to `"large_cap"` — nothing was deleted.
+- Low Value stays a multi-day engine by design, unchanged by the above — day-trading behavior lives entirely in High Value now.
+
 ## NRFI Daily Automation
 
 - **Railway is the single writer to `main`** — GitHub Actions workflow was deleted (it raced with Railway's Contents API pushes)
