@@ -17,7 +17,14 @@ from fetchers.low_value_runner import (
 )
 from fetchers.trading_logger import get_universe_snapshots
 from fetchers.finnhub import get_cached_company_name
-from models.trading.shared.signal_calibration import thesis_type_calibration_report, low_value_calibration_readiness
+from models.trading.shared.signal_calibration import (
+    thesis_type_calibration_report, low_value_calibration_readiness,
+    low_value_per_signal_accuracy_report,
+)
+
+LOW_VALUE_PHASE_TARGETS: dict[str, int] = {
+    "insufficient": 20, "preliminary": 50, "dynamic_weights": 100, "empirical_sizing": 100,
+}
 
 
 def _display_name(symbol: str) -> str:
@@ -131,6 +138,82 @@ def _exit_levels_html(t: dict) -> str:
         f'<div>⏰ {instr["time_line"]}</div>'
         f'</div>'
     )
+
+
+# Added 2026-07-16 (Tier 0 of the trading-model audit — see CODEMAP.md).
+# High Value's dashboard (app.py: trade_dashboard) has had a "Phase +
+# readiness" confidence banner since before this session — it tells the user
+# in plain English whether there's enough closed-trade data to trust
+# anything the model says, using the same 10/30/50-trade tiers the
+# calibration machinery itself uses. Low Value's dashboard never had an
+# equivalent — a user could stare at a BUY signal with no way to tell
+# whether it's backed by 0 trades or 200. This mirrors High Value's exact
+# phase/verdict cascade logic, adapted to Low Value's own 20/50/100-trade
+# tiers (thesis_type_calibration_report / low_value_calibration_readiness)
+# and its own metrics (win_rate + total P&L on fixed-$25 trades, since Low
+# Value doesn't track R-multiples the way High Value does).
+def _phase_and_verdict(n_total: int, win_rate, total_pnl) -> dict:
+    if n_total < 20:
+        phase, phase_color, phase_label = "insufficient", "#f59e0b", "Watching"
+        phase_desc = (
+            f"The model is logging trades. You need at least 20 closed trades before even a "
+            f"preliminary per-thesis-type read exists (see 'Win Rate by Thesis Type' below). "
+            f"You have {n_total} so far."
+        )
+    elif n_total < 50:
+        phase, phase_color, phase_label = "preliminary", "#f59e0b", "Preliminary Data"
+        phase_desc = (
+            f"Enough for an early per-thesis-type read, but not enough to change how the model "
+            f"weighs its 8 signals yet. At 50 trades, signal-weight recalibration unlocks. "
+            f"You have {n_total}."
+        )
+    elif n_total < 100:
+        phase, phase_color, phase_label = "dynamic_weights", "#38bdf8", "Calibrating"
+        phase_desc = (
+            f"The model can now start learning which of its 8 signals actually work (see "
+            f"'Per-Signal Accuracy' below). At 100 trades, position sizing based on real "
+            f"performance unlocks — sizing stays fixed at $25/trade until then. You have {n_total}."
+        )
+    else:
+        phase, phase_color, phase_label = "empirical_sizing", "#a78bfa", "Empirical Sizing Ready"
+        phase_desc = "Enough data collected. Position sizing can now reflect actual signal quality instead of a flat $25."
+
+    phase_target = LOW_VALUE_PHASE_TARGETS[phase]
+    progress_pct = min(100, int(n_total / phase_target * 100)) if phase_target else 100
+
+    if n_total < 20:
+        verdict_color, verdict_icon = "#f59e0b", "🔴"
+        verdict_title = "Not ready for real money"
+        verdict_msg = f"You need {20 - n_total} more closed trades before even a preliminary read exists."
+    elif win_rate is not None and win_rate < 0.50:
+        verdict_color, verdict_icon = "#ef4444", "🔴"
+        verdict_title = "Not ready — win rate too low"
+        verdict_msg = (
+            f"Win rate of {win_rate*100:.0f}% means the model is wrong more than it's right so far "
+            f"on the trades that have closed. Keep collecting data."
+        )
+    elif win_rate is not None and win_rate >= 0.55 and total_pnl is not None and total_pnl > 0 and n_total >= 50:
+        verdict_color, verdict_icon = "#22c55e", "🟢"
+        verdict_title = "Consider graduating to real money"
+        verdict_msg = (
+            f"Win rate {win_rate*100:.0f}% with positive total P&L across {n_total} trades. "
+            f"These are good early signals. Start with very small size — real markets are harder than paper."
+        )
+    elif win_rate is not None and win_rate >= 0.52:
+        verdict_color, verdict_icon = "#38bdf8", "🔵"
+        verdict_title = "Getting there"
+        verdict_msg = f"Win rate {win_rate*100:.0f}% is a slight edge but not enough to be confident yet. Keep collecting."
+    else:
+        verdict_color, verdict_icon = "#f59e0b", "🟡"
+        verdict_title = "Too early to tell"
+        verdict_msg = "Not enough closed trades yet, or the numbers are mixed. Keep the runner going."
+
+    return {
+        "phase": phase, "phase_color": phase_color, "phase_label": phase_label,
+        "phase_desc": phase_desc, "phase_target": phase_target, "progress_pct": progress_pct,
+        "verdict_color": verdict_color, "verdict_icon": verdict_icon,
+        "verdict_title": verdict_title, "verdict_msg": verdict_msg,
+    }
 
 
 # Plain-English translations (2026-07-13, user-requested — the raw
@@ -289,10 +372,30 @@ def get_low_value_brief(days: int = 7) -> dict:
             **instr,
         })
 
+    # confidence_note uses ALL-TIME closed trades (low_value_calibration_readiness),
+    # not the days-windowed n_closed above — calibration readiness is about total
+    # historical evidence, not just this week's trades. Same "how confident should
+    # I really be" gap the 2026-07-16 audit flagged: nothing told the user how much
+    # (or how little) data backs the scores they're looking at.
+    readiness = low_value_calibration_readiness()
+    n_total = readiness["total_closed_trades"]
+    if n_total < 20:
+        confidence_note = (
+            f"Confidence: only {n_total} closed trade(s) so far — need 20 for even a preliminary "
+            f"read. Treat every score above as an untested hypothesis, not a probability."
+        )
+    elif n_total < 50:
+        confidence_note = f"Confidence: {n_total} closed trades — enough for an early read, not enough to trust yet."
+    elif n_total < 100:
+        confidence_note = f"Confidence: {n_total} closed trades — real patterns are starting to show, still building toward reliable."
+    else:
+        confidence_note = f"Confidence: {n_total} closed trades — enough for position sizing to start reflecting real performance."
+
     return {
         "mode": "brief",
         "days": days,
         "universe_size": universe_size,
+        "confidence_note": confidence_note,
         "open_positions_detail": open_positions_detail,
         "open_positions": open_count,
         "closed_trades": n_closed,
@@ -343,6 +446,8 @@ def render_low_value_dashboard() -> str:
 
     thesis_report = thesis_type_calibration_report(min_trades=3)
     readiness = low_value_calibration_readiness()
+    pv = _phase_and_verdict(readiness["total_closed_trades"], win_rate, total_pnl)
+    signal_report = low_value_per_signal_accuracy_report(min_trades=10)
     runner_status = get_runner_status()
     # Read-only: the most recently LOGGED universe snapshot, never a live
     # rescan (a rescan is a slow, multi-API-call operation that belongs to
@@ -465,6 +570,23 @@ def render_low_value_dashboard() -> str:
         for row in thesis_report.get("by_thesis_type", [])
     ) or '<div class="muted-note">No thesis-type data yet.</div>'
 
+    signal_rows_html = ""
+    for s in signal_report.get("by_signal", []):
+        wr = s.get("win_rate")
+        if wr is None:
+            signal_rows_html += f"<div class='exit-item'><span>{s['signal']}</span><span class='exit-count'>{s.get('note', 'insufficient data')}</span></div>"
+            continue
+        color = "#22c55e" if wr >= 0.54 else "#f59e0b" if wr >= 0.48 else "#ef4444"
+        avg_r = s.get("avg_pnl_r")
+        avg_r_str = f"{avg_r:+.2f}R" if avg_r is not None else "—"
+        signal_rows_html += f"""
+        <div class="exit-item">
+          <span>{s['signal']}</span>
+          <span class="exit-count" style="color:{color}">{wr*100:.0f}% WR · {avg_r_str} · n={s['n']}</span>
+        </div>"""
+    if not signal_rows_html:
+        signal_rows_html = "<p class='muted-note'>No per-signal data yet — need 10+ active trades per signal.</p>"
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -509,6 +631,16 @@ def render_low_value_dashboard() -> str:
   .nav-row {{ display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }}
   .nav-row a {{ color: var(--muted); text-decoration: none; }}
   .nav-row a:hover {{ color: var(--blue); text-decoration: underline; }}
+  .phase-banner {{ border-radius: 12px; padding: 20px; border: 2px solid {pv['phase_color']}; background: color-mix(in srgb, {pv['phase_color']} 8%, var(--surface)); }}
+  .phase-name {{ font-size: 1.4rem; font-weight: 800; color: {pv['phase_color']}; margin-bottom: 4px; }}
+  .phase-desc {{ font-size: .9rem; line-height: 1.55; }}
+  .progress-wrap {{ background: var(--border); border-radius: 99px; height: 8px; margin-top: 16px; overflow: hidden; }}
+  .progress-bar {{ height: 100%; border-radius: 99px; background: {pv['phase_color']}; width: {pv['progress_pct']}%; transition: width .4s; }}
+  .progress-label {{ font-size: .72rem; color: var(--muted); margin-top: 6px; text-align: right; }}
+  .verdict-card {{ border: 2px solid {pv['verdict_color']}; border-radius: 12px; padding: 20px; background: color-mix(in srgb, {pv['verdict_color']} 6%, var(--surface)); }}
+  .verdict-icon {{ font-size: 2rem; margin-bottom: 8px; }}
+  .verdict-title {{ font-size: 1.15rem; font-weight: 700; color: {pv['verdict_color']}; margin-bottom: 10px; }}
+  .verdict-body {{ font-size: .88rem; line-height: 1.6; }}
 </style>
 </head>
 <body>
@@ -529,6 +661,19 @@ def render_low_value_dashboard() -> str:
 
   {scan_banner_html}
   {data_source_warning}
+
+  <div class="phase-banner">
+    <div class="phase-name">{pv['phase_label']}</div>
+    <div class="phase-desc">{pv['phase_desc']}</div>
+    <div class="progress-wrap"><div class="progress-bar"></div></div>
+    <div class="progress-label">{readiness['total_closed_trades']} / {pv['phase_target']} trades · {pv['progress_pct']}%</div>
+  </div>
+
+  <div class="verdict-card">
+    <div class="verdict-icon">{pv['verdict_icon']}</div>
+    <div class="verdict-title">{pv['verdict_title']}</div>
+    <div class="verdict-body">{pv['verdict_msg']}</div>
+  </div>
 
   <div class="card">
     <div class="card-title">Today's Universe</div>
@@ -564,6 +709,14 @@ def render_low_value_dashboard() -> str:
   <div class="card">
     <div class="card-title">Win Rate by Thesis Type ({readiness['calibration_quality']})</div>
     {thesis_rows_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Per-Signal Accuracy ({signal_report['total_closed']} closed trades)</div>
+    <div style="font-size:.78rem; color:var(--muted); margin-bottom:10px;">
+      Which of the 8 signals actually correlate with a winning trade, not just how much weight each one was assigned by guess. A signal below 50% win rate here is a real candidate for being overweighted in the composite.
+    </div>
+    {signal_rows_html}
   </div>
 
 

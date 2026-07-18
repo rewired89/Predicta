@@ -146,6 +146,7 @@ async function lvRunQuery() {
       }
     } else {
       const lines = [
+        data.confidence_note || "",
         `Period: last ${data.days} day(s)`,
         `Universe (most recent scan): ${data.universe_size} symbols`,
         `Open positions: ${data.open_positions}`,

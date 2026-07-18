@@ -853,7 +853,7 @@ def _load_closed_low_value_trades() -> list[dict]:
                 SELECT entry_score, pnl_r, pnl_dollars, pnl_pct,
                        symbol, exit_reason, is_hypothetical,
                        lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
-                       lv_missing_signals, lv_short_interest_asof
+                       lv_missing_signals, lv_short_interest_asof, lv_signals_json
                 FROM intraday_trades
                 WHERE exit_price IS NOT NULL AND engine = 'low_value'
                 ORDER BY logged_at DESC
@@ -862,6 +862,84 @@ def _load_closed_low_value_trades() -> list[dict]:
         return [dict(r) for r in rows]
     except Exception:
         return []
+
+
+# Added 2026-07-16 (Tier 0 of the trading-model audit — see CODEMAP.md).
+# Mirrors per_signal_accuracy_report's exact methodology (active if
+# |score| >= active_threshold, then win_rate/avg_r over that active cohort)
+# but for Low Value's 8 JSON-stored signals instead of High Value's dedicated
+# DB columns. Before this, Low Value could report win rate per THESIS TYPE
+# (thesis_type_calibration_report) but not per individual SIGNAL — meaning a
+# question like "is short_interest_pct actually protective or is treating a
+# squeeze as bullish wrong?" was structurally unanswerable from data even
+# after thousands of trades, since the per-signal score was stored in
+# lv_signals_json but never aggregated. This makes it answerable the same
+# way High Value's signals already are — reads the same JSON blob
+# _signals_breakdown_html (fetchers/low_value_dashboard.py) already parses
+# for display, so no new logging or schema change was needed, only a new
+# aggregation over data that was already being captured per trade.
+def low_value_per_signal_accuracy_report(
+    min_trades: int = 10,
+    active_threshold: float = 10.0,
+) -> dict:
+    """
+    Win rate and average P&L (in R, when available) per individual Low Value
+    signal, extracted from lv_signals_json. Same "active if |score| >=
+    active_threshold" convention as per_signal_accuracy_report — the default
+    10.0 matches that function's default on the same -100..100 signal scale.
+    """
+    import json as _json
+    from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
+
+    trades = _load_closed_low_value_trades()
+    n_total = len(trades)
+
+    by_signal = []
+    for sig in SIGNAL_WEIGHTS:
+        active = []
+        for t in trades:
+            try:
+                signals = _json.loads(t.get("lv_signals_json") or "{}")
+            except (TypeError, ValueError):
+                continue
+            entry = signals.get(sig)
+            if not entry:
+                continue
+            score = entry.get("score")
+            if score is not None and abs(score) >= active_threshold:
+                active.append(t)
+
+        n = len(active)
+        if n == 0:
+            by_signal.append({
+                "signal": sig, "n": 0, "win_rate": None, "avg_pnl_r": None,
+                "note": f"Only 0 active trade(s) — need {min_trades}",
+            })
+            continue
+
+        wins = sum(1 for t in active if _is_winner(t))
+        win_rate = round(wins / n, 3)
+        pnl_rs = [t["pnl_r"] for t in active if t.get("pnl_r") is not None]
+        avg_pnl_r = round(sum(pnl_rs) / len(pnl_rs), 3) if pnl_rs else None
+
+        note = None
+        if n < min_trades:
+            note = f"Only {n} active trade(s) — need {min_trades}"
+        elif win_rate < 0.50:
+            note = "Below 50% win rate — may be dragging the composite score"
+
+        by_signal.append({
+            "signal": sig, "n": n, "win_rate": win_rate,
+            "avg_pnl_r": avg_pnl_r, "note": note,
+        })
+
+    by_signal.sort(key=lambda x: (x.get("win_rate") if x.get("win_rate") is not None else -1), reverse=True)
+    return {
+        "total_closed": n_total,
+        "by_signal": by_signal,
+        "active_threshold": active_threshold,
+        "note": "No closed Low Value trades yet" if n_total == 0 else None,
+    }
 
 
 def thesis_type_calibration_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES) -> dict:

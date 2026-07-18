@@ -12068,3 +12068,67 @@ calls: _plain_exit_instructions
 called_by: low_value_query (app.py POST /trade/low-value/query)
 mutates: none
 ---
+
+## Trading-model audit, Tier 0 (added 2026-07-16)
+
+User asked a 4-question audit of all trading models (missing variables / overweighted variables / mislabeled protective-vs-risky variables / how confident to be), then asked for a fix proposal. Proposal was tiered: Tier 0 = make existing calibration facts visible (zero behavior change); Tier 1 = wire already-built recalibration machinery into production, still gated behind its existing trade-count thresholds; Tier 2 = new capabilities (cross-engine exposure, symmetric macro overlay, dilution/borrow checks) needing its own scoping pass. User approved starting with Tier 0. Investigation found High Value's dashboard (app.py: trade_dashboard) already had a mature "Phase + readiness" confidence banner and per-signal accuracy report (per_signal_accuracy_report, signal_calibration.py) — Low Value had neither. Tier 0 work was entirely about bringing Low Value up to the same standard High Value already met, not building something new from scratch.
+
+---
+name: low_value_per_signal_accuracy_report
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: added 2026-07-16 (Tier 0) — mirrors per_signal_accuracy_report's exact methodology (active if |score| >= active_threshold, then win_rate/avg_r over that active cohort) but reads Low Value's 8 signals from lv_signals_json instead of High Value's dedicated DB columns. Before this, Low Value could report win rate per THESIS TYPE but not per individual SIGNAL — a question like "is short_interest_pct actually protective, or is treating a squeeze as bullish wrong?" was structurally unanswerable from data even with thousands of trades, since the per-signal score was captured in lv_signals_json but never aggregated. No new logging needed — the JSON was already being written per trade for _signals_breakdown_html's display use; this just aggregates it.
+inputs: min_trades (int, default 10), active_threshold (float, default 10.0 — matches per_signal_accuracy_report's default on the same -100..100 scale)
+outputs: dict {total_closed, by_signal: [{signal, n, win_rate, avg_pnl_r, note}], active_threshold, note}
+calls: _load_closed_low_value_trades, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS (for the canonical 8-signal name list, not a hardcoded duplicate)
+called_by: render_low_value_dashboard (new "Per-Signal Accuracy" card)
+mutates: none
+---
+
+---
+name: _load_closed_low_value_trades (extended)
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: extended 2026-07-16 (Tier 0) to SELECT lv_signals_json — needed by the new low_value_per_signal_accuracy_report. No behavior change for existing callers (thesis_type_calibration_report, low_value_calibration_readiness, missing_signal_impact_report), which simply ignore the extra column.
+inputs: none
+outputs: list[dict] — now includes lv_signals_json per trade
+calls: db.database.get_db
+called_by: thesis_type_calibration_report, low_value_calibration_readiness, missing_signal_impact_report, low_value_per_signal_accuracy_report
+mutates: none
+---
+
+---
+name: _phase_and_verdict
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: added 2026-07-16 (Tier 0) — Low Value's equivalent of High Value's trade_dashboard() "Phase + readiness" cascade (app.py), which already existed and told the user in plain English whether there's enough data to trust anything the model says. Low Value never had this; a user could see a BUY signal with zero indication of whether it was backed by 0 trades or 200. Same cascade LOGIC as High Value (phase tiers + a verdict from win_rate/pnl), recalibrated to Low Value's own 20/50/100-trade tiers (matching low_value_calibration_readiness's existing thresholds, not High Value's 10/30/50) and its own metrics (win_rate + total $ P&L on fixed-$25 trades, since Low Value doesn't track R-multiples the way High Value's ATR-sized positions do).
+inputs: n_total (int, total closed trades), win_rate (float|None), total_pnl (float|None)
+outputs: dict {phase, phase_color, phase_label, phase_desc, phase_target, progress_pct, verdict_color, verdict_icon, verdict_title, verdict_msg}
+calls: LOW_VALUE_PHASE_TARGETS (module constant)
+called_by: render_low_value_dashboard
+mutates: none
+---
+
+---
+name: render_low_value_dashboard (extended, Tier 0)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-16 to add the phase-banner + verdict-card (via _phase_and_verdict) near the top of the page, and a new "Per-Signal Accuracy" card (via low_value_per_signal_accuracy_report) after the existing "Win Rate by Thesis Type" card. CSS classes (.phase-banner/.phase-name/.phase-desc/.progress-wrap/.progress-bar/.progress-label/.verdict-card/.verdict-icon/.verdict-title/.verdict-body) copied verbatim from app.py's trade_dashboard() for visual parity between the two engines' dashboards.
+inputs: none
+outputs: HTML string (full page)
+calls: _phase_and_verdict, low_value_per_signal_accuracy_report, (existing calls unchanged)
+called_by: app.py GET /trade/low-value/dashboard
+mutates: none
+---
+
+---
+name: get_low_value_brief (extended again, Tier 0)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-16 to add confidence_note — a plain-English one-liner ("only 18 closed trades so far — need 20 for even a preliminary read... treat every score above as an untested hypothesis, not a probability") computed from low_value_calibration_readiness()'s ALL-TIME trade count, not the days-windowed n_closed the rest of the brief uses (calibration confidence is about total historical evidence, independent of which recent window the user asked about). Rendered first in the chat query box's output (templates/trading_low_value.html).
+inputs: days (int)
+outputs: dict — adds confidence_note field
+calls: low_value_calibration_readiness
+called_by: low_value_query (app.py POST /trade/low-value/query)
+mutates: none
+---
