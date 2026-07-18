@@ -322,6 +322,50 @@ def _exit_label(code: str) -> str:
     return EXIT_REASON_LABELS.get(code or "", code or "closed")
 
 
+# Added 2026-07-18, direct user request: the previous card led with "Signal
+# strength 62/100 (not a win probability) · sold off hard and fast — the bet
+# is..." all crammed into one line, then a separate list of up to 8 raw
+# technical readings (RSI, volume spike, etc.) right below it. Individually
+# each piece was already plain-English (per THESIS_TYPE_LABELS,
+# _signal_explanation), but there was no single, concrete "why" sentence a
+# non-trader could read once and understand — and the user was explicit that
+# technical language loses them entirely. These two functions build that
+# single lead sentence; the full signal-by-signal breakdown still exists
+# (_signals_breakdown_html) but moves into a collapsed <details> block,
+# available for anyone who wants it without being the first thing shown.
+def _plain_why(symbol: str, thesis_type: str, signals_json: str | None) -> str:
+    """One concrete sentence: why the model flagged this stock."""
+    thesis_desc = _thesis_label(thesis_type)
+    sentence = thesis_desc[0].upper() + thesis_desc[1:] if thesis_desc else "No specific reason recorded"
+    concrete = ""
+    if signals_json:
+        try:
+            signals = json.loads(signals_json)
+            pvl = (signals.get("price_vs_20d_low") or {}).get("detail") or {}
+            if pvl.get("ratio") is not None and pvl.get("close") is not None:
+                concrete = (
+                    f" It's trading at ${pvl['close']:.2f}, only {pvl['ratio']*100:.0f}% "
+                    f"above its lowest price in the last 20 days."
+                )
+        except (TypeError, ValueError):
+            pass
+    return f"{sentence}.{concrete}"
+
+
+def _plain_confidence(score) -> str:
+    """Translates the raw -100..100 composite into a plain descriptor instead
+    of leading with a bare number — the raw score stays available in the
+    collapsed technical details for anyone who wants it."""
+    if score is None:
+        return "Confidence: unknown"
+    a = abs(score)
+    if a >= 70:
+        return "Confidence: very strong — multiple signals strongly agree"
+    if a >= 55:
+        return "Confidence: strong"
+    return "Confidence: moderate — just past the bar the model requires to act at all"
+
+
 def get_low_value_brief(days: int = 7) -> dict:
     """
     Read-only recap for the "give me a brief" / "this week" / "yesterday"
@@ -342,7 +386,7 @@ def get_low_value_brief(days: int = 7) -> dict:
         ).fetchall()
         open_rows = conn.execute(
             """
-            SELECT symbol, side, entry_price, entry_time
+            SELECT symbol, side, entry_price, entry_time, entry_score, lv_thesis_type, lv_signals_json
             FROM intraday_trades
             WHERE engine='low_value' AND is_hypothetical=1 AND exit_time IS NULL
             ORDER BY entry_time DESC
@@ -373,6 +417,8 @@ def get_low_value_brief(days: int = 7) -> dict:
             "symbol": t["symbol"],
             "side": t["side"],
             "entry_price": round(t["entry_price"], 2),
+            "why": _plain_why(t["symbol"], t.get("lv_thesis_type"), t.get("lv_signals_json")),
+            "confidence": _plain_confidence(t.get("entry_score")),
             **instr,
         })
 
@@ -550,11 +596,15 @@ def render_low_value_dashboard() -> str:
         f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
               <div class="trade-info">
-                <span class="trade-sym">Model says: {"BUY" if t['side']=='long' else "SHORT"} {_display_name(t['symbol'])}</span>
-                <span class="trade-detail">Entered at ${t['entry_price']:,.2f}/share (real stock price) · Signal strength {t.get('entry_score') or '—'}/100 (not a win probability) · {_thesis_label(t.get('lv_thesis_type'))}</span>
+                <span class="trade-sym">{"BUY" if t['side']=='long' else "SHORT"} {_display_name(t['symbol'])}</span>
+                <div class="trade-why">{_plain_why(t['symbol'], t.get('lv_thesis_type'), t.get('lv_signals_json'))}</div>
+                <span class="trade-detail">Bought at ${t['entry_price']:,.2f}/share (real stock price) · {_plain_confidence(t.get('entry_score'))}</span>
                 {_exit_levels_html(t)}
                 <span class="trade-time">opened {t['entry_time'][:16]} UTC — this is a fixed $25 paper position, not shares bought at full account size</span>
-                {_signals_breakdown_html(t.get('lv_signals_json'))}
+                <details style="margin-top:8px;">
+                  <summary style="cursor:pointer; font-size:.78rem; color:var(--muted);">See the technical details (raw score {t.get('entry_score') or '—'}/100)</summary>
+                  {_signals_breakdown_html(t.get('lv_signals_json'))}
+                </details>
               </div>
             </div>"""
         for t in open_t
@@ -631,6 +681,7 @@ def render_low_value_dashboard() -> str:
   .trade-info {{ flex: 1; min-width: 0; display: flex; flex-direction: column; }}
   .trade-sym {{ font-weight: 700; font-size: .95rem; }}
   .trade-detail {{ font-size: .8rem; color: var(--muted); }}
+  .trade-why {{ font-size: .88rem; color: var(--text); margin: 4px 0; line-height: 1.5; }}
   .trade-time {{ font-size: .72rem; color: var(--muted); margin-top: 2px; }}
   .exit-item {{ display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }}
   .exit-item:last-child {{ border-bottom: none; }}

@@ -12372,3 +12372,55 @@ calls: none
 called_by: _signals_breakdown_html
 mutates: none
 ---
+
+## Low Value: concrete plain-language trade card (added 2026-07-18)
+
+User raised two things: (1) they expected Low Value to day-trade and it doesn't — clarified this is by design (Low Value scans once daily and holds 1-5 trading DAYS; High Value is this codebase's actual day-trading engine, 5-min bars, force-closed same day), not a bug; (2) even the already-plain-language exit instructions (2026-07-16) weren't concrete enough — the recommendation card led with "Signal strength 62/100 (not a win probability)" and a dense one-line thesis label, then a separate list of up to 8 raw technical readings, with no single clear "why buy this" sentence. User was explicit: technical language loses them entirely.
+
+---
+name: _plain_why
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: added 2026-07-18 — one concrete, non-jargon sentence explaining why the model flagged a stock, built from the existing THESIS_TYPE_LABELS plain description plus (when available) a concrete grounding fact from the price_vs_20d_low signal detail ("It's trading at $9.99, only 2% above its lowest price in the last 20 days"). This is now the LEAD line on every open-position card/brief entry — the full 8-signal breakdown (_signals_breakdown_html) still exists but moved into a collapsed <details> block on the dashboard, no longer the first thing shown.
+inputs: symbol (str), thesis_type (str), signals_json (str|None)
+outputs: str
+calls: _thesis_label, json.loads
+called_by: render_low_value_dashboard (open-position card), get_low_value_brief (open_positions_detail)
+mutates: none
+---
+
+---
+name: _plain_confidence
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: added 2026-07-18 — translates the raw -100..100 composite score into a plain descriptor ("very strong" / "strong" / "moderate — just past the bar the model requires to act at all") instead of leading with a bare "62/100" number. The raw score stays visible in the collapsed technical-details section for anyone who wants it, just isn't the headline anymore.
+inputs: score (float|None)
+outputs: str
+calls: none
+called_by: render_low_value_dashboard, get_low_value_brief
+mutates: none
+---
+
+---
+name: render_low_value_dashboard (extended, plain trade card)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-18 — open-position cards now lead with symbol+side, then _plain_why, then _plain_confidence, then the existing exit instructions (unchanged), with the raw per-signal breakdown moved into a collapsed <details>/<summary> block labeled "See the technical details (raw score N/100)". Verified end-to-end: a synthetic TECHNICAL_OVERSOLD position rendered "Sold off hard and fast — the bet is sellers overshot and it bounces back... It's trading at $9.99, only 2% above its lowest price in the last 20 days."
+inputs: none
+outputs: HTML (open-position card restructured; other cards unchanged)
+calls: _plain_why (new), _plain_confidence (new)
+called_by: GET /trade/low-value/dashboard
+mutates: none
+---
+
+---
+name: get_low_value_brief (extended, plain trade card)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-18 — open_positions_detail entries now include why and confidence fields (same _plain_why/_plain_confidence as the dashboard), so the chat query box shows the identical concrete "BUY X because Y, confidence Z, sell at A for profit, cut losses at B" card instead of just target/stop/time-limit with no explanation. Required extending the open_rows SQL SELECT to include entry_score/lv_thesis_type/lv_signals_json (previously only symbol/side/entry_price/entry_time).
+inputs: days (int)
+outputs: dict — open_positions_detail rows gain why, confidence fields
+calls: _plain_why (new), _plain_confidence (new)
+called_by: low_value_query (app.py POST /trade/low-value/query)
+mutates: none
+---

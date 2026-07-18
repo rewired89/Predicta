@@ -156,7 +156,9 @@ async function lvRunQuery() {
       if (data.open_positions_detail && data.open_positions_detail.length) {
         lines.push("", "What to do with your open positions:");
         data.open_positions_detail.forEach(p => {
-          lines.push(`  ${p.symbol} (bought at $${p.entry_price.toFixed(2)}):`);
+          lines.push(`  ${p.side === "long" ? "BUY" : "SHORT"} ${p.symbol} (bought at $${p.entry_price.toFixed(2)}):`);
+          lines.push(`    ${p.why}`);
+          lines.push(`    ${p.confidence}`);
           lines.push(`    ✅ ${p.profit_line}`);
           lines.push(`    ⚠️ ${p.loss_line}`);
           lines.push(`    ⏰ ${p.time_line}`);
