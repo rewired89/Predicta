@@ -12452,3 +12452,43 @@ calls: _hv_plain_why, _hv_plain_confidence, _hv_plain_exit (new)
 called_by: GET /trade/dashboard
 mutates: none
 ---
+
+## High Value: low-price watchlist mode (added 2026-07-18)
+
+User clarified their actual budget concern: not interested in day-trading $100+ names like AAPL/AMZN — that's exactly why they'd originally asked about Low Value. Wants High Value (the real day-trading engine) to scan a lower-priced universe instead, without losing the existing large-cap watchlist — "don't erase what we have, just make it inactive or something."
+
+---
+name: get_active_watchlist
+type: function
+file: fetchers/high_value_runner.py
+purpose: added 2026-07-18 — the watchlist every scan entry point now resolves through. ACTIVE_UNIVERSE_MODE ("large_cap" default-preserving vs "low_price", currently set to "low_price" per this request) picks between RUNNER_SYMBOLS (untouched, still fully defined — switch the constant back to "large_cap" to fully restore prior behavior, nothing was deleted) and LOW_PRICE_WATCHLIST_CANDIDATES filtered live against LOW_PRICE_CEILING ($70). The candidate list itself is NOT the enforcement mechanism — this session has no live market-data access to verify current prices, so every candidate's REAL current price is checked via a live Alpaca snapshot at call time, and anything at or above the ceiling is excluded that day rather than trusting the hardcoded list to stay accurate as prices drift. Fails toward an EMPTY list on a total snapshot-fetch error, not toward RUNNER_SYMBOLS — silently reverting to the large-cap list the user explicitly asked to move away from would violate their stated preference more than skipping a day's scan.
+inputs: none
+outputs: list[str]
+calls: fetchers.alpaca.get_snapshots
+called_by: run_open_scan, start_runner, get_runner_status, app.py (screener brief endpoint, trade_dashboard's inventory snapshot)
+mutates: none
+---
+
+---
+name: run_open_scan / start_runner / get_runner_status (extended, low-price mode)
+type: function
+file: fetchers/high_value_runner.py
+purpose: extended 2026-07-18 — all three now resolve the default (no explicit symbols= override) watchlist via get_active_watchlist() instead of the raw RUNNER_SYMBOLS constant. get_runner_status()'s response gained universe_mode, low_price_ceiling, low_price_candidates, and large_cap_symbols (the full original list, for visibility that it's preserved, not deleted) alongside the existing symbols field (which now reflects whichever list is actually active).
+inputs: (unchanged)
+outputs: (unchanged shapes; get_runner_status gains 3 new fields)
+calls: get_active_watchlist (new)
+called_by: (unchanged callers)
+mutates: none
+---
+
+---
+name: trade_dashboard (extended, universe mode label)
+type: function
+file: app.py
+purpose: extended 2026-07-18 — header now shows "Low-Price Mode (under $70)" or "Large-Cap Mode" depending on ACTIVE_UNIVERSE_MODE, same visibility convention as Low Value's "SPRINT MODE" label. Both remaining RUNNER_SYMBOLS references (the screener-brief chat trigger, and the inventory/exposure snapshot loop) switched to get_active_watchlist() so every part of the dashboard reflects the currently active universe consistently. Verified end-to-end: mocked snapshot prices correctly excluded two over-$70 candidates (PLTR $185, UBER $85) from both get_runner_status()'s symbols field and the rendered dashboard.
+inputs: none
+outputs: HTML (header gains mode label; inventory card reflects active watchlist)
+calls: fetchers.high_value_runner.get_active_watchlist (new)
+called_by: GET /trade/dashboard
+mutates: none
+---

@@ -37,8 +37,40 @@ log = logging.getLogger("paper_runner")
 
 # Single-tier large-cap universe per Kimi's advice: avoids mixing volatility
 # regimes in the first 30-40 trades so calibration weights are meaningful.
+# NOT deleted, NOT modified by the low-price mode below (2026-07-18) — this
+# stays the exact watchlist used when ACTIVE_UNIVERSE_MODE == "large_cap".
 RUNNER_SYMBOLS: list[str] = [
     "AAPL", "MSFT", "NVDA", "AMD", "AMZN", "META", "GOOGL", "TSLA",
+]
+
+# Added 2026-07-18, direct user request: they don't want to day-trade
+# $100+ names like AAPL/AMZN — they want a lower-priced universe instead,
+# without losing the existing large-cap watchlist (still fully intact
+# above, just not the active one by default now).
+#
+# ACTIVE_UNIVERSE_MODE picks which watchlist get_active_watchlist() returns:
+#   "large_cap" -> RUNNER_SYMBOLS, unchanged, exactly as before this change.
+#   "low_price" -> LOW_PRICE_WATCHLIST_CANDIDATES, filtered live at scan time
+#                  to price < LOW_PRICE_CEILING.
+# Switch back to "large_cap" any time to fully restore prior behavior — no
+# code is deleted either way.
+ACTIVE_UNIVERSE_MODE: str = "low_price"
+LOW_PRICE_CEILING: float = 70.0
+
+# Candidate pool for low-price mode — liquid, well-known, heavily-traded
+# names chosen because day trading specifically needs tight spreads and
+# fast fills (thin/illiquid names are a much worse fit for same-day holds
+# than for Low Value's multi-day thesis). This list is NOT the enforcement
+# mechanism, though — stock prices move, and this session has no live
+# market-data access to verify which of these are actually under $70 right
+# now. get_active_watchlist() re-checks every candidate's REAL current
+# price via Alpaca at scan time and drops anything at or above
+# LOW_PRICE_CEILING — so the $70 ceiling is enforced live, not by trusting
+# this list to stay accurate as prices drift. A candidate that's since
+# risen above $70 is simply excluded that day, not force-included.
+LOW_PRICE_WATCHLIST_CANDIDATES: list[str] = [
+    "F", "INTC", "T", "PFE", "CSCO", "BAC", "SOFI", "PLTR",
+    "NIO", "SNAP", "UBER", "RIVN", "WBD", "KO", "NOK",
 ]
 
 # Cast wide net for data; the trade endpoint uses 40 as the action threshold
@@ -127,6 +159,38 @@ _HOLD_BARS: dict[str, int] = {
     "LUNCH_CHOP":       6,   # 30 min, suppressed anyway
 }
 _DEFAULT_HOLD_BARS: int = 6
+
+def get_active_watchlist() -> list[str]:
+    """
+    The watchlist run_open_scan/start_runner actually use, per
+    ACTIVE_UNIVERSE_MODE. "large_cap" returns RUNNER_SYMBOLS unchanged.
+    "low_price" fetches a live snapshot for every LOW_PRICE_WATCHLIST_
+    CANDIDATES symbol and keeps only those actually trading below
+    LOW_PRICE_CEILING right now — see the constants above for why this
+    can't just trust the candidate list to stay accurate as prices move.
+
+    Fails toward an EMPTY list on a snapshot-fetch error in low_price mode,
+    not toward RUNNER_SYMBOLS — silently falling back to the $100+ watchlist
+    the user explicitly asked to move away from would violate their stated
+    preference more than skipping a scan for a day would.
+    """
+    if ACTIVE_UNIVERSE_MODE != "low_price":
+        return RUNNER_SYMBOLS
+
+    from fetchers.alpaca import get_snapshots
+    snaps = get_snapshots(LOW_PRICE_WATCHLIST_CANDIDATES)
+    if not snaps:
+        log.warning("[RUNNER] low_price mode: snapshot fetch failed for all candidates — skipping scan rather than falling back to RUNNER_SYMBOLS")
+        return []
+    filtered = [
+        sym for sym in LOW_PRICE_WATCHLIST_CANDIDATES
+        if (snaps.get(sym) or {}).get("price", 0) > 0
+        and snaps[sym]["price"] < LOW_PRICE_CEILING
+    ]
+    if not filtered:
+        log.warning(f"[RUNNER] low_price mode: 0 of {len(LOW_PRICE_WATCHLIST_CANDIDATES)} candidates are currently under ${LOW_PRICE_CEILING:.0f}")
+    return filtered
+
 
 # ── Internal state ────────────────────────────────────────────────────────────
 
@@ -577,7 +641,7 @@ def run_open_scan(
       earnings blackout    — skip any symbol with a manually-confirmed earnings
                              date matching today (EARNINGS_BLACKOUT)
     """
-    syms = symbols or RUNNER_SYMBOLS
+    syms = symbols or get_active_watchlist()
     trade_ids: list[int] = []
 
     base_min_score = min(min_score, SPRINT_MIN_SCORE) if DATA_COLLECTION_SPRINT_MODE else min_score
@@ -898,14 +962,15 @@ def start_runner(
     if _runner_active and _runner_thread and _runner_thread.is_alive():
         return False
     _runner_active = True
+    active_symbols = symbols or get_active_watchlist()
     _runner_thread = threading.Thread(
         target   = _runner_loop,
-        args     = (symbols or RUNNER_SYMBOLS, min_score),
+        args     = (active_symbols, min_score),
         daemon   = True,
         name     = "paper-runner",
     )
     _runner_thread.start()
-    log.info(f"[RUNNER] Started — symbols={symbols or RUNNER_SYMBOLS} min_score={min_score}")
+    log.info(f"[RUNNER] Started — symbols={active_symbols} min_score={min_score}")
     return True
 
 
@@ -927,7 +992,11 @@ def get_runner_status() -> dict:
     pending_review = len(get_review_queue(status="AWAITING_REVIEW", days=1))
     return {
         "active":         _runner_active and bool(_runner_thread and _runner_thread.is_alive()),
-        "symbols":        RUNNER_SYMBOLS,
+        "universe_mode":  ACTIVE_UNIVERSE_MODE,
+        "symbols":        get_active_watchlist(),
+        "large_cap_symbols": RUNNER_SYMBOLS,
+        "low_price_candidates": LOW_PRICE_WATCHLIST_CANDIDATES,
+        "low_price_ceiling": LOW_PRICE_CEILING,
         "min_score":      RUNNER_MIN_SCORE,
         "data_collection_sprint_mode": DATA_COLLECTION_SPRINT_MODE,
         "sprint_min_score": SPRINT_MIN_SCORE if DATA_COLLECTION_SPRINT_MODE else None,

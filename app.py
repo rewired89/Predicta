@@ -1396,8 +1396,8 @@ def analyze_trade(body: TradeRequest):
     q_lower = body.query.strip().lower()
     if any(trig in q_lower for trig in _BRIEF_TRIGGERS):
         from models.trading.screener import run_screener
-        from fetchers.high_value_runner import RUNNER_SYMBOLS
-        result = run_screener(symbols=RUNNER_SYMBOLS)
+        from fetchers.high_value_runner import get_active_watchlist
+        result = run_screener(symbols=get_active_watchlist())
         result["mode"] = "brief"
         return result
 
@@ -2390,7 +2390,7 @@ def trade_dashboard():
     # ── Inventory / exposure snapshot (Kimi review, Jane Street "inventory
     # risk" concept — round 5) ──────────────────────────────────────────────
     try:
-        from fetchers.high_value_runner import RUNNER_SYMBOLS
+        from fetchers.high_value_runner import get_active_watchlist
         with get_db() as conn:
             last_seen_rows = conn.execute(
                 """
@@ -2402,7 +2402,7 @@ def trade_dashboard():
         last_seen = {r["symbol"]: r["last_entry"] for r in last_seen_rows}
         now_utc = datetime.now(timezone.utc)
         inventory_rows = []
-        for sym in RUNNER_SYMBOLS:
+        for sym in get_active_watchlist():
             last_entry = last_seen.get(sym)
             days_since = None
             if last_entry:
@@ -2670,10 +2670,14 @@ def trade_dashboard():
         runner_active = rs.get("active", False)
         runner_open   = rs.get("open_positions", 0)
         market_is_open = rs.get("market_open", False)
+        universe_mode  = rs.get("universe_mode", "large_cap")
+        low_price_ceiling = rs.get("low_price_ceiling")
     except Exception:
         runner_active = False
         runner_open   = 0
         market_is_open = False
+        universe_mode  = "large_cap"
+        low_price_ceiling = None
 
     try:
         from fetchers.high_value_runner import _et_now
@@ -2765,7 +2769,7 @@ def trade_dashboard():
           <span><strong>{row['symbol']}</strong> — {status}</span>
           <span class="exit-count" style="color:{color}">last trade: {days_str}</span>
         </div>"""
-    exposure_line = f"{long_count} long · {short_count} short · {n_open} open of {len(inventory_rows) or 8}"
+    exposure_line = f"{long_count} long · {short_count} short · {n_open} open of {len(inventory_rows)}"
 
     signal_html = ""
     for s in signal_report.get("by_signal", []):
@@ -2792,6 +2796,11 @@ def trade_dashboard():
     runner_dot  = "#22c55e" if runner_active else "#ef4444"
     runner_lbl  = "Running" if runner_active else "Stopped"
     market_lbl  = "Market open" if market_is_open else "Market closed"
+    universe_mode_lbl = (
+        f" &nbsp;·&nbsp; <span style=\"color:#a78bfa;\">Low-Price Mode (under ${low_price_ceiling:.0f})</span>"
+        if universe_mode == "low_price"
+        else " &nbsp;·&nbsp; <span style=\"color:var(--muted);\">Large-Cap Mode</span>"
+    )
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -2864,7 +2873,7 @@ def trade_dashboard():
 <header>
   <div class="logo">Predicta · Trading Monitor</div>
   <div class="header-meta">
-    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {market_lbl} &nbsp;·&nbsp; {now_str}
+    <span class="runner-dot"></span>{runner_lbl} &nbsp;·&nbsp; {market_lbl} &nbsp;·&nbsp; {now_str}{universe_mode_lbl}
   </div>
 </header>
 <main>
