@@ -98,3 +98,44 @@ def has_recent_bankruptcy_filing(symbol: str, days: int = 90) -> bool:
         if dt >= cutoff:
             return True
     return False
+
+
+def has_recent_dilutive_filing(symbol: str, days: int = 90) -> bool:
+    """
+    True if symbol filed an 8-K with Item 3.02 (Unregistered Sales of Equity
+    Securities — SEC's item code for reporting a COMPLETED dilutive equity
+    sale, not merely a shelf registration that may never be drawn on) in the
+    last `days` days.
+
+    Added 2026-07-17 (Tier 2 of the trading-model audit — CODEMAP.md). Feeds
+    models/trading/low_value/thesis_tracker.py's cash_burn_months signal as
+    a WARNING FLAG in the signal's detail, not a score adjustment: a long
+    cash runway extended by dilution is a materially different situation
+    than one extended by organic cash flow, but this codebase has zero
+    calibration data on how much (if any) to discount cash_burn_months for
+    it — same "surface the fact, don't guess-correct the score" discipline
+    used for the Dalio macro-overlay shadow-log (fetchers/high_value_runner.py).
+
+    Fails safe to False, same convention as has_recent_bankruptcy_filing.
+    """
+    cik10 = get_cik(symbol)
+    if not cik10:
+        return False
+    data = _get_json(SEC_SUBMISSIONS_URL.format(cik10=cik10))
+    if not data:
+        return False
+    recent = (data.get("filings") or {}).get("recent") or {}
+    forms      = recent.get("form", [])
+    items      = recent.get("items", [])
+    filing_dts = recent.get("filingDate", [])
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    for form, item_str, filing_dt in zip(forms, items, filing_dts):
+        if form != "8-K" or "3.02" not in (item_str or ""):
+            continue
+        try:
+            dt = datetime.strptime(filing_dt, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if dt >= cutoff:
+            return True
+    return False

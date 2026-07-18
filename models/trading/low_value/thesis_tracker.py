@@ -209,6 +209,13 @@ def _score_cash_burn(symbol: str) -> Optional[tuple[float, dict]]:
     basic-financials 'metric' series. None when Finnhub doesn't cover the
     symbol's fundamentals (common for micro-caps) — excluded from the
     weighted average, never estimated.
+
+    recent_dilutive_filing (added 2026-07-17, Tier 2 of the trading-model
+    audit): a long cash runway extended by a recent dilutive share sale (SEC
+    8-K Item 3.02 in the last 90 days) is a materially different situation
+    than one extended by organic cash flow — but there's no calibration data
+    yet to say how much to discount the SCORE for it, so this is a warning
+    flag on the detail dict only. The score itself is unchanged.
     """
     metrics = get_basic_financials(symbol)
     if not metrics:
@@ -224,7 +231,14 @@ def _score_cash_burn(symbol: str) -> Optional[tuple[float, dict]]:
     months = cash / burn_monthly
     # 6 months runway -> 0, 12 -> +60, 24+ -> capped +100, <3 -> negative (bankruptcy risk)
     score = max(-100.0, min(100.0, (months - 6.0) * 10.0))
-    return round(score, 2), {"cash_burn_months": round(months, 1)}
+
+    from fetchers.sec_edgar import has_recent_dilutive_filing
+    dilution_flag = has_recent_dilutive_filing(symbol, days=90)
+
+    return round(score, 2), {
+        "cash_burn_months": round(months, 1),
+        "recent_dilutive_filing": dilution_flag,
+    }
 
 
 def _score_news_sentiment(news_result: Optional[dict]) -> Optional[tuple[float, dict]]:

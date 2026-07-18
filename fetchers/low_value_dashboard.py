@@ -289,7 +289,11 @@ def _signal_explanation(name: str, entry: dict) -> str:
         if name == "sector_relative_strength":
             return f"Last 5 days: stock {detail['symbol_5d_return_pct']:+.1f}% vs. its sector ETF {detail['sector_5d_return_pct']:+.1f}% ({detail['relative_pp']:+.1f}pp relative)"
         if name == "cash_burn_months":
-            return f"~{detail['cash_burn_months']:.1f} months of cash runway left at the current burn rate"
+            base = f"~{detail['cash_burn_months']:.1f} months of cash runway left at the current burn rate"
+            if detail.get("recent_dilutive_filing"):
+                base += (" — WARNING: an SEC filing in the last 90 days shows the company sold new shares, "
+                         "which can extend runway by diluting existing shareholders rather than through real cash flow")
+            return base
         if name == "news_sentiment":
             return f"{detail.get('headline_count', 0)} recent headlines, sentiment {detail.get('sentiment', 0):+.2f} (-1 very negative to +1 very positive)"
     except (KeyError, TypeError, ValueError):

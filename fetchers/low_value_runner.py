@@ -24,7 +24,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fetchers.high_value_runner import _et_now, _et_minutes
-from fetchers.alpaca import get_daily_bars, get_snapshots
+from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability
 from fetchers.trading_logger import log_low_value_trade, log_trade_exit, log_universe_snapshot
 from db.database import get_db
 
@@ -342,6 +342,25 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
             entry_price = daily_bars[-1].get("c")
             if not entry_price or entry_price <= 0:
                 continue
+
+            # Borrow-availability gate (2026-07-17, Tier 2 of the trading-model
+            # audit) — sub-$20 micro-caps are exactly the kind of stock that's
+            # frequently not shortable at all. Unlike a signal weight, this is
+            # a hard tradability fact (Alpaca either will or won't let the
+            # short execute), not a guessed threshold, so it's a real skip —
+            # not logged as a hypothetical trade, same as the existing
+            # portfolio-cap and already-open-symbol skips below. shortable is
+            # None (unknown — API error or missing field) is NOT blocked here,
+            # only an explicit False — an unknown answer isn't evidence the
+            # trade is impossible, only that Alpaca didn't confirm it either way.
+            if side == "short":
+                shortability = get_asset_shortability(sym)
+                if shortability.get("shortable") is False:
+                    _run_log.append({
+                        "ts": _et_now().isoformat(), "event": "SHORT_BLOCKED_NOT_SHORTABLE", "sym": sym,
+                        "note": f"Composite {composite} signaled SHORT but Alpaca reports {sym} is not shortable — skipped, not logged as a hypothetical trade.",
+                    })
+                    continue
 
             thesis_type = dominant_thesis_type(thesis, news_result)
             tid = log_low_value_trade(

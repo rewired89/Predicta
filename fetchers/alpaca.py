@@ -227,6 +227,37 @@ def get_all_active_assets(asset_class: str = "us_equity") -> list[str]:
     ]
 
 
+def get_asset_shortability(symbol: str) -> dict:
+    """
+    Alpaca's per-symbol asset record (v2/assets/{symbol}) includes real
+    `shortable`/`easy_to_borrow` booleans — whether the stock can be shorted
+    at all, and whether it's cheap/easy to borrow vs. hard-to-borrow.
+
+    Added 2026-07-17 (Tier 2 of the trading-model audit — CODEMAP.md). Low
+    Value's whole universe (sub-$20, thinly-covered names) is exactly the
+    kind of stock that's frequently NOT shortable, and nothing previously
+    checked this before logging a hypothetical short — meaning some of Low
+    Value's own "short" trade history could represent trades that could
+    never actually have been placed in real life. Unlike a signal WEIGHT
+    (a guess this audit has been trying not to make more of), shortability
+    is a hard, binary tradability fact — Alpaca either will or won't let you
+    short a stock — so this is a legitimate gate, not another guessed
+    threshold.
+
+    Fails safe to {"shortable": None, "easy_to_borrow": None} on any error
+    or missing field — "unknown," never a false assumption in either
+    direction — same convention as every other fetcher in this module.
+    """
+    url = f"{PAPER_BASE_URL}/v2/assets/{symbol}"
+    data = _get(url)
+    if not isinstance(data, dict) or "error" in data:
+        return {"shortable": None, "easy_to_borrow": None}
+    return {
+        "shortable": data.get("shortable"),
+        "easy_to_borrow": data.get("easy_to_borrow"),
+    }
+
+
 # ── Paper trading orders ──────────────────────────────────────────────────────
 
 def _assert_paper_mode() -> None:

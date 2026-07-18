@@ -12308,3 +12308,67 @@ calls: fetchers.fred.get_latest_value, get_series_stats
 called_by: _fetch_market_regime (reads long_term_force_contraction only, NOT the new field), anything else logging macro_tags for post-hoc analysis
 mutates: none
 ---
+
+## Trading-model audit, Tier 2 (final two items — added 2026-07-17)
+
+The two Tier 2 items previously held back for lack of data-source verification. Both turned out to be buildable: Alpaca's per-symbol asset record already exposes real `shortable`/`easy_to_borrow` booleans, and SEC EDGAR's submissions feed (already used for the bankruptcy check) also carries 8-K Item 3.02 (Unregistered Sales of Equity Securities) — the standard filing type for a completed dilutive offering. Different treatment for each, deliberately: shortability is a hard, binary tradability fact (Alpaca either will or won't let a short execute), so it's a real gate; dilution is an interpretive risk factor with no calibration data on how much to discount for it, so it's a visible warning flag only, score unchanged — same "surface vs. gate" split used throughout this audit.
+
+---
+name: get_asset_shortability
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-07-17 (Tier 2) — real shortable/easy_to_borrow flags from Alpaca's v2/assets/{symbol}. Low Value's whole universe (sub-$20, thinly-covered names) is exactly the kind of stock frequently NOT shortable, and nothing previously checked this before logging a hypothetical short — meaning some of Low Value's own short-trade history could represent trades that could never actually have been placed. Fails safe to {shortable: None, easy_to_borrow: None} on any error.
+inputs: symbol (str)
+outputs: dict {shortable: bool|None, easy_to_borrow: bool|None}
+calls: Alpaca v2/assets/{symbol} (via _get)
+called_by: fetchers.low_value_runner.run_low_value_scan
+mutates: none
+---
+
+---
+name: run_low_value_scan (extended, Tier 2)
+type: function
+file: fetchers/low_value_runner.py
+purpose: extended 2026-07-17 — before logging a composite-driven SHORT, checks get_asset_shortability(). shortable is explicitly False -> the trade is skipped and NOT logged (a real tradability fact, not a guessed threshold, so a hard skip is appropriate here unlike the score-weight guesses elsewhere in this audit). shortable is None (unknown — API error or missing field) does NOT block — an unconfirmed answer isn't evidence the trade is impossible. Verified end-to-end: False blocks and logs a SHORT_BLOCKED_NOT_SHORTABLE event to _run_log, True proceeds normally, None fails open and proceeds.
+inputs: symbols (optional list[str])
+outputs: list[int] (trade_ids) — unchanged shape
+calls: fetchers.alpaca.get_asset_shortability (new)
+called_by: trigger_scan_async, _runner_loop, GET/POST low-value scan endpoints (app.py)
+mutates: intraday_trades (unchanged behavior for non-blocked trades)
+---
+
+---
+name: has_recent_dilutive_filing
+type: function
+file: fetchers/sec_edgar.py
+purpose: added 2026-07-17 (Tier 2) — mirrors has_recent_bankruptcy_filing exactly (same submissions.json source, same fail-safe-to-False convention), checking for 8-K Item 3.02 (Unregistered Sales of Equity Securities — a COMPLETED dilutive sale, not just a shelf registration that may never be drawn) instead of Item 1.03. Feeds thesis_tracker.py's cash_burn_months signal as a warning flag only — the score itself is not adjusted, since there's no calibration data yet on how much (if any) a recent dilution should discount a runway estimate.
+inputs: symbol (str), days (int, default 90)
+outputs: bool
+calls: get_cik, SEC submissions API (via _get_json)
+called_by: models.trading.low_value.thesis_tracker._score_cash_burn
+mutates: none
+---
+
+---
+name: _score_cash_burn (extended, Tier 2)
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: extended 2026-07-17 to add recent_dilutive_filing to the signal's detail dict via has_recent_dilutive_filing(symbol, days=90). The numeric score is UNCHANGED — verified directly (a 20-month-runway candidate with a mocked recent 3.02 filing still scored 100.0, only detail["recent_dilutive_filing"] flipped to True).
+inputs: symbol (str)
+outputs: Optional[tuple[float, dict]] — detail dict gains recent_dilutive_filing; score unchanged
+calls: fetchers.finnhub.get_basic_financials (unchanged), fetchers.sec_edgar.has_recent_dilutive_filing (new)
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _signal_explanation (extended, Tier 2)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-17 — the cash_burn_months plain-English line now appends a WARNING sentence when detail["recent_dilutive_filing"] is True, explaining that a recent share sale can extend runway via dilution rather than real cash flow.
+inputs: name (str), entry (dict)
+outputs: str
+calls: none
+called_by: _signals_breakdown_html
+mutates: none
+---
