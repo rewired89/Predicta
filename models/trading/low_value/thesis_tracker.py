@@ -262,6 +262,48 @@ def dominant_thesis_type(thesis_result: dict, news_result: Optional[dict]) -> st
     return "TECHNICAL_OVERSOLD"
 
 
+_EFFECTIVE_WEIGHTS_CACHE: dict = {"weights": None, "computed_at": 0.0}
+_EFFECTIVE_WEIGHTS_CACHE_TTL_SEC: float = 300.0
+
+
+def _effective_signal_weights() -> dict[str, float]:
+    """
+    SIGNAL_WEIGHTS, unless 50+ closed Low Value trades unlock
+    compute_low_value_dynamic_weights() AND it actually found a real edge
+    (status == "dynamic") — otherwise the static guesses stay in force
+    exactly as before. Added 2026-07-16 (Tier 1 of the trading-model audit,
+    CODEMAP.md) — mirrors High Value's _effective_weights() (intraday.py),
+    gated behind Low Value's own 50-trade dynamic-weight tier
+    (low_value_calibration_readiness) rather than High Value's 100-trade
+    global gate, per LOW_VALUE_README.md's documented (and until now,
+    unbuilt) plan for this exact wiring.
+
+    Cached for _EFFECTIVE_WEIGHTS_CACHE_TTL_SEC: this runs once per
+    candidate per scan, and recalibration doesn't change moment-to-moment.
+    """
+    import time
+    now = time.monotonic()
+    cached = _EFFECTIVE_WEIGHTS_CACHE
+    if cached["weights"] is not None and (now - cached["computed_at"]) < _EFFECTIVE_WEIGHTS_CACHE_TTL_SEC:
+        return cached["weights"]
+
+    weights = dict(SIGNAL_WEIGHTS)
+    try:
+        from models.trading.shared.signal_calibration import (
+            low_value_calibration_readiness, compute_low_value_dynamic_weights,
+        )
+        if low_value_calibration_readiness().get("dynamic_weights_ready"):
+            result = compute_low_value_dynamic_weights(min_trades=30)
+            if result and result.get("status") == "dynamic":
+                weights = dict(result["weights"])
+    except Exception:
+        weights = dict(SIGNAL_WEIGHTS)
+
+    cached["weights"] = weights
+    cached["computed_at"] = now
+    return weights
+
+
 def compute_thesis_score(
     symbol: str,
     daily_bars: list[dict],
@@ -299,8 +341,9 @@ def compute_thesis_score(
             "note": "No signals computable — insufficient data, no faking.",
         }
 
-    weight_sum = sum(SIGNAL_WEIGHTS[name] for name in available)
-    composite = sum(SIGNAL_WEIGHTS[name] * score for name, (score, _detail) in available.items()) / weight_sum
+    weights = _effective_signal_weights()
+    weight_sum = sum(weights[name] for name in available)
+    composite = sum(weights[name] * score for name, (score, _detail) in available.items()) / weight_sum
     composite = round(composite, 2)
 
     return {

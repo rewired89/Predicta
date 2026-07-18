@@ -720,6 +720,28 @@ def resurrect_signal(signal: str) -> dict:
     return {"signal": signal, "resurrected": True}
 
 
+# Added 2026-07-16 (Tier 1 of the trading-model audit — see CODEMAP.md).
+# check_signal_kill_switches()/_persist_kill_switch() have existed since
+# round 5 and correctly PERSIST a kill when a signal's Wilson CI proves it's
+# not helping, but nothing ever READ that persisted state back into a live
+# score — a signal proven harmful with 50 real trades kept getting the exact
+# same weight as before. This is the lean read used by the weight-wiring in
+# intraday.py: just the currently-killed signal names, not the full
+# get_signal_kill_status() payload (which also computes resurrection
+# eligibility for the calibration UI — more than a hot scoring path needs).
+def get_active_kill_switches() -> set[str]:
+    """Signal names currently killed and not yet resurrected."""
+    try:
+        from db.database import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT signal FROM signal_kill_switches WHERE resurrected = 0"
+            ).fetchall()
+        return {r[0] for r in rows}
+    except Exception:
+        return set()
+
+
 def calibration_readiness_status() -> dict:
     """
     Per-feature readiness check with threshold targets.
@@ -919,8 +941,19 @@ def low_value_per_signal_accuracy_report(
 
         wins = sum(1 for t in active if _is_winner(t))
         win_rate = round(wins / n, 3)
+        # pnl_r is always None for Low Value (log_low_value_trade never sets
+        # risk_dollars — fixed $25 sizing has no ATR-based stop distance to
+        # normalize against, unlike High Value). pnl_pct is populated for
+        # every trade and IS comparable across Low Value trades specifically
+        # because every position shares the same +50%/-50% target/stop
+        # distance — so it plays the same "edge magnitude" role R plays for
+        # High Value, just under a different name to avoid implying it's the
+        # same unit. See compute_low_value_dynamic_weights, which is the
+        # actual consumer of avg_pnl_pct.
         pnl_rs = [t["pnl_r"] for t in active if t.get("pnl_r") is not None]
         avg_pnl_r = round(sum(pnl_rs) / len(pnl_rs), 3) if pnl_rs else None
+        pnl_pcts = [t["pnl_pct"] for t in active if t.get("pnl_pct") is not None]
+        avg_pnl_pct = round(sum(pnl_pcts) / len(pnl_pcts), 2) if pnl_pcts else None
 
         note = None
         if n < min_trades:
@@ -930,7 +963,7 @@ def low_value_per_signal_accuracy_report(
 
         by_signal.append({
             "signal": sig, "n": n, "win_rate": win_rate,
-            "avg_pnl_r": avg_pnl_r, "note": note,
+            "avg_pnl_r": avg_pnl_r, "avg_pnl_pct": avg_pnl_pct, "note": note,
         })
 
     by_signal.sort(key=lambda x: (x.get("win_rate") if x.get("win_rate") is not None else -1), reverse=True)
@@ -939,6 +972,64 @@ def low_value_per_signal_accuracy_report(
         "by_signal": by_signal,
         "active_threshold": active_threshold,
         "note": "No closed Low Value trades yet" if n_total == 0 else None,
+    }
+
+
+# Added 2026-07-16 (Tier 1). Low Value's equivalent of compute_dynamic_weights
+# — that function is hardcoded to High Value's _SIGNAL_COLS/_load_closed_trades_full
+# and can't read Low Value's JSON-stored signals at all, so this is new code
+# rather than a parameterization of the existing one. Same formula, same
+# fallback-to-static behavior, same min_trades floor, just sourced from
+# low_value_per_signal_accuracy_report's avg_pnl_pct (Low Value's edge-
+# magnitude stand-in for R — see that function's comment) instead of avg_r.
+def compute_low_value_dynamic_weights(min_trades: int = 30) -> Optional[dict]:
+    """
+    Empirically-driven Low Value signal weights.
+
+    Formula per signal (same shape as compute_dynamic_weights):
+        raw = max(0, (win_rate - 0.5) * (avg_pnl_pct / 100))
+    Normalized: weight = raw / sum(all raws).
+    Falls back to thesis_tracker.SIGNAL_WEIGHTS when sum of raws is zero.
+
+    Returns None when total closed Low Value trades < min_trades.
+    """
+    from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
+
+    trades = _load_closed_low_value_trades()
+    if len(trades) < min_trades:
+        return None
+
+    report = low_value_per_signal_accuracy_report(min_trades=5, active_threshold=10.0)
+
+    raw_weights: dict[str, float] = {}
+    negative_utility: list[str] = []
+    for row in report["by_signal"]:
+        sig = row["signal"]
+        wr = row.get("win_rate")
+        avg_pct = row.get("avg_pnl_pct")
+        if wr is None or avg_pct is None or row["n"] < 5:
+            raw_weights[sig] = 0.0
+            continue
+        avg_edge = avg_pct / 100
+        raw = max(0.0, (wr - 0.5) * avg_edge)
+        raw_weights[sig] = raw
+        if wr < 0.50 or avg_edge < 0:
+            negative_utility.append(sig)
+
+    total_raw = sum(raw_weights.values())
+    if total_raw > 0:
+        weights = {k: round(v / total_raw, 4) for k, v in raw_weights.items()}
+        status = "dynamic"
+    else:
+        weights = dict(SIGNAL_WEIGHTS)
+        status = "fallback_static"
+
+    return {
+        "weights": weights,
+        "raw_weights": {k: round(v, 6) for k, v in raw_weights.items()},
+        "negative_utility": negative_utility,
+        "n_trades": len(trades),
+        "status": status,
     }
 
 

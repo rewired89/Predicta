@@ -681,7 +681,17 @@ def _trade_levels(
 
 # ── Ensemble scorer ────────────────────────────────────────────────────────────
 
-# Signal weights — 8 signals, sum to 1.00
+# Signal weights — 8 signals, sum to 1.00. STATIC FALLBACK: used until 100+
+# closed High Value trades exist (calibration_globally_active) — see
+# _effective_weights() below, added 2026-07-16 (Tier 1 of the trading-model
+# audit, CODEMAP.md). Before this, compute_dynamic_weights() (signal_
+# calibration.py) computed a real, data-driven reweighting from closed-trade
+# outcomes but nothing in this file ever called it — WEIGHTS stayed frozen
+# at these original hand-picked guesses forever, even after real trade
+# outcomes proved some of them wrong. Kept as a plain module constant (not
+# removed) since it's still the fallback whenever dynamic weights aren't
+# available, and other code (signal_calibration.py's _STATIC_WEIGHTS mirror)
+# already references "High Value's WEIGHTS" by this name.
 WEIGHTS = {
     "vwap":      0.20,
     "or":        0.15,
@@ -701,24 +711,106 @@ SCORE_LABELS = [
     (-101,"Strong Sell"),
 ]
 
+_EFFECTIVE_WEIGHTS_CACHE: dict = {"weights": None, "computed_at": 0.0}
+_EFFECTIVE_WEIGHTS_CACHE_TTL_SEC: float = 300.0
+
+
+def _effective_weights() -> dict:
+    """
+    WEIGHTS, unless 100+ closed trades unlock compute_dynamic_weights() AND
+    it actually found a real edge (status == "dynamic") — otherwise the
+    static guesses stay in force exactly as before, unchanged behavior below
+    the threshold. Also zeroes any signal killed by check_signal_kill_
+    switches() (Wilson CI proved it's not helping, at 50+ trades) — before
+    this, a killed signal was flagged and persisted to the DB but kept
+    getting its full original weight in every live score regardless.
+
+    Cached for _EFFECTIVE_WEIGHTS_CACHE_TTL_SEC (5 min): this runs once per
+    symbol per scan tick, and neither dynamic weights nor kill switches
+    change moment-to-moment, so a DB round trip per symbol per tick would be
+    pure waste.
+    """
+    import time
+    now = time.monotonic()
+    cached = _EFFECTIVE_WEIGHTS_CACHE
+    if cached["weights"] is not None and (now - cached["computed_at"]) < _EFFECTIVE_WEIGHTS_CACHE_TTL_SEC:
+        return cached["weights"]
+
+    weights = dict(WEIGHTS)
+    try:
+        from models.trading.shared.signal_calibration import (
+            calibration_globally_active, compute_dynamic_weights, get_active_kill_switches,
+        )
+        if calibration_globally_active():
+            result = compute_dynamic_weights(min_trades=30)
+            if result and result.get("status") == "dynamic":
+                weights = dict(result["weights"])
+        for sig in get_active_kill_switches():
+            if sig in weights:
+                weights[sig] = 0.0
+    except Exception:
+        weights = dict(WEIGHTS)
+
+    cached["weights"] = weights
+    cached["computed_at"] = now
+    return weights
+
+
+_NGRAM_BLEND_CACHE: dict = {"value": None, "computed_at": 0.0, "populated": False}
+_NGRAM_BLEND_CACHE_TTL_SEC: float = 300.0
+
+
+def _calibrated_ngram_multipliers() -> Optional[dict]:
+    """
+    compute_ngram_blend_weight()'s agree_multiplier/disagree_multiplier
+    (signal_calibration.py) once 20+ trades exist in BOTH the agree and
+    disagree cohorts — that function's own gate. None below that threshold,
+    meaning the ngram blend below keeps its original hardcoded confidence-
+    scaled/×0.7 behavior unchanged (2026-07-16, Tier 1 of the trading-model
+    audit — same "wire up what's already built, still gated" pattern as
+    _effective_weights above). Cached for the same reason: once per symbol
+    per scan tick would be a wasted DB hit, calibration doesn't move that fast.
+    """
+    import time
+    now = time.monotonic()
+    cached = _NGRAM_BLEND_CACHE
+    if cached["populated"] and (now - cached["computed_at"]) < _NGRAM_BLEND_CACHE_TTL_SEC:
+        return cached["value"]
+
+    result = None
+    try:
+        from models.trading.shared.signal_calibration import compute_ngram_blend_weight
+        result = compute_ngram_blend_weight(min_samples=20)
+    except Exception:
+        result = None
+
+    cached["value"] = result
+    cached["populated"] = True
+    cached["computed_at"] = now
+    return result
+
 
 def _composite(signals: dict) -> dict:
+    w = _effective_weights()
     raw = (
-        signals["vwap"]["score"]      * WEIGHTS["vwap"] +
-        signals["or"]["score"]        * WEIGHTS["or"] +
-        signals["rsi"]["score"]       * WEIGHTS["rsi"] +
-        signals["relvol"]["score"]    * WEIGHTS["relvol"] +
-        signals["gap"]["score"]       * WEIGHTS["gap"] +
-        signals["trend"]["score"]     * WEIGHTS["trend"] +
-        signals["bollinger"]["score"] * WEIGHTS["bollinger"] +
-        signals["volsurge"]["score"]  * WEIGHTS["volsurge"]
+        signals["vwap"]["score"]      * w["vwap"] +
+        signals["or"]["score"]        * w["or"] +
+        signals["rsi"]["score"]       * w["rsi"] +
+        signals["relvol"]["score"]    * w["relvol"] +
+        signals["gap"]["score"]       * w["gap"] +
+        signals["trend"]["score"]     * w["trend"] +
+        signals["bollinger"]["score"] * w["bollinger"] +
+        signals["volsurge"]["score"]  * w["volsurge"]
     )
-    # Normalize to -100..+100
+    # Normalize to -100..+100 using the SAME weights as the raw score above
+    # — if a signal's weight is zeroed (killed) or reweighted (dynamic), its
+    # contribution to the ceiling shrinks identically, so a killed/demoted
+    # signal doesn't silently compress the whole score toward zero.
     max_possible = sum(
-        abs(s) * w for s, w in [
-            (25, WEIGHTS["vwap"]), (25, WEIGHTS["or"]), (25, WEIGHTS["rsi"]),
-            (20, WEIGHTS["relvol"]), (10, WEIGHTS["gap"]), (20, WEIGHTS["trend"]),
-            (20, WEIGHTS["bollinger"]), (10, WEIGHTS["volsurge"]),
+        abs(s) * ww for s, ww in [
+            (25, w["vwap"]), (25, w["or"]), (25, w["rsi"]),
+            (20, w["relvol"]), (10, w["gap"]), (20, w["trend"]),
+            (20, w["bollinger"]), (10, w["volsurge"]),
         ]
     )
     value = round(raw / max_possible * 100) if max_possible else 0
@@ -825,14 +917,27 @@ def compute_intraday_signals(
                 ngram_sign    = 1 if ng_score > 0 else -1 if ng_score < 0 else 0
                 wr = ngram.get("historical_win_rate", 0)
                 pat = ngram.get("pattern", "?")
+                calibrated = _calibrated_ngram_multipliers()
                 if ngram_sign != 0 and existing_sign == ngram_sign:
-                    # Agreement: max +20% boost (confidence/500, so 100 conf → ×1.20)
-                    score_val = round(score_val * (1 + ngram["confidence"] / 500), 1)
-                    score["reasons"].append(f"N-gram confirms ({pat}, {wr:.0%} WR)")
+                    if calibrated and calibrated.get("agree_multiplier") is not None:
+                        # Calibrated (2026-07-16, Tier 1): replaces the confidence-scaled
+                        # guess once real outcomes exist to measure agreement against.
+                        mult = calibrated["agree_multiplier"]
+                        score_val = round(score_val * mult, 1)
+                        score["reasons"].append(f"N-gram confirms ({pat}, {wr:.0%} WR, calibrated {mult:.2f}x)")
+                    else:
+                        # Agreement: max +20% boost (confidence/500, so 100 conf → ×1.20)
+                        score_val = round(score_val * (1 + ngram["confidence"] / 500), 1)
+                        score["reasons"].append(f"N-gram confirms ({pat}, {wr:.0%} WR)")
                 elif ngram_sign != 0 and existing_sign != ngram_sign:
-                    # Disagreement: reduce 30%
-                    score_val = round(score_val * 0.7, 1)
-                    score["reasons"].append(f"N-gram conflicts ({pat}, {wr:.0%} WR) — confidence reduced")
+                    if calibrated and calibrated.get("disagree_multiplier") is not None:
+                        mult = calibrated["disagree_multiplier"]
+                        score_val = round(score_val * mult, 1)
+                        score["reasons"].append(f"N-gram conflicts ({pat}, {wr:.0%} WR) — calibrated {mult:.2f}x")
+                    else:
+                        # Disagreement: reduce 30%
+                        score_val = round(score_val * 0.7, 1)
+                        score["reasons"].append(f"N-gram conflicts ({pat}, {wr:.0%} WR) — confidence reduced")
         except Exception:
             pass  # Never let ngram failure break signal generation
     sigs["ngram"] = ngram

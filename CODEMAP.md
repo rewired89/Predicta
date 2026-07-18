@@ -12132,3 +12132,115 @@ calls: low_value_calibration_readiness
 called_by: low_value_query (app.py POST /trade/low-value/query)
 mutates: none
 ---
+
+## Trading-model audit, Tier 1 (added 2026-07-16)
+
+Wires the recalibration machinery that already existed (compute_dynamic_weights, check_signal_kill_switches, compute_ngram_blend_weight) into the LIVE scoring path of both High Value and Low Value, still fully gated behind each mechanism's own existing trade-count threshold — nothing changes below those thresholds, same "don't tune pre-data" discipline as everywhere else in this codebase. Verified end-to-end with synthetic trade data for every path: static fallback at 0 trades, kill-switch zeroing independent of the weight-recalibration gate, dynamic weights actually shifting composite behavior once the gate opens (in both directions — High Value's 100-trade global gate and Low Value's own 50-trade tier), and n-gram calibrated multipliers replacing the hardcoded confidence-scaled guess once 20+20 agree/disagree trades exist.
+
+---
+name: get_active_kill_switches
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: added 2026-07-16 (Tier 1) — lean read of currently-killed (not resurrected) signal names from signal_kill_switches. check_signal_kill_switches/_persist_kill_switch already existed and correctly persisted a kill, but nothing read that state back into a live score before this — a signal proven harmful with 50 real trades kept its full original weight regardless.
+inputs: none
+outputs: set[str]
+calls: db.database.get_db
+called_by: models.trading.high_value.intraday._effective_weights
+mutates: none
+---
+
+---
+name: compute_low_value_dynamic_weights
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: added 2026-07-16 (Tier 1) — Low Value's equivalent of compute_dynamic_weights (which is hardcoded to High Value's dedicated DB columns and can't read Low Value's JSON-stored signals). Same formula (raw = max(0, (win_rate-0.5) * edge), normalized, falls back to thesis_tracker.SIGNAL_WEIGHTS when no signal shows edge), sourced from low_value_per_signal_accuracy_report's avg_pnl_pct instead of avg_r, since Low Value never sets risk_dollars (fixed $25 sizing has no ATR stop to normalize against) so pnl_r is always None for this engine — pnl_pct is the comparable edge-magnitude substitute specifically because every Low Value trade shares the same +50%/-50% target/stop distance.
+inputs: min_trades (int, default 30)
+outputs: Optional[dict] — None below min_trades, else {weights, raw_weights, negative_utility, n_trades, status}
+calls: low_value_per_signal_accuracy_report, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS
+called_by: models.trading.low_value.thesis_tracker._effective_signal_weights
+mutates: none
+---
+
+---
+name: low_value_per_signal_accuracy_report (extended, Tier 1)
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: extended 2026-07-16 to also compute avg_pnl_pct per signal (avg_pnl_r stays, always None for Low Value in practice — see compute_low_value_dynamic_weights). Purely additive field, doesn't change the Tier 0 dashboard rendering which only reads win_rate/n/note.
+inputs: min_trades (int), active_threshold (float)
+outputs: dict — by_signal rows now also carry avg_pnl_pct
+calls: _load_closed_low_value_trades
+called_by: fetchers.low_value_dashboard.render_low_value_dashboard, compute_low_value_dynamic_weights
+mutates: none
+---
+
+---
+name: _effective_weights
+type: function
+file: models/trading/high_value/intraday.py
+purpose: added 2026-07-16 (Tier 1) — WEIGHTS unless 100+ closed High Value trades unlock compute_dynamic_weights() AND it found real edge (status=="dynamic"); always zeroes any get_active_kill_switches() signal regardless of the 100-trade gate (kill-switch has its own independent 50-trade-per-signal threshold). 5-minute cache — runs once per symbol per scan tick, calibration state doesn't move that fast.
+inputs: none
+outputs: dict — same shape as WEIGHTS (8 signal names -> weight)
+calls: models.trading.shared.signal_calibration.calibration_globally_active, compute_dynamic_weights, get_active_kill_switches
+called_by: _composite
+mutates: none (module-level cache only)
+---
+
+---
+name: _calibrated_ngram_multipliers
+type: function
+file: models/trading/high_value/intraday.py
+purpose: added 2026-07-16 (Tier 1) — compute_ngram_blend_weight()'s agree_multiplier/disagree_multiplier once 20+ trades exist in both cohorts; None below that, meaning the ngram blend keeps its original hardcoded confidence-scaled (agree) / flat ×0.7 (disagree) behavior unchanged. Same 5-minute caching rationale as _effective_weights.
+inputs: none
+outputs: Optional[dict] — compute_ngram_blend_weight's return shape, or None if ungated
+calls: models.trading.shared.signal_calibration.compute_ngram_blend_weight
+called_by: compute_intraday_signals (ngram blend block)
+mutates: none (module-level cache only)
+---
+
+---
+name: _composite (extended, Tier 1)
+type: function
+file: models/trading/high_value/intraday.py
+purpose: extended 2026-07-16 to call _effective_weights() instead of referencing the module-level WEIGHTS constant directly, for both the raw score sum and the max_possible normalization ceiling (using the SAME weights for both, so a zeroed/reweighted signal's contribution shrinks identically on both sides rather than compressing the whole score toward zero).
+inputs: signals (dict)
+outputs: dict {value, label, reasons}
+calls: _effective_weights
+called_by: compute_intraday_signals
+mutates: none
+---
+
+---
+name: compute_intraday_signals (ngram blend, extended Tier 1)
+type: function
+file: models/trading/high_value/intraday.py
+purpose: the n-gram agreement/disagreement adjustment now checks _calibrated_ngram_multipliers() first and uses the calibrated flat multiplier when available, falling back to the original hardcoded confidence-scaled (agree) / ×0.7 (disagree) formula otherwise. No change in behavior until 20+20 real trades exist.
+inputs: (unchanged)
+outputs: (unchanged)
+calls: _calibrated_ngram_multipliers (new), models.trading.high_value.ngram.ngram_signal/ngram_to_composite_score (unchanged)
+called_by: (unchanged callers)
+mutates: none
+---
+
+---
+name: _effective_signal_weights
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: added 2026-07-16 (Tier 1) — Low Value's mirror of intraday.py's _effective_weights(). SIGNAL_WEIGHTS unless 50+ closed Low Value trades (low_value_calibration_readiness's dynamic_weights_ready) unlock compute_low_value_dynamic_weights() AND it found real edge. Same 5-minute cache rationale.
+inputs: none
+outputs: dict[str, float] — same shape as SIGNAL_WEIGHTS (8 signal names -> weight)
+calls: models.trading.shared.signal_calibration.low_value_calibration_readiness, compute_low_value_dynamic_weights
+called_by: compute_thesis_score
+mutates: none (module-level cache only)
+---
+
+---
+name: compute_thesis_score (extended, Tier 1)
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: extended 2026-07-16 to call _effective_signal_weights() instead of referencing the module-level SIGNAL_WEIGHTS constant directly. The existing missing-signal weight-redistribution logic (weight_sum over only the AVAILABLE signals) is unchanged and now applies on top of whichever weight set (static or dynamic) is in effect.
+inputs: symbol, daily_bars, sector_bars, news_result
+outputs: dict {composite, label, entry_eligible, signals, missing_signals} — unchanged shape
+calls: _effective_signal_weights (new), _score_* functions (unchanged)
+called_by: run_low_value_scan (fetchers/low_value_runner.py), and anywhere else that scored a Low Value candidate
+mutates: none
+---
