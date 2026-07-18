@@ -449,6 +449,14 @@ def render_low_value_dashboard() -> str:
     pv = _phase_and_verdict(readiness["total_closed_trades"], win_rate, total_pnl)
     signal_report = low_value_per_signal_accuracy_report(min_trades=10)
     runner_status = get_runner_status()
+    # Cross-engine exposure (Tier 2, 2026-07-16/17 trading-model audit) — see
+    # models/trading/shared/exposure.py's docstring for why this is
+    # visibility-only, not a combined position cap.
+    try:
+        from models.trading.shared.exposure import get_cross_engine_exposure
+        cross_exposure = get_cross_engine_exposure()
+    except Exception:
+        cross_exposure = None
     # Read-only: the most recently LOGGED universe snapshot, never a live
     # rescan (a rescan is a slow, multi-API-call operation that belongs to
     # the runner's scheduled job or a manual /trade/low-value/scan-now call,
@@ -699,6 +707,14 @@ def render_low_value_dashboard() -> str:
   <div class="card">
     <div class="card-title">Open Positions</div>
     {open_rows_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cross-Engine Exposure</div>
+    {f'''<div class="exit-item"><span>High Value</span><span class="exit-count">{cross_exposure["high_value_open"]} open / cap {cross_exposure["high_value_cap"]}</span></div>
+    <div class="exit-item"><span>Low Value</span><span class="exit-count">{cross_exposure["low_value_open"]} open / cap {cross_exposure["low_value_cap"]}</span></div>
+    <div class="exit-item"><span>Pairs</span><span class="exit-count">{cross_exposure["pairs_open"]} open / no cap set</span></div>
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines. {cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
   </div>
 
   <div class="card">

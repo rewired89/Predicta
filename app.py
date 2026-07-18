@@ -2197,6 +2197,18 @@ def calibration_readiness():
     return status
 
 
+@app.get("/trade/exposure")
+def trade_exposure():
+    """
+    Cross-engine open-position counts (Tier 2 of the 2026-07-16/17 trading-
+    model audit). Read-only — each engine still gates its own concurrent
+    positions independently; see models/trading/shared/exposure.py's
+    docstring for why this doesn't (yet) enforce a combined limit.
+    """
+    from models.trading.shared.exposure import get_cross_engine_exposure
+    return get_cross_engine_exposure()
+
+
 @app.get("/trade/calibration/kill-switches")
 def calibration_kill_switches():
     """
@@ -2410,6 +2422,15 @@ def trade_dashboard():
     except Exception:
         inventory_rows = []
         long_count = short_count = 0
+
+    # Cross-engine exposure (Tier 2, 2026-07-16/17 trading-model audit) — see
+    # models/trading/shared/exposure.py's docstring for why this is
+    # visibility-only, not a combined position cap.
+    try:
+        from models.trading.shared.exposure import get_cross_engine_exposure
+        cross_exposure = get_cross_engine_exposure()
+    except Exception:
+        cross_exposure = None
 
     # ── Per-signal P&L attribution (Kimi review, Citadel "pod" concept — round 5)
     try:
@@ -2808,6 +2829,15 @@ def trade_dashboard():
   <div class="card">
     <div class="card-title">Inventory — Exposure by Ticker ({exposure_line})</div>
     {inventory_html if inventory_html else "<p class='muted-note'>No data yet.</p>"}
+  </div>
+
+  <!-- Cross-engine exposure (Tier 2, 2026-07-16/17 trading-model audit) -->
+  <div class="card">
+    <div class="card-title">Cross-Engine Exposure</div>
+    {f'''<div class="exit-item"><span>High Value</span><span class="exit-count">{cross_exposure["high_value_open"]} open / cap {cross_exposure["high_value_cap"]}</span></div>
+    <div class="exit-item"><span>Low Value</span><span class="exit-count">{cross_exposure["low_value_open"]} open / cap {cross_exposure["low_value_cap"]}</span></div>
+    <div class="exit-item"><span>Pairs</span><span class="exit-count">{cross_exposure["pairs_open"]} open / no cap set</span></div>
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines. {cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
   </div>
 
   <!-- Per-signal P&L attribution -->

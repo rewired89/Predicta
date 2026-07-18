@@ -12244,3 +12244,67 @@ calls: _effective_signal_weights (new), _score_* functions (unchanged)
 called_by: run_low_value_scan (fetchers/low_value_runner.py), and anywhere else that scored a Low Value candidate
 mutates: none
 ---
+
+## Trading-model audit, Tier 2 (partial — added 2026-07-17)
+
+Two of the four Tier 2 items from the original proposal, chosen as the lowest-risk/best-scoped: cross-engine exposure visibility, and a symmetric macro-overlay shadow-log. Both follow the same "diagnose/report before ever gating" sequencing already used throughout this audit (and originally for the Dalio overlay itself) — neither changes any live trading behavior. The other two Tier 2 items (dilution check on cash_burn_months, borrow-availability check before a Low Value short) were deliberately NOT built this round — both depend on unverified data-source capabilities (whether Alpaca's asset endpoint exposes a shortable/easy-to-borrow flag; how to reliably detect a recent dilutive offering from what SEC EDGAR already provides here) that need their own investigation pass before committing to an implementation approach.
+
+---
+name: models/trading/shared/exposure.py
+type: module
+file: models/trading/shared/exposure.py
+purpose: added 2026-07-17 (Tier 2) — cross-engine open-position visibility. Each engine (High Value, Low Value, Pairs) caps its OWN concurrent positions independently; nothing previously added them up, so a user could be in 6+ correlated positions across engines with no part of the system treating that as one risk. Deliberately READ-ONLY — no validated "safe combined cap" number exists, so this reports counts for a human to look at rather than guessing a new threshold to gate on (same discipline as every other guessed-number decision in this audit). Reports position COUNTS, not dollar exposure, since the three engines size positions too differently (High Value ATR-based, Low Value fixed $25, Pairs untracked) for a dollar total to be meaningful yet.
+inputs: none
+outputs: get_cross_engine_exposure() -> dict {high_value_open, high_value_cap, low_value_open, low_value_cap, pairs_open, pairs_cap (always None — no cap exists for Pairs), total_open, note}
+calls: db.database.get_db, fetchers.high_value_runner.MAX_CONCURRENT_POSITIONS, models.trading.shared.kelly.LOW_VALUE_MAX_CONCURRENT_POSITIONS
+called_by: app.py GET /trade/exposure, app.py trade_dashboard() (High Value dashboard card), fetchers/low_value_dashboard.py render_low_value_dashboard() (Low Value dashboard card)
+mutates: none
+---
+
+---
+name: GET /trade/exposure
+type: endpoint
+file: app.py
+purpose: added 2026-07-17 (Tier 2) — exposes get_cross_engine_exposure() as JSON.
+inputs: none
+outputs: see models/trading/shared/exposure.py
+calls: models.trading.shared.exposure.get_cross_engine_exposure
+called_by: (user-facing)
+mutates: none
+---
+
+---
+name: trade_dashboard (extended, Tier 2)
+type: function
+file: app.py
+purpose: extended 2026-07-17 to add a "Cross-Engine Exposure" card showing open counts and caps for all three engines. Verified by directly invoking the function against a live DB, not just a compile check.
+inputs: none
+outputs: HTML (unchanged shape, one new card)
+calls: models.trading.shared.exposure.get_cross_engine_exposure (new)
+called_by: GET /trade/dashboard
+mutates: none
+---
+
+---
+name: render_low_value_dashboard (extended, Tier 2)
+type: function
+file: fetchers/low_value_dashboard.py
+purpose: extended 2026-07-17 to add the same "Cross-Engine Exposure" card as the High Value dashboard, for visual/informational parity.
+inputs: none
+outputs: HTML (unchanged shape, one new card)
+calls: models.trading.shared.exposure.get_cross_engine_exposure (new)
+called_by: GET /trade/low-value/dashboard
+mutates: none
+---
+
+---
+name: _fetch_macro_tags (extended, Tier 2)
+type: function
+file: fetchers/high_value_runner.py
+purpose: extended 2026-07-17 to add long_term_force_expansion — a shadow-logged mirror of long_term_force_contraction, computed but never read by _fetch_market_regime or anything that changes live behavior. Only the credit-spread half is mirrored (HY-OAS anomalously TIGHT = calm/favorable, 2 std devs below mean — a legitimate, conventional macro reading); debt/GDP is deliberately NOT mirrored, since Dalio's own long-term debt cycle framing is asymmetric (slow multi-decade rise, sharp deleveraging fall) and inventing a symmetric "low debt/GDP is bullish" signal would be fabricating a number to look balanced rather than reporting something real. Purpose: before this, the macro overlay only ever recorded bad regimes, so there was no data trail to ever check whether a favorable-regime adjustment would have helped. Verified with synthetic FRED data for both the expansion and contraction cases, and confirmed _fetch_market_regime's gating logic is untouched (still only reads long_term_force_contraction).
+inputs: none
+outputs: dict — adds long_term_force_expansion field; all existing fields unchanged
+calls: fetchers.fred.get_latest_value, get_series_stats
+called_by: _fetch_market_regime (reads long_term_force_contraction only, NOT the new field), anything else logging macro_tags for post-hoc analysis
+mutates: none
+---

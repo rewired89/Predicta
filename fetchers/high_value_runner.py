@@ -341,6 +341,23 @@ def _fetch_macro_tags() -> dict:
     (HY-OAS: 2 std devs over a ~1yr daily window; debt/GDP: 1 std dev over a
     ~5yr quarterly window). Read-only — see _fetch_market_regime for how this
     elevates (not replaces) the existing SPY-gap threshold.
+
+    long_term_force_expansion (added 2026-07-17, Tier 2 of the trading-model
+    audit): shadow-logged only, never read by _fetch_market_regime or
+    anything that changes live behavior. This overlay only ever penalizes —
+    a genuinely calm/favorable macro backdrop was never recorded anywhere,
+    so there was no way to later check whether a symmetric "loosen up on a
+    good regime" adjustment would have helped or hurt. Deliberately NOT a
+    full mirror of long_term_force_contraction: credit spread has a
+    legitimate, well-established symmetric reading (anomalously TIGHT HY-OAS
+    is conventionally read as calm/risk-on, the mirror of anomalously wide
+    being stress), so that half is mirrored (2 std devs below mean). Debt/GDP
+    is deliberately NOT mirrored — Dalio's own long-term debt cycle framing
+    is asymmetric (a slow multi-decade rise, a sharp deleveraging fall), so
+    "debt/GDP anomalously low" is not a real force the same way "anomalously
+    high" is a real stress signal; inventing a symmetric debt/GDP case would
+    be exactly the fabricate-a-number-because-it-looks-balanced mistake this
+    whole audit has been trying to get away from. Log only what's real.
     """
     from fetchers.fred import get_latest_value, get_series_stats
     try:
@@ -362,18 +379,25 @@ def _fetch_macro_tags() -> dict:
             and debt_stats["latest"] is not None
             and debt_stats["latest"] > debt_stats["mean"] + 1 * debt_stats["std"]
         )
+        hy_expansion = (
+            hy_stats["mean"] is not None and hy_stats["std"] is not None
+            and hy_stats["latest"] is not None
+            and hy_stats["latest"] < hy_stats["mean"] - 2 * hy_stats["std"]
+        )
         return {
             "yield_curve_slope": yield_curve_slope,
             "fed_rate": fed_rate,
             "credit_spread_oas": hy_stats["latest"],
             "debt_to_gdp_pct": debt_stats["latest"],
             "long_term_force_contraction": bool(hy_contraction or debt_contraction),
+            "long_term_force_expansion": bool(hy_expansion),
         }
     except Exception:
         return {
             "yield_curve_slope": None, "fed_rate": None,
             "credit_spread_oas": None, "debt_to_gdp_pct": None,
             "long_term_force_contraction": False,
+            "long_term_force_expansion": False,
         }
 
 
