@@ -94,6 +94,23 @@ def _elo_from_winpct(win_pct: float) -> float:
     return 1500.0 - 400.0 * math.log10((1 - wp) / wp)
 
 
+ELO_WINPCT_SHRINKAGE_K = 20.0  # games needed for raw win% to earn half-weight vs .500 (mirrors models/rugby_model.py's SHRINKAGE_K convention)
+
+
+def _shrink_win_pct(win_pct: float, games_played: float) -> float:
+    """
+    Regress win% toward league-average .500 by sample size before it feeds
+    _elo_from_winpct. The Elo leg gets 40% weight in the blend (see
+    run_baseball_analysis) but was previously gated only on games_played >= 10 —
+    still thin enough that an early hot/cold streak (e.g. 8-2) swung 40% of the
+    final probability on essentially small-sample noise.
+    """
+    if games_played <= 0:
+        return 0.5
+    w = games_played / (games_played + ELO_WINPCT_SHRINKAGE_K)
+    return w * win_pct + (1 - w) * 0.5
+
+
 def _derive_bullpen_fip(team_era: float, starter_fip: float,
                          starter_avg_ip: Optional[float] = None,
                          starter_era: Optional[float] = None) -> float:
@@ -951,9 +968,11 @@ def run_baseball_analysis(user_query: str, bankroll: float = 1000.0,
     try:
         elo = EloModel()
         if record_a.get("games_played", 0) >= 10:
-            elo.set_rating(f"MLB:{team_a}", _elo_from_winpct(record_a["win_pct"]))
+            gp_a = record_a["games_played"]
+            elo.set_rating(f"MLB:{team_a}", _elo_from_winpct(_shrink_win_pct(record_a["win_pct"], gp_a)))
         if record_b.get("games_played", 0) >= 10:
-            elo.set_rating(f"MLB:{team_b}", _elo_from_winpct(record_b["win_pct"]))
+            gp_b = record_b["games_played"]
+            elo.set_rating(f"MLB:{team_b}", _elo_from_winpct(_shrink_win_pct(record_b["win_pct"], gp_b)))
         elo_a, elo_b = elo.win_probability(f"MLB:{team_a}", f"MLB:{team_b}")
         prob_a = 0.6 * prob_a + 0.4 * elo_a
         prob_b = 0.6 * prob_b + 0.4 * elo_b

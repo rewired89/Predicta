@@ -98,9 +98,17 @@ def fetch_team_fatigue(
                 if last_game_days is None:
                     last_game_days = offset - 1  # 0=yesterday, 1=day before
 
-        # Bullpen fatigue multiplier
-        fatigue_table = {0: 0.97, 1: 1.00, 2: 1.04, 3: 1.08}
-        fatigue_mult = fatigue_table.get(games_last_3, 1.08)
+        # Bullpen fatigue multiplier. MLB teams play close to daily (an off day
+        # roughly once a week), so "played on all 3 of the last 3 days" is the
+        # *typical* case, not an outlier — the old table {0:0.97,1:1.00,2:1.04,
+        # 3:1.08} scored that common case as max fatigue, inflating bullpen_fip
+        # on most games. This boolean-per-day count also can't see doubleheaders
+        # or extra-inning marathons (the real overwork signals), so it can only
+        # honestly support "extra rest = fresher," not "normal cadence = tired."
+        # Rescaled so normal cadence (2-3 games) is ~neutral and the signal only
+        # moves toward "fresh" when a team got unusual rest.
+        fatigue_table = {0: 0.96, 1: 0.98, 2: 1.00, 3: 1.02}
+        fatigue_mult = fatigue_table.get(games_last_3, 1.02)
 
         # Offensive rest multiplier
         if last_game_days is None:
