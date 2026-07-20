@@ -4504,7 +4504,19 @@ purpose: Converts current-season win% to an equivalent Elo rating so team qualit
 inputs: win_pct: float
 outputs: float
 calls: math.log10
-called_by: run_baseball_analysis
+called_by: run_baseball_analysis (via _shrink_win_pct's output)
+mutates: none
+---
+
+---
+name: _shrink_win_pct
+type: function
+file: analyze_baseball.py
+purpose: Regresses raw win% toward league-average .500 by games_played (same shrinkage convention as models/rugby_model.py's _shrink/SHRINKAGE_K) before it's converted to an Elo rating. Added 2026-07-19 — the Elo leg carries 40% weight in the final blend but was only gated on games_played >= 10, thin enough that an early hot/cold streak could swing 40% of the final probability on small-sample noise. ELO_WINPCT_SHRINKAGE_K = 20.0 (games needed for win% to reach half-weight vs .500).
+inputs: win_pct: float, games_played: float
+outputs: float (shrunk win% in [0, 1])
+calls: none
+called_by: run_baseball_analysis (elo_blend step, before _elo_from_winpct)
 mutates: none
 ---
 
@@ -7686,7 +7698,7 @@ mutates: none
 name: fetch_team_fatigue
 type: function
 file: fetchers/schedule.py
-purpose: Compute bullpen fatigue and rest-day context from ESPN schedule. Counts games played in last 3 days by calling _get_scoreboard for each of the 3 prior dates and checking if the team appears. Returns games_last_3, rest_days, bullpen_fatigue_mult (0.97–1.08 applied to bullpen_fip), off_rest_mult (0.99–1.01 applied to wrc_plus in expected_runs_split). Falls back to neutral multipliers (1.0) on any ESPN failure.
+purpose: Compute bullpen fatigue and rest-day context from ESPN schedule. Counts games played in last 3 days by calling _get_scoreboard for each of the 3 prior dates and checking if the team appears. Returns games_last_3, rest_days, bullpen_fatigue_mult (0.96–1.02 applied to bullpen_fip, rescaled 2026-07-19 — the old 0.97–1.08 table scored MLB's normal near-daily cadence, games_last_3==3, as max fatigue since teams get an off day only ~weekly; this boolean-per-day count also can't see doubleheaders/extra-inning games, the real overwork signal, so it now only meaningfully differentiates "extra rest" as fresher rather than overclaiming "normal cadence" as tired), off_rest_mult (0.99–1.01 applied to wrc_plus in expected_runs_split). Falls back to neutral multipliers (1.0) on any ESPN failure.
 inputs: team_id: str, game_date: str (ISO)
 outputs: dict {games_last_3, rest_days, bullpen_fatigue_mult, off_rest_mult, source}
 calls: _get_scoreboard (fetchers/baseball.py)
