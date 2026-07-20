@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta — Portfolio Watch</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b1120; --surface: #131d30; --border: #1e2d47;
+    --blue: #38bdf8; --green: #22c55e; --purple: #a78bfa; --amber: #f59e0b; --red: #ef4444;
+    --text: #e2e8f0; --muted: #64748b;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; padding-bottom: 60px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 1.2rem; font-weight: 700; color: var(--green); }
+  header nav a { color: var(--muted); text-decoration: none; margin-left: 16px; font-size: .85rem; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+  .breadcrumb { display:flex; align-items:center; gap:8px; font-size:.78rem; color:var(--muted); margin-bottom:20px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .paper-banner { background: rgba(245,158,11,.1); border: 1px solid var(--amber); color: var(--amber); border-radius: 10px; padding: 10px 16px; font-size: .82rem; margin-bottom: 24px; line-height: 1.5; }
+  h1 { font-size: 1.7rem; margin-bottom: 8px; }
+  .sub { color: var(--muted); margin-bottom: 28px; font-size: .92rem; line-height: 1.5; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .prompt-label { font-size: .8rem; color: var(--muted); margin-bottom: 10px; line-height: 1.4; }
+  .query-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  #pw-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 11px 14px; font-size: .9rem; }
+  #pw-input:focus { outline: none; border-color: var(--green); }
+  .btn { display: inline-block; background: var(--green); color: #0b1120; font-weight: 700; padding: 9px 16px; border-radius: 8px; text-decoration: none; font-size: .85rem; border: none; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  #pw-count { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
+  #pw-results { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .result-card { border-radius: 12px; padding: 16px; border: 2px solid var(--border); background: var(--bg); }
+  .result-sym { font-weight: 700; font-size: 1rem; }
+  .result-price { font-size: .82rem; color: var(--muted); margin-left: 8px; }
+  .result-label { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; margin-top: 8px; margin-bottom: 8px; }
+  .result-reasoning { font-size: .87rem; line-height: 1.55; color: var(--text); }
+  .pw-loading { color: var(--muted); font-style: italic; }
+  .pw-error { color: var(--red); font-size: .85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Predicta</div>
+  <nav>
+    <a href="/trading/high-value">High Value</a>
+    <a href="/trading/low-value">Low Value</a>
+    <a href="/trading/portfolio-watch" style="color:var(--green); font-weight:700;">Portfolio Watch</a>
+  </nav>
+</header>
+<main>
+  <div class="breadcrumb">
+    <a href="/">Home</a><span>›</span>
+    <a href="/trading">📈 Stock Market</a><span>›</span>
+    <span style="color:var(--text);">Portfolio Watch</span>
+  </div>
+
+  <div class="paper-banner">
+    ⚠ This is NOT a trading engine — no score, no position, no numeric sell recommendation.
+    It reads real recent news for stocks you already own or watch and gives a plain-English
+    read on whether what's happening looks temporary or worth a closer look. For your own
+    research only — not financial advice.
+  </div>
+
+  <h1>Portfolio Watch</h1>
+  <p class="sub">Type up to 10 stock ticker symbols (individual stocks only — not ETFs/funds), separated by commas or spaces. Each one gets its own real-news check and a Hold / Watch Closely / Trim Candidate read, with the actual reasoning spelled out.</p>
+
+  <div class="card">
+    <div class="card-title">Analyze</div>
+    <div class="prompt-label">e.g. AAPL, TSLA, QCOM, INTC</div>
+    <div class="query-row">
+      <input type="text" id="pw-input" placeholder="Enter up to 10 tickers, comma or space separated" />
+      <button class="btn" id="pw-analyze-btn" onclick="pwAnalyze()">Analyze</button>
+    </div>
+    <div id="pw-count"></div>
+    <div id="pw-results"></div>
+  </div>
+</main>
+<script>
+const LABEL_STYLE = {
+  "HOLD":          { color: "var(--green)", bg: "rgba(34,197,94,.12)",  text: "Hold" },
+  "WATCH_CLOSELY": { color: "var(--amber)", bg: "rgba(245,158,11,.12)", text: "Watch Closely" },
+  "TRIM_CANDIDATE":{ color: "var(--red)",   bg: "rgba(239,68,68,.12)",  text: "Trim Candidate" },
+};
+
+function pwParseSymbols(raw) {
+  return raw.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+}
+
+document.getElementById("pw-input").addEventListener("input", (e) => {
+  const syms = pwParseSymbols(e.target.value);
+  const countEl = document.getElementById("pw-count");
+  if (syms.length === 0) {
+    countEl.textContent = "";
+  } else if (syms.length > 10) {
+    countEl.textContent = `${syms.length} symbols entered — only the first 10 will be analyzed.`;
+    countEl.style.color = "var(--amber)";
+  } else {
+    countEl.textContent = `${syms.length} of 10 symbols`;
+    countEl.style.color = "var(--muted)";
+  }
+});
+
+document.getElementById("pw-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") pwAnalyze();
+});
+
+async function pwAnalyze() {
+  const input = document.getElementById("pw-input");
+  const btn = document.getElementById("pw-analyze-btn");
+  const resultsEl = document.getElementById("pw-results");
+  const symbols = pwParseSymbols(input.value);
+
+  if (symbols.length === 0) {
+    resultsEl.innerHTML = '<div class="pw-error">Enter at least one ticker symbol.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  resultsEl.innerHTML = '<div class="pw-loading">Reading recent news for each symbol — this can take a little while for several tickers…</div>';
+
+  try {
+    const res = await fetch("/trade/portfolio-watch/analyze", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({symbols}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultsEl.innerHTML = `<div class="pw-error">Error: ${data.detail || res.statusText}</div>`;
+      return;
+    }
+
+    let html = "";
+    if (data.truncated) {
+      html += `<div class="pw-error" style="color:var(--amber);">Only the first ${data.reviewed} of ${data.requested} symbols were analyzed (10 max per request).</div>`;
+    }
+    data.results.forEach(r => {
+      if (!r.found) {
+        html += `<div class="result-card"><div class="result-sym">${r.symbol}</div><div class="result-reasoning" style="color:var(--muted); margin-top:8px;">${r.reasoning}</div></div>`;
+        return;
+      }
+      const style = LABEL_STYLE[r.label] || LABEL_STYLE["HOLD"];
+      const changeColor = r.change_pct >= 0 ? "var(--green)" : "var(--red)";
+      const changeSign = r.change_pct >= 0 ? "+" : "";
+      html += `
+        <div class="result-card" style="border-color:${style.color};">
+          <span class="result-sym">${r.symbol}</span>
+          <span class="result-price">${r.company_name} · $${r.price.toFixed(2)} · <span style="color:${changeColor}">${changeSign}${r.change_pct.toFixed(2)}%</span></span>
+          <div><span class="result-label" style="color:${style.color}; background:${style.bg};">${style.text}</span></div>
+          <div class="result-reasoning">${r.reasoning}</div>
+        </div>`;
+    });
+    resultsEl.innerHTML = html;
+  } catch (e) {
+    resultsEl.innerHTML = `<div class="pw-error">Request failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

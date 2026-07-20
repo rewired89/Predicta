@@ -1039,6 +1039,16 @@ def trading_low_value():
     return HTMLResponse(content=(TEMPLATES_DIR / "trading_low_value.html").read_text(encoding="utf-8"))
 
 
+@app.get("/trading/portfolio-watch", response_class=HTMLResponse)
+def trading_portfolio_watch():
+    """
+    Portfolio Watch (added 2026-07-19) — NOT a third systematic trading engine
+    like High Value/Low Value. On-demand, news-based qualitative review for
+    stocks the user already owns/watches. See models/trading/portfolio_watch.py.
+    """
+    return HTMLResponse(content=(TEMPLATES_DIR / "portfolio_watch.html").read_text(encoding="utf-8"))
+
+
 # ── Analyze (natural language → full pipeline) ────────────────────────────────
 
 class AnalyzeRequest(BaseModel):
@@ -3136,6 +3146,24 @@ def low_value_query(body: LowValueQueryRequest):
     days = 1 if "yesterday" in q else 7
     from fetchers.low_value_dashboard import get_low_value_brief
     return get_low_value_brief(days=days)
+
+
+class PortfolioWatchRequest(BaseModel):
+    symbols: list[str]
+
+
+@app.post("/trade/portfolio-watch/analyze")
+def portfolio_watch_analyze(body: PortfolioWatchRequest):
+    """
+    Portfolio Watch (added 2026-07-19) — up to 10 symbols, real 7-day news per
+    symbol (Finnhub) synthesized into a qualitative HOLD/WATCH_CLOSELY/
+    TRIM_CANDIDATE read with plain-English reasoning. Never returns a numeric
+    sell percentage — see models/trading/portfolio_watch.py's module docstring.
+    """
+    if not body.symbols:
+        raise HTTPException(400, "Provide at least one symbol")
+    from models.trading.portfolio_watch import review_watchlist
+    return review_watchlist(body.symbols)
 
 
 @app.get("/trade/paper-data")

@@ -30,6 +30,7 @@
   .card-tag { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; }
   .tag-hv { background: rgba(56,189,248,.15); color: var(--blue); }
   .tag-lv { background: rgba(167,139,250,.15); color: var(--purple); }
+  .tag-pw { background: rgba(34,197,94,.15); color: var(--green); }
 </style>
 </head>
 <body>
@@ -42,7 +43,7 @@
     <a href="/">Home</a><span>›</span><span style="color:var(--text);">📈 Stock Market</span>
   </div>
   <h1>Stock Market</h1>
-  <p class="sub">Two independent engines, sharing infrastructure but zero signal logic. Pick one.</p>
+  <p class="sub">Two independent trading engines plus a portfolio companion. Pick one.</p>
   <div class="grid">
     <a class="card" href="/trading/high-value">
       <div class="card-icon">📈</div>
@@ -55,6 +56,12 @@
       <span class="card-tag tag-lv">Low Value</span>
       <div class="card-title" style="margin-top:10px;">Low Value Trades</div>
       <div class="card-desc">Contrarian scanner for sub-$20 stocks. Daily universe scan, news + insider-buying overlay, fixed $25 positions, 1-5 day holds. Built for daily personal use.</div>
+    </a>
+    <a class="card" href="/trading/portfolio-watch">
+      <div class="card-icon">👀</div>
+      <span class="card-tag tag-pw">Portfolio Watch</span>
+      <div class="card-title" style="margin-top:10px;">Portfolio Watch</div>
+      <div class="card-desc">Not a trading engine — a news-based check-in for stocks you already own. Type up to 10 tickers, get a plain-English Hold / Watch Closely / Trim Candidate read with real reasoning. No score, no percentage.</div>
     </a>
   </div>
 </main>

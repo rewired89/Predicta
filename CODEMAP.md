@@ -12492,3 +12492,107 @@ calls: fetchers.high_value_runner.get_active_watchlist (new)
 called_by: GET /trade/dashboard
 mutates: none
 ---
+
+## Portfolio Watch (added 2026-07-19, direct user request)
+
+User owns real E*Trade positions (uploaded 5 watch-list screenshots) and wanted a way to get hold/sell reasoning tied to real news for stocks already owned or watched — distinct from both trading engines, which only ever recommend NEW entries, never review an existing holding. Scoped down via AskUserQuestion to three explicit choices: qualitative-only recommendation (no numeric "sell X%" — a number here would be fabricated precision with no backtested signal behind it, the same guessing this whole audit has been trying to eliminate elsewhere), individual stocks only (not ETFs), and manual ticker entry first (image/screenshot upload explicitly deferred as a later, separately-scoped feature, not built here). Deliberately NOT a third systematic trading engine — no score, no position sizing, no backtest, just a real-news read.
+
+---
+name: ai_agent_portfolio.py (module)
+type: file
+file: ai_agent_portfolio.py
+purpose: added 2026-07-19 — AI synthesis layer for Portfolio Watch, parallel to ai_agent_trading.py's pattern (same get_client()/haiku model/markdown-fence-stripped-JSON convention) but with no systematic score to explain, since none exists here.
+---
+
+---
+name: generate_portfolio_review
+type: function
+file: ai_agent_portfolio.py
+purpose: added 2026-07-19 — takes symbol/company_name/price_data/news, prompts Claude Haiku with REVIEW_SYSTEM (a strict qualitative-only system prompt that explicitly forbids any percentage/dollar figure and requires citing the specific news given) to classify TEMPORARY vs STRUCTURAL and return a label. Falls back to a safe {"label": "HOLD", "reasoning": "Could not generate a review..."} on any exception (bad JSON, API error, timeout) — never raises, never fabricates a label from nothing. Verified with a mocked broken Anthropic client: confirmed the HOLD fallback fires and the caller (review_symbol) still returns found=True with the fallback reasoning rather than crashing.
+inputs: symbol: str, company_name: str, price_data: dict (from fetchers.alpaca.get_snapshot), news: list[dict] (pre-formatted)
+outputs: dict {"label": "HOLD"|"WATCH_CLOSELY"|"TRIM_CANDIDATE", "reasoning": str}
+calls: ai_client.get_client, anthropic Messages API
+called_by: models.trading.portfolio_watch.review_symbol
+mutates: none
+---
+
+---
+name: models/trading/portfolio_watch.py (module)
+type: file
+file: models/trading/portfolio_watch.py
+purpose: added 2026-07-19 — orchestrates one review: live Alpaca snapshot -> Finnhub company profile + 7-day news -> AI synthesis. MAX_SYMBOLS = 10 caps a single request; explicitly NOT a third trading engine (no engine column in the DB, nothing written to intraday_trades — this is read-only/on-demand, nothing persisted).
+---
+
+---
+name: _format_news
+type: function
+file: models/trading/portfolio_watch.py
+purpose: added 2026-07-19 — converts Finnhub's raw company-news records (unix `datetime` field) into {"headline", "summary", "source", "datetime_str"} (YYYY-MM-DD), the shape generate_portfolio_review expects. Falls back to "recent" on any timestamp conversion error rather than raising.
+inputs: raw_news: list[dict] (Finnhub's get_company_news output)
+outputs: list[dict]
+calls: none
+called_by: review_symbol
+mutates: none
+---
+
+---
+name: review_symbol
+type: function
+file: models/trading/portfolio_watch.py
+purpose: added 2026-07-19 — full pipeline for one ticker: live get_snapshot (returns a "not found" dict immediately if the symbol doesn't resolve, no AI call wasted), get_company_profile for display name, get_company_news(days=7) formatted via _format_news, then generate_portfolio_review. Verified end-to-end with mocked fetchers + a mocked Anthropic client: real found/not-found paths, and the AI-failure fallback path (review still returns found=True with a safe HOLD instead of raising) all confirmed via direct test calls and via a FastAPI TestClient hitting the live route.
+inputs: symbol: str
+outputs: dict {symbol, company_name, found, price, change_pct, news_count, label, reasoning} (not-found case omits company_name/price/change_pct/news_count, only symbol/found=False/label=None/reasoning)
+calls: fetchers.alpaca.get_snapshot, fetchers.finnhub.get_company_news, fetchers.finnhub.get_company_profile, ai_agent_portfolio.generate_portfolio_review
+called_by: review_watchlist
+mutates: none
+---
+
+---
+name: review_watchlist
+type: function
+file: models/trading/portfolio_watch.py
+purpose: added 2026-07-19 — de-dupes symbols (preserving order, case-insensitive), caps at MAX_SYMBOLS=10, sets truncated=True (rather than silently dropping) when more were requested. Verified: 11 raw inputs with one case-variant duplicate (aapl/AAPL) correctly dedupe to 10 reviewed/not-truncated; 15 unique inputs correctly report requested=15/reviewed=10/truncated=True.
+inputs: symbols: list[str]
+outputs: dict {requested: int, reviewed: int, truncated: bool, results: list[dict]}
+calls: review_symbol (per symbol)
+called_by: app.py's POST /trade/portfolio-watch/analyze
+mutates: none
+---
+
+---
+name: trading_portfolio_watch (page route)
+type: function
+file: app.py
+purpose: added 2026-07-19 — serves templates/portfolio_watch.html. Verified 200 via FastAPI TestClient.
+inputs: none
+outputs: HTMLResponse
+calls: none
+called_by: GET /trading/portfolio-watch
+mutates: none
+---
+
+---
+name: portfolio_watch_analyze (+ PortfolioWatchRequest)
+type: function
+file: app.py
+purpose: added 2026-07-19 — POST endpoint accepting {"symbols": [...]}, 400s on an empty list, otherwise delegates to review_watchlist. Verified via FastAPI TestClient with mocked fetchers/AI client: 200 with correct reviewed count for a real request, 400 for an empty symbols list.
+inputs: PortfolioWatchRequest {symbols: list[str]}
+outputs: JSON (review_watchlist's return dict)
+calls: models.trading.portfolio_watch.review_watchlist
+called_by: front-end templates/portfolio_watch.html (pwAnalyze())
+mutates: none
+---
+
+---
+name: templates/portfolio_watch.html
+type: file
+file: templates/portfolio_watch.html
+purpose: added 2026-07-19 — ticker-entry UI (comma/space-separated, live count feedback capped at 10) + Analyze button. JS (pwAnalyze) POSTs to /trade/portfolio-watch/analyze and renders one result card per symbol, color-coded by label (HOLD=green, WATCH_CLOSELY=amber, TRIM_CANDIDATE=red) via a LABEL_STYLE map; not-found symbols render a plain muted message instead of a colored card. Banner explicitly states this is not a trading engine and gives no numeric sell recommendation.
+---
+
+---
+name: templates/trading_hub.html (extended, Portfolio Watch card)
+type: function
+file: templates/trading_hub.html
+purpose: extended 2026-07-19 — added a third nav card (tag-pw style, green) alongside High Value and Low Value, linking to /trading/portfolio-watch; subtitle updated to "Two independent trading engines plus a portfolio companion. Pick one."
+---
