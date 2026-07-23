@@ -12608,3 +12608,65 @@ type: function
 file: templates/trading_hub.html
 purpose: extended 2026-07-19 — added a third nav card (tag-pw style, green) alongside High Value and Low Value, linking to /trading/portfolio-watch; subtitle updated to "Two independent trading engines plus a portfolio companion. Pick one."
 ---
+
+---
+name: hash_payload / attest_transaction / _get_identity
+type: function
+file: fetchers/hsip_client.py
+purpose: added 2026-07-23 — HSIP (github.com/rewired89/HSIP-1PHASE) decision-attestation connector. Records real, already-executed Predicta transactions (a Buy/Sell order actually placed) to a self-hosted HSIP instance as a tamper-proof, independently verifiable attestation — HSIP never receives the real trade content, only a SHA-256 hash of it (hash_payload, canonical sort-keys JSON) plus non-sensitive metadata. attest_transaction() is a deliberate no-op (returns None, zero network calls) unless both HSIP_API_KEY and HSIP_API_URL env vars are set, matching every other optional integration's fail-safe convention (fetchers/fred.py, fetchers/finnhub.py). Wrapped in try/except with a 5s timeout — never raises, so an HSIP outage can never block or break a real trade. _get_identity resolves and caches Predicta's own HSIP identity (Ed25519 verify_key) once per process via POST /v1/identity (auto-creates on first call). Attest ACTIONS not predictions — call only after an order is actually placed, never at signal time.
+inputs: attest_transaction(decision_type: str, strategy_id: str, payload: dict, model_version: str = "predicta-v1")
+outputs: dict | None (HSIP's decision receipt, or None if disabled/failed)
+calls: requests (HTTP to HSIP_API_URL)
+called_by: run_open_scan / check_real_position_exits (fetchers/high_value_runner.py), smart_trade (app.py)
+mutates: none (Predicta-side); writes a tamper-proof decision record on the remote HSIP instance
+---
+
+---
+name: get_order / close_position
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-07-23 — get_order fetches one order by id including bracket child-leg fill status (legs[].status/filled_avg_price/filled_at), the ground truth for whether a real paper position's stop or target actually filled, vs re-deriving it from local bar data. close_position liquidates an open paper position at market and cancels its open orders via Alpaca's DELETE /v2/positions/:symbol — the safe way to force-flatten a real bracket-order position (EOD, time-stop) without manually reasoning about which leg to cancel first. Both paper-mode only (close_position calls _assert_paper_mode).
+inputs: get_order(order_id: str); close_position(symbol: str)
+outputs: dict (raw Alpaca order / liquidation-order response)
+calls: _get / _delete
+called_by: check_real_position_exits (fetchers/high_value_runner.py)
+mutates: places/cancels real (paper) orders at Alpaca
+---
+
+---
+name: log_low_value_trade (extended, HSIP live-trading support)
+type: function
+file: fetchers/trading_logger.py
+purpose: extended 2026-07-23 — added optional alpaca_order_id/is_hypothetical params (default is_hypothetical=1, alpaca_order_id=None — every existing call site's behavior is completely unchanged). Lets a real Alpaca paper order be logged as is_hypothetical=0 with its real order id once Low Value's own live-order wiring lands (not yet built — see fetchers/hsip_client.py's docstring; deferred because Low Value's fixed $25/trade sizing produces fractional share counts, which Alpaca's bracket order type doesn't support, unlike High Value's whole-share ATR sizing).
+---
+
+---
+name: run_open_scan (extended, real paper orders + HSIP attestation)
+type: function
+file: fetchers/high_value_runner.py
+purpose: extended 2026-07-23 — gated by new HIGH_VALUE_LIVE_PAPER_TRADING env var (default off, zero behavior change unless explicitly set). When on, a qualifying signal now places a real Alpaca paper bracket order (place_bracket_order, same call shape /trade/smart-order already used manually) instead of only logging a hypothetical row; on success, logs via log_trade_entry (is_hypothetical=0 by schema default) and attests the transaction to HSIP (fetchers.hsip_client.attest_transaction, decision_type = the real "buy"/"sell" order side). A rejected/failed real order falls back to the pre-existing log_hypothetical_trade path unchanged, so a broker hiccup never loses the record. get_runner_status extended with live_paper_trading, hsip_attestation_enabled, open_real_positions.
+inputs: unchanged (symbols, min_score)
+outputs: unchanged (list[int] trade_ids)
+calls: (new) fetchers.alpaca.place_bracket_order, fetchers.trading_logger.log_trade_entry, fetchers.hsip_client.attest_transaction
+called_by: _runner_loop, paper_runner_scan_now (app.py)
+mutates: (new, when live) places a real paper order at Alpaca; intraday_trades INSERT with is_hypothetical=0 and a real alpaca_order_id
+---
+
+---
+name: _load_open_real_positions / check_real_position_exits
+type: function
+file: fetchers/high_value_runner.py
+purpose: added 2026-07-23 — the exit-side counterpart to run_open_scan's real-order entry path. _load_open_real_positions loads open is_hypothetical=0 rows with a real alpaca_order_id (deliberately separate from _load_open_positions — a real position must never be run through _check_exit's local bar-touch heuristic, since a real bracket order's stop/target fills at Alpaca itself). check_real_position_exits reconciles: on a normal tick, asks Alpaca (get_order) whether the bracket's stop or target leg actually filled and records the real fill price/time; on force_close=True or once a position is past its planned hold bars, actually liquidates it (fetchers.alpaca.close_position) rather than just estimating, then records the current snapshot price (same approximation convention the pre-existing hypothetical FORCE_CLOSE_EOD path already uses). Every real close is also attested to HSIP as its own transaction (a "sell"/"buy" closing action, not just the opening one).
+inputs: check_real_position_exits(force_close: bool = False)
+outputs: dict {checked: int, closed: int}
+calls: fetchers.alpaca.get_order/close_position/get_snapshots, log_trade_exit, fetchers.hsip_client.attest_transaction
+called_by: _runner_loop (mid-day 30-min check and EOD force-close, only when HIGH_VALUE_LIVE_PAPER_TRADING is on)
+mutates: closes real Alpaca positions; intraday_trades UPDATE (exit fields) via log_trade_exit
+---
+
+---
+name: smart_trade (extended, HSIP attestation)
+type: function
+file: app.py
+purpose: extended 2026-07-23 — POST /trade/smart-order already placed real Alpaca paper bracket orders manually; now also attests each successfully-placed order to HSIP via fetchers.hsip_client.attest_transaction (strategy_id="high_value_intraday_manual", distinguishing it from the automated runner's "high_value_intraday" attestations). No-op if HSIP isn't configured — the endpoint's existing behavior/response shape is unchanged either way.
+---

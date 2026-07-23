@@ -1673,6 +1673,23 @@ def smart_trade(body: SmartOrderRequest):
         signal_scores   = signals,
     )
 
+    from fetchers import hsip_client
+    hsip_client.attest_transaction(
+        decision_type = alpaca_side,
+        strategy_id   = "high_value_intraday_manual",
+        model_version = "v4",
+        payload = {
+            "predicta_trade_id": trade_id,
+            "alpaca_order_id":   alpaca_order_id,
+            "symbol":            body.symbol,
+            "side":              alpaca_side,
+            "qty":               qty,
+            "entry_price":       entry_price,
+            "stop_price":        stop_loss,
+            "target_price":      take_profit,
+        },
+    )
+
     return {
         "status":             "SUBMITTED",
         "predicta_trade_id":  trade_id,

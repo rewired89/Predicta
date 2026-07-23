@@ -364,11 +364,19 @@ def log_low_value_trade(
     news_result: Optional[dict] = None,
     hold_days: int = 5,
     model_version: str = "v1",
+    alpaca_order_id: Optional[str] = None,
+    is_hypothetical: int = 1,
 ) -> int:
     """
-    Log a Low Value (sub-$20 contrarian) hypothetical trade — is_hypothetical=1,
-    engine='low_value', same intraday_trades table as High Value but a
-    completely separate signal pipeline (Kimi review, round 6 follow-up).
+    Log a Low Value (sub-$20 contrarian) trade — engine='low_value', same
+    intraday_trades table as High Value but a completely separate signal
+    pipeline (Kimi review, round 6 follow-up).
+
+    is_hypothetical defaults to 1 (no order placed), preserving every
+    existing call site's behavior unchanged. Pass alpaca_order_id +
+    is_hypothetical=0 when a real paper order was actually placed via
+    fetchers.alpaca.place_order — see fetchers/low_value_runner.py's
+    LOW_VALUE_LIVE_PAPER_TRADING gate.
 
     Position sizing is fixed $25/trade (models.trading.shared.kelly.
     low_value_position_size), not the ATR/Kelly sizing High Value uses.
@@ -406,6 +414,7 @@ def log_low_value_trade(
                 stop_price, target1_price, target_price,
                 qty, position_value,
                 entry_score, model_version, is_hypothetical, notes,
+                alpaca_order_id,
                 engine, lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
                 lv_missing_signals, lv_short_interest_asof, lv_signals_json,
                 logged_at
@@ -415,6 +424,7 @@ def log_low_value_trade(
                 ?, ?, ?,
                 ?, ?,
                 ?, ?, ?, ?,
+                ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?,
                 datetime('now')
@@ -425,8 +435,10 @@ def log_low_value_trade(
                 entry_price, entry_price,
                 round(entry_price * 0.5, 4), round(entry_price * 1.5, 4), round(entry_price * 1.5, 4),
                 sizing.get("shares"), sizing.get("position_size"),
-                score_value, model_version, 1,
-                "HYPOTHETICAL: Low Value engine, no order placed",
+                score_value, model_version, is_hypothetical,
+                "HYPOTHETICAL: Low Value engine, no order placed" if is_hypothetical
+                else f"Live paper order placed via Alpaca (order_id={alpaca_order_id})",
+                alpaca_order_id,
                 "low_value", thesis_type,
                 json.dumps(nr.get("flags", [])), nr.get("sentiment"), nr.get("headline_count"),
                 json.dumps(missing_signals), short_interest_asof, json.dumps(thesis_result.get("signals", {})),

@@ -343,6 +343,31 @@ def cancel_order(order_id: str) -> dict:
     return _delete(url)
 
 
+def get_order(order_id: str) -> dict:
+    """
+    Fetch one order by id, including its current status and (for a bracket
+    order) the current fill status of each child leg (legs[].status /
+    legs[].filled_avg_price / legs[].filled_at) — the ground truth for
+    whether a real paper position's stop or target actually filled, rather
+    than re-deriving it from local bar data.
+    """
+    url = f"{PAPER_BASE_URL}/v2/orders/{order_id}"
+    return _get(url)
+
+
+def close_position(symbol: str) -> dict:
+    """
+    Liquidate an open paper position at market and cancel any open orders
+    tied to it (Alpaca's own DELETE /v2/positions/:symbol — the safe way to
+    force-flatten a real bracket-order position, e.g. at end of day or a
+    time-stop, without manually reasoning about which bracket leg to cancel
+    first).
+    """
+    _assert_paper_mode()
+    url = f"{PAPER_BASE_URL}/v2/positions/{symbol}"
+    return _delete(url)
+
+
 def get_positions() -> list[dict]:
     """Get all open paper trading positions."""
     url = f"{PAPER_BASE_URL}/v2/positions"
