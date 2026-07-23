@@ -35,8 +35,20 @@ import requests
 
 log = logging.getLogger(__name__)
 
+def _normalize_url(url: str) -> str:
+    """Tolerate a bare host (e.g. 'hsip-1phase-production.up.railway.app', a
+    common copy-paste mistake — Railway's own dashboard shows the domain
+    without a scheme) by defaulting to https:// when neither http:// nor
+    https:// is already present, instead of failing every request with
+    requests' opaque 'No scheme supplied' error."""
+    url = url.strip().rstrip("/")
+    if url and not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url
+
+
 HSIP_API_KEY = os.environ.get("HSIP_API_KEY", "")
-HSIP_API_URL = os.environ.get("HSIP_API_URL", "").rstrip("/")
+HSIP_API_URL = _normalize_url(os.environ.get("HSIP_API_URL", ""))
 HSIP_ENABLED = bool(HSIP_API_KEY and HSIP_API_URL)
 _TIMEOUT_SECS = 5
 
