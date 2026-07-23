@@ -346,8 +346,6 @@ async function loadData() {
     const resp = await fetch('/prediction-audit?limit=200');
     const json = await resp.json();
     allData = json.predictions || [];
-    renderSummary(json);
-    renderLegend(json.category_counts || {});
     applyFilters();
   } catch (e) {
     document.getElementById('emptyState').textContent = 'Failed to load: ' + e.message;
@@ -356,15 +354,14 @@ async function loadData() {
   }
 }
 
-function renderSummary(json) {
-  const total = json.total || 0;
-  const correct = json.correct || 0;
-  const cats = json.category_counts || {};
+function renderSummary(rows, cats) {
+  const total = rows.length;
+  const correct = rows.filter(r => r.was_correct).length;
   document.getElementById('summaryRow').style.display = '';
   document.getElementById('sumTotal').textContent    = total;
   document.getElementById('sumCorrect').textContent  = correct;
   document.getElementById('sumWrong').textContent    = total - correct;
-  document.getElementById('sumAccuracy').textContent = (json.accuracy_pct || 0) + '%';
+  document.getElementById('sumAccuracy').textContent = (total ? (correct / total * 100).toFixed(1) : 0) + '%';
   document.getElementById('sumHighConfMiss').textContent = cats['HIGH_CONFIDENCE_MISS'] || 0;
   document.getElementById('sumCloseGame').textContent    = (cats['CLOSE_GAME'] || 0) + (cats['COIN_FLIP'] ? ' +' + cats['COIN_FLIP'] + ' CF' : '');
 }
@@ -394,13 +391,24 @@ function applyFilters() {
   const cat   = document.getElementById('catFilter').value;
   const res   = document.getElementById('resultFilter').value;
 
-  let filtered = allData.filter(r => {
+  // Sport + outcome filtered (but not category) — this is the pool the legend
+  // chips count against, so clicking a different chip still works correctly.
+  const bySportAndResult = allData.filter(r => {
     if (sport && r.sport !== sport) return false;
-    if (cat && r.failure_category !== cat) return false;
     if (res === 'correct' && !r.was_correct) return false;
     if (res === 'wrong' && r.was_correct) return false;
     return true;
   });
+
+  const catCounts = {};
+  bySportAndResult.forEach(r => { catCounts[r.failure_category] = (catCounts[r.failure_category] || 0) + 1; });
+  renderLegend(catCounts);
+
+  let filtered = cat ? bySportAndResult.filter(r => r.failure_category === cat) : bySportAndResult;
+
+  const filteredCatCounts = {};
+  filtered.forEach(r => { filteredCatCounts[r.failure_category] = (filteredCatCounts[r.failure_category] || 0) + 1; });
+  renderSummary(filtered, filteredCatCounts);
 
   filtered = sortRows(filtered);
   renderTable(filtered);
@@ -606,7 +614,7 @@ function copyForAI(mode) {
     '2. Bullpen FIP derivation: formula (team_ERA×9 − starter_FIP×5) / 4 assumes 5 IP. Is this reasonable? How does opener strategy affect this?',
     '3. wRC+ approximation: wRC+ ≈ (OPS / 0.730) × 100. How large is the error vs true wRC+?',
     '4. Tennis logistic scale: scale=40. Is this well-calibrated?',
-    '5. Elo blend: 70% Poisson + 30% Elo. Is this optimal?',
+    '5. Elo blend: 60% Poisson + 40% Elo (Elo itself just a shrunk-win%-derived rating, no persistent cross-season history). Is this optimal?',
     '6. Kelly fraction: Quarter-Kelly (0.25). Is this appropriate for a new model?',
     '',
     mode === 'summary' ? '(predictions omitted — summary mode)' : `=== ${mode === 'failed' ? 'FAILED' : 'ALL'} PREDICTIONS ===`,
