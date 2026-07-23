@@ -4944,6 +4944,18 @@ mutates: none
 ---
 
 ---
+name: finished_result
+type: function
+file: fetchers/tennis.py
+purpose: Added 2026-07-23. Look up a completed match's final result by player names + the date it was scheduled for. Mirrors fetchers/soccer_schedule.py / fetchers/rugby.py's finished_result() so tasks/tennis_auto.py's resolve step can follow the same pattern. Queries ESPN ATP/WTA scoreboard for a ±3 day window around on_or_after, matches competitors to player_a/player_b by substring either direction, and reads winnerId to determine the result. ESPN's tennis scoreboard doesn't expose a simple match-level score (sets are nested linescores, not a top-level int), so score_a/score_b are returned as a 1/0 win-loss proxy — enough to trigger record_outcome()'s tennis Glicko-2 update without fabricating a game/set count that was never actually parsed. Unverified from this sandbox (same proxy-block limitation as every other ESPN endpoint in this repo) — treat the next live call as the real test.
+inputs: player_a: str, player_b: str, on_or_after: str, tour: str = "atp"
+outputs: dict {result, score_a, score_b, kickoff_utc, matched_a, matched_b, score_detail} or None
+calls: _espn_get
+called_by: resolve_finished (tasks/tennis_auto.py)
+mutates: none
+---
+
+---
 
 ## ai_agent_tennis.py
 
@@ -5130,7 +5142,7 @@ mutates: none
 name: run_tennis_analysis
 type: function
 file: analyze_tennis.py
-purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → persist to DB → Kelly sizing → AI narrative → plain_summary in user-preferred phrasing → Market Efficiency Model recommendation.
+purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → Market Efficiency Model recommendation → persist to DB → Kelly sizing → AI narrative → plain_summary in user-preferred phrasing. **Bug fixed 2026-07-23:** the Market Efficiency Model recommendation step used to run AFTER persist, but persist's signals_to_log already referenced the `recommendation` variable — an UnboundLocalError on every single call, silently caught by persist's own try/except. Net effect: the `matches` row was written but `predictions` and every signal (serve_quality_index, recommendation, data_confidence, everything) never were, for the entire history of this pipeline — no tennis prediction ever had a gradable DB row. Fixed by moving the recommendation computation before persist. Found while building tasks/tennis_auto.py's resolver, whose join against the predictions table would otherwise have returned zero rows forever.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, plain_summary, prob_a, prob_b, data_confidence, markov_sim, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
 calls: parse_tennis_query, fetch_tennis_context, _compute_point_probs, markov_tennis_match, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative, _build_plain_summary_tennis
@@ -11347,6 +11359,30 @@ mutates: none
 ---
 
 ---
+name: tennis_auto_resolve
+type: function
+file: app.py
+purpose: POST /tennis-auto/resolve — added 2026-07-23, same purpose as POST /rugby-auto/resolve. Manually triggers tasks.tennis_auto.resolve_finished(). No scheduler yet — call this manually after each round of matches, or wire a cron later.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.resolve_finished
+called_by: FastAPI (HTTP POST)
+mutates: outcomes table, matches table, glicko2_ratings table (via resolve_finished → record_outcome)
+---
+
+---
+name: tennis_performance
+type: function
+file: app.py
+purpose: GET /tennis-performance — added 2026-07-23, same "prove it before staking real money" purpose as GET /rugby-performance. Returns NOT ENOUGH DATA below 10 resolved predictions; otherwise a plain verdict (CALIBRATED / NO EDGE DETECTED) derived from tasks.tennis_auto.compute_metrics()'s pick hit rate and Brier score.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.compute_metrics
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
 name: rugby_diag
 type: function
 file: app.py
@@ -11991,6 +12027,34 @@ inputs: none
 outputs: dict {resolved, avg_brier, bet, lean, calibration, generated_utc}
 calls: db.database.get_db
 called_by: rugby_performance (app.py)
+mutates: none
+---
+
+---
+
+## tasks/tennis_auto.py
+
+---
+name: resolve_finished
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23. Finds tennis predictions with scheduled_at in the past and no outcome row, looks up the real result via fetchers.tennis.finished_result, and calls engine.record_outcome (which also updates Glicko-2, surface-scoped from the matches.venue column where analyze_tennis.py stores the surface). Mirrors tasks/rugby_auto.py's resolve_finished(), minus the background scheduler. Only works for predictions logged after the same-day run_tennis_analysis persist-order bug fix (see analyze_tennis.py's CODEMAP entry) — predictions from before that fix have no predictions/signals rows to grade, only a bare matches row.
+inputs: none
+outputs: dict {candidates, resolved, still_pending, errors, details}
+calls: fetchers.tennis.finished_result, engine.record_outcome
+called_by: tennis_auto_resolve (app.py)
+mutates: outcomes table, matches table (status), glicko2_ratings table (via record_outcome)
+---
+
+---
+name: compute_metrics
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23. Joins matches/predictions/outcomes/signals for sport='tennis' and computes: resolved n, avg Brier score (two-outcome, no draw), pick hit rate (any recommendation signal that isn't "PASS", graded against the real winner), a breakdown by data_confidence tier (high/medium/low — the shrinkage tier analyze_tennis.py already assigns per prediction), and calibration buckets (50-60%/60-70%/70-80%/80%+ model-prob-of-the-pick vs actual hit rate). Tennis has no BET/LEAN/PASS three-way verdict like soccer/rugby, just a single recommendation signal, so this is simpler than tasks/rugby_auto.py's compute_metrics — one pick bucket, not two.
+inputs: none
+outputs: dict {resolved, avg_brier, picks, by_data_confidence, calibration, generated_utc}
+calls: db.database.get_db
+called_by: tennis_performance (app.py)
 mutates: none
 ---
 

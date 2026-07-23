@@ -409,7 +409,48 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         + glicko_explanation
     )
 
-    # ── 7. Persist ───────────────────────────────────────────────────────────
+    # ── 7. Recommendation (Market Efficiency Model for low confidence) ───────
+    # Computed BEFORE persist — recommendation is logged as a signal below,
+    # so it must exist first (was previously computed after persist, which
+    # raised UnboundLocalError on every call and silently aborted persistence —
+    # see signals_to_log's "recommendation" entry just below).
+    open_odds_a = parsed.get("open_odds_a")
+    open_odds_b = parsed.get("open_odds_b")
+    curr_odds_a = parsed.get("odds_a")
+    curr_odds_b = parsed.get("odds_b")
+
+    if data_confidence == "low" and open_odds_a and open_odds_b and curr_odds_a and curr_odds_b:
+        def _to_implied(o: float) -> float:
+            return (1.0 / o) if o > 0 else 0.5
+
+        imp_open_a = _to_implied(open_odds_a)
+        imp_open_b = _to_implied(open_odds_b)
+        imp_curr_a = _to_implied(curr_odds_a)
+        imp_curr_b = _to_implied(curr_odds_b)
+        open_fair_a = imp_open_a / (imp_open_a + imp_open_b)
+        curr_fair_a = imp_curr_a / (imp_curr_a + imp_curr_b)
+        market_movement = curr_fair_a - open_fair_a
+        SHARP_THRESHOLD = 0.08
+        if market_movement >= SHARP_THRESHOLD:
+            recommendation = player_a
+            recommendation_reason = f"Sharp money signal: line moved +{market_movement*100:.1f}pp toward {player_a}"
+        elif market_movement <= -SHARP_THRESHOLD:
+            recommendation = player_b
+            recommendation_reason = f"Sharp money signal: line moved +{abs(market_movement)*100:.1f}pp toward {player_b}"
+        else:
+            recommendation = "PASS"
+            recommendation_reason = "Low data confidence and no significant line movement — no independent edge."
+    elif data_confidence == "low":
+        recommendation = "PASS"
+        recommendation_reason = "Insufficient data — provide opening odds to enable market efficiency model."
+    elif prob_a > prob_b:
+        recommendation = player_a
+        recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}% vs book)"
+    else:
+        recommendation = player_b
+        recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}% vs book)"
+
+    # ── 8. Persist ───────────────────────────────────────────────────────────
     match_id: Optional[int] = None
     try:
         with get_db() as conn:
@@ -467,10 +508,10 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
         steps.append({"step": "persist", "status": "error", "error": str(exc),
                       "trace": traceback.format_exc()})
 
-    # ── 8. Kelly stake ───────────────────────────────────────────────────────
+    # ── 9. Kelly stake ───────────────────────────────────────────────────────
     kelly = kelly_stake(prob_a, 1.909, bankroll)
 
-    # ── 9. Narrative ─────────────────────────────────────────────────────────
+    # ── 10. Narrative ────────────────────────────────────────────────────────
     narrative = ""
     try:
         from ai_agent_tennis import generate_tennis_narrative
@@ -486,43 +527,6 @@ def run_tennis_analysis(user_query: str, bankroll: float = 1000.0) -> dict:
             f"{player_b} {prob_b*100:.1f}%. Surface: {surface}."
         )
         steps.append({"step": "narrative", "status": "error", "error": str(exc)})
-
-    # ── 10. Recommendation (Market Efficiency Model for low confidence) ──────
-    open_odds_a = parsed.get("open_odds_a")
-    open_odds_b = parsed.get("open_odds_b")
-    curr_odds_a = parsed.get("odds_a")
-    curr_odds_b = parsed.get("odds_b")
-
-    if data_confidence == "low" and open_odds_a and open_odds_b and curr_odds_a and curr_odds_b:
-        def _to_implied(o: float) -> float:
-            return (1.0 / o) if o > 0 else 0.5
-
-        imp_open_a = _to_implied(open_odds_a)
-        imp_open_b = _to_implied(open_odds_b)
-        imp_curr_a = _to_implied(curr_odds_a)
-        imp_curr_b = _to_implied(curr_odds_b)
-        open_fair_a = imp_open_a / (imp_open_a + imp_open_b)
-        curr_fair_a = imp_curr_a / (imp_curr_a + imp_curr_b)
-        market_movement = curr_fair_a - open_fair_a
-        SHARP_THRESHOLD = 0.08
-        if market_movement >= SHARP_THRESHOLD:
-            recommendation = player_a
-            recommendation_reason = f"Sharp money signal: line moved +{market_movement*100:.1f}pp toward {player_a}"
-        elif market_movement <= -SHARP_THRESHOLD:
-            recommendation = player_b
-            recommendation_reason = f"Sharp money signal: line moved +{abs(market_movement)*100:.1f}pp toward {player_b}"
-        else:
-            recommendation = "PASS"
-            recommendation_reason = "Low data confidence and no significant line movement — no independent edge."
-    elif data_confidence == "low":
-        recommendation = "PASS"
-        recommendation_reason = "Insufficient data — provide opening odds to enable market efficiency model."
-    elif prob_a > prob_b:
-        recommendation = player_a
-        recommendation_reason = f"{player_a} model edge ({prob_a*100:.1f}% vs book)"
-    else:
-        recommendation = player_b
-        recommendation_reason = f"{player_b} model edge ({prob_b*100:.1f}% vs book)"
 
     plain_summary = _build_plain_summary_tennis(
         player_a, player_b, prob_a, prob_b, best_of, surface,

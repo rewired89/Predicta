@@ -1338,6 +1338,66 @@ def rugby_performance():
     }
 
 
+@app.post("/tennis-auto/resolve")
+def tennis_auto_resolve():
+    """
+    Manually trigger a resolve-finished pass for tennis predictions: finds
+    matches with scheduled_at in the past and no outcome row, looks up the
+    real result via ESPN, and records it (updates Glicko-2 too). Added
+    2026-07-23 so predictions can actually be graded against real results —
+    no scheduler yet, call this manually (or wire a cron later, same as
+    tasks/nrfi_auto.py does for baseball).
+    """
+    from tasks.tennis_auto import resolve_finished
+    return resolve_finished()
+
+
+@app.get("/tennis-performance")
+def tennis_performance():
+    """
+    Tennis model performance report — resolved predictions, Brier score,
+    pick hit rate, calibration buckets, and a breakdown by data_confidence
+    tier. Same "prove it before staking real money" purpose as
+    GET /rugby-performance. Call POST /tennis-auto/resolve first to grade
+    any pending predictions.
+    """
+    from tasks.tennis_auto import compute_metrics
+    metrics = compute_metrics()
+    n = metrics.get("resolved", 0)
+    if n < 10:
+        return {
+            "verdict": "NOT ENOUGH DATA",
+            "n_resolved": n,
+            "needed": 10,
+            "message": (
+                f"Only {n} resolved tennis predictions. Need at least 10 to compute "
+                "meaningful metrics. Keep running predictions and call "
+                "POST /tennis-auto/resolve after each round of matches."
+            ),
+            "next_step": "Run 20+ predictions, resolve them, then call this endpoint.",
+        }
+
+    picks = metrics.get("picks") or {}
+    brier = metrics.get("avg_brier") or 0.25
+    hit_rate = picks.get("hit_rate")
+
+    if hit_rate is not None and hit_rate > 0.55:
+        verdict = "CALIBRATED"
+        note = f"Pick hit rate {hit_rate*100:.1f}% across {picks.get('n', 0)} picks, Brier {brier:.3f}."
+    else:
+        verdict = "NO EDGE DETECTED"
+        hr_pct = hit_rate * 100 if hit_rate is not None else 0.0
+        note = f"Pick hit rate {hr_pct:.1f}%, Brier {brier:.3f}. Not outperforming yet."
+
+    return {
+        "verdict": verdict, "note": note, "n_resolved": n,
+        "avg_brier": brier, "picks": picks,
+        "by_data_confidence": metrics.get("by_data_confidence"),
+        "calibration": metrics.get("calibration"),
+        "full_metrics": metrics,
+    }
+
+
 class UFCRequest(BaseModel):
     query: str
     bankroll: float = 1000.0
