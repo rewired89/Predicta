@@ -14,7 +14,8 @@ def _pct(v) -> str:
 
 def _sport_rows(by_sport: dict) -> str:
     html = ""
-    sport_icons = {"tennis": "🎾", "table_tennis": "🏓", "soccer": "⚽", "baseball": "⚾"}
+    sport_icons = {"tennis": "🎾", "table_tennis": "🏓", "soccer": "⚽", "baseball": "⚾",
+                   "esports": "🎮", "rugby": "🏉", "ufc": "🥊"}
     for sport, s in sorted(by_sport.items()):
         icon = sport_icons.get(sport, "🎯")
         acc = _pct(s.get("accuracy"))

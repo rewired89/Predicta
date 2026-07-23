@@ -216,9 +216,11 @@
         <option value="">All Sports</option>
         <option value="baseball">Baseball</option>
         <option value="tennis">Tennis</option>
-        <option value="table_tennis">Table Tennis</option>
+        <option value="table_tennis">Table Tennis (hidden from nav)</option>
         <option value="soccer">Soccer</option>
         <option value="esports">E-Sports</option>
+        <option value="rugby">Rugby League (NRL)</option>
+        <option value="ufc">UFC</option>
       </select>
     </div>
     <div class="select-wrap">
@@ -502,6 +504,8 @@ function renderSignalsPreview(signals, sport, teamA, teamB, idx) {
     table_tennis: ['elo_diff', 'form_diff', 'glicko2_diff', 'data_confidence'],
     soccer:   ['elo_diff', 'form_diff', 'xg_per_shot', 'data_confidence'],
     esports:  ['elo_a', 'elo_b', 'form_a', 'form_b', 'data_confidence'],
+    rugby:    ['ppg_for', 'ppg_against', 'recent_ppg_for', 'recent_ppg_against', 'data_completeness'],
+    ufc:      ['fm_rank', 'win_ko_rate', 'win_sub_rate', 'fight_history_count', 'reach_in', 'age', 'data_completeness'],
   };
   const priority = PRIORITY[sport] || [];
 
