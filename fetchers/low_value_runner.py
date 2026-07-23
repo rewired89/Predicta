@@ -25,7 +25,8 @@ from typing import Optional
 
 from fetchers.high_value_runner import _et_now, _et_minutes
 from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability
-from fetchers.trading_logger import log_low_value_trade, log_trade_exit, log_universe_snapshot
+from fetchers.trading_logger import log_low_value_trade, log_trade_exit, log_universe_snapshot, promote_trade_to_real
+from fetchers import hsip_client
 from db.database import get_db
 
 from models.trading.low_value.scanner import build_low_value_universe
@@ -273,12 +274,21 @@ def trigger_universe_refresh_async() -> dict:
 
 
 def _load_open_positions() -> list[dict]:
+    """
+    All open Low Value positions, hypothetical AND real — a real one
+    (alpaca_order_id set) only ever exists because a human clicked Buy via
+    execute_low_value_trade, never the autonomous scan below. Both kinds
+    share the same daily exit check (check_low_value_exits): the exit rule
+    itself (target/stop/time/thesis) is identical either way, only whether
+    a real closing order also needs to be placed differs.
+    """
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT id, symbol, side, entry_price, entry_time, lv_thesis_type
+            SELECT id, symbol, side, entry_price, entry_time, lv_thesis_type,
+                   qty, alpaca_order_id
             FROM intraday_trades
-            WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NULL
+            WHERE engine = 'low_value' AND exit_time IS NULL
             """,
         ).fetchall()
     return [dict(r) for r in rows]
@@ -454,6 +464,18 @@ def check_low_value_exits() -> dict:
                 exit_reason = "TIME"
 
         if exit_reason:
+            # A real (human-bought) position also needs the actual Alpaca
+            # position liquidated — this executes the exit rule the human
+            # already agreed to at buy time (target/stop/time/thesis), it
+            # does not decide a new trade. A hypothetical candidate has
+            # nothing to liquidate and behaves exactly as before.
+            if pos.get("alpaca_order_id"):
+                from fetchers.alpaca import close_position
+                liq = close_position(sym)
+                if "error" in liq:
+                    log.warning(f"[LOW_VALUE] Real close failed for {sym} tid={pos['id']}: {liq['error']}")
+                    continue
+
             result = log_trade_exit(pos["id"], current_price, exit_reason)
             closed.append({"symbol": sym, "trade_id": pos["id"], "exit_reason": exit_reason, **result})
             _run_log.append({
@@ -462,7 +484,163 @@ def check_low_value_exits() -> dict:
             })
             log.info(f"[LOW_VALUE] Closed {sym} tid={pos['id']} reason={exit_reason}")
 
+            if pos.get("alpaca_order_id"):
+                alpaca_side = "buy" if side == "long" else "sell"
+                close_side = "sell" if alpaca_side == "buy" else "buy"
+                hsip_client.attest_transaction(
+                    decision_type = close_side,
+                    strategy_id   = "low_value_swing",
+                    model_version = "v1",
+                    payload = {
+                        "predicta_trade_id": pos["id"],
+                        "alpaca_order_id":   pos["alpaca_order_id"],
+                        "symbol":            sym,
+                        "side":              close_side,
+                        "qty":               pos.get("qty"),
+                        "exit_price":        current_price,
+                        "exit_reason":       exit_reason,
+                        "closed_at":         now_et.isoformat(),
+                    },
+                )
+
     return {"checked": len(open_positions), "closed": closed}
+
+
+# ── Human-triggered manual execution ────────────────────────────────────────
+#
+# The autonomous scan (run_low_value_scan) only ever logs a hypothetical
+# candidate. These two functions are the ONLY place in this file that place
+# or close a real order, and only ever run from an explicit human click
+# (POST /trade/low-value/execute/:id and /trade/low-value/close/:id in
+# app.py). Predicta analyzes and suggests; the human decides to buy or sell.
+
+def execute_low_value_trade(trade_id: int) -> dict:
+    """
+    Places a real Alpaca paper order for an existing hypothetical Low Value
+    candidate. Unlike High Value, this is a plain market order, not a
+    bracket — Low Value's fixed $25/trade sizing produces fractional share
+    counts (models.trading.shared.kelly.low_value_position_size), and
+    Alpaca's bracket order type does not support fractional quantities.
+    Fractional quantities also cannot be shorted on Alpaca — a SHORT
+    candidate's qty is floored to a whole share and rejected outright if
+    that rounds to zero, rather than silently placing a different-sized
+    order than what the human saw.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT id, symbol, side, entry_price, qty
+            FROM intraday_trades
+            WHERE id = ? AND engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NULL
+            """,
+            (trade_id,),
+        ).fetchone()
+    if not row:
+        return {"error": "Candidate not found, already executed, or already closed."}
+
+    pos = dict(row)
+    symbol = pos["symbol"]
+    qty = pos["qty"]
+    if not qty or qty <= 0:
+        return {"error": "This candidate has no valid position size and cannot be executed."}
+
+    alpaca_side = "buy" if pos["side"] == "long" else "sell"
+    if pos["side"] == "short":
+        qty = float(int(qty))  # floor to whole shares — fractional shorting isn't supported by Alpaca
+        if qty < 1:
+            return {"error": f"Position size ({pos['qty']} shares) rounds to 0 whole shares — too small to short."}
+
+    from fetchers.alpaca import place_order
+    order_result = place_order(
+        symbol         = symbol,
+        qty            = qty,
+        side           = alpaca_side,
+        order_type     = "market",
+        time_in_force  = "day",
+    )
+    if "error" in order_result:
+        return {"error": order_result.get("detail") or order_result["error"]}
+
+    alpaca_order_id = order_result.get("id")
+    promote_trade_to_real(trade_id, alpaca_order_id)
+    log.info(f"[LOW_VALUE MANUAL] Human executed {alpaca_side.upper()} {symbol} tid={trade_id} order_id={alpaca_order_id}")
+
+    hsip_client.attest_transaction(
+        decision_type = alpaca_side,
+        strategy_id   = "low_value_swing",
+        model_version = "v1",
+        payload = {
+            "predicta_trade_id": trade_id,
+            "alpaca_order_id":   alpaca_order_id,
+            "symbol":            symbol,
+            "side":              alpaca_side,
+            "qty":               qty,
+            "entry_price":       pos.get("entry_price"),
+            "placed_at":         _et_now().isoformat(),
+        },
+    )
+    return {
+        "status":            "SUBMITTED",
+        "predicta_trade_id": trade_id,
+        "alpaca_order_id":   alpaca_order_id,
+        "symbol":            symbol,
+        "side":              alpaca_side,
+        "qty":               qty,
+    }
+
+
+def close_low_value_trade(trade_id: int) -> dict:
+    """Human clicked Sell on a real, still-open Low Value position — liquidates it at Alpaca, records the close, attests it."""
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT id, symbol, side, qty, alpaca_order_id
+            FROM intraday_trades
+            WHERE id = ? AND engine = 'low_value' AND is_hypothetical = 0 AND exit_time IS NULL
+            """,
+            (trade_id,),
+        ).fetchone()
+    if not row:
+        return {"error": "Real open position not found, or already closed."}
+
+    pos = dict(row)
+    symbol = pos["symbol"]
+    snap = get_snapshots([symbol]).get(symbol, {})
+    current_price = snap.get("price", 0)
+    if current_price <= 0:
+        return {"error": f"Could not get a current price for {symbol} — try again."}
+
+    from fetchers.alpaca import close_position
+    result = close_position(symbol)
+    if "error" in result:
+        return {"error": result["error"]}
+
+    exit_result = log_trade_exit(trade_id, current_price, "MANUAL_CLOSE")
+    alpaca_side = "buy" if pos["side"] == "long" else "sell"
+    close_side  = "sell" if alpaca_side == "buy" else "buy"
+    hsip_client.attest_transaction(
+        decision_type = close_side,
+        strategy_id   = "low_value_swing",
+        model_version = "v1",
+        payload = {
+            "predicta_trade_id": trade_id,
+            "alpaca_order_id":   pos.get("alpaca_order_id"),
+            "symbol":            symbol,
+            "side":              close_side,
+            "qty":               pos.get("qty"),
+            "exit_price":        current_price,
+            "exit_reason":       "MANUAL_CLOSE",
+            "closed_at":         _et_now().isoformat(),
+        },
+    )
+    log.info(f"[LOW_VALUE MANUAL] Human closed {symbol} tid={trade_id} exit={current_price}")
+    return {
+        "status":            "CLOSED",
+        "predicta_trade_id": trade_id,
+        "symbol":            symbol,
+        "exit_price":        current_price,
+        **exit_result,
+    }
 
 
 def _runner_loop() -> None:

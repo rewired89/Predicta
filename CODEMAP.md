@@ -12629,44 +12629,100 @@ purpose: added 2026-07-23 — get_order fetches one order by id including bracke
 inputs: get_order(order_id: str); close_position(symbol: str)
 outputs: dict (raw Alpaca order / liquidation-order response)
 calls: _get / _delete
-called_by: check_real_position_exits (fetchers/high_value_runner.py)
+called_by: check_real_position_exits, close_high_value_trade (fetchers/high_value_runner.py); check_low_value_exits, close_low_value_trade (fetchers/low_value_runner.py)
 mutates: places/cancels real (paper) orders at Alpaca
 ---
 
 ---
-name: log_low_value_trade (extended, HSIP live-trading support)
+name: log_low_value_trade (extended) / promote_trade_to_real
 type: function
 file: fetchers/trading_logger.py
-purpose: extended 2026-07-23 — added optional alpaca_order_id/is_hypothetical params (default is_hypothetical=1, alpaca_order_id=None — every existing call site's behavior is completely unchanged). Lets a real Alpaca paper order be logged as is_hypothetical=0 with its real order id once Low Value's own live-order wiring lands (not yet built — see fetchers/hsip_client.py's docstring; deferred because Low Value's fixed $25/trade sizing produces fractional share counts, which Alpaca's bracket order type doesn't support, unlike High Value's whole-share ATR sizing).
+purpose: log_low_value_trade extended 2026-07-23 — added optional alpaca_order_id/is_hypothetical params (default is_hypothetical=1, alpaca_order_id=None — every existing call site's behavior is completely unchanged). promote_trade_to_real (new, same day) is how a human's Buy click converts an existing hypothetical row into a real one IN PLACE (UPDATE, not a new INSERT) once execute_high_value_trade/execute_low_value_trade has actually placed the order — so the real order acts on exactly the entry/stop/target levels the human saw on screen, not a re-computed value.
+inputs: promote_trade_to_real(trade_id: int, alpaca_order_id: str)
+outputs: None
+calls: db.database.get_db
+called_by: execute_high_value_trade (fetchers/high_value_runner.py), execute_low_value_trade (fetchers/low_value_runner.py)
+mutates: intraday_trades UPDATE (is_hypothetical=0, alpaca_order_id, notes)
 ---
 
 ---
-name: run_open_scan (extended, real paper orders + HSIP attestation)
+name: execute_high_value_trade / close_high_value_trade
 type: function
 file: fetchers/high_value_runner.py
-purpose: extended 2026-07-23 — gated by new HIGH_VALUE_LIVE_PAPER_TRADING env var (default off, zero behavior change unless explicitly set). When on, a qualifying signal now places a real Alpaca paper bracket order (place_bracket_order, same call shape /trade/smart-order already used manually) instead of only logging a hypothetical row; on success, logs via log_trade_entry (is_hypothetical=0 by schema default) and attests the transaction to HSIP (fetchers.hsip_client.attest_transaction, decision_type = the real "buy"/"sell" order side). A rejected/failed real order falls back to the pre-existing log_hypothetical_trade path unchanged, so a broker hiccup never loses the record. get_runner_status extended with live_paper_trading, hsip_attestation_enabled, open_real_positions.
-inputs: unchanged (symbols, min_score)
-outputs: unchanged (list[int] trade_ids)
-calls: (new) fetchers.alpaca.place_bracket_order, fetchers.trading_logger.log_trade_entry, fetchers.hsip_client.attest_transaction
-called_by: _runner_loop, paper_runner_scan_now (app.py)
-mutates: (new, when live) places a real paper order at Alpaca; intraday_trades INSERT with is_hypothetical=0 and a real alpaca_order_id
+purpose: added 2026-07-23, corrected same day (see CLAUDE.md's dated note) — the ONLY two functions in this file that ever place or close a real order, and only ever run from an explicit human click (POST /trade/execute/:id, /trade/close/:id in app.py). run_open_scan (the autonomous background scan) never places a real order on its own — a same-day first version briefly wired it to auto-trade behind an env flag; reverted per direct instruction that Predicta must only analyze/suggest, the human decides to buy/sell. execute_high_value_trade places a real Alpaca paper bracket order using exactly the entry/stop/target already stored on the chosen hypothetical row (place_bracket_order), promotes that row to real in place (promote_trade_to_real, never a duplicate), and attests to HSIP. close_high_value_trade liquidates a real open position early (fetchers.alpaca.close_position), logs the real exit, and attests the close.
+inputs: execute_high_value_trade(trade_id: int); close_high_value_trade(trade_id: int)
+outputs: dict (order/close confirmation, or {"error": str})
+calls: fetchers.alpaca.place_bracket_order/close_position/get_snapshots, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, fetchers.hsip_client.attest_transaction
+called_by: execute_high_value (app.py POST /trade/execute/:id), close_high_value (app.py POST /trade/close/:id)
+mutates: places/closes a real paper order at Alpaca; intraday_trades UPDATE
 ---
 
 ---
 name: _load_open_real_positions / check_real_position_exits
 type: function
 file: fetchers/high_value_runner.py
-purpose: added 2026-07-23 — the exit-side counterpart to run_open_scan's real-order entry path. _load_open_real_positions loads open is_hypothetical=0 rows with a real alpaca_order_id (deliberately separate from _load_open_positions — a real position must never be run through _check_exit's local bar-touch heuristic, since a real bracket order's stop/target fills at Alpaca itself). check_real_position_exits reconciles: on a normal tick, asks Alpaca (get_order) whether the bracket's stop or target leg actually filled and records the real fill price/time; on force_close=True or once a position is past its planned hold bars, actually liquidates it (fetchers.alpaca.close_position) rather than just estimating, then records the current snapshot price (same approximation convention the pre-existing hypothetical FORCE_CLOSE_EOD path already uses). Every real close is also attested to HSIP as its own transaction (a "sell"/"buy" closing action, not just the opening one).
+purpose: added 2026-07-23 — the automatic reconciliation counterpart to the human-triggered execute_high_value_trade above; does NOT place a new position itself, only records what already happened to a position a human already bought. _load_open_real_positions loads open is_hypothetical=0 rows with a real alpaca_order_id (deliberately separate from _load_open_positions — a real position must never be run through _check_exit's local bar-touch heuristic, since a real bracket order's stop/target fills at Alpaca itself). check_real_position_exits: on a normal tick, asks Alpaca (get_order) whether the bracket's stop or target leg actually filled and records the real fill price/time; on force_close=True or once a position is past its planned hold bars, actually liquidates it (fetchers.alpaca.close_position) — executing the "never held overnight" rule the human already agreed to at buy time, not a new decision — then records the current snapshot price (same approximation convention the pre-existing hypothetical FORCE_CLOSE_EOD path already uses). Every real close is also attested to HSIP as its own transaction.
 inputs: check_real_position_exits(force_close: bool = False)
 outputs: dict {checked: int, closed: int}
 calls: fetchers.alpaca.get_order/close_position/get_snapshots, log_trade_exit, fetchers.hsip_client.attest_transaction
-called_by: _runner_loop (mid-day 30-min check and EOD force-close, only when HIGH_VALUE_LIVE_PAPER_TRADING is on)
+called_by: _runner_loop (mid-day 30-min check and EOD force-close — runs unconditionally now, a no-op if there are no real open positions)
 mutates: closes real Alpaca positions; intraday_trades UPDATE (exit fields) via log_trade_exit
+---
+
+---
+name: execute_low_value_trade / close_low_value_trade
+type: function
+file: fetchers/low_value_runner.py
+purpose: added 2026-07-23 — the Low Value equivalent of execute_high_value_trade/close_high_value_trade above; same human-click-only rule. Uses a plain market order (fetchers.alpaca.place_order), not a bracket order like High Value — Low Value's fixed $25/trade sizing (models.trading.shared.kelly.low_value_position_size) produces fractional share counts, which Alpaca's bracket order type doesn't support. A SHORT candidate's fractional qty is additionally floored to a whole share and the call rejected outright if that rounds to 0, since fractional shorting isn't supported by Alpaca either — never silently placing a different-sized order than what the human saw.
+inputs: execute_low_value_trade(trade_id: int); close_low_value_trade(trade_id: int)
+outputs: dict (order/close confirmation, or {"error": str})
+calls: fetchers.alpaca.place_order/close_position/get_snapshots, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, fetchers.hsip_client.attest_transaction
+called_by: execute_low_value (app.py POST /trade/low-value/execute/:id), close_low_value (app.py POST /trade/low-value/close/:id)
+mutates: places/closes a real paper order at Alpaca; intraday_trades UPDATE
+---
+
+---
+name: _load_open_positions (extended) / check_low_value_exits (extended)
+type: function
+file: fetchers/low_value_runner.py
+purpose: extended 2026-07-23 — _load_open_positions now loads real (is_hypothetical=0) positions alongside hypothetical ones (previously hypothetical-only), since a real position placed by a human via execute_low_value_trade still needs to occupy a portfolio-cap slot in run_low_value_scan and still needs its daily exit rule checked. check_low_value_exits' existing target/stop/time/thesis-resolved rule is unchanged, but for a real position (alpaca_order_id set) it now also places the actual closing order at Alpaca (fetchers.alpaca.close_position) before logging the exit, and attests the close to HSIP — this executes the exit rule the human already agreed to at buy time, it does not decide a new trade.
+mutates: (new, real positions only) closes real Alpaca positions; writes an HSIP attestation
+---
+
+---
+name: require_trade_passcode / trade_action_gate_enabled
+type: function
+file: api_auth.py
+purpose: added 2026-07-23 — /trade/* has no authentication at all otherwise (require_api_key/PREDICTA_API_KEYS only covers /v1 routes, per this module's own docstring), so the new real-order-placing endpoints (execute_high_value/close_high_value/execute_low_value/close_low_value in app.py) needed their own gate — without it, a Buy/Sell button on a public dashboard URL would be clickable by anyone who finds it. Same fail-open-in-dev-mode convention as require_api_key: a no-op unless TRADE_ACTION_PASSCODE is set, checked against the X-Trade-Passcode header.
+inputs: require_trade_passcode(x_trade_passcode: Optional[str] = Header(default=None))
+outputs: None (raises HTTPException 401 on mismatch when the passcode is configured)
+calls: none
+called_by: FastAPI Depends() on POST /trade/execute/:id, /trade/close/:id, /trade/low-value/execute/:id, /trade/low-value/close/:id
+mutates: none
+---
+
+---
+name: execute_high_value / close_high_value / execute_low_value / close_low_value
+type: function
+file: app.py
+purpose: added 2026-07-23 — the four HTTP endpoints behind the dashboards' new Buy/Sell buttons, each Depends(require_trade_passcode)-gated. Thin wrappers: call the matching fetchers.high_value_runner/low_value_runner execute_*/close_* function, 400 on {"error": ...}. These and POST /trade/smart-order are the ONLY routes in this codebase that place or close a real order — every automated scan only ever suggests.
+inputs: trade_id: int (path)
+outputs: JSON (order/close confirmation) or 400
+calls: fetchers.high_value_runner.execute_high_value_trade/close_high_value_trade, fetchers.low_value_runner.execute_low_value_trade/close_low_value_trade
+called_by: predictaAction() JS (both dashboards' <script> blocks)
+mutates: places/closes a real paper order at Alpaca (via the called function)
+---
+
+---
+name: trade_dashboard (extended, Buy/Sell buttons + real-position visibility) / render_low_value_dashboard (extended, same)
+type: function
+file: app.py, fetchers/low_value_dashboard.py
+purpose: extended 2026-07-23 — both dashboards' open-position query previously filtered is_hypothetical=1 only, so a real trade would have been invisible on screen once real trading existed at all; now shows both, with a "🔴 REAL ORDER PLACED" badge + Sell Now button on a real position, or a "{BUY/SELL} — place real order" button on a hypothetical candidate. Both pages gained a small predictaAction() JS helper (confirm() dialog + optional X-Trade-Passcode prompt() + fetch POST + reload) and a "Scan Now" button (High Value: POST /trade/paper-runner/scan-now; Low Value: POST /trade/low-value/scan-now, fire-and-forget per that endpoint's existing async design). High Value's runner-status card copy was corrected — it previously said "you do not need to do anything, it runs automatically," which was true for hypothetical logging but would have been actively misleading once real orders were possible; now states plainly that Predicta only analyzes/suggests and the human decides.
 ---
 
 ---
 name: smart_trade (extended, HSIP attestation)
 type: function
 file: app.py
-purpose: extended 2026-07-23 — POST /trade/smart-order already placed real Alpaca paper bracket orders manually; now also attests each successfully-placed order to HSIP via fetchers.hsip_client.attest_transaction (strategy_id="high_value_intraday_manual", distinguishing it from the automated runner's "high_value_intraday" attestations). No-op if HSIP isn't configured — the endpoint's existing behavior/response shape is unchanged either way.
+purpose: extended 2026-07-23 — POST /trade/smart-order already placed real Alpaca paper bracket orders manually (this was already human-triggered — the one existing exception to "the scan never places an order"); now also attests each successfully-placed order to HSIP via fetchers.hsip_client.attest_transaction (strategy_id="high_value_intraday_manual"). No-op if HSIP isn't configured — the endpoint's existing behavior/response shape is unchanged either way.
 ---

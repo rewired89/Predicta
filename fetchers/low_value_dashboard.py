@@ -476,9 +476,10 @@ def render_low_value_dashboard() -> str:
         ).fetchall()
         open_rows = conn.execute(
             """
-            SELECT symbol, side, entry_time, entry_price, entry_score, lv_thesis_type, lv_news_flags, lv_signals_json
+            SELECT id, symbol, side, entry_time, entry_price, entry_score, lv_thesis_type,
+                   lv_news_flags, lv_signals_json, is_hypothetical, alpaca_order_id, qty
             FROM intraday_trades
-            WHERE engine = 'low_value' AND is_hypothetical = 1 AND exit_time IS NULL
+            WHERE engine = 'low_value' AND exit_time IS NULL
             ORDER BY entry_time DESC
             """
         ).fetchall()
@@ -592,6 +593,18 @@ def render_low_value_dashboard() -> str:
             f'</div>'
         )
 
+    def _lv_action_html(t: dict) -> str:
+        tid = t.get("id")
+        if not t.get("is_hypothetical", 1):
+            return (
+                f'<span class="real-badge">🔴 REAL ORDER PLACED</span> '
+                f'<button class="trade-btn sell-btn" onclick="predictaAction(\'/trade/low-value/close/{tid}\', \'SELL — close this position now\')">Sell Now</button>'
+            )
+        side_lbl = "BUY" if t["side"] == "long" else "SHORT"
+        return (
+            f'<button class="trade-btn buy-btn" onclick="predictaAction(\'/trade/low-value/execute/{tid}\', \'{side_lbl} {_display_name(t["symbol"])} — place a real paper order\')">{side_lbl} — place real order</button>'
+        )
+
     open_rows_html = "".join(
         f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if t['side']=='long' else "🔴"}</div>
@@ -601,6 +614,7 @@ def render_low_value_dashboard() -> str:
                 <span class="trade-detail">Bought at ${t['entry_price']:,.2f}/share (real stock price) · {_plain_confidence(t.get('entry_score'))}</span>
                 {_exit_levels_html(t)}
                 <span class="trade-time">opened {t['entry_time'][:16]} UTC — this is a fixed $25 paper position, not shares bought at full account size</span>
+                <div style="margin-top:8px;">{_lv_action_html(t)}</div>
                 <details style="margin-top:8px;">
                   <summary style="cursor:pointer; font-size:.78rem; color:var(--muted);">See the technical details (raw score {t.get('entry_score') or '—'}/100)</summary>
                   {_signals_breakdown_html(t.get('lv_signals_json'))}
@@ -608,7 +622,7 @@ def render_low_value_dashboard() -> str:
               </div>
             </div>"""
         for t in open_t
-    ) or '<div class="muted-note">No open Low Value positions right now — the model didn\'t find a strong enough signal on the last scan.</div>'
+    ) or '<div class="muted-note">No open Low Value positions right now — the model didn\'t find a strong enough signal on the last scan. Predicta only ever suggests here — nothing is bought automatically.</div>'
 
     closed_rows_html = "".join(
         f"""<div class="exit-block">
@@ -683,6 +697,11 @@ def render_low_value_dashboard() -> str:
   .trade-detail {{ font-size: .8rem; color: var(--muted); }}
   .trade-why {{ font-size: .88rem; color: var(--text); margin: 4px 0; line-height: 1.5; }}
   .trade-time {{ font-size: .72rem; color: var(--muted); margin-top: 2px; }}
+  .trade-btn {{ background: var(--blue); color: #04121f; border: none; border-radius: 8px; padding: 8px 14px; font-size: .82rem; font-weight: 700; cursor: pointer; }}
+  .trade-btn:hover {{ filter: brightness(1.1); }}
+  .buy-btn {{ background: var(--green); }}
+  .sell-btn {{ background: var(--red); color: #fff; }}
+  .real-badge {{ display: inline-block; font-size: .7rem; font-weight: 700; color: var(--red); margin-right: 8px; }}
   .exit-item {{ display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }}
   .exit-item:last-child {{ border-bottom: none; }}
   .exit-block {{ padding: 7px 0; border-bottom: 1px solid var(--border); }}
@@ -746,6 +765,8 @@ def render_low_value_dashboard() -> str:
     </div>
     <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{stagnant_filtered} excluded as stagnant (volatility floor){scan_timing_note}</div>
     {f'<div style="font-size:.76rem; color:var(--muted); margin-top:6px;">{funnel_note}</div>' if funnel_note else ''}
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">Predicta only ever analyzes and suggests here — it never buys or sells on its own. Use the buttons under a suggestion below to place a real order yourself.</div>
+    <button class="trade-btn" style="margin-top:10px;" onclick="predictaScanNow()">Scan Now</button>
   </div>
 
   <div class="card">
@@ -793,6 +814,27 @@ def render_low_value_dashboard() -> str:
 
 </main>
 <footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/dashboard">High Value dashboard</a></footer>
+<script>
+async function predictaAction(url, label) {{
+  if (!confirm('Confirm: ' + label + '?\\n\\nThis places (or closes) a real Alpaca paper order.')) return;
+  const passcode = prompt('Trade passcode (leave blank if none is set):') || '';
+  try {{
+    const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
+    const data = await res.json();
+    if (!res.ok) {{ alert('Failed: ' + (data.detail || JSON.stringify(data))); return; }}
+    alert('Done.\\n' + JSON.stringify(data, null, 2));
+    location.reload();
+  }} catch (e) {{ alert('Request failed: ' + e); }}
+}}
+async function predictaScanNow() {{
+  try {{
+    const res = await fetch('/trade/low-value/scan-now', {{ method: 'POST' }});
+    const data = await res.json();
+    alert('Scan started in the background — this can take a few minutes. Reloading now; refresh again shortly to see results.');
+    location.reload();
+  }} catch (e) {{ alert('Scan failed: ' + e); }}
+}}
+</script>
 </body>
 </html>"""
     return html

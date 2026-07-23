@@ -104,6 +104,29 @@ def log_trade_entry(
         return cur.lastrowid
 
 
+def promote_trade_to_real(trade_id: int, alpaca_order_id: str) -> None:
+    """
+    Converts an existing hypothetical row (is_hypothetical=1) into a real
+    one in place, after a human has clicked Buy on it and Predicta has
+    actually placed the order at Alpaca — see
+    fetchers.high_value_runner.execute_high_value_trade. Updates the SAME
+    row rather than inserting a new one, so the real order acts on exactly
+    the entry/stop/target levels the human saw and approved on screen, not
+    a value re-computed after the fact.
+    """
+    with get_db() as conn:
+        conn.execute(
+            """
+            UPDATE intraday_trades
+            SET is_hypothetical = 0,
+                alpaca_order_id = ?,
+                notes = ?
+            WHERE id = ? AND is_hypothetical = 1 AND exit_time IS NULL
+            """,
+            (alpaca_order_id, f"Live paper order placed via Alpaca (order_id={alpaca_order_id})", trade_id),
+        )
+
+
 def log_trade_exit(
     trade_id: int,
     exit_price: float,

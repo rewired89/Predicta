@@ -26,8 +26,8 @@ try:
 except ImportError:
     _EASTERN = None  # fallback: use UTC offset approximation
 
-from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order
-from fetchers.trading_logger import log_hypothetical_trade, log_trade_entry, log_trade_exit
+from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position
+from fetchers.trading_logger import log_hypothetical_trade, log_trade_entry, log_trade_exit, promote_trade_to_real
 from fetchers import hsip_client
 from models.trading.high_value.intraday import compute_intraday_signals
 from db.database import get_db
@@ -92,19 +92,6 @@ SPRINT_MIN_SCORE: int = 10
 # total simultaneous open positions instead of computing pairwise correlation,
 # since a sector-wide move could otherwise stack N x 25%-sized positions at once.
 MAX_CONCURRENT_POSITIONS: int = 3
-
-# Real Alpaca paper-trading orders, gated by env var (not a hardcoded
-# constant like DATA_COLLECTION_SPRINT_MODE above) so it can be switched on
-# for a live showcase without a code push, matching the same
-# presence/absence-gated convention every other optional integration in this
-# repo already uses (FRED_API_KEY, FINNHUB_API_KEY, etc.). Default OFF —
-# existing hypothetical-only behavior is completely unchanged unless an
-# operator deliberately sets this. When on, a qualifying signal places a
-# real (paper-money, zero financial risk — see fetchers.alpaca._assert_paper_mode)
-# bracket order instead of only logging a hypothetical row; only an order
-# that Alpaca actually confirms gets attested to HSIP (see hsip_client) —
-# audit the transaction, not the signal.
-HIGH_VALUE_LIVE_PAPER_TRADING: bool = os.environ.get("HIGH_VALUE_LIVE_PAPER_TRADING", "").lower() in ("1", "true", "yes")
 
 # Market regime gate (Kimi review, structural gap E): SPY overnight gap is used
 # as a volatility-regime proxy (no VIX access on the Alpaca free tier). On
@@ -735,72 +722,22 @@ def run_open_scan(
                 log.info(f"[RUNNER] Queued for review (EXTREME day): {sym} score={score_val} review_id={review_id}")
                 continue
 
-            tid = None
-            alpaca_order_id = None
-            if HIGH_VALUE_LIVE_PAPER_TRADING:
-                qty = levels.get("shares")
-                stop = levels.get("stop")
-                target = levels.get("target2")
-                if qty and qty > 0 and stop and target:
-                    alpaca_side = "buy" if side == "long" else "sell"
-                    order_result = place_bracket_order(
-                        symbol      = sym,
-                        qty         = qty,
-                        side        = alpaca_side,
-                        entry_price = None,   # market entry — faster fill
-                        take_profit = target,
-                        stop_loss   = stop,
-                    )
-                    if "error" not in order_result:
-                        alpaca_order_id = order_result.get("id")
-                        tid = log_trade_entry(
-                            symbol            = sym,
-                            side              = side,
-                            entry_price       = levels.get("entry"),
-                            qty               = qty,
-                            position_value    = levels.get("position_value"),
-                            entry_score       = score_val,
-                            time_of_day_label = time_lbl,
-                            spread_pct        = result.get("liquidity", {}).get("spread_pct", 0.0),
-                            planned_hold_bars = hold_b,
-                            stop_price        = stop,
-                            target_price      = target,
-                            risk_dollars      = levels.get("risk_dollars"),
-                            alpaca_order_id   = alpaca_order_id,
-                            signal_scores     = result,
-                        )
-                        log.info(f"[RUNNER] Placed REAL paper {alpaca_side.upper()} {sym} order_id={alpaca_order_id} tid={tid}")
-                        hsip_client.attest_transaction(
-                            decision_type = alpaca_side,
-                            strategy_id   = "high_value_intraday",
-                            model_version = "v4",
-                            payload = {
-                                "predicta_trade_id": tid,
-                                "alpaca_order_id":   alpaca_order_id,
-                                "symbol":            sym,
-                                "side":              alpaca_side,
-                                "qty":               qty,
-                                "entry_price":       levels.get("entry"),
-                                "stop_price":        stop,
-                                "target_price":      target,
-                                "placed_at":          _et_now().isoformat(),
-                            },
-                        )
-                    else:
-                        log.warning(f"[RUNNER] Real order rejected for {sym}: {order_result.get('detail') or order_result.get('error')} — falling back to hypothetical logging")
-
-            if tid is None:
-                tid = log_hypothetical_trade(
-                    symbol       = sym,
-                    side         = side,
-                    score_value  = score_val,
-                    signals      = result,       # full compute_intraday_signals() result
-                    levels       = levels,
-                    hold_bars    = hold_b,
-                    model_version= "v4",
-                    regime_tags  = market_regime,
-                )
-
+            # Predicta only ever analyzes and suggests here — it never places
+            # a real order on its own. This scan logs a hypothetical
+            # candidate only; a real order is placed exclusively when a
+            # human clicks "Buy" on this candidate in the dashboard, which
+            # calls execute_high_value_trade() below. Do not reintroduce
+            # automatic real-order placement in this function.
+            tid = log_hypothetical_trade(
+                symbol       = sym,
+                side         = side,
+                score_value  = score_val,
+                signals      = result,       # full compute_intraday_signals() result
+                levels       = levels,
+                hold_bars    = hold_b,
+                model_version= "v4",
+                regime_tags  = market_regime,
+            )
             trade_ids.append(tid)
             _run_log.append({
                 "ts":    _et_now().isoformat(),
@@ -810,10 +747,9 @@ def run_open_scan(
                 "side":  side,
                 "label": time_lbl,
                 "tid":   tid,
-                "live":  alpaca_order_id is not None,
             })
             log.info(
-                f"[RUNNER] Logged {'REAL' if alpaca_order_id else 'hypothetical'} {side.upper()} {sym} "
+                f"[RUNNER] Logged hypothetical {side.upper()} {sym} "
                 f"score={score_val} label={time_lbl} tid={tid}"
             )
         except Exception as exc:
@@ -842,8 +778,10 @@ def _load_open_positions() -> list[dict]:
 
 def _load_open_real_positions() -> list[dict]:
     """
-    Real (is_hypothetical=0) open positions placed via HIGH_VALUE_LIVE_PAPER_TRADING —
-    tracked separately from _load_open_positions() because these must never
+    Real (is_hypothetical=0) open positions — created only when a human
+    clicks Buy on a candidate in the dashboard (execute_high_value_trade),
+    never by the autonomous scan. Tracked separately from
+    _load_open_positions() because these must never
     be run through _check_exit()'s local bar-touch heuristic: a real bracket
     order's stop/target fills at Alpaca itself, so the actual order/leg
     status (see check_real_position_exits) is the ground truth, not a
@@ -863,9 +801,12 @@ def _load_open_real_positions() -> list[dict]:
 
 def check_real_position_exits(force_close: bool = False) -> dict:
     """
-    Reconcile real paper positions (HIGH_VALUE_LIVE_PAPER_TRADING) against
-    Alpaca's own order status, and attest the closing transaction to HSIP —
-    the audited "move" is the real close, not a locally-estimated one.
+    Reconcile real (human-bought) paper positions against Alpaca's own order
+    status, and attest the closing transaction to HSIP — the audited "move"
+    is the real close, not a locally-estimated one. This only ever records
+    what already happened at the broker against a stop/target/hold-window
+    the human already agreed to at buy time — it never opens a new position
+    or makes a fresh buy/sell judgment call.
 
     Two paths:
       - Normal tick: ask Alpaca whether the bracket's stop or target leg has
@@ -877,8 +818,6 @@ def check_real_position_exits(force_close: bool = False) -> dict:
         existing hypothetical FORCE_CLOSE_EOD path already uses, since a
         market liquidation's exact fill isn't returned synchronously.
     """
-    from fetchers.alpaca import get_order, close_position
-
     positions = _load_open_real_positions()
     if not positions:
         return {"checked": 0, "closed": 0}
@@ -958,6 +897,148 @@ def check_real_position_exits(force_close: bool = False) -> dict:
             log.warning(f"[RUNNER] Real exit-logging error {sym} tid={pos['id']}: {exc}")
 
     return {"checked": len(positions), "closed": closed}
+
+
+# ── Human-triggered manual execution ────────────────────────────────────────
+#
+# These are the ONLY two functions in this file that ever place or close a
+# real order. Both require an explicit human click (POST /trade/execute/:id
+# and POST /trade/close/:id in app.py) — the autonomous scan above never
+# calls either. Predicta analyzes and suggests; the human decides to buy or
+# sell.
+
+def execute_high_value_trade(trade_id: int) -> dict:
+    """
+    Places a real Alpaca paper bracket order for an existing hypothetical
+    candidate, using exactly the entry/stop/target levels already stored on
+    that row — what the human actually saw on the dashboard before clicking
+    Buy, not a value re-computed after the fact. Promotes the same row to
+    real in place (promote_trade_to_real) rather than creating a duplicate,
+    and attests the transaction to HSIP.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT id, symbol, side, entry_price, qty, stop_price, target_price, planned_hold_bars
+            FROM intraday_trades
+            WHERE id = ? AND is_hypothetical = 1 AND exit_time IS NULL
+            """,
+            (trade_id,),
+        ).fetchone()
+    if not row:
+        return {"error": "Candidate not found, already executed, or already closed."}
+
+    pos = dict(row)
+    symbol = pos["symbol"]
+    qty = pos["qty"]
+    stop = pos["stop_price"]
+    target = pos["target_price"]
+    if not qty or qty <= 0 or not stop or not target:
+        return {"error": "This candidate is missing trade levels and cannot be executed."}
+
+    alpaca_side = "buy" if pos["side"] == "long" else "sell"
+    order_result = place_bracket_order(
+        symbol      = symbol,
+        qty         = qty,
+        side        = alpaca_side,
+        entry_price = None,   # market entry — faster fill
+        take_profit = target,
+        stop_loss   = stop,
+    )
+    if "error" in order_result:
+        return {"error": order_result.get("detail") or order_result["error"]}
+
+    alpaca_order_id = order_result.get("id")
+    promote_trade_to_real(trade_id, alpaca_order_id)
+    log.info(f"[MANUAL] Human executed BUY {symbol} tid={trade_id} order_id={alpaca_order_id}")
+
+    hsip_client.attest_transaction(
+        decision_type = alpaca_side,
+        strategy_id   = "high_value_intraday_manual",
+        model_version = "v4",
+        payload = {
+            "predicta_trade_id": trade_id,
+            "alpaca_order_id":   alpaca_order_id,
+            "symbol":            symbol,
+            "side":              alpaca_side,
+            "qty":               qty,
+            "entry_price":       pos.get("entry_price"),
+            "stop_price":        stop,
+            "target_price":      target,
+            "placed_at":         _et_now().isoformat(),
+        },
+    )
+    return {
+        "status":            "SUBMITTED",
+        "predicta_trade_id": trade_id,
+        "alpaca_order_id":   alpaca_order_id,
+        "symbol":            symbol,
+        "side":              alpaca_side,
+        "qty":               qty,
+        "stop":              stop,
+        "target":            target,
+    }
+
+
+def close_high_value_trade(trade_id: int) -> dict:
+    """
+    Human clicked Sell on a real, still-open position — liquidates it at
+    Alpaca immediately (fetchers.alpaca.close_position, which also cancels
+    the still-open bracket legs), records the real close, and attests it.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT id, symbol, side, qty, alpaca_order_id
+            FROM intraday_trades
+            WHERE id = ? AND is_hypothetical = 0 AND exit_time IS NULL
+            """,
+            (trade_id,),
+        ).fetchone()
+    if not row:
+        return {"error": "Real open position not found, or already closed."}
+
+    pos = dict(row)
+    symbol = pos["symbol"]
+    snap = get_snapshots([symbol]).get(symbol, {})
+    current_price = snap.get("price", 0)
+    if current_price <= 0:
+        return {"error": f"Could not get a current price for {symbol} — try again."}
+
+    result = close_position(symbol)
+    if "error" in result:
+        return {"error": result["error"]}
+
+    exit_result = log_trade_exit(
+        trade_id    = trade_id,
+        exit_price  = current_price,
+        exit_reason = "MANUAL_CLOSE",
+    )
+    alpaca_side = "buy" if pos["side"] == "long" else "sell"
+    close_side  = "sell" if alpaca_side == "buy" else "buy"
+    hsip_client.attest_transaction(
+        decision_type = close_side,
+        strategy_id   = "high_value_intraday_manual",
+        model_version = "v4",
+        payload = {
+            "predicta_trade_id": trade_id,
+            "alpaca_order_id":   pos.get("alpaca_order_id"),
+            "symbol":            symbol,
+            "side":              close_side,
+            "qty":               pos.get("qty"),
+            "exit_price":        current_price,
+            "exit_reason":       "MANUAL_CLOSE",
+            "closed_at":         _et_now().isoformat(),
+        },
+    )
+    log.info(f"[MANUAL] Human closed {symbol} tid={trade_id} exit={current_price}")
+    return {
+        "status":             "CLOSED",
+        "predicta_trade_id":  trade_id,
+        "symbol":             symbol,
+        "exit_price":         current_price,
+        **exit_result,
+    }
 
 
 def _check_exit(
@@ -1116,12 +1197,16 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
                 last_check_mono = time.monotonic()
                 log.info(f"[RUNNER] Scan complete — {len(ids)} trades logged")
 
-            # End-of-day force close at 15:50 ET
+            # End-of-day force close at 15:50 ET. This also covers any real
+            # position a human bought via the dashboard's Buy button earlier
+            # that day — High Value's whole model is "never held overnight,"
+            # a rule already agreed to the moment the human clicked Buy on a
+            # same-day engine, not a new autonomous decision. See
+            # check_real_position_exits' docstring.
             elif _near_close() and today_scanned == today:
                 log.info("[RUNNER] EOD force-close")
                 check_and_close_positions(force_close=True)
-                if HIGH_VALUE_LIVE_PAPER_TRADING:
-                    check_real_position_exits(force_close=True)
+                check_real_position_exits(force_close=True)
                 # Sleep until well past close so this doesn't re-trigger
                 time.sleep(15 * 60)
                 continue
@@ -1134,8 +1219,12 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
                 _check_intraday_regime_escalation()
                 summary = check_and_close_positions()
                 log.info(f"[RUNNER] Position check — {summary}")
-                if HIGH_VALUE_LIVE_PAPER_TRADING:
-                    real_summary = check_real_position_exits()
+                # No-op if there are no real (human-bought) open positions —
+                # this only ever reconciles/records what Alpaca's own
+                # bracket order already executed against the stop/target the
+                # human approved at buy time; it never opens a new position.
+                real_summary = check_real_position_exits()
+                if real_summary["checked"]:
                     log.info(f"[RUNNER] Real position check — {real_summary}")
                 last_check_mono = time.monotonic()
 
@@ -1197,13 +1286,12 @@ def get_runner_status() -> dict:
         "min_score":      RUNNER_MIN_SCORE,
         "data_collection_sprint_mode": DATA_COLLECTION_SPRINT_MODE,
         "sprint_min_score": SPRINT_MIN_SCORE if DATA_COLLECTION_SPRINT_MODE else None,
-        "live_paper_trading": HIGH_VALUE_LIVE_PAPER_TRADING,
         "hsip_attestation_enabled": hsip_client.HSIP_ENABLED,
         "market_open":    _is_market_open(),
         "et_now":         _et_now().isoformat(),
         "open_positions": len(open_pos),
         "open_symbols":   [p["symbol"] for p in open_pos],
-        "open_real_positions": len(_load_open_real_positions()) if HIGH_VALUE_LIVE_PAPER_TRADING else 0,
+        "open_real_positions": len(_load_open_real_positions()),
         "suppression_stats": get_suppression_stats(),
         "pending_review":  pending_review,
         "recent_log":     list(reversed(_run_log[-20:])),

@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from api_auth import require_api_key, auth_enabled
+from api_auth import require_api_key, auth_enabled, require_trade_passcode
 
 from db.database import init_db, get_db
 from engine import predict_match, record_outcome
@@ -2361,6 +2361,30 @@ def paper_runner_scan_now(min_score: int = 20):
     return {"logged": len(ids), "trade_ids": ids}
 
 
+@app.post("/trade/execute/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def execute_high_value(trade_id: int):
+    """
+    Human-triggered only. Places a real Alpaca paper order for a High Value
+    candidate the automated scan already suggested — the scan itself never
+    places an order on its own. See fetchers.high_value_runner.execute_high_value_trade.
+    """
+    from fetchers.high_value_runner import execute_high_value_trade
+    result = execute_high_value_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/trade/close/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def close_high_value(trade_id: int):
+    """Human-triggered only. Closes a real open High Value position early, before its stop/target/time-limit is hit."""
+    from fetchers.high_value_runner import close_high_value_trade
+    result = close_high_value_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
 @app.post("/trade/paper-runner/start")
 def paper_runner_start():
     """Start the background runner if it is not already running."""
@@ -2398,13 +2422,13 @@ def trade_dashboard():
         ).fetchall()
         open_rows = conn.execute(
             """
-            SELECT symbol, side, entry_time, entry_score, entry_price,
+            SELECT id, symbol, side, entry_time, entry_score, entry_price,
                    stop_price, target1_price, target_price,
                    vwap_score, or_score, rsi_score, relvol_score,
                    gap_score, trend_score, bollinger_score, volsurge_score,
-                   ngram_signal, ngram_confidence
+                   ngram_signal, ngram_confidence, is_hypothetical, alpaca_order_id
             FROM intraday_trades
-            WHERE is_hypothetical = 1 AND exit_time IS NULL
+            WHERE exit_time IS NULL AND engine != 'low_value'
             ORDER BY entry_time DESC
             """
         ).fetchall()
@@ -2739,11 +2763,22 @@ def trade_dashboard():
 
     open_html = ""
     for t in open_t[:5]:
+        tid   = t.get("id")
+        is_real = not t.get("is_hypothetical", 1)
         sym   = t.get("symbol", "?")
         side  = "BUY" if t.get("side") == "long" else "SELL"
         score = t.get("entry_score") or 0
         entry_price = t.get("entry_price")
         entry_str = (t.get("entry_time") or "")[:16].replace("T", " ")
+        if is_real:
+            action_html = (
+                f'<span class="real-badge">🔴 REAL ORDER PLACED</span> '
+                f'<button class="trade-btn sell-btn" onclick="predictaAction(\'/trade/close/{tid}\', \'SELL — close this position now\')">Sell Now</button>'
+            )
+        else:
+            action_html = (
+                f'<button class="trade-btn buy-btn" onclick="predictaAction(\'/trade/execute/{tid}\', \'{side} {sym} — place a real paper order\')">{side} — place real order</button>'
+            )
         open_html += f"""
         <div class="trade-row">
           <span class="trade-icon">⏳</span>
@@ -2753,6 +2788,7 @@ def trade_dashboard():
             <span class="trade-detail">{"Bought" if t.get("side") == "long" else "Shorted"} at ${entry_price:,.2f}/share · {_hv_plain_confidence(score)}</span>
             {_hv_plain_exit(t)}
             <span class="trade-time">Entered {entry_str}</span>
+            <div style="margin-top:8px;">{action_html}</div>
             <details style="margin-top:6px;">
               <summary style="cursor:pointer; font-size:.78rem; color:var(--muted);">See the technical details (raw score {score:.0f}/100)</summary>
               <div style="font-size:.78rem; color:var(--muted); margin-top:6px;">
@@ -2873,6 +2909,11 @@ def trade_dashboard():
   .trade-why {{ font-size: .88rem; color: var(--text); margin: 4px 0; line-height: 1.5; }}
   .trade-time {{ display: block; font-size: .72rem; color: var(--muted); margin-top: 2px; }}
   .trade-pnl {{ font-weight: 700; font-size: .9rem; flex-shrink: 0; }}
+  .trade-btn {{ background: var(--blue); color: #04121f; border: none; border-radius: 8px; padding: 8px 14px; font-size: .82rem; font-weight: 700; cursor: pointer; }}
+  .trade-btn:hover {{ filter: brightness(1.1); }}
+  .buy-btn {{ background: var(--green); }}
+  .sell-btn {{ background: var(--red); color: #fff; }}
+  .real-badge {{ display: inline-block; font-size: .7rem; font-weight: 700; color: var(--red); margin-right: 8px; }}
   .tod-row {{ margin-bottom: 12px; }}
   .tod-label {{ font-size: .82rem; color: var(--muted); margin-bottom: 4px; }}
   .tod-bar-wrap {{ background: var(--bg); border-radius: 99px; height: 6px; overflow: hidden; margin-bottom: 4px; }}
@@ -3003,10 +3044,11 @@ def trade_dashboard():
       <div class="runner-info">
         <div class="runner-status">{runner_lbl}</div>
         <div class="runner-detail">
-          Scans AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA every morning at 9:35 AM ET.<br>
-          Checks open positions every 30 minutes. Force-closes at 3:50 PM ET.<br>
-          You do not need to do anything — it runs automatically.
+          Scans AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA every morning at 9:35 AM ET, and suggests candidates below.<br>
+          It only ever analyzes and suggests — it never buys or sells anything on its own. You decide, using the buttons above.<br>
+          Once you place a real order, it checks that position every 30 minutes and force-closes it by 3:50 PM ET, same as the day-trading plan you approved when you clicked Buy.
         </div>
+        <button class="trade-btn" style="margin-top:12px;" onclick="predictaScanNow()">Scan Now</button>
       </div>
     </div>
   </div>
@@ -3020,6 +3062,27 @@ def trade_dashboard():
 
 </main>
 <footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/paper-data" style="color:var(--muted)">Raw data</a> &nbsp;·&nbsp; <a href="/trade/calibration" style="color:var(--muted)">Calibration</a></footer>
+<script>
+async function predictaAction(url, label) {{
+  if (!confirm('Confirm: ' + label + '?\\n\\nThis places (or closes) a real Alpaca paper order.')) return;
+  const passcode = prompt('Trade passcode (leave blank if none is set):') || '';
+  try {{
+    const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
+    const data = await res.json();
+    if (!res.ok) {{ alert('Failed: ' + (data.detail || JSON.stringify(data))); return; }}
+    alert('Done.\\n' + JSON.stringify(data, null, 2));
+    location.reload();
+  }} catch (e) {{ alert('Request failed: ' + e); }}
+}}
+async function predictaScanNow() {{
+  try {{
+    const res = await fetch('/trade/paper-runner/scan-now', {{ method: 'POST' }});
+    const data = await res.json();
+    alert('Scan complete — ' + data.logged + ' candidate(s) found. Reloading.');
+    location.reload();
+  }} catch (e) {{ alert('Scan failed: ' + e); }}
+}}
+</script>
 </body>
 </html>"""
     return html
@@ -3082,6 +3145,30 @@ def low_value_runner_status():
     """Status of the Low Value background runner."""
     from fetchers.low_value_runner import get_runner_status
     return get_runner_status()
+
+
+@app.post("/trade/low-value/execute/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def execute_low_value(trade_id: int):
+    """
+    Human-triggered only. Places a real Alpaca paper order for a Low Value
+    candidate the automated scan already suggested — the scan itself never
+    places an order on its own. See fetchers.low_value_runner.execute_low_value_trade.
+    """
+    from fetchers.low_value_runner import execute_low_value_trade
+    result = execute_low_value_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/trade/low-value/close/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def close_low_value(trade_id: int):
+    """Human-triggered only. Closes a real open Low Value position early, before its target/stop/hold-window exit fires."""
+    from fetchers.low_value_runner import close_low_value_trade
+    result = close_low_value_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
 
 
 @app.post("/trade/low-value/runner/start")

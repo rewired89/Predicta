@@ -55,3 +55,34 @@ def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> str:
         status_code=401,
         detail="Missing or invalid API key. Send header 'X-API-Key'.",
     )
+
+
+def trade_action_gate_enabled() -> bool:
+    return bool(os.environ.get("TRADE_ACTION_PASSCODE", "").strip())
+
+
+def require_trade_passcode(x_trade_passcode: Optional[str] = Header(default=None)) -> None:
+    """
+    FastAPI dependency for the handful of endpoints that place or close a
+    REAL (even if paper) order — POST /trade/execute/:id, /trade/close/:id,
+    and the Low Value equivalents. Unlike require_api_key above, this exists
+    because those routes have no auth on them at all otherwise: /trade/*
+    isn't covered by PREDICTA_API_KEYS (see this module's docstring — that's
+    scoped to /v1), so a real order-placing button on a public dashboard
+    would otherwise be clickable by anyone who finds the URL, not just the
+    person who owns the account.
+
+    Same fail-open-in-dev-mode convention as require_api_key: if
+    TRADE_ACTION_PASSCODE isn't set, this is a no-op — local development and
+    a genuinely private deployment keep working with zero extra steps. Set
+    it before putting a real Buy/Sell button anywhere reachable by anyone
+    other than you.
+    """
+    expected = os.environ.get("TRADE_ACTION_PASSCODE", "").strip()
+    if not expected:
+        return
+    if x_trade_passcode != expected:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or incorrect trade passcode. Send header 'X-Trade-Passcode'.",
+        )
