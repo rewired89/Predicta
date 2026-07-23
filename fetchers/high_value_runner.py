@@ -1007,6 +1007,8 @@ def close_high_value_trade(trade_id: int) -> dict:
 
     result = close_position(symbol)
     if "error" in result:
+        if result.get("status_code") == 404:
+            return {"error": f"Alpaca has no open position for {symbol} yet — your buy order likely hasn't filled yet. Check Orders in your Alpaca paper dashboard, then try Sell again once it shows filled."}
         return {"error": result["error"]}
 
     exit_result = log_trade_exit(

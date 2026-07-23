@@ -56,6 +56,8 @@ def _delete(url: str) -> dict:
         r = requests.delete(url, headers=_headers(), timeout=10)
         r.raise_for_status()
         return {"status": "ok"}
+    except requests.exceptions.HTTPError as e:
+        return {"error": str(e), "status_code": r.status_code}
     except Exception as e:
         return {"error": str(e)}
 
