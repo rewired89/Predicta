@@ -3227,10 +3227,10 @@ mutates: none
 name: startup
 type: hook
 file: app.py
-purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern.
+purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners, soccer auto-collection loop, tennis auto-resolve loop, and NRFI daily pipeline. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern. **Added 2026-07-23:** tasks.tennis_auto.start_tennis_auto() call, gated behind TENNIS_AUTO_DISABLED, same shape as the existing SOCCER_AUTO_DISABLED gate — runs tennis's resolve_finished() every 3 h automatically instead of requiring a manual POST /tennis-auto/resolve.
 inputs: none
 outputs: none
-calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py)
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py), start_soccer_auto (tasks/soccer_auto.py), start_tennis_auto (tasks/tennis_auto.py), start_nrfi_auto (tasks/nrfi_auto.py)
 called_by: FastAPI on_event("startup")
 mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals), _runner_thread/_runner_active (low_value_runner.py globals)
 ---
@@ -11359,10 +11359,22 @@ mutates: none
 ---
 
 ---
+name: tennis_auto_status
+type: function
+file: app.py
+purpose: GET /tennis-auto/status — added 2026-07-23, same shape as GET /soccer-auto/status. Returns tasks.tennis_auto.status() — whether the background auto-resolve thread is running, plus last_resolve_utc/resolve_interval_h/started_at.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.status
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
 name: tennis_auto_resolve
 type: function
 file: app.py
-purpose: POST /tennis-auto/resolve — added 2026-07-23, same purpose as POST /rugby-auto/resolve. Manually triggers tasks.tennis_auto.resolve_finished(). No scheduler yet — call this manually after each round of matches, or wire a cron later.
+purpose: POST /tennis-auto/resolve — added 2026-07-23, same purpose as POST /rugby-auto/resolve. Manually triggers tasks.tennis_auto.resolve_finished() to force an immediate resolve. As of the same-day scheduler addition, this same function also now runs automatically every 3 h via tasks.tennis_auto.start_tennis_auto()'s background thread (wired into app.py's startup() event) — this endpoint is for forcing an out-of-cycle resolve, not the only way it runs anymore.
 inputs: none
 outputs: dict (JSON response)
 calls: tasks.tennis_auto.resolve_finished
@@ -12038,11 +12050,11 @@ mutates: none
 name: resolve_finished
 type: function
 file: tasks/tennis_auto.py
-purpose: Added 2026-07-23. Finds tennis predictions with scheduled_at in the past and no outcome row, looks up the real result via fetchers.tennis.finished_result, and calls engine.record_outcome (which also updates Glicko-2, surface-scoped from the matches.venue column where analyze_tennis.py stores the surface). Mirrors tasks/rugby_auto.py's resolve_finished(), minus the background scheduler. Only works for predictions logged after the same-day run_tennis_analysis persist-order bug fix (see analyze_tennis.py's CODEMAP entry) — predictions from before that fix have no predictions/signals rows to grade, only a bare matches row.
+purpose: Added 2026-07-23. Finds tennis predictions with scheduled_at in the past and no outcome row, looks up the real result via fetchers.tennis.finished_result, and calls engine.record_outcome (which also updates Glicko-2, surface-scoped from the matches.venue column where analyze_tennis.py stores the surface). Mirrors tasks/rugby_auto.py's resolve_finished(), plus updates _STATE["last_resolve_utc"] (rugby's version doesn't track this — rugby has no scheduler). Called both manually (POST /tennis-auto/resolve) and automatically by _scheduler_loop every 3 h. Only works for predictions logged after the same-day run_tennis_analysis persist-order bug fix (see analyze_tennis.py's CODEMAP entry) — predictions from before that fix have no predictions/signals rows to grade, only a bare matches row.
 inputs: none
 outputs: dict {candidates, resolved, still_pending, errors, details}
 calls: fetchers.tennis.finished_result, engine.record_outcome
-called_by: tennis_auto_resolve (app.py)
+called_by: tennis_auto_resolve (app.py), _scheduler_loop
 mutates: outcomes table, matches table (status), glicko2_ratings table (via record_outcome)
 ---
 
@@ -12056,6 +12068,18 @@ outputs: dict {resolved, avg_brier, picks, by_data_confidence, calibration, gene
 calls: db.database.get_db
 called_by: tennis_performance (app.py)
 mutates: none
+---
+
+---
+name: start_tennis_auto / stop_tennis_auto / status / _scheduler_loop / _should_run_interval
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23, same day as resolve_finished/compute_metrics, in response to the user asking whether resolution could happen automatically instead of needing a manual POST /tennis-auto/resolve call. Mirrors the resolve-only slice of tasks/soccer_auto.py's scheduler thread (no fixture-scan job, no weekly report — tennis has neither yet). start_tennis_auto() spawns a daemon thread (_scheduler_loop) that calls resolve_finished() every _STATE["resolve_interval_h"] (3h) via _should_run_interval(); idempotent, safe to call multiple times. Wired into app.py's @app.on_event("startup") the same way soccer's is, gated behind TENNIS_AUTO_DISABLED env var. status() (GET /tennis-auto/status) reports {running, last_resolve_utc, resolve_interval_h, started_at}.
+inputs: none
+outputs: start/stop return None; status() returns dict
+calls: resolve_finished
+called_by: app.py startup() (start_tennis_auto), tennis_auto_status (app.py, status)
+mutates: none (module-level _STATE only)
 ---
 
 ## Alpaca Skills Library + Low Value price-composite backtest (added 2026-07-16)

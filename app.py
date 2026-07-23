@@ -78,6 +78,18 @@ def startup():
         except Exception:
             pass
 
+    # Start the tennis auto-resolve loop: resolve_finished() every 3 h, so
+    # predictions get graded against real ESPN results without a manual
+    # POST /tennis-auto/resolve call after every round of matches. No
+    # fixture-scan or weekly-report job yet (tennis has neither an
+    # auto-predict job nor a report renderer). Disable with TENNIS_AUTO_DISABLED=1.
+    if not os.environ.get("TENNIS_AUTO_DISABLED"):
+        try:
+            from tasks.tennis_auto import start_tennis_auto
+            start_tennis_auto()
+        except Exception:
+            pass
+
     # Always-on NRFI daily pipeline (predict 13:00 / capture 23:00 / resolve
     # 05:00 UTC), pushing results to GitHub. Replaces the unreliable GitHub
     # Actions cron. Disable with NRFI_AUTO_DISABLED=1.
@@ -1338,15 +1350,24 @@ def rugby_performance():
     }
 
 
+@app.get("/tennis-auto/status")
+def tennis_auto_status():
+    """Show whether the background tennis auto-resolve loop is running,
+    plus its last-run timestamp and resolve interval."""
+    from tasks.tennis_auto import status
+    return status()
+
+
 @app.post("/tennis-auto/resolve")
 def tennis_auto_resolve():
     """
-    Manually trigger a resolve-finished pass for tennis predictions: finds
+    Manually trigger a resolve-finished pass for tennis predictions right
+    now, instead of waiting for the background loop's next 3 h tick: finds
     matches with scheduled_at in the past and no outcome row, looks up the
     real result via ESPN, and records it (updates Glicko-2 too). Added
-    2026-07-23 so predictions can actually be graded against real results —
-    no scheduler yet, call this manually (or wire a cron later, same as
-    tasks/nrfi_auto.py does for baseball).
+    2026-07-23; the background loop (tasks.tennis_auto.start_tennis_auto,
+    started at app startup) calls this same function automatically every
+    3 h, so manual calls are only needed to force an immediate resolve.
     """
     from tasks.tennis_auto import resolve_finished
     return resolve_finished()
@@ -1358,8 +1379,10 @@ def tennis_performance():
     Tennis model performance report — resolved predictions, Brier score,
     pick hit rate, calibration buckets, and a breakdown by data_confidence
     tier. Same "prove it before staking real money" purpose as
-    GET /rugby-performance. Call POST /tennis-auto/resolve first to grade
-    any pending predictions.
+    GET /rugby-performance. The background loop resolves finished matches
+    every 3 h automatically (see GET /tennis-auto/status); call
+    POST /tennis-auto/resolve to force an immediate resolve instead of
+    waiting for the next tick.
     """
     from tasks.tennis_auto import compute_metrics
     metrics = compute_metrics()
@@ -1371,10 +1394,10 @@ def tennis_performance():
             "needed": 10,
             "message": (
                 f"Only {n} resolved tennis predictions. Need at least 10 to compute "
-                "meaningful metrics. Keep running predictions and call "
-                "POST /tennis-auto/resolve after each round of matches."
+                "meaningful metrics. Keep running predictions — the background "
+                "loop resolves finished matches automatically every 3 h."
             ),
-            "next_step": "Run 20+ predictions, resolve them, then call this endpoint.",
+            "next_step": "Run 20+ predictions and wait for them to resolve, then call this endpoint.",
         }
 
     picks = metrics.get("picks") or {}

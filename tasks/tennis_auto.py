@@ -1,10 +1,12 @@
 """
 Tennis resolution + performance reporting.
 
-Mirrors tasks/rugby_auto.py's shape (no background scheduler, no auto-predict
-scan — just fill in real outcomes for past predictions and report accuracy
-so there's real evidence instead of a guess). Exposed as manually triggered
-endpoints (POST /tennis-auto/resolve, GET /tennis-performance).
+resolve_finished() now also runs on a background scheduler thread (added
+2026-07-23, same day as this module) so predictions get graded automatically
+instead of needing a manual POST /tennis-auto/resolve after every round of
+matches — mirrors the resolve-only slice of tasks/soccer_auto.py's scheduler
+(no fixture-scan job, no weekly report; tennis has neither an auto-predict
+job nor a report renderer yet). Disable with TENNIS_AUTO_DISABLED=1.
 
 Tennis has no BET/LEAN/PASS three-way verdict like soccer/rugby — analyze_tennis.py
 logs a single "recommendation" signal per match (a player name, or "PASS" when
@@ -22,11 +24,21 @@ Fixed by moving the recommendation computation before persist. This resolver
 only works for predictions logged after that fix.
 """
 from __future__ import annotations
-from datetime import datetime, timezone
+import threading
+import traceback
+from datetime import datetime, timezone, timedelta
 
 from db.database import get_db
 from engine import record_outcome
 from fetchers.tennis import finished_result
+
+_STOP = threading.Event()
+_THREAD: threading.Thread | None = None
+_STATE = {
+    "last_resolve_utc": None,
+    "resolve_interval_h": 3,
+    "started_at": None,
+}
 
 
 def resolve_finished() -> dict:
@@ -81,6 +93,7 @@ def resolve_finished() -> dict:
             errors += 1
             details.append({"match_id": row["id"], "error": str(exc)})
 
+    _STATE["last_resolve_utc"] = datetime.now(timezone.utc).isoformat()
     return {
         "candidates": len(rows), "resolved": resolved,
         "still_pending": still_pending, "errors": errors, "details": details,
@@ -180,4 +193,48 @@ def compute_metrics() -> dict:
         "by_data_confidence": conf_summary,
         "calibration": calib,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ── Scheduler thread ─────────────────────────────────────────────────────────
+
+def _should_run_interval(last_iso: str | None, interval_h: int) -> bool:
+    if last_iso is None:
+        return True
+    try:
+        last = datetime.fromisoformat(last_iso)
+    except Exception:
+        return True
+    return datetime.now(timezone.utc) - last >= timedelta(hours=interval_h)
+
+
+def _scheduler_loop():
+    while not _STOP.is_set():
+        if _should_run_interval(_STATE["last_resolve_utc"], _STATE["resolve_interval_h"]):
+            try:
+                resolve_finished()   # updates _STATE["last_resolve_utc"] itself
+            except Exception:
+                traceback.print_exc()
+        _STOP.wait(900)   # check every 15 minutes
+
+
+def start_tennis_auto():
+    """Idempotent — safe to call multiple times."""
+    global _THREAD
+    if _THREAD is not None and _THREAD.is_alive():
+        return
+    _STATE["started_at"] = datetime.now(timezone.utc).isoformat()
+    _STOP.clear()
+    _THREAD = threading.Thread(target=_scheduler_loop, name="tennis-auto", daemon=True)
+    _THREAD.start()
+
+
+def stop_tennis_auto():
+    _STOP.set()
+
+
+def status() -> dict:
+    return {
+        "running": _THREAD is not None and _THREAD.is_alive(),
+        **_STATE,
     }
