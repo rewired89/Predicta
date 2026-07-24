@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-23T18:03:57.161525+00:00",
+  "fetched_at": "2026-07-24T12:11:28.463569+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-07-22T17:41Z"
+            "lastUpdated": "2026-07-22T18:02Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-07-22T17:41Z"
+            "lastUpdated": "2026-07-22T18:02Z"
           }
         ],
         "calendarType": "day",
@@ -5741,20 +5741,20 @@
               {
                 "id": "178886",
                 "uid": "s:850~l:851~e:304-2026~c:178886",
-                "date": "2026-07-24T10:30Z",
-                "startDate": "2026-07-24T10:30Z",
+                "date": "2026-07-24T10:35Z",
+                "startDate": "2026-07-24T10:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 24th at 6:30 AM EDT",
-                    "shortDetail": "7/24 - 6:30 AM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -5766,7 +5766,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Quentin Halys (FRA) leads Yannick Hanfmann (GER) 6-4 6-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5777,6 +5782,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b3d58fa1-ed92-b1ea-89e6-11e2d9c3ac6a",
                       "displayName": "Quentin Halys",
@@ -5814,6 +5828,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "1b1186f6-c6f0-417c-26af-5280cf749499",
                       "displayName": "Yannick Hanfmann",
@@ -5861,10 +5884,10 @@
               {
                 "id": "178887",
                 "uid": "s:850~l:851~e:304-2026~c:178887",
-                "date": "2026-07-24T12:00Z",
-                "startDate": "2026-07-24T12:00Z",
+                "date": "2026-07-24T12:30Z",
+                "startDate": "2026-07-24T12:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -5873,8 +5896,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, July 24th at 8:00 AM EDT",
-                    "shortDetail": "7/24 - 8:00 AM EDT"
+                    "detail": "Fri, July 24th at 8:30 AM EDT",
+                    "shortDetail": "7/24 - 8:30 AM EDT"
                   }
                 },
                 "venue": {
@@ -8761,20 +8784,20 @@
               {
                 "id": "178896",
                 "uid": "s:850~l:851~e:304-2026~c:178896",
-                "date": "2026-07-24T08:30Z",
-                "startDate": "2026-07-24T08:30Z",
+                "date": "2026-07-24T08:40Z",
+                "startDate": "2026-07-24T08:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 24th at 4:30 AM EDT",
-                    "shortDetail": "7/24 - 4:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -8786,7 +8809,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Jakob Schnaitter (GER) & Mark Wallner (GER) bt (1) Pierre-Hugues Herbert (FRA) & Kevin Krawietz (GER) 6-2 2-6 1-0 (10-8)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -8797,9 +8825,25 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Jakob Schnaitter / Mark Wallner",
                       "shortDisplayName": "J. Schnaitter / M. Wallner",
@@ -8872,9 +8916,25 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 8,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Pierre-Hugues Herbert / Kevin Krawietz",
                       "shortDisplayName": "P. Herbert / K. Krawietz",
@@ -9181,30 +9241,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "13774-14355",
+                    "uid": "s:850~l:851~t:13774-14355",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "roster": {
+                      "displayName": "Jakob Schnaitter / Mark Wallner",
+                      "shortDisplayName": "J. Schnaitter / M. Wallner",
+                      "athletes": [
+                        {
+                          "guid": "6e9f0216-3ad6-362b-a11a-6b968934da70",
+                          "displayName": "Jakob Schnaitter",
+                          "shortName": "J. Schnaitter",
+                          "fullName": "Jakob Schnaitter",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/13774/jakob-schnaitter",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "cdc12eb9-92d5-33af-8f9c-fa83bf93a21f",
+                          "displayName": "Mark Wallner",
+                          "shortName": "M. Wallner",
+                          "fullName": "Mark Wallner",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/14355/mark-wallner",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -14081,17 +14214,17 @@
                 "date": "2026-07-23T17:25Z",
                 "startDate": "2026-07-23T17:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -14105,7 +14238,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Pedro Martinez (ESP) leads (2) Luciano Darderi (ITA) 0-6 0-0",
+                    "text": "(2) Luciano Darderi (ITA) bt Pedro Martinez (ESP) 6-0 6-1",
                     "type": "event"
                   }
                 ],
@@ -14119,7 +14252,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -14129,7 +14262,8 @@
                         "winner": true
                       },
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -14169,14 +14303,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 0.0,
                         "winner": false
                       },
                       {
-                        "value": 0.0
+                        "value": 1.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -14211,11 +14346,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 400,
                 "type": {
                   "id": "1",
@@ -14231,20 +14361,20 @@
               {
                 "id": "178820",
                 "uid": "s:850~l:851~e:400-2026~c:178820",
-                "date": "2026-07-24T11:00Z",
-                "startDate": "2026-07-24T11:00Z",
+                "date": "2026-07-24T11:05Z",
+                "startDate": "2026-07-24T11:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 24th at 7:00 AM EDT",
-                    "shortDetail": "7/24 - 7:00 AM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -14256,7 +14386,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Tiago Torres (POR) is tied with Hugo Gaston (FRA) 3-6 2-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -14267,6 +14402,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "abcbb823-1295-5536-7632-0e77e8890662",
                       "displayName": "Hugo Gaston",
@@ -14304,6 +14449,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "fceec908-eb85-3e08-853d-6ffc700d05cd",
                       "displayName": "Tiago Torres",
@@ -14336,6 +14491,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 400,
                 "type": {
                   "id": "1",
@@ -14354,7 +14514,7 @@
                 "date": "2026-07-24T12:30Z",
                 "startDate": "2026-07-24T12:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -14628,16 +14788,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "7833",
+                    "uid": "s:850~l:851~a:7833",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "3be13e6a-8bc0-3970-9c10-89b117bf4f71",
+                      "displayName": "Luciano Darderi",
+                      "shortName": "L. Darderi",
+                      "fullName": "Luciano Darderi",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7833/luciano-darderi",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -17383,7 +17569,7 @@
                 "date": "2026-07-24T13:00Z",
                 "startDate": "2026-07-24T13:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
