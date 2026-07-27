@@ -10,7 +10,7 @@ from typing import Optional
 
 import env_loader  # noqa: F401 — loads .env on import, handles CRLF/BOM/quotes
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -3209,6 +3209,44 @@ def low_value_dashboard():
     """Plain-English Low Value engine monitor — separate page from the High Value /trade/dashboard."""
     from fetchers.low_value_dashboard import render_low_value_dashboard
     return HTMLResponse(content=render_low_value_dashboard())
+
+
+@app.post("/trade/low-value/analyze-image")
+async def analyze_low_value_image(file: UploadFile = File(...)):
+    """
+    Upload a photo (e.g. a screenshot of a brokerage watchlist) — extracts
+    ticker symbols via Claude vision (fetchers.ticker_vision), then runs
+    each one through the real Low Value thesis engine
+    (fetchers.low_value_runner.analyze_low_value_tickers) against live
+    market/news data. Read-only: never logs a hypothetical trade.
+    """
+    image_bytes = await file.read()
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Image too large (max 10MB)")
+    if not image_bytes:
+        raise HTTPException(400, "Empty file")
+    media_type = file.content_type or "image/png"
+
+    from fetchers.ticker_vision import extract_tickers_from_image
+    tickers = extract_tickers_from_image(image_bytes, media_type)
+    if not tickers:
+        return {"tickers_found": [], "results": [], "note": "No ticker symbols recognized in this image."}
+
+    from fetchers.low_value_runner import analyze_low_value_tickers
+    return {"tickers_found": tickers, "results": analyze_low_value_tickers(tickers)}
+
+
+class AnalyzeTickersRequest(BaseModel):
+    symbols: list[str]
+
+
+@app.post("/trade/low-value/analyze-tickers")
+def analyze_low_value_tickers_endpoint(body: AnalyzeTickersRequest):
+    """Same real Low Value analysis as analyze-image, for a plain typed/pasted ticker list — no photo required."""
+    if not body.symbols:
+        raise HTTPException(400, "Provide a non-empty 'symbols' list")
+    from fetchers.low_value_runner import analyze_low_value_tickers
+    return {"results": analyze_low_value_tickers(body.symbols)}
 
 
 class LowValueQueryRequest(BaseModel):

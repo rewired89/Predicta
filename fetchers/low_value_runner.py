@@ -294,6 +294,66 @@ def _load_open_positions() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def analyze_low_value_tickers(symbols: list[str]) -> list[dict]:
+    """
+    Pure, read-only Low Value analysis for an explicit ticker list — e.g.
+    tickers extracted from an uploaded watchlist photo (fetchers.ticker_vision).
+    Computes the real 8-signal composite (thesis_tracker.compute_thesis_score)
+    for every symbol given, regardless of whether it crosses ENTRY_THRESHOLD.
+
+    Deliberately never writes a hypothetical trade row — unlike
+    run_low_value_scan, this is a lookup a human asked for, not the daily
+    scan, so it must not pollute calibration data with speculative checks
+    on tickers that were never actually part of a real scan cycle.
+
+    low_value_universe_eligible flags whether the symbol is even in Low
+    Value's actual scope (sub-$20) — the composite score is still computed
+    and returned either way, but a mega-cap or ETF ticker's score should be
+    read as "what the formula outputs if you feed it this," not "a real Low
+    Value signal," since this engine's own daily scanner would never have
+    considered it in the first place.
+    """
+    if not symbols:
+        return []
+    symbols = sorted({s.strip().upper() for s in symbols if s.strip()})
+    news_by_symbol = scan_universe_news(symbols, days=7)
+    results = []
+    for sym in symbols:
+        try:
+            daily_bars = get_daily_bars(sym, days=25)
+            if not daily_bars:
+                results.append({
+                    "symbol": sym,
+                    "error": "No price data found — may not be a valid US-listed equity ticker, or Alpaca has no data for it.",
+                })
+                continue
+            current_price = daily_bars[-1].get("c")
+            sector_etf = sector_etf_for_symbol(sym)
+            sector_bars = get_daily_bars(sector_etf, days=25)
+            news_result = news_by_symbol.get(sym)
+            thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result)
+            composite = thesis.get("composite")
+            results.append({
+                "symbol": sym,
+                "current_price": current_price,
+                "low_value_universe_eligible": bool(current_price and current_price < 20),
+                "composite_score": composite,
+                "label": thesis.get("label"),
+                "entry_eligible": thesis.get("entry_eligible"),
+                "thesis_type": dominant_thesis_type(thesis, news_result) if composite is not None else None,
+                "signals": thesis.get("signals", {}),
+                "missing_signals": thesis.get("missing_signals", []),
+                "news": {
+                    "flags": (news_result or {}).get("flags", []),
+                    "sentiment": (news_result or {}).get("sentiment"),
+                    "headline_count": (news_result or {}).get("headline_count"),
+                },
+            })
+        except Exception as exc:
+            results.append({"symbol": sym, "error": str(exc)})
+    return results
+
+
 def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     """
     Scans the daily universe (or an explicit override list), logs any

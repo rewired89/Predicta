@@ -12726,3 +12726,46 @@ type: function
 file: app.py
 purpose: extended 2026-07-23 — POST /trade/smart-order already placed real Alpaca paper bracket orders manually (this was already human-triggered — the one existing exception to "the scan never places an order"); now also attests each successfully-placed order to HSIP via fetchers.hsip_client.attest_transaction (strategy_id="high_value_intraday_manual"). No-op if HSIP isn't configured — the endpoint's existing behavior/response shape is unchanged either way.
 ---
+
+---
+name: extract_tickers_from_image
+type: function
+file: fetchers/ticker_vision.py
+purpose: added 2026-07-23 — reads stock/ETF ticker symbols out of an uploaded image (e.g. a photo of a brokerage watchlist) using Claude vision, same Anthropic client/model convention as ai_agent_trading.py (ai_client.get_client(), claude-haiku-4-5-20251001). Expects the model to return a JSON array; if that parse fails for any reason, falls back to a regex scan of the raw response text for 1-5-letter uppercase tokens rather than silently returning nothing.
+inputs: extract_tickers_from_image(image_bytes: bytes, media_type: str)
+outputs: list[str] (deduped, uppercase ticker symbols)
+calls: ai_client.get_client, Anthropic messages.create (vision)
+called_by: analyze_low_value_image (app.py POST /trade/low-value/analyze-image)
+mutates: none
+---
+
+---
+name: analyze_low_value_tickers
+type: function
+file: fetchers/low_value_runner.py
+purpose: added 2026-07-23 — pure, read-only Low Value analysis for an explicit ticker list (e.g. from extract_tickers_from_image, or a plain pasted list), answering "is this specific stock worth it" using the REAL 8-signal composite (thesis_tracker.compute_thesis_score) against live price/news data — never a guess. Deliberately never writes a hypothetical trade row (unlike run_low_value_scan) since this is a one-off lookup a human asked for, not part of the daily scan cycle, and must not pollute calibration data. Every result includes low_value_universe_eligible (current_price < 20) so a mega-cap or ETF ticker's composite score is clearly labeled "for reference only, this engine's real scanner would never have picked it up" rather than presented as a genuine signal.
+inputs: analyze_low_value_tickers(symbols: list[str])
+outputs: list[dict] — per symbol: {symbol, current_price, low_value_universe_eligible, composite_score, label, entry_eligible, thesis_type, signals, missing_signals, news} or {symbol, error}
+calls: fetchers.alpaca.get_daily_bars, fetchers.low_value_runner.scan_universe_news, models.trading.low_value.thesis_tracker.{sector_etf_for_symbol,compute_thesis_score,dominant_thesis_type}
+called_by: analyze_low_value_image, analyze_low_value_tickers_endpoint (app.py)
+mutates: none
+---
+
+---
+name: analyze_low_value_image / analyze_low_value_tickers_endpoint
+type: function
+file: app.py
+purpose: added 2026-07-23 — the picture-upload feature: POST /trade/low-value/analyze-image accepts an uploaded photo (max 10MB), extracts tickers via fetchers.ticker_vision, then runs the real analysis via fetchers.low_value_runner.analyze_low_value_tickers. POST /trade/low-value/analyze-tickers is the same analysis for a plain typed/pasted symbol list, no photo needed. Both read-only — no DB writes, no trades logged. Requires python-multipart (added to requirements.txt) for FastAPI's UploadFile form-data parsing.
+inputs: analyze_low_value_image(file: UploadFile); analyze_low_value_tickers_endpoint(body: AnalyzeTickersRequest {symbols: list[str]})
+outputs: JSON {tickers_found, results} or {results}
+calls: fetchers.ticker_vision.extract_tickers_from_image, fetchers.low_value_runner.analyze_low_value_tickers
+called_by: lvAnalyzePhoto() JS (templates/trading_low_value.html)
+mutates: none
+---
+
+---
+name: templates/trading_low_value.html (extended, photo-upload card)
+type: function
+file: templates/trading_low_value.html
+purpose: extended 2026-07-23 — new "Analyze a Photo" card (file input + Analyze button) between the existing Ask card and Monitor card. lvAnalyzePhoto() JS posts the file as multipart form data to POST /trade/low-value/analyze-image, then lvRenderAnalysis() formats each result as plain text (price, label, composite score, thesis type, news flags, missing signals), flagging any ticker outside Low Value's actual sub-$20 scope as "score shown for reference only."
+---

@@ -78,6 +78,16 @@
   </div>
 
   <div class="card">
+    <div class="card-title">Analyze a Photo</div>
+    <div class="prompt-label">Upload a screenshot of a watchlist (from any broker app) — Predicta reads the ticker symbols out of the image, then runs the real Low Value signal engine (live price/news/fundamentals, not a guess) against each one. Read-only: this never places a trade or logs anything.</div>
+    <div class="query-row">
+      <input type="file" id="lv-photo-input" accept="image/*" style="flex:1; color:var(--text); font-size:.85rem;" />
+      <button class="btn" onclick="lvAnalyzePhoto()">Analyze</button>
+    </div>
+    <div id="lv-photo-result"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Monitor</div>
     <div class="actions">
       <a class="btn" href="/trade/low-value/dashboard">Open Dashboard</a>
@@ -180,6 +190,49 @@ async function lvRunQuery() {
 document.getElementById("lv-query-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") lvRunQuery();
 });
+
+function lvRenderAnalysis(results) {
+  if (!results || !results.length) return "No tickers recognized in that image.";
+  const lines = [];
+  results.forEach(r => {
+    if (r.error) {
+      lines.push(`${r.symbol}: ${r.error}`);
+      return;
+    }
+    const priceStr = r.current_price != null ? `$${r.current_price.toFixed(2)}` : "—";
+    const scope = r.low_value_universe_eligible
+      ? ""
+      : "  [outside Low Value's sub-$20 scope — score shown for reference only]";
+    lines.push(`${r.symbol} — ${priceStr} — ${r.label || "NEUTRAL"} (composite ${r.composite_score ?? "—"})${scope}`);
+    if (r.thesis_type) lines.push(`  thesis: ${r.thesis_type}`);
+    if (r.news && r.news.headline_count) lines.push(`  news: ${r.news.headline_count} headlines, sentiment ${r.news.sentiment ?? "—"}, flags ${(r.news.flags || []).join(", ") || "none"}`);
+    if (r.missing_signals && r.missing_signals.length) lines.push(`  missing signals: ${r.missing_signals.join(", ")}`);
+    lines.push("");
+  });
+  return lines.join("\n");
+}
+
+async function lvAnalyzePhoto() {
+  const input = document.getElementById("lv-photo-input");
+  const out = document.getElementById("lv-photo-result");
+  if (!input.files || !input.files.length) { out.textContent = "Choose an image first."; return; }
+
+  out.innerHTML = '<span class="lv-loading">Reading tickers and running live analysis — this can take a minute for a long list…</span>';
+  try {
+    const formData = new FormData();
+    formData.append("file", input.files[0]);
+    const res = await fetch("/trade/low-value/analyze-image", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) { out.textContent = "Error: " + (data.detail || res.statusText); return; }
+    if (!data.tickers_found || !data.tickers_found.length) {
+      out.textContent = data.note || "No ticker symbols recognized in that image.";
+      return;
+    }
+    out.textContent = `Found: ${data.tickers_found.join(", ")}\n\n` + lvRenderAnalysis(data.results);
+  } catch (e) {
+    out.textContent = "Request failed: " + e.message;
+  }
+}
 </script>
 </body>
 </html>
