@@ -108,8 +108,9 @@ class MatchCreate(BaseModel):
 
 @app.post("/matches", status_code=201)
 def create_match(body: MatchCreate):
-    if body.sport not in ("soccer", "table_tennis", "tennis", "baseball"):
-        raise HTTPException(400, "sport must be soccer, table_tennis, tennis, or baseball")
+    valid_sports = ("soccer", "table_tennis", "tennis", "baseball", "esports", "rugby", "ufc")
+    if body.sport not in valid_sports:
+        raise HTTPException(400, f"sport must be one of: {', '.join(valid_sports)}")
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO matches (sport, league, participant_a, participant_b,
