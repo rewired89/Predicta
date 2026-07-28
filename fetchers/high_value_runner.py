@@ -26,7 +26,7 @@ try:
 except ImportError:
     _EASTERN = None  # fallback: use UTC offset approximation
 
-from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position
+from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position, friendly_order_error
 from fetchers.trading_logger import log_hypothetical_trade, log_trade_entry, log_trade_exit, promote_trade_to_real
 from fetchers import hsip_client
 from models.trading.high_value.intraday import compute_intraday_signals
@@ -946,7 +946,7 @@ def execute_high_value_trade(trade_id: int) -> dict:
         stop_loss   = stop,
     )
     if "error" in order_result:
-        return {"error": order_result.get("detail") or order_result["error"]}
+        return {"error": friendly_order_error(order_result)}
 
     alpaca_order_id = order_result.get("id")
     promote_trade_to_real(trade_id, alpaca_order_id)

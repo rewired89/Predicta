@@ -610,7 +610,7 @@ def execute_low_value_trade(trade_id: int) -> dict:
         if qty < 1:
             return {"error": f"Position size ({pos['qty']} shares) rounds to 0 whole shares — too small to short."}
 
-    from fetchers.alpaca import place_order
+    from fetchers.alpaca import place_order, friendly_order_error
     order_result = place_order(
         symbol         = symbol,
         qty            = qty,
@@ -619,7 +619,7 @@ def execute_low_value_trade(trade_id: int) -> dict:
         time_in_force  = "day",
     )
     if "error" in order_result:
-        return {"error": order_result.get("detail") or order_result["error"]}
+        return {"error": friendly_order_error(order_result)}
 
     alpaca_order_id = order_result.get("id")
     promote_trade_to_real(trade_id, alpaca_order_id)

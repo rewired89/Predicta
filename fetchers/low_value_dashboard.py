@@ -815,13 +815,23 @@ def render_low_value_dashboard() -> str:
 </main>
 <footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/dashboard">High Value dashboard</a></footer>
 <script>
+function predictaErrorText(data) {{
+  // FastAPI's own validation errors put a LIST of objects in data.detail
+  // (not a string), and a raw Alpaca error dict could too before it's been
+  // through friendly_order_error() server-side — either shape used to
+  // render as a literal "[object Object]" once handed to string
+  // concatenation. Always produce real, readable text instead.
+  if (typeof data.detail === 'string') return data.detail;
+  if (data.detail) return JSON.stringify(data.detail);
+  return JSON.stringify(data);
+}}
 async function predictaAction(url, label) {{
   if (!confirm('Confirm: ' + label + '?\\n\\nThis places (or closes) a real Alpaca paper order.')) return;
   const passcode = prompt('Trade passcode (leave blank if none is set):') || '';
   try {{
     const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
     const data = await res.json();
-    if (!res.ok) {{ alert('Failed: ' + (data.detail || JSON.stringify(data))); return; }}
+    if (!res.ok) {{ alert('Failed: ' + predictaErrorText(data)); return; }}
     alert('Done.\\n' + JSON.stringify(data, null, 2));
     location.reload();
   }} catch (e) {{ alert('Request failed: ' + e); }}

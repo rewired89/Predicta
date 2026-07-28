@@ -51,6 +51,25 @@ def _post(url: str, body: dict) -> dict:
         return {"error": str(e)}
 
 
+def friendly_order_error(result: dict) -> str:
+    """
+    Alpaca's HTTPError responses put a JSON body — e.g.
+    {"code": 40310000, "message": "insufficient day trading buying power..."} —
+    in result["detail"], a raw dict, not a string. Passed straight through
+    to a caller (as a route's HTTPException detail, or a JSON {"error": ...}
+    field), that became a literal "[object Object]" in the dashboard's alert
+    dialog once the frontend tried to display it as text. Always returns a
+    real string: Alpaca's own "message" field when detail is a dict, the raw
+    detail otherwise, or the original exception text as a last resort.
+    """
+    detail = result.get("detail")
+    if isinstance(detail, dict):
+        return detail.get("message") or str(detail)
+    if detail:
+        return str(detail)
+    return result.get("error", "Unknown Alpaca error")
+
+
 def _delete(url: str) -> dict:
     try:
         r = requests.delete(url, headers=_headers(), timeout=10)

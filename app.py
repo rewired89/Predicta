@@ -1557,7 +1557,7 @@ def smart_trade(body: SmartOrderRequest):
     Rejection reasons (status=REJECTED): liquidity fail, lunch chop,
     weak signal (|score| < min_score), missing trade levels.
     """
-    from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars, place_bracket_order
+    from fetchers.alpaca import get_snapshot, get_bars, get_daily_bars, place_bracket_order, friendly_order_error
     from models.trading.high_value.intraday import compute_intraday_signals
     from fetchers.trading_logger import log_trade_entry
 
@@ -1652,7 +1652,7 @@ def smart_trade(body: SmartOrderRequest):
         stop_loss   = stop_loss,
     )
     if "error" in order_result:
-        raise HTTPException(400, order_result.get("detail") or order_result["error"])
+        raise HTTPException(400, friendly_order_error(order_result))
 
     alpaca_order_id = order_result.get("id")
 
@@ -3064,13 +3064,23 @@ def trade_dashboard():
 </main>
 <footer>Auto-refreshes every 5 minutes &nbsp;·&nbsp; <a href="/trade/paper-data" style="color:var(--muted)">Raw data</a> &nbsp;·&nbsp; <a href="/trade/calibration" style="color:var(--muted)">Calibration</a></footer>
 <script>
+function predictaErrorText(data) {{
+  // FastAPI's own validation errors put a LIST of objects in data.detail
+  // (not a string), and a raw Alpaca error dict could too before it's been
+  // through friendly_order_error() server-side — either shape used to
+  // render as a literal "[object Object]" once handed to string
+  // concatenation. Always produce real, readable text instead.
+  if (typeof data.detail === 'string') return data.detail;
+  if (data.detail) return JSON.stringify(data.detail);
+  return JSON.stringify(data);
+}}
 async function predictaAction(url, label) {{
   if (!confirm('Confirm: ' + label + '?\\n\\nThis places (or closes) a real Alpaca paper order.')) return;
   const passcode = prompt('Trade passcode (leave blank if none is set):') || '';
   try {{
     const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
     const data = await res.json();
-    if (!res.ok) {{ alert('Failed: ' + (data.detail || JSON.stringify(data))); return; }}
+    if (!res.ok) {{ alert('Failed: ' + predictaErrorText(data)); return; }}
     alert('Done.\\n' + JSON.stringify(data, null, 2));
     location.reload();
   }} catch (e) {{ alert('Request failed: ' + e); }}
