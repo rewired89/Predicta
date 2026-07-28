@@ -3226,10 +3226,17 @@ def low_value_dashboard():
 async def analyze_low_value_image(file: UploadFile = File(...)):
     """
     Upload a photo (e.g. a screenshot of a brokerage watchlist) — extracts
-    ticker symbols via Claude vision (fetchers.ticker_vision), then runs
-    each one through the real Low Value thesis engine
-    (fetchers.low_value_runner.analyze_low_value_tickers) against live
-    market/news data. Read-only: never logs a hypothetical trade.
+    ticker symbols via Claude vision (fetchers.ticker_vision, fast, one AI
+    call, done synchronously here), then starts the real per-ticker Low
+    Value analysis (fetchers.low_value_runner.analyze_low_value_tickers)
+    in the BACKGROUND and returns immediately (fixed 2026-07-27 — a
+    20-50-ticker photo means 40-100+ sequential Alpaca/Finnhub calls, which
+    can genuinely take minutes; blocking the HTTP request on that is
+    exactly the bug trigger_scan_async was already fixed for on
+    2026-07-07, reintroduced fresh here and now fixed the same way — a
+    user reported the Analyze button's loading message never resolving).
+    Poll GET /trade/low-value/analyze-status for progress/results. Never
+    logs a hypothetical trade — this is read-only analysis.
     """
     image_bytes = await file.read()
     if len(image_bytes) > 10 * 1024 * 1024:
@@ -3241,10 +3248,11 @@ async def analyze_low_value_image(file: UploadFile = File(...)):
     from fetchers.ticker_vision import extract_tickers_from_image
     tickers = extract_tickers_from_image(image_bytes, media_type)
     if not tickers:
-        return {"tickers_found": [], "results": [], "note": "No ticker symbols recognized in this image."}
+        return {"status": "no_tickers", "tickers_found": [], "note": "No ticker symbols recognized in this image."}
 
-    from fetchers.low_value_runner import analyze_low_value_tickers
-    return {"tickers_found": tickers, "results": analyze_low_value_tickers(tickers)}
+    from fetchers.low_value_runner import trigger_ticker_analysis_async
+    result = trigger_ticker_analysis_async(tickers)
+    return {**result, "tickers_found": tickers}
 
 
 class AnalyzeTickersRequest(BaseModel):
@@ -3253,11 +3261,19 @@ class AnalyzeTickersRequest(BaseModel):
 
 @app.post("/trade/low-value/analyze-tickers")
 def analyze_low_value_tickers_endpoint(body: AnalyzeTickersRequest):
-    """Same real Low Value analysis as analyze-image, for a plain typed/pasted ticker list — no photo required."""
+    """Same real Low Value analysis as analyze-image, for a plain typed/pasted ticker list — no photo required. Also fire-and-forget; poll GET /trade/low-value/analyze-status."""
     if not body.symbols:
         raise HTTPException(400, "Provide a non-empty 'symbols' list")
-    from fetchers.low_value_runner import analyze_low_value_tickers
-    return {"results": analyze_low_value_tickers(body.symbols)}
+    from fetchers.low_value_runner import trigger_ticker_analysis_async
+    result = trigger_ticker_analysis_async(body.symbols)
+    return {**result, "tickers_found": body.symbols}
+
+
+@app.get("/trade/low-value/analyze-status")
+def low_value_analyze_status():
+    """Poll this after analyze-image / analyze-tickers returns {"status": "started"} — in_progress flips false once results (or an error) are ready."""
+    from fetchers.low_value_runner import get_analysis_status
+    return get_analysis_status()
 
 
 class LowValueQueryRequest(BaseModel):

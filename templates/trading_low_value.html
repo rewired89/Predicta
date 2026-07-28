@@ -106,6 +106,15 @@
   </div>
 </main>
 <script>
+function predictaErrorText(data) {
+  // Same helper as the dashboards' predictaAction() — FastAPI validation
+  // errors put a LIST of objects in data.detail (not a string), which
+  // renders as "[object Object]" if concatenated directly.
+  if (typeof data.detail === "string") return data.detail;
+  if (data.detail) return JSON.stringify(data.detail);
+  return JSON.stringify(data);
+}
+
 function lvFill(text) {
   document.getElementById("lv-query-input").value = text;
   lvRunQuery();
@@ -212,23 +221,56 @@ function lvRenderAnalysis(results) {
   return lines.join("\n");
 }
 
+async function lvPollAnalysis(out, tickersFound) {
+  // The actual analysis runs in a background thread server-side (fixed
+  // 2026-07-27 — see app.py's analyze_low_value_image docstring); this
+  // polls GET /trade/low-value/analyze-status every 3s until it's done,
+  // instead of holding one HTTP request open for however long a 20-50
+  // ticker photo takes (which was silently exceeding the platform's
+  // request timeout with no result ever coming back).
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise(r => setTimeout(r, 3000));
+    let data;
+    try {
+      const res = await fetch("/trade/low-value/analyze-status");
+      data = await res.json();
+    } catch (e) {
+      out.textContent = "Status check failed: " + e.message + " — the analysis may still be running in the background; try refreshing in a minute.";
+      return;
+    }
+    if (data.in_progress) {
+      out.innerHTML = `<span class="lv-loading">Still working — analyzing ${data.tickers_found.length} ticker(s), can take up to a minute per ticker on a cold cache… (check ${attempt + 1})</span>`;
+      continue;
+    }
+    if (data.error) { out.textContent = "Analysis failed: " + data.error; return; }
+    out.textContent = `Found: ${tickersFound.join(", ")}\n\n` + lvRenderAnalysis(data.results);
+    return;
+  }
+  out.textContent = "Still running after 5 minutes — check back shortly, or refresh this page (the analysis keeps running in the background regardless).";
+}
+
 async function lvAnalyzePhoto() {
   const input = document.getElementById("lv-photo-input");
   const out = document.getElementById("lv-photo-result");
   if (!input.files || !input.files.length) { out.textContent = "Choose an image first."; return; }
 
-  out.innerHTML = '<span class="lv-loading">Reading tickers and running live analysis — this can take a minute for a long list…</span>';
+  out.innerHTML = '<span class="lv-loading">Reading tickers…</span>';
   try {
     const formData = new FormData();
     formData.append("file", input.files[0]);
     const res = await fetch("/trade/low-value/analyze-image", { method: "POST", body: formData });
     const data = await res.json();
-    if (!res.ok) { out.textContent = "Error: " + (data.detail || res.statusText); return; }
+    if (!res.ok) { out.textContent = "Error: " + predictaErrorText(data); return; }
     if (!data.tickers_found || !data.tickers_found.length) {
       out.textContent = data.note || "No ticker symbols recognized in that image.";
       return;
     }
-    out.textContent = `Found: ${data.tickers_found.join(", ")}\n\n` + lvRenderAnalysis(data.results);
+    if (data.status === "already_running") {
+      out.textContent = `An analysis is already running (started ${data.started_at}). Waiting for it to finish…`;
+    } else {
+      out.innerHTML = `<span class="lv-loading">Found: ${data.tickers_found.join(", ")}<br>Running live analysis in the background — this can take a minute per ticker on a cold cache…</span>`;
+    }
+    await lvPollAnalysis(out, data.tickers_found);
   } catch (e) {
     out.textContent = "Request failed: " + e.message;
   }

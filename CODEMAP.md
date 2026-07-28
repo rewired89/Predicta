@@ -12769,3 +12769,27 @@ type: function
 file: templates/trading_low_value.html
 purpose: extended 2026-07-23 — new "Analyze a Photo" card (file input + Analyze button) between the existing Ask card and Monitor card. lvAnalyzePhoto() JS posts the file as multipart form data to POST /trade/low-value/analyze-image, then lvRenderAnalysis() formats each result as plain text (price, label, composite score, thesis type, news flags, missing signals), flagging any ticker outside Low Value's actual sub-$20 scope as "score shown for reference only."
 ---
+
+---
+name: friendly_order_error
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-07-27 — real bug found live: clicking Buy on a rejected order showed "Failed: [object Object]" instead of Alpaca's actual rejection reason. _post()'s HTTPError handler stores Alpaca's raw JSON error body (e.g. {"code":40310000,"message":"..."}) in result["detail"] — a dict, not a string — and every caller was passing that dict straight through to the client, which stringified it as "[object Object]" once it hit JS string concatenation. Always returns a real string now: Alpaca's own "message" field when detail is a dict, the raw detail otherwise, or the original exception text as a fallback.
+inputs: friendly_order_error(result: dict)
+outputs: str
+calls: none
+called_by: execute_high_value_trade (fetchers/high_value_runner.py), execute_low_value_trade (fetchers/low_value_runner.py), smart_trade (app.py)
+mutates: none
+---
+
+---
+name: analyze_low_value_tickers (async wrapper: trigger_ticker_analysis_async / _analysis_worker / get_analysis_status / _clear_stale_analysis)
+type: function
+file: fetchers/low_value_runner.py
+purpose: added 2026-07-27 — real bug found live: the Analyze-a-Photo button's loading message never resolved for a real multi-ticker watchlist photo. Root cause: analyze_low_value_tickers ran synchronously inside the HTTP request — a 20-50-ticker photo means 40-100+ sequential Alpaca/Finnhub calls, easily minutes, which silently exceeded the platform's request timeout with no result ever returned. This is the exact same class of bug trigger_scan_async (2026-07-07) already fixed for the daily scan, reintroduced fresh here for the new photo feature and now fixed the identical way: a background thread + polling, mirroring trigger_scan_async/_scan_worker/_clear_stale_scan's shape exactly (own lock, own in-progress flag, own 300s watchdog ceiling — shorter than the full universe scan's 900s since a photo has far fewer tickers).
+inputs: trigger_ticker_analysis_async(tickers: list[str]); get_analysis_status() takes nothing
+outputs: trigger_ticker_analysis_async -> {"status": "started"|"already_running", "started_at"}; get_analysis_status -> {"in_progress","started_at","completed_at","tickers_found","results","error"}
+calls: analyze_low_value_tickers (in the background thread)
+called_by: analyze_low_value_image, analyze_low_value_tickers_endpoint, low_value_analyze_status (app.py)
+mutates: none directly (module-level in-memory state only, same as the scan-state globals)
+---

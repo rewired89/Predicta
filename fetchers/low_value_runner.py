@@ -102,6 +102,23 @@ _last_scan_completed_at: Optional[str] = None
 _last_scan_trade_ids: list[int] = []
 _last_scan_error: Optional[str] = None
 
+# Same fire-and-forget pattern as the scan state above, for
+# analyze_low_value_tickers (photo-upload / pasted-ticker-list analysis) —
+# a real watchlist photo can have 20-50 tickers, each needing 2 Alpaca
+# calls, which is the exact same "blocks the HTTP request for minutes"
+# problem the scan trigger was fixed for on 2026-07-07. A user reported the
+# Analyze button's loading message just sitting there forever with no
+# result ever appearing — this is that bug, fixed the same way.
+_analysis_lock = threading.Lock()
+_analysis_in_progress: bool = False
+_analysis_thread: Optional[threading.Thread] = None
+_last_analysis_started_at: Optional[str] = None
+_last_analysis_completed_at: Optional[str] = None
+_last_analysis_tickers_found: list[str] = []
+_last_analysis_results: list[dict] = []
+_last_analysis_error: Optional[str] = None
+MAX_ANALYSIS_SECONDS: float = 300.0
+
 # Same fire-and-forget treatment for a universe-only refresh (GET
 # /trade/low-value/universe?force_refresh=true) — building the universe
 # alone is the same expensive operation as the first half of a scan, so it
@@ -352,6 +369,72 @@ def analyze_low_value_tickers(symbols: list[str]) -> list[dict]:
         except Exception as exc:
             results.append({"symbol": sym, "error": str(exc)})
     return results
+
+
+def _clear_stale_analysis() -> None:
+    global _analysis_in_progress, _last_analysis_error, _last_analysis_completed_at
+    if not _analysis_in_progress:
+        return
+    elapsed = _seconds_since(_last_analysis_started_at)
+    if elapsed is not None and elapsed > MAX_ANALYSIS_SECONDS:
+        log.error(
+            f"[LOW_VALUE] Analysis watchdog: still 'in progress' after {elapsed:.0f}s "
+            f"(budget {MAX_ANALYSIS_SECONDS:.0f}s) — treating as hung/failed, clearing the flag"
+        )
+        _analysis_in_progress = False
+        _last_analysis_completed_at = _et_now().isoformat()
+        _last_analysis_error = (
+            f"Watchdog: analysis exceeded {MAX_ANALYSIS_SECONDS:.0f}s without completing "
+            "(a dependency call likely hung past its own timeout) — treated as failed, safe to retry"
+        )
+
+
+def _analysis_worker(tickers: list[str]) -> None:
+    """Background-thread body for trigger_ticker_analysis_async — never runs inside an HTTP request."""
+    global _analysis_in_progress, _last_analysis_completed_at, _last_analysis_results, _last_analysis_error
+    _last_analysis_error = None
+    try:
+        _last_analysis_results = analyze_low_value_tickers(tickers)
+    except Exception as exc:
+        _last_analysis_error = str(exc)
+        log.error(f"[LOW_VALUE] Async ticker analysis failed: {exc}")
+    finally:
+        _last_analysis_completed_at = _et_now().isoformat()
+        _analysis_in_progress = False
+
+
+def trigger_ticker_analysis_async(tickers: list[str]) -> dict:
+    """
+    Fire-and-forget analyze_low_value_tickers trigger (same reasoning as
+    trigger_scan_async above) — starts the real per-ticker analysis in a
+    background thread and returns immediately. Poll get_analysis_status()
+    for in_progress / results. Returns {"status": "started"} or
+    {"status": "already_running"} if a previous analysis hasn't finished yet.
+    """
+    global _analysis_in_progress, _analysis_thread, _last_analysis_started_at, _last_analysis_tickers_found
+    with _analysis_lock:
+        _clear_stale_analysis()
+        if _analysis_in_progress:
+            return {"status": "already_running", "started_at": _last_analysis_started_at}
+        _analysis_in_progress = True
+        _last_analysis_started_at = _et_now().isoformat()
+        _last_analysis_tickers_found = tickers
+        _analysis_thread = threading.Thread(target=_analysis_worker, args=(tickers,), daemon=True, name="low-value-ticker-analysis")
+        _analysis_thread.start()
+    return {"status": "started", "started_at": _last_analysis_started_at}
+
+
+def get_analysis_status() -> dict:
+    """Current state of the most recent ticker/photo analysis — polled by the Analyze button's JS."""
+    _clear_stale_analysis()
+    return {
+        "in_progress":   _analysis_in_progress,
+        "started_at":    _last_analysis_started_at,
+        "completed_at":  _last_analysis_completed_at,
+        "tickers_found": _last_analysis_tickers_found,
+        "results":       _last_analysis_results,
+        "error":         _last_analysis_error,
+    }
 
 
 def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
