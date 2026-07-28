@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-28T12:29:06.950221+00:00",
+  "fetched_at": "2026-07-28T18:10:07.182076+00:00",
   "data": {
     "leagues": [
       {
@@ -10796,142 +10796,22 @@
                 "wasSuspended": false
               },
               {
-                "id": "178957",
-                "uid": "s:850~l:851~e:888-2026~c:178957",
-                "date": "2026-07-28T15:00Z",
-                "startDate": "2026-07-28T15:00Z",
-                "timeValid": true,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 11:00 AM EDT",
-                    "shortDetail": "7/28 - 11:00 AM EDT"
-                  }
-                },
-                "venue": {
-                  "fullName": "Washington, USA",
-                  "court": "Stadium"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 5
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "2964",
-                    "uid": "s:850~l:851~a:2964",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "8965d2eb-1419-a6e6-5d3f-573b8b0bc565",
-                      "displayName": "Tommy Paul",
-                      "shortName": "T. Paul",
-                      "fullName": "Tommy Paul",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
-                        "alt": "USA",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2964/tommy-paul",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "2416",
-                    "uid": "s:850~l:851~a:2416",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "guid": "de42df24-25c0-ecc9-8dce-5493cf51417b",
-                      "displayName": "Kamil Majchrzak",
-                      "shortName": "K. Majchrzak",
-                      "fullName": "Kamil Majchrzak",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
-                        "alt": "Poland",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2416/kamil-majchrzak",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 888,
-                "type": {
-                  "id": "1",
-                  "text": "Men's Singles",
-                  "slug": "mens-singles"
-                },
-                "round": {
-                  "id": "1",
-                  "displayName": "Round 1"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "178975",
                 "uid": "s:850~l:851~e:888-2026~c:178975",
-                "date": "2026-07-28T15:00Z",
-                "startDate": "2026-07-28T15:00Z",
+                "date": "2026-07-28T15:05Z",
+                "startDate": "2026-07-28T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 11:00 AM EDT",
-                    "shortDetail": "7/28 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -10943,7 +10823,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ugo Humbert (FRA) bt Andres Martin (USA) 6-2 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -10954,6 +10839,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "03deb08b-6d8b-37c8-b784-fe4e6cd8a60a",
                       "displayName": "Andres Martin",
@@ -10991,6 +10887,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
                       "displayName": "Ugo Humbert",
@@ -11036,175 +10943,66 @@
                 "wasSuspended": false
               },
               {
-                "id": "178952",
-                "uid": "s:850~l:851~e:888-2026~c:178952",
-                "date": "2026-07-28T16:30Z",
-                "startDate": "2026-07-28T16:30Z",
+                "id": "178957",
+                "uid": "s:850~l:851~e:888-2026~c:178957",
+                "date": "2026-07-28T15:10Z",
+                "startDate": "2026-07-28T15:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 12:30 PM EDT",
-                    "shortDetail": "7/28 - 12:30 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
                   "fullName": "Washington, USA",
-                  "court": "John Harris"
+                  "court": "Stadium"
                 },
                 "format": {
                   "regulation": {
                     "periods": 5
                   }
                 },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
+                "notes": [
                   {
-                    "id": "12657",
-                    "uid": "s:850~l:851~a:12657",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "14a740e2-9290-3b00-84d2-8a65c9754208",
-                      "displayName": "Rafael Jodar",
-                      "shortName": "R. Jodar",
-                      "fullName": "Rafael Jodar",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
-                        "alt": "Spain",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/12657/rafael-jodar",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "10052",
-                    "uid": "s:850~l:851~a:10052",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 8
-                    },
-                    "athlete": {
-                      "guid": "911397bc-b02d-3987-94ce-642b3aeac50d",
-                      "displayName": "Arthur Fils",
-                      "shortName": "A. Fils",
-                      "fullName": "Arthur Fils",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
-                        "alt": "France",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/10052/arthur-fils",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
+                    "text": "Kamil Majchrzak (POL) bt Tommy Paul (USA) 7-5 7-6 (7-4)",
+                    "type": "event"
                   }
                 ],
-                "tournamentId": 888,
-                "type": {
-                  "id": "1",
-                  "text": "Men's Singles",
-                  "slug": "mens-singles"
-                },
-                "round": {
-                  "id": "1",
-                  "displayName": "Round 1"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "178953",
-                "uid": "s:850~l:851~e:888-2026~c:178953",
-                "date": "2026-07-28T16:30Z",
-                "startDate": "2026-07-28T16:30Z",
-                "timeValid": true,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 12:30 PM EDT",
-                    "shortDetail": "7/28 - 12:30 PM EDT"
-                  }
-                },
-                "venue": {
-                  "fullName": "Washington, USA",
-                  "court": "Grandstand"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 5
-                  }
-                },
-                "notes": [],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "10386",
-                    "uid": "s:850~l:851~a:10386",
+                    "id": "2964",
+                    "uid": "s:850~l:851~a:2964",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "curatedRank": {
-                      "current": 5
-                    },
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
-                      "guid": "7d3eeaec-3319-321e-98a8-62727666e00e",
-                      "displayName": "Learner Tien",
-                      "shortName": "L. Tien",
-                      "fullName": "Learner Tien",
+                      "guid": "8965d2eb-1419-a6e6-5d3f-573b8b0bc565",
+                      "displayName": "Tommy Paul",
+                      "shortName": "T. Paul",
+                      "fullName": "Tommy Paul",
                       "flag": {
                         "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
                         "alt": "USA",
@@ -11220,7 +11018,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/10386/learner-tien",
+                          "href": "https://www.espn.com/tennis/player/_/id/2964/tommy-paul",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -11232,19 +11030,31 @@
                     "statistics": []
                   },
                   {
-                    "id": "1266",
-                    "uid": "s:850~l:851~a:1266",
+                    "id": "2416",
+                    "uid": "s:850~l:851~a:2416",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
-                      "guid": "dbc865c9-ab39-49ff-dbb3-895a876665d3",
-                      "displayName": "Adrian Mannarino",
-                      "shortName": "A. Mannarino",
-                      "fullName": "Adrian Mannarino",
+                      "guid": "de42df24-25c0-ecc9-8dce-5493cf51417b",
+                      "displayName": "Kamil Majchrzak",
+                      "shortName": "K. Majchrzak",
+                      "fullName": "Kamil Majchrzak",
                       "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
-                        "alt": "France",
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
+                        "alt": "Poland",
                         "rel": [
                           "country-flag"
                         ]
@@ -11257,7 +11067,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/1266/adrian-mannarino",
+                          "href": "https://www.espn.com/tennis/player/_/id/2416/kamil-majchrzak",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -11284,20 +11094,20 @@
               {
                 "id": "178955",
                 "uid": "s:850~l:851~e:888-2026~c:178955",
-                "date": "2026-07-28T16:30Z",
-                "startDate": "2026-07-28T16:30Z",
+                "date": "2026-07-28T16:45Z",
+                "startDate": "2026-07-28T16:45Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 12:30 PM EDT",
-                    "shortDetail": "7/28 - 12:30 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -11309,7 +11119,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Alex Michelsen (USA) leads Mackenzie McDonald (USA) 6-4 5-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -11320,6 +11135,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "fe21eb09-3fc1-8e3f-86b0-cfa8dec2440a",
                       "displayName": "Mackenzie McDonald",
@@ -11357,6 +11182,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "3a18ef3a-cc7b-3f51-a969-cac9c930c75d",
                       "displayName": "Alex Michelsen",
@@ -11389,6 +11224,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "1",
@@ -11402,52 +11242,63 @@
                 "wasSuspended": false
               },
               {
-                "id": "178963",
-                "uid": "s:850~l:851~e:888-2026~c:178963",
-                "date": "2026-07-28T18:00Z",
-                "startDate": "2026-07-28T18:00Z",
+                "id": "178952",
+                "uid": "s:850~l:851~e:888-2026~c:178952",
+                "date": "2026-07-28T17:25Z",
+                "startDate": "2026-07-28T17:25Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 2:00 PM EDT",
-                    "shortDetail": "7/28 - 2:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
                   "fullName": "Washington, USA",
-                  "court": "Grandstand"
+                  "court": "John Harris"
                 },
                 "format": {
                   "regulation": {
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(8) Arthur Fils (FRA) leads Rafael Jodar (ESP) 5-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "3739",
-                    "uid": "s:850~l:851~a:3739",
+                    "id": "12657",
+                    "uid": "s:850~l:851~a:12657",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
-                      "guid": "b058324c-2f80-73a2-2e25-82b8abe00a76",
-                      "displayName": "Tomas Martin Etcheverry",
-                      "shortName": "T. Etcheverry",
-                      "fullName": "Tomas Martin Etcheverry",
+                      "guid": "14a740e2-9290-3b00-84d2-8a65c9754208",
+                      "displayName": "Rafael Jodar",
+                      "shortName": "R. Jodar",
+                      "fullName": "Rafael Jodar",
                       "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
-                        "alt": "Argentina",
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
                         "rel": [
                           "country-flag"
                         ]
@@ -11460,7 +11311,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/3739/tomas-martin-etcheverry",
+                          "href": "https://www.espn.com/tennis/player/_/id/12657/rafael-jodar",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -11472,16 +11323,127 @@
                     "statistics": []
                   },
                   {
-                    "id": "3774",
-                    "uid": "s:850~l:851~a:3774",
+                    "id": "10052",
+                    "uid": "s:850~l:851~a:10052",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "curatedRank": {
+                      "current": 8
+                    },
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
-                      "guid": "b55524e2-a931-d142-f794-50b742380e8e",
-                      "displayName": "Brandon Nakashima",
-                      "shortName": "B. Nakashima",
-                      "fullName": "Brandon Nakashima",
+                      "guid": "911397bc-b02d-3987-94ce-642b3aeac50d",
+                      "displayName": "Arthur Fils",
+                      "shortName": "A. Fils",
+                      "fullName": "Arthur Fils",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10052/arthur-fils",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
+                "tournamentId": 888,
+                "type": {
+                  "id": "1",
+                  "text": "Men's Singles",
+                  "slug": "mens-singles"
+                },
+                "round": {
+                  "id": "1",
+                  "displayName": "Round 1"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "178953",
+                "uid": "s:850~l:851~e:888-2026~c:178953",
+                "date": "2026-07-28T17:40Z",
+                "startDate": "2026-07-28T17:40Z",
+                "timeValid": true,
+                "recent": true,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
+                    "completed": false,
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
+                  }
+                },
+                "venue": {
+                  "fullName": "Washington, USA",
+                  "court": "Grandstand"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 5
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "(5) Learner Tien (USA) leads Adrian Mannarino (FRA) 4-3",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "10386",
+                    "uid": "s:850~l:851~a:10386",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "possession": false,
+                    "curatedRank": {
+                      "current": 5
+                    },
+                    "linescores": [
+                      {
+                        "value": 4.0
+                      }
+                    ],
+                    "athlete": {
+                      "guid": "7d3eeaec-3319-321e-98a8-62727666e00e",
+                      "displayName": "Learner Tien",
+                      "shortName": "L. Tien",
+                      "fullName": "Learner Tien",
                       "flag": {
                         "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
                         "alt": "USA",
@@ -11497,7 +11459,50 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/3774/brandon-nakashima",
+                          "href": "https://www.espn.com/tennis/player/_/id/10386/learner-tien",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "1266",
+                    "uid": "s:850~l:851~a:1266",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
+                    "athlete": {
+                      "guid": "dbc865c9-ab39-49ff-dbb3-895a876665d3",
+                      "displayName": "Adrian Mannarino",
+                      "shortName": "A. Mannarino",
+                      "fullName": "Adrian Mannarino",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1266/adrian-mannarino",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -11509,6 +11514,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "1",
@@ -11524,10 +11534,10 @@
               {
                 "id": "178966",
                 "uid": "s:850~l:851~e:888-2026~c:178966",
-                "date": "2026-07-28T18:00Z",
-                "startDate": "2026-07-28T18:00Z",
+                "date": "2026-07-28T18:15Z",
+                "startDate": "2026-07-28T18:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -11536,8 +11546,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Tue, July 28th at 2:00 PM EDT",
-                    "shortDetail": "7/28 - 2:00 PM EDT"
+                    "detail": "Tue, July 28th at 2:15 PM EDT",
+                    "shortDetail": "7/28 - 2:15 PM EDT"
                   }
                 },
                 "venue": {
@@ -11642,12 +11652,132 @@
                 "wasSuspended": false
               },
               {
+                "id": "178963",
+                "uid": "s:850~l:851~e:888-2026~c:178963",
+                "date": "2026-07-28T18:30Z",
+                "startDate": "2026-07-28T18:30Z",
+                "timeValid": true,
+                "recent": true,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Tue, July 28th at 2:30 PM EDT",
+                    "shortDetail": "7/28 - 2:30 PM EDT"
+                  }
+                },
+                "venue": {
+                  "fullName": "Washington, USA",
+                  "court": "Grandstand"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 5
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "3739",
+                    "uid": "s:850~l:851~a:3739",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "b058324c-2f80-73a2-2e25-82b8abe00a76",
+                      "displayName": "Tomas Martin Etcheverry",
+                      "shortName": "T. Etcheverry",
+                      "fullName": "Tomas Martin Etcheverry",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3739/tomas-martin-etcheverry",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "3774",
+                    "uid": "s:850~l:851~a:3774",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "b55524e2-a931-d142-f794-50b742380e8e",
+                      "displayName": "Brandon Nakashima",
+                      "shortName": "B. Nakashima",
+                      "fullName": "Brandon Nakashima",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3774/brandon-nakashima",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 888,
+                "type": {
+                  "id": "1",
+                  "text": "Men's Singles",
+                  "slug": "mens-singles"
+                },
+                "round": {
+                  "id": "1",
+                  "displayName": "Round 1"
+                },
+                "wasSuspended": false
+              },
+              {
                 "id": "178974",
                 "uid": "s:850~l:851~e:888-2026~c:178974",
                 "date": "2026-07-28T18:30Z",
                 "startDate": "2026-07-28T18:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -12058,16 +12188,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "3085",
+                    "uid": "s:850~l:851~a:3085",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
+                      "displayName": "Ugo Humbert",
+                      "shortName": "U. Humbert",
+                      "fullName": "Ugo Humbert",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3085/ugo-humbert",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -12532,16 +12685,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2416",
+                    "uid": "s:850~l:851~a:2416",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "de42df24-25c0-ecc9-8dce-5493cf51417b",
+                      "displayName": "Kamil Majchrzak",
+                      "shortName": "K. Majchrzak",
+                      "fullName": "Kamil Majchrzak",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
+                        "alt": "Poland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2416/kamil-majchrzak",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -16019,20 +16195,20 @@
               {
                 "id": "179000",
                 "uid": "s:850~l:851~e:888-2026~c:179000",
-                "date": "2026-07-28T15:00Z",
-                "startDate": "2026-07-28T15:00Z",
+                "date": "2026-07-28T15:05Z",
+                "startDate": "2026-07-28T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 11:00 AM EDT",
-                    "shortDetail": "7/28 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -16044,7 +16220,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Polina Kudermetova (UZB) bt Cristina Bucsa (ESP) 5-7 7-6 (7-4) 6-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16055,6 +16236,22 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "c9ba38ce-6df7-3b07-b32b-74801479012b",
                       "displayName": "Polina Kudermetova",
@@ -16092,6 +16289,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "f1a3f8c2-748d-dce9-dd7f-6aae162f47b7",
                       "displayName": "Cristina Bucsa",
@@ -16139,20 +16352,20 @@
               {
                 "id": "179017",
                 "uid": "s:850~l:851~e:888-2026~c:179017",
-                "date": "2026-07-28T15:00Z",
-                "startDate": "2026-07-28T15:00Z",
+                "date": "2026-07-28T15:05Z",
+                "startDate": "2026-07-28T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 11:00 AM EDT",
-                    "shortDetail": "7/28 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -16164,7 +16377,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Wang Xinyu (CHN) bt Julieta Pareja (USA) 7-6 (7-3) 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16175,6 +16393,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "bc35eb09-afe2-3f14-cc47-e8ed41c02860",
                       "displayName": "Wang Xinyu",
@@ -16212,6 +16442,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "24dcb8c3-b9ba-3002-84a6-57f8b63bd812",
                       "displayName": "Julieta Pareja",
@@ -16259,20 +16501,20 @@
               {
                 "id": "179022",
                 "uid": "s:850~l:851~e:888-2026~c:179022",
-                "date": "2026-07-28T17:00Z",
-                "startDate": "2026-07-28T17:00Z",
+                "date": "2026-07-28T17:35Z",
+                "startDate": "2026-07-28T17:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 1:00 PM EDT",
-                    "shortDetail": "7/28 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -16284,7 +16526,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Alexandra Eala (PHI) leads Qinwen Zheng (CHN) 3-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16295,6 +16542,12 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "e32a05e0-b87c-3bec-8a3b-4ae417db8ced",
                       "displayName": "Zheng Qinwen",
@@ -16332,6 +16585,12 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "067c21f8-c2a6-3d19-beeb-5cf5874910ec",
                       "displayName": "Alexandra Eala",
@@ -16364,6 +16623,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "2",
@@ -16382,7 +16646,7 @@
                 "date": "2026-07-28T19:00Z",
                 "startDate": "2026-07-28T19:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -17056,16 +17320,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "3387",
+                    "uid": "s:850~l:851~a:3387",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "bc35eb09-afe2-3f14-cc47-e8ed41c02860",
+                      "displayName": "Wang Xinyu",
+                      "shortName": "W. Xinyu",
+                      "fullName": "Wang Xinyu",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                        "alt": "China",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3387/wang-xinyu",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -17256,16 +17543,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "6413",
+                    "uid": "s:850~l:851~a:6413",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "c9ba38ce-6df7-3b07-b32b-74801479012b",
+                      "displayName": "Polina Kudermetova",
+                      "shortName": "P. Kudermetova",
+                      "fullName": "Polina Kudermetova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/uzb.png",
+                        "alt": "Uzbekistan",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6413/polina-kudermetova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -19666,20 +19976,20 @@
               {
                 "id": "178983",
                 "uid": "s:850~l:851~e:888-2026~c:178983",
-                "date": "2026-07-28T15:00Z",
-                "startDate": "2026-07-28T15:00Z",
+                "date": "2026-07-28T15:10Z",
+                "startDate": "2026-07-28T15:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 11:00 AM EDT",
-                    "shortDetail": "7/28 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -19691,7 +20001,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Julian Cash (GBR) & Lloyd Glasspool (GBR) bt Yuki Bhambri (IND) & Michael Venus (NZL) 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -19702,6 +20017,17 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Yuki Bhambri / Michael Venus",
                       "shortDisplayName": "Y. Bhambri / M. Venus",
@@ -19774,9 +20100,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Julian Cash / Lloyd Glasspool",
                       "shortDisplayName": "J. Cash / L. Glasspool",
@@ -19859,10 +20196,10 @@
               {
                 "id": "178994",
                 "uid": "s:850~l:851~e:888-2026~c:178994",
-                "date": "2026-07-28T18:00Z",
-                "startDate": "2026-07-28T18:00Z",
+                "date": "2026-07-28T18:05Z",
+                "startDate": "2026-07-28T18:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -19871,8 +20208,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Tue, July 28th at 2:00 PM EDT",
-                    "shortDetail": "7/28 - 2:00 PM EDT"
+                    "detail": "Tue, July 28th at 2:05 PM EDT",
+                    "shortDetail": "7/28 - 2:05 PM EDT"
                   }
                 },
                 "venue": {
@@ -20800,30 +21137,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "2420-3064",
+                    "uid": "s:850~l:851~t:2420-3064",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "roster": {
+                      "displayName": "Julian Cash / Lloyd Glasspool",
+                      "shortDisplayName": "J. Cash / L. Glasspool",
+                      "athletes": [
+                        {
+                          "guid": "4edc2a79-cb72-7341-0f43-d5271fefc34e",
+                          "displayName": "Julian Cash",
+                          "shortName": "J. Cash",
+                          "fullName": "Julian Cash",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2420/julian-cash",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "c8083296-45f2-3c07-64d7-56c59fae1f22",
+                          "displayName": "Lloyd Glasspool",
+                          "shortName": "L. Glasspool",
+                          "fullName": "Lloyd Glasspool",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3064/lloyd-glasspool",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -22114,20 +22524,20 @@
               {
                 "id": "179036",
                 "uid": "s:850~l:851~e:888-2026~c:179036",
-                "date": "2026-07-28T16:30Z",
-                "startDate": "2026-07-28T16:30Z",
+                "date": "2026-07-28T16:35Z",
+                "startDate": "2026-07-28T16:35Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, July 28th at 12:30 PM EDT",
-                    "shortDetail": "7/28 - 12:30 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -22139,7 +22549,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Qianhui Tang (CHN) & Yifan Xu (CHN) bt (4) Anna Danilina (KAZ) & Leylah Fernandez (CAN) 6-2 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -22150,9 +22565,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Anna Danilina / Leylah Fernandez",
                       "shortDisplayName": "A. Danilina / L. Fernandez",
@@ -22225,6 +22651,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Tang Qianhui / Xu Yifan",
                       "shortDisplayName": "Q. Tang / Y. Xu",
@@ -23107,26 +23544,72 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "3478-9987",
+                    "uid": "s:850~l:851~t:3478-9987",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Tang Qianhui / Xu Yifan",
+                      "shortDisplayName": "Q. Tang / Y. Xu",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "533936fa-bc8c-7330-7009-ecb4c61b830f",
+                          "displayName": "Tang Qianhui",
+                          "shortName": "Q. Tang",
+                          "fullName": "Tang Qianhui",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3478/tang-qianhui",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "7838489f-3020-3b18-a385-84c2a8b8aa39",
+                          "displayName": "Xu Yifan",
+                          "shortName": "Y. Xu",
+                          "fullName": "Xu Yifan",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/9987/xu-yifan",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
