@@ -12793,3 +12793,10 @@ calls: analyze_low_value_tickers (in the background thread)
 called_by: analyze_low_value_image, analyze_low_value_tickers_endpoint, low_value_analyze_status (app.py)
 mutates: none directly (module-level in-memory state only, same as the scan-state globals)
 ---
+
+---
+name: templates/trading_low_value.html (extended, resume-on-load)
+type: function
+file: templates/trading_low_value.html
+purpose: extended 2026-07-27 — real bug found live, immediately after the async-analysis fix above: a user waited through an analysis, it finished server-side, but they never saw the result because the browser-side lvPollAnalysis() loop watching it died the moment the page was refreshed/revisited — a fresh page load had no way to know a job had ever run. New IIFE lvCheckExistingAnalysis() calls GET /trade/low-value/analyze-status once on every page load: resumes polling if a job is still in_progress, immediately renders the last completed results if any exist, or shows the last error — all silent (no-op) if there's nothing to resume, so the Analyze button's normal fresh-upload flow is unaffected.
+---

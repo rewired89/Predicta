@@ -275,6 +275,31 @@ async function lvAnalyzePhoto() {
     out.textContent = "Request failed: " + e.message;
   }
 }
+
+// Resume/show a still-running or already-finished analysis on page load —
+// without this, refreshing the page (or coming back later) while an
+// analysis was still working in the background loses all trace of it: the
+// server-side job keeps running/finishes fine, but the browser-side poll
+// loop that was watching it died with the old page, and a fresh page load
+// had no way to know a result was ever coming. Fixes "I still can't see
+// the analysis after it finished" when the wait outlasted the page.
+(async function lvCheckExistingAnalysis() {
+  const out = document.getElementById("lv-photo-result");
+  try {
+    const res = await fetch("/trade/low-value/analyze-status");
+    const data = await res.json();
+    if (data.in_progress) {
+      out.innerHTML = `<span class="lv-loading">An analysis is still running from before (started ${data.started_at}) — resuming…</span>`;
+      await lvPollAnalysis(out, data.tickers_found);
+    } else if (data.results && data.results.length) {
+      out.textContent = `Last analysis (finished ${data.completed_at}):\nFound: ${data.tickers_found.join(", ")}\n\n` + lvRenderAnalysis(data.results);
+    } else if (data.error) {
+      out.textContent = "Last analysis failed: " + data.error;
+    }
+  } catch (e) {
+    // No existing job to resume, or the status endpoint isn't reachable yet — silently do nothing, the Analyze button still works normally.
+  }
+})();
 </script>
 </body>
 </html>
