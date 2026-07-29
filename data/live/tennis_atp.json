@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-29T12:53:56.892169+00:00",
+  "fetched_at": "2026-07-29T18:00:08.365860+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-07-28T05:16Z"
+            "lastUpdated": "2026-07-28T17:54Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-07-28T05:16Z"
+            "lastUpdated": "2026-07-28T17:54Z"
           }
         ],
         "calendarType": "day",
@@ -12992,20 +12992,20 @@
               {
                 "id": "178965",
                 "uid": "s:850~l:851~e:888-2026~c:178965",
-                "date": "2026-07-29T17:00Z",
-                "startDate": "2026-07-29T17:00Z",
+                "date": "2026-07-29T17:05Z",
+                "startDate": "2026-07-29T17:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 1:00 PM EDT",
-                    "shortDetail": "7/29 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -13017,7 +13017,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Lorenzo Musetti (ITA) leads Aleksandar Vukic (AUS) 6-3 2-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -13028,9 +13033,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
                       "displayName": "Lorenzo Musetti",
@@ -13068,6 +13083,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "e1a2cbb8-23df-f669-91d6-43fbb0e35296",
                       "displayName": "Aleksandar Vukic",
@@ -13100,6 +13125,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "1",
@@ -13115,20 +13145,20 @@
               {
                 "id": "178968",
                 "uid": "s:850~l:851~e:888-2026~c:178968",
-                "date": "2026-07-29T17:00Z",
-                "startDate": "2026-07-29T17:00Z",
+                "date": "2026-07-29T17:20Z",
+                "startDate": "2026-07-29T17:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 1:00 PM EDT",
-                    "shortDetail": "7/29 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -13140,7 +13170,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Alex de Minaur (AUS) leads Stefanos Tsitsipas (GRE) 4-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -13151,6 +13186,12 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "eeae43af-cdf0-43b4-7dd4-2475555a445e",
                       "displayName": "Stefanos Tsitsipas",
@@ -13188,9 +13229,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b44d8a17-3923-7f78-455a-9c7ca03388f4",
                       "displayName": "Alex de Minaur",
@@ -13223,6 +13270,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "1",
@@ -13241,7 +13293,7 @@
                 "date": "2026-07-29T18:30Z",
                 "startDate": "2026-07-29T18:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -18239,20 +18291,20 @@
               {
                 "id": "178997",
                 "uid": "s:850~l:851~e:888-2026~c:178997",
-                "date": "2026-07-29T15:00Z",
-                "startDate": "2026-07-29T15:00Z",
+                "date": "2026-07-29T15:05Z",
+                "startDate": "2026-07-29T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 11:00 AM EDT",
-                    "shortDetail": "7/29 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -18264,7 +18316,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Liudmila Samsonova (RUS) bt Wang Xinyu (CHN) 6-2 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -18275,6 +18332,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "f4c3a7e4-7dee-833b-a8ed-8a85f2d2c172",
                       "displayName": "Liudmila Samsonova",
@@ -18312,6 +18380,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "bc35eb09-afe2-3f14-cc47-e8ed41c02860",
                       "displayName": "Wang Xinyu",
@@ -18359,20 +18438,20 @@
               {
                 "id": "179010",
                 "uid": "s:850~l:851~e:888-2026~c:179010",
-                "date": "2026-07-29T15:00Z",
-                "startDate": "2026-07-29T15:00Z",
+                "date": "2026-07-29T15:05Z",
+                "startDate": "2026-07-29T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 11:00 AM EDT",
-                    "shortDetail": "7/29 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -18384,7 +18463,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Alexandra Eala (PHI) bt (7) Leylah Fernandez (CAN) 6-2 7-6 (7-1)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -18395,6 +18479,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "067c21f8-c2a6-3d19-beeb-5cf5874910ec",
                       "displayName": "Alexandra Eala",
@@ -18432,9 +18528,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 1,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "4c9a7ff1-2feb-b4ab-fb3f-9fc7d9fd3f9f",
                       "displayName": "Leylah Fernandez",
@@ -18482,10 +18590,10 @@
               {
                 "id": "178996",
                 "uid": "s:850~l:851~e:888-2026~c:178996",
-                "date": "2026-07-29T18:00Z",
-                "startDate": "2026-07-29T18:00Z",
+                "date": "2026-07-29T18:20Z",
+                "startDate": "2026-07-29T18:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -18494,8 +18602,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Wed, July 29th at 2:00 PM EDT",
-                    "shortDetail": "7/29 - 2:00 PM EDT"
+                    "detail": "Wed, July 29th at 2:20 PM EDT",
+                    "shortDetail": "7/29 - 2:20 PM EDT"
                   }
                 },
                 "venue": {
@@ -19251,16 +19359,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3840",
+                    "uid": "s:850~l:851~a:3840",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "f4c3a7e4-7dee-833b-a8ed-8a85f2d2c172",
+                      "displayName": "Liudmila Samsonova",
+                      "shortName": "L. Samsonova",
+                      "fullName": "Liudmila Samsonova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3840/liudmila-samsonova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -19413,16 +19544,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "7759",
+                    "uid": "s:850~l:851~a:7759",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "067c21f8-c2a6-3d19-beeb-5cf5874910ec",
+                      "displayName": "Alexandra Eala",
+                      "shortName": "A. Eala",
+                      "fullName": "Alexandra Eala",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/phi.png",
+                        "alt": "Philippines",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7759/alexandra-eala",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -21748,20 +21902,20 @@
               {
                 "id": "178985",
                 "uid": "s:850~l:851~e:888-2026~c:178985",
-                "date": "2026-07-29T16:30Z",
-                "startDate": "2026-07-29T16:30Z",
+                "date": "2026-07-29T16:40Z",
+                "startDate": "2026-07-29T16:40Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 12:30 PM EDT",
-                    "shortDetail": "7/29 - 12:30 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -21773,7 +21927,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ariel Behar (URU) & Anirudh Chandrasekar (IND) leads Francisco Cabral (POR) & JJ Tracy (USA) 3-6 6-6 (4-2)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -21784,6 +21943,16 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2
+                      }
+                    ],
                     "roster": {
                       "displayName": "Francisco Cabral / JJ Tracy",
                       "shortDisplayName": "F. Cabral / J. Tracy",
@@ -21856,6 +22025,16 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4
+                      }
+                    ],
                     "roster": {
                       "displayName": "Ariel Behar / Anirudh Chandrasekar",
                       "shortDisplayName": "A. Behar / A. Chandrasekar",
@@ -21941,7 +22120,7 @@
                 "date": "2026-07-29T18:00Z",
                 "startDate": "2026-07-29T18:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -24819,20 +24998,20 @@
               {
                 "id": "179030",
                 "uid": "s:850~l:851~e:888-2026~c:179030",
-                "date": "2026-07-29T15:00Z",
-                "startDate": "2026-07-29T15:00Z",
+                "date": "2026-07-29T15:05Z",
+                "startDate": "2026-07-29T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, July 29th at 11:00 AM EDT",
-                    "shortDetail": "7/29 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -24844,7 +25023,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Erin Routliffe (NZL) & Aldila Sutjiadi (INA) bt Clervie Ngounoue (USA) & Alana Smith (USA) 6-3 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -24855,9 +25039,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Erin Routliffe / Aldila Sutjiadi",
                       "shortDisplayName": "E. Routliffe / A. Sutjiadi",
@@ -24930,6 +25125,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Clervie Ngounoue / Alana Smith",
                       "shortDisplayName": "C. Ngounoue / A. Smith",
@@ -25693,30 +25899,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "2204-4109",
+                    "uid": "s:850~l:851~t:2204-4109",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Erin Routliffe / Aldila Sutjiadi",
+                      "shortDisplayName": "E. Routliffe / A. Sutjiadi",
+                      "athletes": [
+                        {
+                          "guid": "5d17a793-6c19-be18-8c55-3b47ac806413",
+                          "displayName": "Erin Routliffe",
+                          "shortName": "E. Routliffe",
+                          "fullName": "Erin Routliffe",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/nzl.png",
+                            "alt": "New Zealand",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2204/erin-routliffe",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "41e2f123-460b-36bf-9eb7-f3bd5991917e",
+                          "displayName": "Aldila Sutjiadi",
+                          "shortName": "A. Sutjiadi",
+                          "fullName": "Aldila Sutjiadi",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ina.png",
+                            "alt": "Indonesia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4109/aldila-sutjiadi",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   }
