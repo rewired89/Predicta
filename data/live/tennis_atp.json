@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-30T12:22:10.399593+00:00",
+  "fetched_at": "2026-07-30T18:06:31.646013+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-07-29T15:30Z"
+            "lastUpdated": "2026-07-29T14:04Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-07-29T15:30Z"
+            "lastUpdated": "2026-07-29T14:04Z"
           }
         ],
         "calendarType": "day",
@@ -14482,20 +14482,20 @@
               {
                 "id": "178972",
                 "uid": "s:850~l:851~e:888-2026~c:178972",
-                "date": "2026-07-30T15:00Z",
-                "startDate": "2026-07-30T15:00Z",
+                "date": "2026-07-30T15:05Z",
+                "startDate": "2026-07-30T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 30th at 11:00 AM EDT",
-                    "shortDetail": "7/30 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -14507,7 +14507,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Brandon Nakashima (USA) bt (7) Jakub Mensik (CZE) 7-6 (7-5) 3-6 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -14518,9 +14523,25 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "589e3a11-e409-3279-bf74-b8660578c1e7",
                       "displayName": "Jakub Mensik",
@@ -14558,6 +14579,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "b55524e2-a931-d142-f794-50b742380e8e",
                       "displayName": "Brandon Nakashima",
@@ -14605,20 +14642,20 @@
               {
                 "id": "178973",
                 "uid": "s:850~l:851~e:888-2026~c:178973",
-                "date": "2026-07-30T17:00Z",
-                "startDate": "2026-07-30T17:00Z",
+                "date": "2026-07-30T17:40Z",
+                "startDate": "2026-07-30T17:40Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 30th at 1:00 PM EDT",
-                    "shortDetail": "7/30 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -14630,7 +14667,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Alex de Minaur (AUS) leads Cruz Hewitt (AUS) 5-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -14641,6 +14683,12 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "e1648a7e-387a-34d1-8eec-832f42bda61a",
                       "displayName": "Cruz Hewitt",
@@ -14678,9 +14726,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b44d8a17-3923-7f78-455a-9c7ca03388f4",
                       "displayName": "Alex de Minaur",
@@ -14713,6 +14767,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "1",
@@ -15322,16 +15381,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3774",
+                    "uid": "s:850~l:851~a:3774",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b55524e2-a931-d142-f794-50b742380e8e",
+                      "displayName": "Brandon Nakashima",
+                      "shortName": "B. Nakashima",
+                      "fullName": "Brandon Nakashima",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3774/brandon-nakashima",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -19851,20 +19933,20 @@
               {
                 "id": "179021",
                 "uid": "s:850~l:851~e:888-2026~c:179021",
-                "date": "2026-07-30T17:00Z",
-                "startDate": "2026-07-30T17:00Z",
+                "date": "2026-07-30T17:10Z",
+                "startDate": "2026-07-30T17:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 30th at 1:00 PM EDT",
-                    "shortDetail": "7/30 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -19876,7 +19958,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Anna Kalinskaya (RUS) is tied with Janice Tjen (INA) 1-6 4-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -19887,9 +19974,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "a6822bdd-9f61-b29f-148f-64fc93284802",
                       "displayName": "Anna Kalinskaya",
@@ -19927,6 +20024,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "9feb6b55-9bed-38ef-97a4-3c0949333194",
                       "displayName": "Janice Tjen",
@@ -19959,6 +20066,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 888,
                 "type": {
                   "id": "2",
@@ -19977,7 +20089,7 @@
                 "date": "2026-07-30T19:00Z",
                 "startDate": "2026-07-30T19:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -23634,20 +23746,20 @@
               {
                 "id": "178989",
                 "uid": "s:850~l:851~e:888-2026~c:178989",
-                "date": "2026-07-30T17:00Z",
-                "startDate": "2026-07-30T17:00Z",
+                "date": "2026-07-30T17:10Z",
+                "startDate": "2026-07-30T17:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 30th at 1:00 PM EDT",
-                    "shortDetail": "7/30 - 1:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -23659,7 +23771,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Hugo Nys (MON) & Edouard Roger-Vasselin (FRA) is tied with (4) Guido Andreozzi (ARG) & Manuel Guinard (FRA) 2-6 4-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -23673,6 +23790,15 @@
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Guido Andreozzi / Manuel Guinard",
                       "shortDisplayName": "G. Andreozzi / M. Guinard",
@@ -23745,6 +23871,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Hugo Nys / Edouard Roger-Vasselin",
                       "shortDisplayName": "H. Nys / E. Roger-Vasselin",
@@ -23830,7 +23965,7 @@
                 "date": "2026-07-30T18:30Z",
                 "startDate": "2026-07-30T18:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -26961,20 +27096,20 @@
               {
                 "id": "179033",
                 "uid": "s:850~l:851~e:888-2026~c:179033",
-                "date": "2026-07-30T15:00Z",
-                "startDate": "2026-07-30T15:00Z",
+                "date": "2026-07-30T15:05Z",
+                "startDate": "2026-07-30T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, July 30th at 11:00 AM EDT",
-                    "shortDetail": "7/30 - 11:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -26986,7 +27121,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Andreja Klepac (SLO) & Makoto Ninomiya (JPN) bt (1) Sara Errani (ITA) & Nicole Melichar-Martinez (USA) 1-6 7-6 (7-3) 1-0 (12-10)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -26997,6 +27137,23 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 12,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Andreja Klepac / Makoto Ninomiya",
                       "shortDisplayName": "A. Klepac / M. Ninomiya",
@@ -27069,9 +27226,26 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 10,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sara Errani / Nicole Melichar-Martinez",
                       "shortDisplayName": "S. Errani / N. Melichar-Martinez",
@@ -27260,26 +27434,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "473-2056",
+                    "uid": "s:850~l:851~t:473-2056",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Andreja Klepac / Makoto Ninomiya",
+                      "shortDisplayName": "A. Klepac / M. Ninomiya",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "c05b0d8c-bbf0-7599-5de4-4abbdc046c1e",
+                          "displayName": "Andreja Klepac",
+                          "shortName": "A. Klepac",
+                          "fullName": "Andreja Klepac",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                            "alt": "Slovenia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/473/andreja-klepac",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "f2112c54-a041-fea5-855a-09ad7ecddc48",
+                          "displayName": "Makoto Ninomiya",
+                          "shortName": "M. Ninomiya",
+                          "fullName": "Makoto Ninomiya",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/jpn.png",
+                            "alt": "Japan",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2056/makoto-ninomiya",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
