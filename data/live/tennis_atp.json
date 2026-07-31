@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-31T12:52:18.802746+00:00",
+  "fetched_at": "2026-07-31T18:13:39.840327+00:00",
   "data": {
     "leagues": [
       {
@@ -15662,20 +15662,20 @@
               {
                 "id": "178964",
                 "uid": "s:850~l:851~e:888-2026~c:178964",
-                "date": "2026-07-31T18:00Z",
-                "startDate": "2026-07-31T18:00Z",
+                "date": "2026-07-31T18:05Z",
+                "startDate": "2026-07-31T18:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 31st at 2:00 PM EDT",
-                    "shortDetail": "7/31 - 2:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -15687,7 +15687,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Brandon Nakashima (USA) leads (1) Alex de Minaur (AUS) 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15698,6 +15703,11 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b55524e2-a931-d142-f794-50b742380e8e",
                       "displayName": "Brandon Nakashima",
@@ -15738,6 +15748,11 @@
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b44d8a17-3923-7f78-455a-9c7ca03388f4",
                       "displayName": "Alex de Minaur",
@@ -21260,20 +21275,20 @@
               {
                 "id": "179006",
                 "uid": "s:850~l:851~e:888-2026~c:179006",
-                "date": "2026-07-31T16:00Z",
-                "startDate": "2026-07-31T16:00Z",
+                "date": "2026-07-31T16:10Z",
+                "startDate": "2026-07-31T16:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 31st at 12:00 PM EDT",
-                    "shortDetail": "7/31 - 12:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -21285,7 +21300,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Jessica Pegula (USA) bt (5) Anna Kalinskaya (RUS) 6-3 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -21296,9 +21316,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "a6822bdd-9f61-b29f-148f-64fc93284802",
                       "displayName": "Anna Kalinskaya",
@@ -21336,9 +21367,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "63f9c1e5-14bd-003f-c269-31543931ad1d",
                       "displayName": "Jessica Pegula",
@@ -21386,20 +21428,20 @@
               {
                 "id": "179020",
                 "uid": "s:850~l:851~e:888-2026~c:179020",
-                "date": "2026-07-31T18:00Z",
-                "startDate": "2026-07-31T18:00Z",
+                "date": "2026-07-31T18:05Z",
+                "startDate": "2026-07-31T18:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 31st at 2:00 PM EDT",
-                    "shortDetail": "7/31 - 2:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -21411,7 +21453,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Elisabetta Cocciaretto (ITA) leads (3) Naomi Osaka (JPN) 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -21425,6 +21472,11 @@
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "4b888d90-ad54-6a80-8830-39cfcad473a1",
                       "displayName": "Naomi Osaka",
@@ -21462,6 +21514,11 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "12345577-a685-4a27-0375-b9eb2f426d7f",
                       "displayName": "Elisabetta Cocciaretto",
@@ -21512,7 +21569,7 @@
                 "date": "2026-07-31T19:00Z",
                 "startDate": "2026-07-31T19:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -21874,16 +21931,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2113",
+                    "uid": "s:850~l:851~a:2113",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "63f9c1e5-14bd-003f-c269-31543931ad1d",
+                      "displayName": "Jessica Pegula",
+                      "shortName": "J. Pegula",
+                      "fullName": "Jessica Pegula",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2113/jessica-pegula",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -28404,20 +28487,20 @@
               {
                 "id": "179040",
                 "uid": "s:850~l:851~e:888-2026~c:179040",
-                "date": "2026-07-31T16:00Z",
-                "startDate": "2026-07-31T16:00Z",
+                "date": "2026-07-31T16:20Z",
+                "startDate": "2026-07-31T16:20Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, July 31st at 12:00 PM EDT",
-                    "shortDetail": "7/31 - 12:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -28429,7 +28512,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Erin Routliffe (NZL) & Aldila Sutjiadi (INA) bt Qianhui Tang (CHN) & Yifan Xu (CHN) 6-1 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -28440,9 +28528,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Erin Routliffe / Aldila Sutjiadi",
                       "shortDisplayName": "E. Routliffe / A. Sutjiadi",
@@ -28515,6 +28614,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Tang Qianhui / Xu Yifan",
                       "shortDisplayName": "Q. Tang / Y. Xu",
@@ -28600,7 +28710,7 @@
                 "date": "2026-07-31T19:00Z",
                 "startDate": "2026-07-31T19:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -28821,30 +28931,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "2204-4109",
+                    "uid": "s:850~l:851~t:2204-4109",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Erin Routliffe / Aldila Sutjiadi",
+                      "shortDisplayName": "E. Routliffe / A. Sutjiadi",
+                      "athletes": [
+                        {
+                          "guid": "5d17a793-6c19-be18-8c55-3b47ac806413",
+                          "displayName": "Erin Routliffe",
+                          "shortName": "E. Routliffe",
+                          "fullName": "Erin Routliffe",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/nzl.png",
+                            "alt": "New Zealand",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2204/erin-routliffe",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "41e2f123-460b-36bf-9eb7-f3bd5991917e",
+                          "displayName": "Aldila Sutjiadi",
+                          "shortName": "A. Sutjiadi",
+                          "fullName": "Aldila Sutjiadi",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ina.png",
+                            "alt": "Indonesia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4109/aldila-sutjiadi",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   }
