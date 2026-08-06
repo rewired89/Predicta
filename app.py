@@ -78,6 +78,18 @@ def startup():
         except Exception:
             pass
 
+    # Start the tennis auto-resolve loop: resolve_finished() every 3 h, so
+    # predictions get graded against real ESPN results without a manual
+    # POST /tennis-auto/resolve call after every round of matches. No
+    # fixture-scan or weekly-report job yet (tennis has neither an
+    # auto-predict job nor a report renderer). Disable with TENNIS_AUTO_DISABLED=1.
+    if not os.environ.get("TENNIS_AUTO_DISABLED"):
+        try:
+            from tasks.tennis_auto import start_tennis_auto
+            start_tennis_auto()
+        except Exception:
+            pass
+
     # Always-on NRFI daily pipeline (predict 13:00 / capture 23:00 / resolve
     # 05:00 UTC), pushing results to GitHub. Replaces the unreliable GitHub
     # Actions cron. Disable with NRFI_AUTO_DISABLED=1.
@@ -1334,6 +1346,77 @@ def rugby_performance():
     return {
         "verdict": verdict, "note": note, "n_resolved": n,
         "avg_brier": brier, "bet": bet, "lean": metrics.get("lean"),
+        "calibration": metrics.get("calibration"),
+        "full_metrics": metrics,
+    }
+
+
+@app.get("/tennis-auto/status")
+def tennis_auto_status():
+    """Show whether the background tennis auto-resolve loop is running,
+    plus its last-run timestamp and resolve interval."""
+    from tasks.tennis_auto import status
+    return status()
+
+
+@app.post("/tennis-auto/resolve")
+def tennis_auto_resolve():
+    """
+    Manually trigger a resolve-finished pass for tennis predictions right
+    now, instead of waiting for the background loop's next 3 h tick: finds
+    matches with scheduled_at in the past and no outcome row, looks up the
+    real result via ESPN, and records it (updates Glicko-2 too). Added
+    2026-07-23; the background loop (tasks.tennis_auto.start_tennis_auto,
+    started at app startup) calls this same function automatically every
+    3 h, so manual calls are only needed to force an immediate resolve.
+    """
+    from tasks.tennis_auto import resolve_finished
+    return resolve_finished()
+
+
+@app.get("/tennis-performance")
+def tennis_performance():
+    """
+    Tennis model performance report — resolved predictions, Brier score,
+    pick hit rate, calibration buckets, and a breakdown by data_confidence
+    tier. Same "prove it before staking real money" purpose as
+    GET /rugby-performance. The background loop resolves finished matches
+    every 3 h automatically (see GET /tennis-auto/status); call
+    POST /tennis-auto/resolve to force an immediate resolve instead of
+    waiting for the next tick.
+    """
+    from tasks.tennis_auto import compute_metrics
+    metrics = compute_metrics()
+    n = metrics.get("resolved", 0)
+    if n < 10:
+        return {
+            "verdict": "NOT ENOUGH DATA",
+            "n_resolved": n,
+            "needed": 10,
+            "message": (
+                f"Only {n} resolved tennis predictions. Need at least 10 to compute "
+                "meaningful metrics. Keep running predictions — the background "
+                "loop resolves finished matches automatically every 3 h."
+            ),
+            "next_step": "Run 20+ predictions and wait for them to resolve, then call this endpoint.",
+        }
+
+    picks = metrics.get("picks") or {}
+    brier = metrics.get("avg_brier") or 0.25
+    hit_rate = picks.get("hit_rate")
+
+    if hit_rate is not None and hit_rate > 0.55:
+        verdict = "CALIBRATED"
+        note = f"Pick hit rate {hit_rate*100:.1f}% across {picks.get('n', 0)} picks, Brier {brier:.3f}."
+    else:
+        verdict = "NO EDGE DETECTED"
+        hr_pct = hit_rate * 100 if hit_rate is not None else 0.0
+        note = f"Pick hit rate {hr_pct:.1f}%, Brier {brier:.3f}. Not outperforming yet."
+
+    return {
+        "verdict": verdict, "note": note, "n_resolved": n,
+        "avg_brier": brier, "picks": picks,
+        "by_data_confidence": metrics.get("by_data_confidence"),
         "calibration": metrics.get("calibration"),
         "full_metrics": metrics,
     }

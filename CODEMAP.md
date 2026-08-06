@@ -3227,10 +3227,10 @@ mutates: none
 name: startup
 type: hook
 file: app.py
-purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern.
+purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners, soccer auto-collection loop, tennis auto-resolve loop, and NRFI daily pipeline. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern. **Added 2026-07-23:** tasks.tennis_auto.start_tennis_auto() call, gated behind TENNIS_AUTO_DISABLED, same shape as the existing SOCCER_AUTO_DISABLED gate — runs tennis's resolve_finished() every 3 h automatically instead of requiring a manual POST /tennis-auto/resolve.
 inputs: none
 outputs: none
-calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py)
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py), start_soccer_auto (tasks/soccer_auto.py), start_tennis_auto (tasks/tennis_auto.py), start_nrfi_auto (tasks/nrfi_auto.py)
 called_by: FastAPI on_event("startup")
 mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals), _runner_thread/_runner_active (low_value_runner.py globals)
 ---
@@ -4944,6 +4944,18 @@ mutates: none
 ---
 
 ---
+name: finished_result
+type: function
+file: fetchers/tennis.py
+purpose: Added 2026-07-23. Look up a completed match's final result by player names + the date it was scheduled for. Mirrors fetchers/soccer_schedule.py / fetchers/rugby.py's finished_result() so tasks/tennis_auto.py's resolve step can follow the same pattern. Queries ESPN ATP/WTA scoreboard for a ±3 day window around on_or_after, matches competitors to player_a/player_b by substring either direction, and reads winnerId to determine the result. ESPN's tennis scoreboard doesn't expose a simple match-level score (sets are nested linescores, not a top-level int), so score_a/score_b are returned as a 1/0 win-loss proxy — enough to trigger record_outcome()'s tennis Glicko-2 update without fabricating a game/set count that was never actually parsed. Unverified from this sandbox (same proxy-block limitation as every other ESPN endpoint in this repo) — treat the next live call as the real test.
+inputs: player_a: str, player_b: str, on_or_after: str, tour: str = "atp"
+outputs: dict {result, score_a, score_b, kickoff_utc, matched_a, matched_b, score_detail} or None
+calls: _espn_get
+called_by: resolve_finished (tasks/tennis_auto.py)
+mutates: none
+---
+
+---
 
 ## ai_agent_tennis.py
 
@@ -5130,7 +5142,7 @@ mutates: none
 name: run_tennis_analysis
 type: function
 file: analyze_tennis.py
-purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → persist to DB → Kelly sizing → AI narrative → plain_summary in user-preferred phrasing → Market Efficiency Model recommendation.
+purpose: Full tennis pipeline: parse query → fetch ESPN/TSDB → _compute_point_probs → markov_tennis_match (nested Markov) → Glicko-2 validation (logged only) → confidence shrinkage → Market Efficiency Model recommendation → persist to DB → Kelly sizing → AI narrative → plain_summary in user-preferred phrasing. **Bug fixed 2026-07-23:** the Market Efficiency Model recommendation step used to run AFTER persist, but persist's signals_to_log already referenced the `recommendation` variable — an UnboundLocalError on every single call, silently caught by persist's own try/except. Net effect: the `matches` row was written but `predictions` and every signal (serve_quality_index, recommendation, data_confidence, everything) never were, for the entire history of this pipeline — no tennis prediction ever had a gradable DB row. Fixed by moving the recommendation computation before persist. Found while building tasks/tennis_auto.py's resolver, whose join against the predictions table would otherwise have returned zero rows forever.
 inputs: user_query: str, bankroll: float = 1000.0
 outputs: dict {match_id, player_a, player_b, recommendation, recommendation_reason, sport, tour, surface, date, plain_summary, prob_a, prob_b, data_confidence, markov_sim, player_stats, h2h, last5_a, last5_b, narrative, raw_sources, steps, …}
 calls: parse_tennis_query, fetch_tennis_context, _compute_point_probs, markov_tennis_match, Glicko2Model, kelly_stake, log_signal, get_db, generate_tennis_narrative, _build_plain_summary_tennis
@@ -11347,6 +11359,42 @@ mutates: none
 ---
 
 ---
+name: tennis_auto_status
+type: function
+file: app.py
+purpose: GET /tennis-auto/status — added 2026-07-23, same shape as GET /soccer-auto/status. Returns tasks.tennis_auto.status() — whether the background auto-resolve thread is running, plus last_resolve_utc/resolve_interval_h/started_at.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.status
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
+name: tennis_auto_resolve
+type: function
+file: app.py
+purpose: POST /tennis-auto/resolve — added 2026-07-23, same purpose as POST /rugby-auto/resolve. Manually triggers tasks.tennis_auto.resolve_finished() to force an immediate resolve. As of the same-day scheduler addition, this same function also now runs automatically every 3 h via tasks.tennis_auto.start_tennis_auto()'s background thread (wired into app.py's startup() event) — this endpoint is for forcing an out-of-cycle resolve, not the only way it runs anymore.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.resolve_finished
+called_by: FastAPI (HTTP POST)
+mutates: outcomes table, matches table, glicko2_ratings table (via resolve_finished → record_outcome)
+---
+
+---
+name: tennis_performance
+type: function
+file: app.py
+purpose: GET /tennis-performance — added 2026-07-23, same "prove it before staking real money" purpose as GET /rugby-performance. Returns NOT ENOUGH DATA below 10 resolved predictions; otherwise a plain verdict (CALIBRATED / NO EDGE DETECTED) derived from tasks.tennis_auto.compute_metrics()'s pick hit rate and Brier score.
+inputs: none
+outputs: dict (JSON response)
+calls: tasks.tennis_auto.compute_metrics
+called_by: FastAPI (HTTP GET)
+mutates: none
+---
+
+---
 name: rugby_diag
 type: function
 file: app.py
@@ -11992,6 +12040,46 @@ outputs: dict {resolved, avg_brier, bet, lean, calibration, generated_utc}
 calls: db.database.get_db
 called_by: rugby_performance (app.py)
 mutates: none
+---
+
+---
+
+## tasks/tennis_auto.py
+
+---
+name: resolve_finished
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23. Finds tennis predictions with scheduled_at in the past and no outcome row, looks up the real result via fetchers.tennis.finished_result, and calls engine.record_outcome (which also updates Glicko-2, surface-scoped from the matches.venue column where analyze_tennis.py stores the surface). Mirrors tasks/rugby_auto.py's resolve_finished(), plus updates _STATE["last_resolve_utc"] (rugby's version doesn't track this — rugby has no scheduler). Called both manually (POST /tennis-auto/resolve) and automatically by _scheduler_loop every 3 h. Only works for predictions logged after the same-day run_tennis_analysis persist-order bug fix (see analyze_tennis.py's CODEMAP entry) — predictions from before that fix have no predictions/signals rows to grade, only a bare matches row.
+inputs: none
+outputs: dict {candidates, resolved, still_pending, errors, details}
+calls: fetchers.tennis.finished_result, engine.record_outcome
+called_by: tennis_auto_resolve (app.py), _scheduler_loop
+mutates: outcomes table, matches table (status), glicko2_ratings table (via record_outcome)
+---
+
+---
+name: compute_metrics
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23. Joins matches/predictions/outcomes/signals for sport='tennis' and computes: resolved n, avg Brier score (two-outcome, no draw), pick hit rate (any recommendation signal that isn't "PASS", graded against the real winner), a breakdown by data_confidence tier (high/medium/low — the shrinkage tier analyze_tennis.py already assigns per prediction), and calibration buckets (50-60%/60-70%/70-80%/80%+ model-prob-of-the-pick vs actual hit rate). Tennis has no BET/LEAN/PASS three-way verdict like soccer/rugby, just a single recommendation signal, so this is simpler than tasks/rugby_auto.py's compute_metrics — one pick bucket, not two.
+inputs: none
+outputs: dict {resolved, avg_brier, picks, by_data_confidence, calibration, generated_utc}
+calls: db.database.get_db
+called_by: tennis_performance (app.py)
+mutates: none
+---
+
+---
+name: start_tennis_auto / stop_tennis_auto / status / _scheduler_loop / _should_run_interval
+type: function
+file: tasks/tennis_auto.py
+purpose: Added 2026-07-23, same day as resolve_finished/compute_metrics, in response to the user asking whether resolution could happen automatically instead of needing a manual POST /tennis-auto/resolve call. Mirrors the resolve-only slice of tasks/soccer_auto.py's scheduler thread (no fixture-scan job, no weekly report — tennis has neither yet). start_tennis_auto() spawns a daemon thread (_scheduler_loop) that calls resolve_finished() every _STATE["resolve_interval_h"] (3h) via _should_run_interval(); idempotent, safe to call multiple times. Wired into app.py's @app.on_event("startup") the same way soccer's is, gated behind TENNIS_AUTO_DISABLED env var. status() (GET /tennis-auto/status) reports {running, last_resolve_utc, resolve_interval_h, started_at}.
+inputs: none
+outputs: start/stop return None; status() returns dict
+calls: resolve_finished
+called_by: app.py startup() (start_tennis_auto), tennis_auto_status (app.py, status)
+mutates: none (module-level _STATE only)
 ---
 
 ## Alpaca Skills Library + Low Value price-composite backtest (added 2026-07-16)
@@ -12774,12 +12862,52 @@ purpose: extended 2026-07-23 — new "Analyze a Photo" card (file input + Analyz
 name: friendly_order_error
 type: function
 file: fetchers/alpaca.py
-purpose: added 2026-07-27 — real bug found live: clicking Buy on a rejected order showed "Failed: [object Object]" instead of Alpaca's actual rejection reason. _post()'s HTTPError handler stores Alpaca's raw JSON error body (e.g. {"code":40310000,"message":"..."}) in result["detail"] — a dict, not a string — and every caller was passing that dict straight through to the client, which stringified it as "[object Object]" once it hit JS string concatenation. Always returns a real string now: Alpaca's own "message" field when detail is a dict, the raw detail otherwise, or the original exception text as a fallback.
+purpose: added 2026-07-27, extended 2026-08-06 — real bug found live: clicking Buy on a rejected order showed "Failed: [object Object]" instead of Alpaca's actual rejection reason. _post()'s HTTPError handler stores Alpaca's raw JSON error body (e.g. {"code":40310000,"message":"..."}) in result["detail"] — a dict, not a string — and every caller was passing that dict straight through to the client, which stringified it as "[object Object]" once it hit JS string concatenation. Always returns a real string now: Alpaca's own "message" field when detail is a dict, the raw detail otherwise, or the original exception text as a fallback. A second, independent live bug report on 2026-08-06 (see the fractional-share section below) hit the same "[object Object]" symptom from a different underlying cause; that fix's own error-normalizer was consolidated into this one function during merge rather than kept as a duplicate.
 inputs: friendly_order_error(result: dict)
 outputs: str
 calls: none
 called_by: execute_high_value_trade (fetchers/high_value_runner.py), execute_low_value_trade (fetchers/low_value_runner.py), smart_trade (app.py)
 mutates: none
+---
+
+## Real-order fractional-share bug (fixed 2026-08-06, live-reported)
+
+User clicked "BUY — place real order" on the Low Value dashboard: the first candidate (HL) worked and showed "REAL ORDER PLACED," but the next two (BTE, AVAH) did nothing when clicked. Root cause: Alpaca only accepts fractional-quantity orders for assets flagged `fractionable: true` on their own asset record — Low Value's fixed $25/trade sizing produces a fractional share count for virtually every symbol, and most of its sub-$20, thinly-covered universe is NOT fractionable. `execute_low_value_trade` submitted the raw fractional qty unconditionally regardless of the symbol, so Alpaca silently rejected it for any non-fractionable name — and the rejection's message was getting lost the same "[object Object]" way friendly_order_error above already fixed for a different case. High Value's `execute_high_value_trade` had a related, more universal version of the same gap: Alpaca's bracket order class never accepts a fractional quantity for ANY symbol, fractionable or not, and the Kelly-sized qty was passed through unfloored.
+
+---
+name: get_asset_fractionability
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-08-06 — real per-symbol fact from Alpaca's v2/assets/{symbol}: fractionable + tradable. Same fail-safe convention as get_asset_shortability right above it (returns {"fractionable": None, "tradable": None} on any error — "unknown," never a false assumption).
+inputs: symbol: str
+outputs: dict {fractionable: bool|None, tradable: bool|None}
+calls: Alpaca v2/assets/{symbol}
+called_by: fetchers.low_value_runner.execute_low_value_trade
+mutates: none
+---
+
+---
+name: execute_low_value_trade (extended, fractional-order gate)
+type: function
+file: fetchers/low_value_runner.py
+purpose: extended 2026-08-06 — the LONG/buy path now checks get_asset_fractionability before submitting a fractional qty; if the symbol isn't fractionable, floors to a whole share (rejecting with a clear message if that rounds to 0), mirroring the floor-and-reject pattern the SHORT path already used for Alpaca's separate "no fractional shorting" rule. Verified with 5 mocked scenarios: fractionable-long submits the real fractional qty unchanged, non-fractionable-long floors to a whole share and still submits, non-fractionable-long that floors to 0 rejects without ever calling place_order, short-side behavior is unchanged and never calls the new fractionability check, and an Alpaca rejection now surfaces its real `message` text instead of a raw error object (via friendly_order_error, above).
+inputs: trade_id: int
+outputs: dict (unchanged shape; error messages are now always plain strings)
+calls: fetchers.alpaca.get_asset_fractionability (new), fetchers.alpaca.place_order, fetchers.alpaca.friendly_order_error
+called_by: app.py POST /trade/low-value/execute/:id
+mutates: (unchanged)
+---
+
+---
+name: execute_high_value_trade (extended, whole-share bracket floor)
+type: function
+file: fetchers/high_value_runner.py
+purpose: extended 2026-08-06 — Kelly-sized qty is now always floored to a whole share before calling place_bracket_order (Alpaca's bracket order class never accepts a fractional quantity, for any symbol — unlike Low Value there's no per-symbol exception), rejecting with a clear message if that rounds to 0 instead of a guaranteed Alpaca-side 422. Verified with 2 mocked scenarios: a fractional Kelly qty floors correctly and the order still submits, and a qty that floors to 0 rejects without ever calling place_bracket_order.
+inputs: trade_id: int
+outputs: dict (unchanged shape)
+calls: fetchers.alpaca.place_bracket_order, fetchers.alpaca.friendly_order_error
+called_by: app.py POST /trade/execute/:id
+mutates: (unchanged)
 ---
 
 ---
@@ -12799,4 +12927,11 @@ name: templates/trading_low_value.html (extended, resume-on-load)
 type: function
 file: templates/trading_low_value.html
 purpose: extended 2026-07-27 — real bug found live, immediately after the async-analysis fix above: a user waited through an analysis, it finished server-side, but they never saw the result because the browser-side lvPollAnalysis() loop watching it died the moment the page was refreshed/revisited — a fresh page load had no way to know a job had ever run. New IIFE lvCheckExistingAnalysis() calls GET /trade/low-value/analyze-status once on every page load: resumes polling if a job is still in_progress, immediately renders the last completed results if any exist, or shows the last error — all silent (no-op) if there's nothing to resume, so the Analyze button's normal fresh-upload flow is unaffected.
+---
+
+---
+name: predictaErrorText / predictaAction (both dashboards, error-message fix)
+type: function
+file: app.py, fetchers/low_value_dashboard.py
+purpose: fixed 2026-08-06 — predictaErrorText() handles two distinct shapes that both used to render as the literal text "[object Object]": FastAPI's own validation errors (data.detail as a LIST of objects) and a raw Alpaca error dict not yet passed through friendly_order_error() server-side. predictaAction()'s failure branch now always calls predictaErrorText(data) instead of concatenating data.detail directly. Combined with friendly_order_error above (which now returns a plain string for the fractional-share case too), a real order rejection shows its actual reason instead of looking like the button did nothing.
 ---

@@ -81,6 +81,26 @@ def _delete(url: str) -> dict:
         return {"error": str(e)}
 
 
+def readable_order_error(order_result: dict) -> str:
+    """
+    Added 2026-08-06 — _post's {"error": ..., "detail": <Alpaca's raw JSON
+    error body or plain text>} was being passed straight into HTTPException
+    by execute_low_value_trade/execute_high_value_trade. When `detail` is
+    Alpaca's JSON object (e.g. {"code": ..., "message": "qty must be
+    integer..."}), that landed in the frontend as the literal string
+    "[object Object]" — a real order rejection with no readable reason
+    shown, which is exactly what made a genuinely-failing buy button look
+    like it silently "did nothing." Pulls out Alpaca's own `message` field
+    when present; falls back to the raw detail/error, always as a string.
+    """
+    detail = order_result.get("detail")
+    if isinstance(detail, dict) and detail.get("message"):
+        return str(detail["message"])
+    if detail:
+        return str(detail)
+    return str(order_result.get("error", "Unknown order error."))
+
+
 # ── Market data ───────────────────────────────────────────────────────────────
 
 def get_bars(symbol: str, timeframe: str = "5Min", limit: int = 78) -> list[dict]:
@@ -276,6 +296,33 @@ def get_asset_shortability(symbol: str) -> dict:
     return {
         "shortable": data.get("shortable"),
         "easy_to_borrow": data.get("easy_to_borrow"),
+    }
+
+
+def get_asset_fractionability(symbol: str) -> dict:
+    """
+    Added 2026-08-06 — real bug: Low Value's fixed $25/trade sizing produces
+    a fractional share count for virtually every symbol, and Alpaca only
+    accepts fractional orders for assets where `fractionable: true` on the
+    asset record (v2/assets/{symbol}) — most small/thinly-covered names,
+    exactly Low Value's universe, are NOT on that list. execute_low_value_trade
+    was submitting the raw fractional qty regardless, so Alpaca silently
+    rejected the order for any non-fractionable symbol (confirmed live: a
+    user's BUY worked for one candidate and did nothing — no visible
+    error — for the next two). Also surfaces `tradable` so a caller can
+    distinguish "not fractionable" from "not tradable at all right now."
+
+    Fails safe to {"fractionable": None, "tradable": None} on any error —
+    "unknown," never a false assumption — same convention as
+    get_asset_shortability right above.
+    """
+    url = f"{PAPER_BASE_URL}/v2/assets/{symbol}"
+    data = _get(url)
+    if not isinstance(data, dict) or "error" in data:
+        return {"fractionable": None, "tradable": None}
+    return {
+        "fractionable": data.get("fractionable"),
+        "tradable": data.get("tradable"),
     }
 
 

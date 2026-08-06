@@ -668,6 +668,18 @@ def execute_low_value_trade(trade_id: int) -> dict:
     candidate's qty is floored to a whole share and rejected outright if
     that rounds to zero, rather than silently placing a different-sized
     order than what the human saw.
+
+    Fixed 2026-08-06 (real bug, live-confirmed): the LONG/buy path submitted
+    the raw fractional qty unconditionally, but Alpaca only accepts
+    fractional orders for assets flagged `fractionable: true` on their own
+    asset record — most of Low Value's sub-$20, thinly-covered universe is
+    NOT on that list. A user reported one BUY click working and the next
+    two silently doing nothing; root cause was Alpaca rejecting the
+    fractional order for those symbols with no clear error surfaced. Now
+    checks get_asset_fractionability first and floors to whole shares for a
+    non-fractionable symbol — same "floor and reject if it rounds to 0"
+    pattern already used for shorts, just gated on the real per-symbol flag
+    instead of assuming every buy can be fractional.
     """
     with get_db() as conn:
         row = conn.execute(
@@ -688,12 +700,26 @@ def execute_low_value_trade(trade_id: int) -> dict:
         return {"error": "This candidate has no valid position size and cannot be executed."}
 
     alpaca_side = "buy" if pos["side"] == "long" else "sell"
+    from fetchers.alpaca import place_order, get_asset_fractionability, friendly_order_error
+
     if pos["side"] == "short":
         qty = float(int(qty))  # floor to whole shares — fractional shorting isn't supported by Alpaca
         if qty < 1:
             return {"error": f"Position size ({pos['qty']} shares) rounds to 0 whole shares — too small to short."}
+    elif qty != int(qty):
+        # fractional long — only valid on Alpaca if this specific symbol allows it
+        frac = get_asset_fractionability(symbol)
+        if frac.get("fractionable") is False:
+            qty = float(int(qty))
+            if qty < 1:
+                return {
+                    "error": (
+                        f"{symbol} doesn't support fractional-share orders on Alpaca, and "
+                        f"${pos['entry_price'] * pos['qty']:,.2f} isn't enough for 1 whole share "
+                        f"at ${pos['entry_price']:,.2f} — too small to buy a whole share."
+                    )
+                }
 
-    from fetchers.alpaca import place_order, friendly_order_error
     order_result = place_order(
         symbol         = symbol,
         qty            = qty,

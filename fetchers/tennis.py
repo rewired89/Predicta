@@ -486,3 +486,79 @@ def fetch_tennis_context(
         "matches":   h2h,
     }
     return result
+
+
+# ── Result resolution (for tasks/tennis_auto.py) ───────────────────────────────
+
+def finished_result(
+    player_a: str,
+    player_b: str,
+    on_or_after: str,
+    tour: str = "atp",
+) -> Optional[dict]:
+    """
+    Look up a completed match's final result by player names + the date it
+    was scheduled for. Mirrors fetchers/soccer_schedule.py / fetchers/rugby.py's
+    finished_result() so tasks/tennis_auto.py's resolve step can follow the
+    same pattern already used for soccer/rugby.
+
+    `tour` should be matches.league lowercased ("atp"/"wta").
+
+    ESPN's tennis scoreboard doesn't expose a simple match-level score (sets
+    are nested linescores, not a top-level int), so score_a/score_b are
+    returned as a 1/0 win-loss proxy rather than a real score — enough for
+    record_outcome()'s tennis branch (which only needs score_a != score_b to
+    trigger the Glicko-2 update) without fabricating a game/set count that
+    was never actually parsed.
+
+    Returns {result: 'a'|'b', score_a, score_b, kickoff_utc, matched_a,
+    matched_b, score_detail} or None if no STATUS_FINAL match involving both
+    players is found within the ±3 day window around on_or_after.
+    """
+    a_lo, b_lo = player_a.lower().strip(), player_b.lower().strip()
+    try:
+        base_date = datetime.strptime(on_or_after[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+    base = ESPN_ATP_BASE if tour.lower() == "atp" else ESPN_WTA_BASE
+    window_start = (base_date - timedelta(days=1)).strftime("%Y%m%d")
+    window_end = (base_date + timedelta(days=3)).strftime("%Y%m%d")
+    data = _espn_get(f"{base}/scoreboard",
+                      {"dates": f"{window_start}-{window_end}", "limit": 100})
+
+    for ev in data.get("events") or []:
+        comps = ev.get("competitions", [{}])
+        comp = comps[0] if comps else {}
+        status = comp.get("status", {}).get("type", {}).get("name", "")
+        if status != "STATUS_FINAL":
+            continue
+        competitors = comp.get("competitors", [])
+        if len(competitors) < 2:
+            continue
+        p1, p2 = competitors[0], competitors[1]
+        n1 = p1.get("athlete", {}).get("displayName", "") or p1.get("team", {}).get("displayName", "")
+        n2 = p2.get("athlete", {}).get("displayName", "") or p2.get("team", {}).get("displayName", "")
+        n1_lo, n2_lo = n1.lower(), n2.lower()
+
+        if (a_lo in n1_lo or n1_lo in a_lo) and (b_lo in n2_lo or n2_lo in b_lo):
+            a_id, b_id = p1.get("id"), p2.get("id")
+        elif (a_lo in n2_lo or n2_lo in a_lo) and (b_lo in n1_lo or n1_lo in b_lo):
+            a_id, b_id = p2.get("id"), p1.get("id")
+        else:
+            continue
+
+        winner_id = str(comp.get("winnerId") or "")
+        if not winner_id:
+            continue
+        a_won = str(a_id) == winner_id
+        return {
+            "result":       "a" if a_won else "b",
+            "score_a":      1 if a_won else 0,
+            "score_b":      0 if a_won else 1,
+            "kickoff_utc":  ev.get("date", ""),
+            "matched_a":    player_a,
+            "matched_b":    player_b,
+            "score_detail": comp.get("status", {}).get("type", {}).get("shortDetail", ""),
+        }
+    return None

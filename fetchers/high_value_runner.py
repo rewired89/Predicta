@@ -915,6 +915,15 @@ def execute_high_value_trade(trade_id: int) -> dict:
     Buy, not a value re-computed after the fact. Promotes the same row to
     real in place (promote_trade_to_real) rather than creating a duplicate,
     and attests the transaction to HSIP.
+
+    Fixed 2026-08-06 (companion to the same-day Low Value fractional-order
+    fix): Alpaca's bracket order class (used here for every trade, not just
+    some) never accepts a fractional quantity, regardless of whether the
+    underlying symbol is individually fractionable — unlike Low Value's
+    plain market order, there's no "check if this symbol allows it" case;
+    it's a hard rule for every bracket order. Kelly-sized qty is floored to
+    a whole share before submitting; if that floors to 0, the trade is
+    rejected with a clear reason instead of a guaranteed Alpaca-side 422.
     """
     with get_db() as conn:
         row = conn.execute(
@@ -935,6 +944,15 @@ def execute_high_value_trade(trade_id: int) -> dict:
     target = pos["target_price"]
     if not qty or qty <= 0 or not stop or not target:
         return {"error": "This candidate is missing trade levels and cannot be executed."}
+
+    qty = float(int(qty))  # bracket orders never accept fractional quantities on Alpaca
+    if qty < 1:
+        return {
+            "error": (
+                f"Position size ({pos['qty']} shares) rounds to 0 whole shares at "
+                f"${pos['entry_price']:,.2f}/share — too small for a bracket order."
+            )
+        }
 
     alpaca_side = "buy" if pos["side"] == "long" else "sell"
     order_result = place_bracket_order(
