@@ -821,7 +821,12 @@ async function predictaAction(url, label) {{
   try {{
     const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
     const data = await res.json();
-    if (!res.ok) {{ alert('Failed: ' + (data.detail || JSON.stringify(data))); return; }}
+    if (!res.ok) {{
+      const d = data.detail;
+      const msg = (typeof d === 'string') ? d : (d ? JSON.stringify(d) : JSON.stringify(data));
+      alert('Failed: ' + msg);
+      return;
+    }}
     alert('Done.\\n' + JSON.stringify(data, null, 2));
     location.reload();
   }} catch (e) {{ alert('Request failed: ' + e); }}

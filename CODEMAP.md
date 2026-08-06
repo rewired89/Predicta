@@ -12814,3 +12814,62 @@ type: function
 file: app.py
 purpose: extended 2026-07-23 — POST /trade/smart-order already placed real Alpaca paper bracket orders manually (this was already human-triggered — the one existing exception to "the scan never places an order"); now also attests each successfully-placed order to HSIP via fetchers.hsip_client.attest_transaction (strategy_id="high_value_intraday_manual"). No-op if HSIP isn't configured — the endpoint's existing behavior/response shape is unchanged either way.
 ---
+
+## Real-order fractional-share bug (fixed 2026-08-06, live-reported)
+
+User clicked "BUY — place real order" on the Low Value dashboard: the first candidate (HL) worked and showed "REAL ORDER PLACED," but the next two (BTE, AVAH) did nothing when clicked. Root cause: Alpaca only accepts fractional-quantity orders for assets flagged `fractionable: true` on their own asset record — Low Value's fixed $25/trade sizing produces a fractional share count for virtually every symbol, and most of its sub-$20, thinly-covered universe is NOT fractionable. `execute_low_value_trade` submitted the raw fractional qty unconditionally regardless of the symbol, so Alpaca silently rejected it for any non-fractionable name — and because the rejection's `detail` field is a JSON object, not a string, the frontend's `alert('Failed: ' + data.detail)` rendered it as the literal text "[object Object]," which read as the button doing nothing at all. High Value's `execute_high_value_trade` had a related, more universal version of the same gap: Alpaca's bracket order class never accepts a fractional quantity for ANY symbol, fractionable or not, and the Kelly-sized qty was passed through unfloored.
+
+---
+name: get_asset_fractionability
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-08-06 — real per-symbol fact from Alpaca's v2/assets/{symbol}: fractionable + tradable. Same fail-safe convention as get_asset_shortability right above it (returns {"fractionable": None, "tradable": None} on any error — "unknown," never a false assumption).
+inputs: symbol: str
+outputs: dict {fractionable: bool|None, tradable: bool|None}
+calls: Alpaca v2/assets/{symbol}
+called_by: fetchers.low_value_runner.execute_low_value_trade
+mutates: none
+---
+
+---
+name: readable_order_error
+type: function
+file: fetchers/alpaca.py
+purpose: added 2026-08-06 — normalizes place_order/place_bracket_order's {"error":..., "detail": <dict or text>} into a plain string, pulling Alpaca's own `message` field out of its JSON error body when present. Fixes the "[object Object]" alert described above — without this, any real order rejection (not just the fractional-share case) would have shown an unreadable error to the user.
+inputs: order_result: dict
+outputs: str
+calls: none
+called_by: fetchers.low_value_runner.execute_low_value_trade, fetchers.high_value_runner.execute_high_value_trade
+mutates: none
+---
+
+---
+name: execute_low_value_trade (extended, fractional-order gate)
+type: function
+file: fetchers/low_value_runner.py
+purpose: extended 2026-08-06 — the LONG/buy path now checks get_asset_fractionability before submitting a fractional qty; if the symbol isn't fractionable, floors to a whole share (rejecting with a clear message if that rounds to 0), mirroring the floor-and-reject pattern the SHORT path already used for Alpaca's separate "no fractional shorting" rule. Verified with 5 mocked scenarios: fractionable-long submits the real fractional qty unchanged, non-fractionable-long floors to a whole share and still submits, non-fractionable-long that floors to 0 rejects without ever calling place_order, short-side behavior is unchanged and never calls the new fractionability check, and an Alpaca rejection now surfaces its real `message` text instead of a raw error object.
+inputs: trade_id: int
+outputs: dict (unchanged shape; error messages are now always plain strings)
+calls: fetchers.alpaca.get_asset_fractionability (new), fetchers.alpaca.place_order, fetchers.alpaca.readable_order_error (new)
+called_by: app.py POST /trade/low-value/execute/:id
+mutates: (unchanged)
+---
+
+---
+name: execute_high_value_trade (extended, whole-share bracket floor)
+type: function
+file: fetchers/high_value_runner.py
+purpose: extended 2026-08-06 — Kelly-sized qty is now always floored to a whole share before calling place_bracket_order (Alpaca's bracket order class never accepts a fractional quantity, for any symbol — unlike Low Value there's no per-symbol exception), rejecting with a clear message if that rounds to 0 instead of a guaranteed Alpaca-side 422. Verified with 2 mocked scenarios: a fractional Kelly qty floors correctly and the order still submits, and a qty that floors to 0 rejects without ever calling place_bracket_order.
+inputs: trade_id: int
+outputs: dict (unchanged shape)
+calls: fetchers.alpaca.place_bracket_order, fetchers.alpaca.readable_order_error (new)
+called_by: app.py POST /trade/execute/:id
+mutates: (unchanged)
+---
+
+---
+name: predictaAction (both dashboards, error-message fix)
+type: function
+file: app.py, fetchers/low_value_dashboard.py
+purpose: fixed 2026-08-06 — the failure branch now checks whether `data.detail` is already a string before alerting it raw; a non-string (object) detail is JSON.stringify'd instead of concatenated directly, which previously rendered as the literal text "[object Object]" for any order rejection whose backend detail was a dict. Combined with readable_order_error above (which now usually returns a plain string in the first place), a real order rejection shows its actual reason instead of looking like the button did nothing.
+---
