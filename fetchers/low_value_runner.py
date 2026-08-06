@@ -680,6 +680,16 @@ def execute_low_value_trade(trade_id: int) -> dict:
     non-fractionable symbol — same "floor and reject if it rounds to 0"
     pattern already used for shorts, just gated on the real per-symbol flag
     instead of assuming every buy can be fractional.
+
+    Tightened same day, same user report (a THIRD candidate still failed
+    after the first fix — two of three worked): the original gate only
+    floored on a CONFIRMED `fractionable: false`. If get_asset_fractionability
+    itself failed/timed out for a given symbol (returns "unknown"), the
+    fractional qty went out anyway — reintroducing the exact same bug for
+    that one symbol. A whole-share quantity is valid on Alpaca for every
+    asset regardless of its fractionable flag, so "unknown" now floors too;
+    only a POSITIVELY CONFIRMED `fractionable: true` still uses the raw
+    fractional qty. Fails toward the safe side instead of the risky one.
     """
     with get_db() as conn:
         row = conn.execute(
@@ -707,9 +717,17 @@ def execute_low_value_trade(trade_id: int) -> dict:
         if qty < 1:
             return {"error": f"Position size ({pos['qty']} shares) rounds to 0 whole shares — too small to short."}
     elif qty != int(qty):
-        # fractional long — only valid on Alpaca if this specific symbol allows it
+        # fractional long — only valid on Alpaca if this specific symbol is
+        # POSITIVELY CONFIRMED fractionable. A whole-share quantity is
+        # always valid on Alpaca regardless of fractionability, so "unknown"
+        # (get_asset_fractionability failed/timed out for this symbol) now
+        # floors too, instead of falling through to the original fractional
+        # qty — that fallback was the reason a second symbol could still hit
+        # the exact same silent rejection this fix was meant to close: if
+        # the fractionability lookup itself failed, the old `is False` check
+        # never fired and the raw fractional order went out anyway.
         frac = get_asset_fractionability(symbol)
-        if frac.get("fractionable") is False:
+        if frac.get("fractionable") is not True:
             qty = float(int(qty))
             if qty < 1:
                 return {
