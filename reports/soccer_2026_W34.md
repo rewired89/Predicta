@@ -1,6 +1,6 @@
 # Predicta Soccer Model — Weekly Report
 
-**Generated:** 2026-08-17T08:04:47.802653+00:00
+**Generated:** 2026-08-17T08:06:25.061194+00:00
 **Resolved predictions:** 0 / 50 needed for full validator
 **Global avg Brier:** n/a   *(0 = perfect, 0.667 = coin flip)*
 
