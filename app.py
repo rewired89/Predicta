@@ -66,6 +66,19 @@ def startup():
     except Exception:
         pass
 
+    # Start the Automaton engine's runner (2026-08-28, direct user request).
+    # Same shape as the Low Value start-call above. Unlike every other engine
+    # here, Automaton's daily tick autonomously PLACES/CLOSES real Alpaca
+    # PAPER orders (fake money, real order mechanics) — never a real-money
+    # order; see fetchers/automaton_runner.py's module docstring for the full
+    # authority-model reasoning. Independent thread/globals from both the
+    # High Value and Low Value runners above.
+    try:
+        from fetchers.automaton_runner import start_runner as start_automaton_runner
+        start_automaton_runner()
+    except Exception:
+        pass
+
     # Start the soccer auto-collection loop:
     #   scan_fixtures every 4 h, resolve_finished every 2 h, weekly_report
     #   every Monday 08:00 UTC (writes to reports/ and pushes to GitHub if
@@ -3034,7 +3047,8 @@ def trade_dashboard():
     <a href="/">← Home</a><span>·</span>
     <a href="/trading">Stock Market</a><span>·</span>
     <a href="/trading/high-value">High Value (query box)</a><span>·</span>
-    <a href="/trade/low-value/dashboard">Low Value dashboard</a>
+    <a href="/trade/low-value/dashboard">Low Value dashboard</a><span>·</span>
+    <a href="/trade/automaton/dashboard">Automaton dashboard</a>
   </div>
 
   <!-- Phase banner -->
@@ -3303,6 +3317,76 @@ def low_value_dashboard():
     """Plain-English Low Value engine monitor — separate page from the High Value /trade/dashboard."""
     from fetchers.low_value_dashboard import render_low_value_dashboard
     return HTMLResponse(content=render_low_value_dashboard())
+
+
+# ── Automaton engine endpoints (2026-08-28, direct user request) ────────────
+# Autonomous-execution, self-learning sibling of Low Value — see
+# fetchers/automaton_runner.py's module docstring for the full authority
+# model. execute/close exist only as a human safety-valve override on a
+# SINGLE position (a stuck order retry, a manual early close) — the strategy
+# itself buys/sells on its own and has no kill switch or cloning behavior.
+
+@app.post("/trade/automaton/scan-now")
+def automaton_scan_now():
+    """Manually trigger an Automaton scan outside its daily window. Fire-and-forget — poll GET /trade/automaton/runner/status."""
+    from fetchers.automaton_runner import trigger_scan_async
+    return trigger_scan_async()
+
+
+@app.get("/trade/automaton/runner/status")
+def automaton_runner_status():
+    """Status of the Automaton background runner."""
+    from fetchers.automaton_runner import get_runner_status
+    return get_runner_status()
+
+
+@app.post("/trade/automaton/runner/start")
+def automaton_runner_start():
+    """Start the Automaton background runner if not already running."""
+    from fetchers.automaton_runner import start_runner
+    return {"started": start_runner()}
+
+
+@app.post("/trade/automaton/runner/stop")
+def automaton_runner_stop():
+    """Pauses the Automaton daily scan/exit tick — NOT a kill switch on the strategy's learned state, which is untouched and resumes on restart."""
+    from fetchers.automaton_runner import stop_runner
+    stop_runner()
+    return {"ok": True}
+
+
+@app.post("/trade/automaton/execute/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def execute_automaton(trade_id: int):
+    """Human safety-valve only: manually retries a candidate whose autonomous entry order failed at scan time."""
+    from fetchers.automaton_runner import execute_automaton_trade
+    result = execute_automaton_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/trade/automaton/close/{trade_id}", dependencies=[Depends(require_trade_passcode)])
+def close_automaton(trade_id: int):
+    """Human safety-valve only: closes one real Automaton position early. Not a kill switch — the strategy keeps scanning/trading regardless."""
+    from fetchers.automaton_runner import close_automaton_trade
+    result = close_automaton_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.get("/trade/automaton/learning")
+def automaton_learning_status():
+    """What (if anything) Automaton has learned from its own closed trades so far — current vs. static starting signal weights, readiness tiers, per-thesis-type win rates."""
+    from models.trading.automaton.learning import learning_summary
+    return learning_summary()
+
+
+@app.get("/trade/automaton/dashboard", response_class=HTMLResponse)
+def automaton_dashboard():
+    """Plain-English Automaton engine monitor — separate page from High Value's and Low Value's."""
+    from fetchers.automaton_dashboard import render_automaton_dashboard
+    return HTMLResponse(content=render_automaton_dashboard())
 
 
 @app.post("/trade/low-value/analyze-image")

@@ -12937,3 +12937,149 @@ type: function
 file: app.py, fetchers/low_value_dashboard.py
 purpose: fixed 2026-08-06 — predictaErrorText() handles two distinct shapes that both used to render as the literal text "[object Object]": FastAPI's own validation errors (data.detail as a LIST of objects) and a raw Alpaca error dict not yet passed through friendly_order_error() server-side. predictaAction()'s failure branch now always calls predictaErrorText(data) instead of concatenating data.detail directly. Combined with friendly_order_error above (which now returns a plain string for the fractional-share case too), a real order rejection shows its actual reason instead of looking like the button did nothing.
 ---
+
+## Automaton Engine (added 2026-08-28, direct user request)
+
+User asked for an "Automaton AI"-style strategy for Predicta (the real
+github.com/Conway-Research/automaton project: a continuously-running agent
+that pays for its own compute and dies if it can't, or spins up funded
+child agents if it can) — scan for underrated stocks that could move within
+6 months, buy, sell before losing money, adapted to Predicta's paper-trading
+world. Researched the real project (WebFetch on its README + a third-party
+architecture writeup) before building, then asked the user directly how far
+to take the analogy via AskUserQuestion. Their answers, verbatim in intent:
+autonomous PAPER execution (buy/sell without a click) — yes; a kill switch
+on drawdown — explicitly no ("it shouldn't be killed, it should learn");
+cloning/scaling capital — explicitly no ("No clone"); what they actually
+want is the continuous learn-from-wins-and-losses loop so it "keeps finding
+more of the stock it needs."
+
+New engine, `engine='automaton'` in the same `intraday_trades` table Low
+Value and High Value already share (schema.sql CHECK constraint extended).
+Deliberately reuses Low Value's proven scanner/universe/news-overlay/
+8-signal thesis engine (models/trading/low_value/*) rather than duplicating
+it — the "underrated stock, positive catalyst, currently overlooked" thesis
+is the same one Low Value already scores. What's new: ~6-month hold (126
+trading days, vs Low Value's 5), the scan itself autonomously places/closes
+real Alpaca PAPER orders (fake money, real order mechanics — never a
+real-money order; that stays 100% human-gated everywhere in this app,
+unchanged, per CLAUDE.md's Authority Model), and a learning loop that
+reweights its 8 signals toward whatever has actually been winning once
+enough of ITS OWN trades have closed — using calibration machinery that
+already existed for Low Value (`compute_low_value_dynamic_weights`) and was
+"not yet wired to SIGNAL_WEIGHTS" per LOW_VALUE_README.md, now generalized
+with an `engine` param (default preserves Low Value's exact prior behavior)
+so Automaton can use the same machinery scoped to its own trade history,
+never Low Value's or vice versa.
+
+---
+name: models/trading/automaton/learning.py (effective_weights, learning_summary)
+type: module
+file: models/trading/automaton/learning.py
+purpose: the learning loop. effective_weights() returns thesis_tracker.SIGNAL_WEIGHTS until 50+ closed Automaton trades unlock compute_low_value_dynamic_weights(engine="automaton") AND it finds a real edge (status=="dynamic") — mirrors thesis_tracker._effective_signal_weights() exactly, scoped to Automaton's own history via signal_calibration.py's engine param, cached 300s. learning_summary() bundles readiness tiers (20/50/100), current vs static weights, is_learned flag, and a plain-English note for the dashboard/API.
+inputs: none (reads DB via signal_calibration functions)
+outputs: effective_weights -> dict[str,float]; learning_summary -> dict
+calls: models.trading.shared.signal_calibration.low_value_calibration_readiness/compute_low_value_dynamic_weights/thesis_type_calibration_report/low_value_per_signal_accuracy_report (all engine="automaton")
+called_by: run_automaton_scan (automaton_runner.py), render_automaton_dashboard (automaton_dashboard.py), GET /trade/automaton/learning (app.py)
+mutates: none (module-level cache dict only)
+---
+
+---
+name: run_automaton_scan / check_automaton_exits / _auto_execute_entry
+type: function
+file: fetchers/automaton_runner.py
+purpose: run_automaton_scan scores the Low-Value-shared daily universe with automaton_learning.effective_weights(), logs any candidate crossing the entry bar (log_low_value_trade, engine="automaton", hold_days=AUTOMATON_MAX_HOLD_DAYS=126) and IMMEDIATELY calls _auto_execute_entry to place a real Alpaca paper order — no human click. _auto_execute_entry is a deliberate self-contained duplicate of execute_low_value_trade's fractional-share/shortability guard logic (that function has a real 2026-08-06 bug history around exactly this) rather than a shared refactor, so a bug in Automaton's autonomous path can never regress Low Value's hardened human-triggered one. check_automaton_exits mirrors check_low_value_exits (target/stop/thesis-resolved/time) scoped to engine="automaton" and the 126-day hold. Sprint mode (AUTOMATON_DATA_COLLECTION_SPRINT_MODE, own constants, independent of Low Value's) exists for the same reason Low Value's does — the real 40-point entry bar qualifies very few of ~500 evaluated symbols, which would take months to fill the learning loop's 20/50/100-trade tiers otherwise.
+inputs: run_automaton_scan(symbols: Optional[list[str]]); check_automaton_exits() takes nothing
+outputs: run_automaton_scan -> list[int] (trade_ids, executed or not); check_automaton_exits -> {"checked", "closed"}
+calls: get_daily_universe (low_value_runner.py, shared universe), compute_thesis_score (thesis_tracker.py, weights=effective_weights()), log_low_value_trade/log_trade_exit (trading_logger.py, engine="automaton"), fetchers.alpaca.place_order/close_position, hsip_client.attest_transaction
+called_by: _runner_loop (daily 8:15-8:29 ET tick), trigger_scan_async, POST /trade/automaton/scan-now (app.py)
+mutates: intraday_trades (engine='automaton' rows), real Alpaca PAPER positions
+---
+
+---
+name: execute_automaton_trade / close_automaton_trade (human safety-valve, not a kill switch)
+type: function
+file: fetchers/automaton_runner.py
+purpose: the ONLY human-triggered actions in this file — execute_automaton_trade retries a single candidate whose autonomous entry order failed at scan time; close_automaton_trade closes one real position early. Neither pauses or disables the strategy itself (no kill switch exists anywhere in this engine, by explicit user design choice) — the daily scan/exit tick keeps running and learning regardless of either being called.
+inputs: trade_id: int
+outputs: dict ({"status":...} or {"error":...})
+calls: fetchers.alpaca.place_order/close_position, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, hsip_client.attest_transaction
+called_by: POST /trade/automaton/execute/:id, POST /trade/automaton/close/:id (app.py, both passcode-gated)
+mutates: intraday_trades (one row), real Alpaca PAPER position
+---
+
+---
+name: fetchers/automaton_dashboard.py (render_automaton_dashboard)
+type: function
+file: fetchers/automaton_dashboard.py
+purpose: plain-English Automaton monitor, same visual language as low_value_dashboard.py — leads with what makes this engine different (autonomous execution, no kill switch, no cloning) and a "What It Has Learned" card showing current vs. static starting signal weights from models.trading.automaton.learning.learning_summary().
+inputs: none
+outputs: str (HTML)
+calls: fetchers.automaton_runner.get_runner_status, models.trading.automaton.learning.learning_summary
+called_by: GET /trade/automaton/dashboard (app.py)
+mutates: none
+---
+
+---
+name: log_low_value_trade (extended: engine, position_dollars params)
+type: function
+file: fetchers/trading_logger.py
+purpose: extended 2026-08-28 for the Automaton engine — engine (default "low_value") and position_dollars (default 25.0, was hardcoded via low_value_position_size) let a sibling engine share this exact logging function instead of duplicating it. Every existing caller omitting both gets byte-identical behavior; Automaton passes engine="automaton" and its own fixed dollar size.
+inputs: (unchanged) + engine: str = "low_value", position_dollars: float = 25.0
+outputs: int (trade_id)
+calls: none new
+called_by: run_low_value_scan (low_value_runner.py), run_automaton_scan (automaton_runner.py)
+mutates: intraday_trades
+---
+
+---
+name: compute_thesis_score (extended: weights param)
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: extended 2026-08-28 — optional weights param bypasses _effective_signal_weights() (Low Value's own calibration) when given, so Automaton (models/trading/automaton/learning.effective_weights()) can score the same 8-signal formula against its own learned weights. Omitted by every existing caller -> unchanged behavior.
+inputs: (unchanged) + weights: Optional[dict[str, float]] = None
+outputs: dict (unchanged shape)
+calls: (unchanged)
+called_by: run_low_value_scan (low_value_runner.py), run_automaton_scan (automaton_runner.py), analyze_low_value_tickers (low_value_runner.py)
+mutates: none
+---
+
+---
+name: signal_calibration.py Low Value functions (extended: engine param)
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: extended 2026-08-28 — _load_closed_low_value_trades, low_value_per_signal_accuracy_report, compute_low_value_dynamic_weights, thesis_type_calibration_report, and low_value_calibration_readiness all gained engine: str = "low_value" (default preserves every existing caller's behavior bit-for-bit, same convention as _load_closed_trades' pre-existing High Value engine param). Automaton passes engine="automaton" so its calibration is computed from its own closed trades only, never Low Value's.
+inputs: (unchanged) + engine: str = "low_value"
+outputs: (unchanged shapes)
+calls: none new
+called_by: models.trading.automaton.learning (engine="automaton"), fetchers/low_value_dashboard.py + app.py /trade/low-value/calibration (engine="low_value", default)
+mutates: none
+---
+
+---
+name: automaton_position_size / AUTOMATON_FIXED_POSITION_DOLLARS / AUTOMATON_MAX_CONCURRENT_POSITIONS
+type: function
+file: models/trading/shared/kelly.py
+purpose: fixed $25/trade sizing for Automaton, identical shape to low_value_position_size but a separate constant (own tuning knob, independent of Low Value's). Max 5 concurrent positions (independent constant from Low Value's 3) — a starting guess given Automaton's much longer ~6-month hold means capital sits committed far longer per trade.
+inputs: price: float
+outputs: dict ({"shares", "position_size", "note", "paper_mode": True})
+calls: none
+called_by: run_automaton_scan (automaton_runner.py)
+mutates: none
+---
+
+---
+name: db/schema.sql engine CHECK constraint (extended: 'automaton')
+type: variable
+file: db/schema.sql
+purpose: extended 2026-08-28 — intraday_trades.engine CHECK constraint now allows 'automaton' alongside 'high_value'/'low_value'. Only affects a fresh DB created from schema.sql; the existing production DB was migrated via ALTER TABLE (db/database.py's _migrate_intraday_trades), which never enforced this CHECK, so no migration was needed for already-deployed databases to accept engine='automaton' rows.
+---
+
+---
+name: app.py Automaton endpoints
+type: function
+file: app.py
+purpose: GET/POST /trade/automaton/{dashboard, learning, scan-now, runner/status, runner/start, runner/stop, execute/:id, close/:id} — mirrors the Low Value endpoint block. execute/close are passcode-gated human safety-valves (single-position retry/early-close), not a kill switch. startup() also gained a start_automaton_runner() call, same pattern as the existing High Value/Low Value calls, independent thread/globals.
+called_by: (HTTP routes)
+mutates: intraday_trades (engine='automaton'), real Alpaca PAPER orders, automaton_runner.py module globals
+---

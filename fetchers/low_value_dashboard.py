@@ -738,7 +738,8 @@ def render_low_value_dashboard() -> str:
     <a href="/">← Home</a><span>·</span>
     <a href="/trading">Stock Market</a><span>·</span>
     <a href="/trading/low-value">Low Value (query box)</a><span>·</span>
-    <a href="/trade/dashboard">High Value dashboard</a>
+    <a href="/trade/dashboard">High Value dashboard</a><span>·</span>
+    <a href="/trade/automaton/dashboard">Automaton dashboard</a>
   </div>
 
   {scan_banner_html}

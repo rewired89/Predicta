@@ -263,3 +263,32 @@ def low_value_position_size(price: float) -> dict:
         "note": f"Low Value fixed sizing: ${LOW_VALUE_FIXED_POSITION_DOLLARS:.0f} / ${price:.2f} = {shares} shares.",
         "paper_mode": True,
     }
+
+
+# Automaton engine (added 2026-08-28) — same fixed-dollar-sizing discipline
+# as Low Value, deliberately kept as its OWN constant rather than reusing
+# LOW_VALUE_FIXED_POSITION_DOLLARS so either engine's size can be tuned
+# independently later without affecting the other. See
+# fetchers/automaton_runner.py and models/trading/automaton/learning.py.
+AUTOMATON_FIXED_POSITION_DOLLARS: float = 25.0
+AUTOMATON_MAX_CONCURRENT_POSITIONS: int = 5
+
+
+def automaton_position_size(price: float) -> dict:
+    """
+    Fixed $25-per-trade sizing for the Automaton engine — identical shape to
+    low_value_position_size, separate constant. Automaton holds positions up
+    to ~6 months (vs Low Value's 5 trading days), so a small fixed dollar
+    amount matters even more here: capital sits committed far longer per
+    trade, and a fixed size still caps the damage of any single bad pick
+    regardless of how the thesis plays out over that longer horizon.
+    """
+    if price <= 0:
+        return {"error": "Invalid price", "paper_mode": True}
+    shares = round(AUTOMATON_FIXED_POSITION_DOLLARS / price, 4)
+    return {
+        "shares": shares,
+        "position_size": AUTOMATON_FIXED_POSITION_DOLLARS,
+        "note": f"Automaton fixed sizing: ${AUTOMATON_FIXED_POSITION_DOLLARS:.0f} / ${price:.2f} = {shares} shares.",
+        "paper_mode": True,
+    }

@@ -865,8 +865,18 @@ LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES: int = 50
 LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES: int = 100
 
 
-def _load_closed_low_value_trades() -> list[dict]:
-    """All closed engine='low_value' trades with the lv_* columns."""
+def _load_closed_low_value_trades(engine: str = "low_value") -> list[dict]:
+    """
+    All closed trades with the lv_* columns, scoped to one engine.
+
+    engine (added 2026-08-28 for the Automaton engine — same "default
+    preserves every existing caller's behavior bit-for-bit" convention as
+    _load_closed_trades' own engine param above): Automaton shares Low
+    Value's exact 8-signal thesis formula and lv_* columns, but must never
+    be calibrated against Low Value's own trade history (different hold
+    horizon, different execution mode) — every function in this section
+    takes the same param for that reason.
+    """
     try:
         from db.database import get_db
         with get_db() as conn:
@@ -877,9 +887,10 @@ def _load_closed_low_value_trades() -> list[dict]:
                        lv_thesis_type, lv_news_flags, lv_news_sentiment, lv_headline_count,
                        lv_missing_signals, lv_short_interest_asof, lv_signals_json
                 FROM intraday_trades
-                WHERE exit_price IS NOT NULL AND engine = 'low_value'
+                WHERE exit_price IS NOT NULL AND engine = ?
                 ORDER BY logged_at DESC
-                """
+                """,
+                (engine,),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception:
@@ -903,17 +914,21 @@ def _load_closed_low_value_trades() -> list[dict]:
 def low_value_per_signal_accuracy_report(
     min_trades: int = 10,
     active_threshold: float = 10.0,
+    engine: str = "low_value",
 ) -> dict:
     """
     Win rate and average P&L (in R, when available) per individual Low Value
     signal, extracted from lv_signals_json. Same "active if |score| >=
     active_threshold" convention as per_signal_accuracy_report — the default
     10.0 matches that function's default on the same -100..100 signal scale.
+
+    engine: see _load_closed_low_value_trades — default preserves existing
+    (Low Value) behavior; Automaton passes engine="automaton".
     """
     import json as _json
     from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
 
-    trades = _load_closed_low_value_trades()
+    trades = _load_closed_low_value_trades(engine=engine)
     n_total = len(trades)
 
     by_signal = []
@@ -971,7 +986,7 @@ def low_value_per_signal_accuracy_report(
         "total_closed": n_total,
         "by_signal": by_signal,
         "active_threshold": active_threshold,
-        "note": "No closed Low Value trades yet" if n_total == 0 else None,
+        "note": f"No closed {engine} trades yet" if n_total == 0 else None,
     }
 
 
@@ -982,24 +997,25 @@ def low_value_per_signal_accuracy_report(
 # fallback-to-static behavior, same min_trades floor, just sourced from
 # low_value_per_signal_accuracy_report's avg_pnl_pct (Low Value's edge-
 # magnitude stand-in for R — see that function's comment) instead of avg_r.
-def compute_low_value_dynamic_weights(min_trades: int = 30) -> Optional[dict]:
+def compute_low_value_dynamic_weights(min_trades: int = 30, engine: str = "low_value") -> Optional[dict]:
     """
-    Empirically-driven Low Value signal weights.
+    Empirically-driven signal weights (Low Value or, since 2026-08-28,
+    Automaton — see engine param on _load_closed_low_value_trades above).
 
     Formula per signal (same shape as compute_dynamic_weights):
         raw = max(0, (win_rate - 0.5) * (avg_pnl_pct / 100))
     Normalized: weight = raw / sum(all raws).
     Falls back to thesis_tracker.SIGNAL_WEIGHTS when sum of raws is zero.
 
-    Returns None when total closed Low Value trades < min_trades.
+    Returns None when total closed trades for this engine < min_trades.
     """
     from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
 
-    trades = _load_closed_low_value_trades()
+    trades = _load_closed_low_value_trades(engine=engine)
     if len(trades) < min_trades:
         return None
 
-    report = low_value_per_signal_accuracy_report(min_trades=5, active_threshold=10.0)
+    report = low_value_per_signal_accuracy_report(min_trades=5, active_threshold=10.0, engine=engine)
 
     raw_weights: dict[str, float] = {}
     negative_utility: list[str] = []
@@ -1033,19 +1049,22 @@ def compute_low_value_dynamic_weights(min_trades: int = 30) -> Optional[dict]:
     }
 
 
-def thesis_type_calibration_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES) -> dict:
+def thesis_type_calibration_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES, engine: str = "low_value") -> dict:
     """
     Win rate and avg P&L per lv_thesis_type (EARNINGS_MISS, ANALYST_DOWNGRADE,
     REGULATORY_RISK, OPERATIONAL_CRISIS, POSITIVE_CATALYST, INSIDER_BUYING,
     TECHNICAL_OVERSOLD). Below min_trades for a given thesis type, that
     type's win_rate/avg_pnl_r are None — "preliminary" note, never faked.
+
+    engine: see _load_closed_low_value_trades — default preserves existing
+    (Low Value) behavior; Automaton passes engine="automaton".
     """
-    trades = _load_closed_low_value_trades()
+    trades = _load_closed_low_value_trades(engine=engine)
     n_total = len(trades)
     if n_total == 0:
         return {
             "total_closed": 0, "by_thesis_type": [],
-            "note": "No closed Low Value trades yet",
+            "note": f"No closed {engine} trades yet",
         }
 
     by_type: dict[str, list[dict]] = {}
@@ -1075,12 +1094,14 @@ def thesis_type_calibration_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINAR
     return {"total_closed": n_total, "by_thesis_type": rows}
 
 
-def low_value_calibration_readiness() -> dict:
+def low_value_calibration_readiness(engine: str = "low_value") -> dict:
     """
-    Overall Low Value readiness: total closed trades vs. the 20/50/100
-    preliminary/dynamic-weight/empirical-sizing thresholds.
+    Overall readiness (Low Value or, since 2026-08-28, Automaton): total
+    closed trades vs. the 20/50/100 preliminary/dynamic-weight/empirical-
+    sizing thresholds. Same tier discipline shared across both engines —
+    engine: see _load_closed_low_value_trades.
     """
-    n_total = len(_load_closed_low_value_trades())
+    n_total = len(_load_closed_low_value_trades(engine=engine))
     return {
         "total_closed_trades":      n_total,
         "preliminary_ready":        n_total >= LOW_VALUE_THESIS_PRELIMINARY_MIN_TRADES,

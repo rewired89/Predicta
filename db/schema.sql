@@ -128,9 +128,11 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     -- v5c: macro event tag (Kimi review, round 4) — logged only, not applied to scoring
     macro_event_today INTEGER,               -- 1 = known FOMC decision day, 0/NULL otherwise
     -- v6: Low Value contrarian sub-$20 engine (Kimi review round 6 follow-up).
+    -- v7: Automaton engine (2026-08-28) — autonomous-execution, learning-loop
+    -- sibling of Low Value; reuses this same table/column set, scoped by engine.
     -- engine distinguishes which independent signal pipeline logged this row;
     -- existing rows default to 'high_value' so nothing already logged is reclassified.
-    engine TEXT NOT NULL DEFAULT 'high_value' CHECK(engine IN ('high_value', 'low_value')),
+    engine TEXT NOT NULL DEFAULT 'high_value' CHECK(engine IN ('high_value', 'low_value', 'automaton')),
     lv_thesis_type TEXT,                     -- e.g. EARNINGS_MISS, INSIDER_BUYING — for per-thesis win-rate calibration
     lv_news_flags TEXT,                      -- JSON list of news_overlay.py category flags at entry
     lv_news_sentiment REAL,                  -- VADER compound sentiment (-1..+1) at entry
