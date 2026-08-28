@@ -13083,3 +13083,43 @@ purpose: GET/POST /trade/automaton/{dashboard, learning, scan-now, runner/status
 called_by: (HTTP routes)
 mutates: intraday_trades (engine='automaton'), real Alpaca PAPER orders, automaton_runner.py module globals
 ---
+
+## Automaton: scan-scheduling catch-up fix (added 2026-08-28, same day as launch — live production report)
+
+User reported the exact "the scan never started" confusion Low Value hit
+before (CLAUDE.md's Low Value section: the 2026-07-12 missing-start_runner()
+bug). Root cause here was different — start_automaton_runner() WAS correctly
+wired into app.py's startup() from the start (verified) — but the daily
+scan only fires inside a rigid 8:15-8:29 ET window, and there was no
+catch-up if a process starts (or Railway redeploys, which per this repo's
+own docs happens far more often than once a day) AFTER that window on a
+given date: `_runner_loop` would just wait silently until tomorrow morning,
+which looks identical to "broken" from the outside. Verified the actual
+scan/entry/execute pipeline itself has no bug via a synthetic end-to-end
+test (mocked bars/news/Alpaca calls, confirmed a real candidate gets
+scored, logged, and auto-executed correctly) — the defect was purely in
+scheduling, not signal logic.
+
+---
+name: automaton_scan_log table / log_automaton_scan_completed / get_automaton_scan_for_date
+type: table/function
+file: db/schema.sql, fetchers/trading_logger.py
+purpose: durable "did Automaton's scan actually run today" marker, one row per ET date, upserted with trades_logged (even 0) so a zero-candidate day isn't indistinguishable from "never ran." Mirrors low_value_universe_snapshot's exact "survive a Railway restart mid-day" role.
+inputs: log_automaton_scan_completed(scan_date: str, trades_logged: int); get_automaton_scan_for_date(scan_date: str)
+outputs: log_automaton_scan_completed -> None; get_automaton_scan_for_date -> dict | None
+calls: none
+called_by: run_automaton_scan / _runner_loop (automaton_runner.py)
+mutates: automaton_scan_log
+---
+
+---
+name: _runner_loop / _past_scan_window (catch-up scheduling)
+type: function
+file: fetchers/automaton_runner.py
+purpose: today_scanned is now seeded from the DB-persisted automaton_scan_log (not just in-memory None) so a mid-day restart doesn't forget a scan that already ran earlier today. The scan trigger now fires on EITHER being inside the normal 8:15-8:29 ET window OR that window having already passed today with still no completed scan on record (_past_scan_window) — so a late-day start/redeploy catches up on its very next 60s tick instead of waiting until tomorrow.
+inputs: none
+outputs: none (background loop)
+calls: get_automaton_scan_for_date, run_automaton_scan, check_automaton_exits, log_automaton_scan_completed
+called_by: start_runner
+mutates: automaton_scan_log, intraday_trades (engine='automaton')
+---

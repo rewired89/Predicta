@@ -532,6 +532,35 @@ def get_universe_snapshot_for_date(scan_date: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def log_automaton_scan_completed(scan_date: str, trades_logged: int) -> None:
+    """
+    Durable "did Automaton's daily scan actually run today" marker (added
+    2026-08-28) — one row per ET calendar date, upserted whether or not any
+    candidate qualified that day. See db/schema.sql's automaton_scan_log and
+    fetchers/automaton_runner.py's _runner_loop, which checks this on every
+    restart to catch up immediately if today's normal 8:15-8:29 ET window
+    already passed without a scan (e.g. Railway redeployed later in the day)
+    instead of silently waiting until tomorrow — the exact class of "the
+    scan never started" confusion that low_value_universe_snapshot was
+    built to prevent for the universe cache specifically.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO automaton_scan_log (scan_date, trades_logged, completed_at) VALUES (?, ?, datetime('now')) "
+            "ON CONFLICT(scan_date) DO UPDATE SET trades_logged = excluded.trades_logged, completed_at = excluded.completed_at",
+            (scan_date, trades_logged),
+        )
+
+
+def get_automaton_scan_for_date(scan_date: str) -> Optional[dict]:
+    """Whether Automaton's daily scan already completed for this exact ET calendar date, or None if it hasn't."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM automaton_scan_log WHERE scan_date = ?", (scan_date,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def log_manual_override(action: str, symbol: Optional[str] = None, details: Optional[dict] = None) -> int:
     """
     Records any manual order placed outside the automated signal pipeline

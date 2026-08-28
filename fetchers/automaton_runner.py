@@ -60,7 +60,10 @@ from typing import Optional
 
 from fetchers.high_value_runner import _et_now, _et_minutes
 from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability
-from fetchers.trading_logger import log_low_value_trade, log_trade_exit, promote_trade_to_real
+from fetchers.trading_logger import (
+    log_low_value_trade, log_trade_exit, promote_trade_to_real,
+    log_automaton_scan_completed, get_automaton_scan_for_date,
+)
 from fetchers import hsip_client
 from db.database import get_db
 
@@ -317,6 +320,12 @@ def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
 
     if len(_run_log) > 100:
         _run_log[:] = _run_log[-100:]
+
+    # Durable marker (see db/schema.sql: automaton_scan_log) that a scan
+    # happened for this ET date regardless of how many candidates qualified
+    # — logged even at trade_ids=[] so a zero-candidate day doesn't look
+    # indistinguishable from "never ran" to _runner_loop's catch-up check.
+    log_automaton_scan_completed(_et_now().strftime("%Y-%m-%d"), len(trade_ids))
     return trade_ids
 
 
@@ -460,8 +469,30 @@ def close_automaton_trade(trade_id: int) -> dict:
     return {"status": "CLOSED", "predicta_trade_id": trade_id, "symbol": symbol, "exit_price": current_price, **exit_result}
 
 
+def _past_scan_window() -> bool:
+    """True once today's normal 8:15-8:29 ET window has already closed (weekdays only)."""
+    now = _et_now()
+    if now.weekday() >= 5:
+        return False
+    window_end = AUTOMATON_SCAN_HOUR_ET * 60 + AUTOMATON_SCAN_START_MINUTE + 15
+    return _et_minutes() >= window_end
+
+
 def _runner_loop() -> None:
-    """Background thread body. Sleeps 60s between ticks; scans once per day in the 8:15-8:29 ET window."""
+    """
+    Background thread body. Sleeps 60s between ticks; scans once per day,
+    normally in the 8:15-8:29 ET window.
+
+    Catch-up behavior (added 2026-08-28, real production issue — the exact
+    "scans never started" confusion Low Value hit before it): today_scanned
+    is seeded from the DB-persisted automaton_scan_log, not just an
+    in-memory None, so a restart mid-day doesn't forget a scan that already
+    ran earlier today. And the scan trigger fires on EITHER being inside
+    today's normal window OR today's window having already passed with
+    still no completed scan on record — so a process that starts (or
+    restarts, e.g. a Railway redeploy) AFTER 8:29 ET catches up immediately
+    on its next tick instead of silently waiting until tomorrow morning.
+    """
     global _runner_active
     today_scanned: Optional[str] = None
     log.info("[AUTOMATON] Background loop started")
@@ -470,7 +501,19 @@ def _runner_loop() -> None:
         try:
             now_et = _et_now()
             today = now_et.strftime("%Y-%m-%d")
-            if now_et.weekday() < 5 and _in_scan_window() and today_scanned != today:
+            if today_scanned != today:
+                # Seed/refresh from the durable marker once per new day —
+                # cheap DB lookup, only matters right after a restart or at
+                # the first tick of a new calendar date.
+                persisted = get_automaton_scan_for_date(today)
+                if persisted:
+                    today_scanned = today
+            should_scan = (
+                now_et.weekday() < 5
+                and today_scanned != today
+                and (_in_scan_window() or _past_scan_window())
+            )
+            if should_scan:
                 log.info(f"[AUTOMATON] Daily scan for {today}")
                 check_automaton_exits()
                 ids = run_automaton_scan()
