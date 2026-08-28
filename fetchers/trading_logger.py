@@ -389,6 +389,8 @@ def log_low_value_trade(
     model_version: str = "v1",
     alpaca_order_id: Optional[str] = None,
     is_hypothetical: int = 1,
+    engine: str = "low_value",
+    position_dollars: float = 25.0,
 ) -> int:
     """
     Log a Low Value (sub-$20 contrarian) trade — engine='low_value', same
@@ -401,11 +403,19 @@ def log_low_value_trade(
     fetchers.alpaca.place_order — see fetchers/low_value_runner.py's
     LOW_VALUE_LIVE_PAPER_TRADING gate.
 
-    Position sizing is fixed $25/trade (models.trading.shared.kelly.
-    low_value_position_size), not the ATR/Kelly sizing High Value uses.
-    planned_hold_bars stores the 1-5 TRADING-DAY hold window (not 5-min bars
-    — Low Value checks once daily, per spec), and stop/target1 store the
-    -50%/+50% exit levels the runner checks against daily closes.
+    Position sizing is a fixed dollar amount (position_dollars, default $25 —
+    matches models.trading.shared.kelly.low_value_position_size), not the
+    ATR/Kelly sizing High Value uses. planned_hold_bars stores the hold
+    window in TRADING DAYS (not 5-min bars — this engine checks once daily,
+    per spec), and stop/target1 store the -50%/+50% exit levels the runner
+    checks against daily closes.
+
+    engine/position_dollars (added 2026-08-28 for the Automaton engine — see
+    fetchers/automaton_runner.py): every existing caller omits both and gets
+    byte-identical behavior to before (engine='low_value', $25 fixed sizing).
+    Automaton passes engine='automaton' and its own fixed dollar size so its
+    trades land in the same table/columns, scoped separately by engine, with
+    zero duplicated logging logic.
 
     thesis_result: models.trading.low_value.thesis_tracker.compute_thesis_score()
     output. thesis_type: dominant_thesis_type() output, stored for per-thesis
@@ -419,10 +429,10 @@ def log_low_value_trade(
     short_interest_pct, so staleness is always visible.
     """
     import json
-    from models.trading.shared.kelly import low_value_position_size
 
     entry_time = datetime.now(timezone.utc).isoformat()
-    sizing = low_value_position_size(entry_price)
+    shares = round(position_dollars / entry_price, 4) if entry_price else 0
+    sizing = {"shares": shares, "position_size": position_dollars}
     nr = news_result or {}
     missing_signals = thesis_result.get("missing_signals", [])
     si_detail = thesis_result.get("signals", {}).get("short_interest_pct", {}).get("detail", {})
@@ -459,10 +469,10 @@ def log_low_value_trade(
                 round(entry_price * 0.5, 4), round(entry_price * 1.5, 4), round(entry_price * 1.5, 4),
                 sizing.get("shares"), sizing.get("position_size"),
                 score_value, model_version, is_hypothetical,
-                "HYPOTHETICAL: Low Value engine, no order placed" if is_hypothetical
+                f"HYPOTHETICAL: {engine} engine, no order placed" if is_hypothetical
                 else f"Live paper order placed via Alpaca (order_id={alpaca_order_id})",
                 alpaca_order_id,
-                "low_value", thesis_type,
+                engine, thesis_type,
                 json.dumps(nr.get("flags", [])), nr.get("sentiment"), nr.get("headline_count"),
                 json.dumps(missing_signals), short_interest_asof, json.dumps(thesis_result.get("signals", {})),
             ),

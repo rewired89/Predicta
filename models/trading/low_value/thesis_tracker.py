@@ -323,6 +323,7 @@ def compute_thesis_score(
     daily_bars: list[dict],
     sector_bars: list[dict],
     news_result: Optional[dict] = None,
+    weights: Optional[dict[str, float]] = None,
 ) -> dict:
     """
     Full 8-signal composite for one Low Value candidate.
@@ -330,6 +331,14 @@ def compute_thesis_score(
     daily_bars / sector_bars: Alpaca get_daily_bars() output for the symbol
     and its sector ETF (see sector_etf_for_symbol). news_result: news_overlay.
     score_symbol_news() output, or None if not yet scanned.
+
+    weights (added 2026-08-28 for the Automaton engine — see
+    models/trading/automaton/learning.py): when given, used verbatim instead
+    of calling _effective_signal_weights() — lets a sibling engine that
+    shares this same 8-signal formula (Automaton) score candidates against
+    ITS OWN win/loss-learned weights instead of Low Value's. Every existing
+    caller omits this and gets byte-identical behavior (still driven by Low
+    Value's own calibration gate).
 
     Returns {composite: float, label: str, entry_eligible: bool,
              signals: {name: {score, detail}}, missing_signals: list[str]}.
@@ -355,7 +364,8 @@ def compute_thesis_score(
             "note": "No signals computable — insufficient data, no faking.",
         }
 
-    weights = _effective_signal_weights()
+    if weights is None:
+        weights = _effective_signal_weights()
     weight_sum = sum(weights[name] for name in available)
     composite = sum(weights[name] * score for name, (score, _detail) in available.items()) / weight_sum
     composite = round(composite, 2)
