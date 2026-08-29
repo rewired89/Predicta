@@ -1,7 +1,8 @@
 # Predicta Trading Model — Technical Overview for AI Review
 
 Date: 2026-07-06 (updated after round-1 review — see Section 8; updated 2026-07-18, see
-Section 8.12; **updated 2026-08-29 to cover all three engines — see Sections 10-12**)
+Section 8.12; updated 2026-08-29 to cover all three engines — see Sections 10-12;
+**updated 2026-08-29 again with a response to DeepSeek's review — see Section 13**)
 Purpose: Full technical dump of the current trading system for feedback review. Originally
 written for Kimi specifically; this doc is now meant to be shareable with any AI reviewer.
 
@@ -957,11 +958,13 @@ shortable).
 **Real entry bar is |composite| >= 40** (same as Low Value). **Currently running in
 "sprint mode"** — logs/executes anything >= 15 instead of 40 — because at the real 40
 bar, a live test found only ~2 qualifying candidates out of 500 evaluated per day; at
-that rate the 50-closed-trade threshold needed for the learning loop (11.6) to activate
-at all could take months. The real composite score is always stored regardless of which
-bar let a trade in, so this is fully reversible with no data loss. `AUTOMATON_DATA_
+that rate the 30-real-bar-trade threshold the learning loop (11.7) needs could take
+months. The real composite score is always stored regardless of which bar let a trade
+in, so this is fully reversible with no data loss. `AUTOMATON_DATA_
 COLLECTION_SPRINT_MODE` (bool) / `AUTOMATON_SPRINT_MIN_SCORE` (15.0), independent
-constants from Low Value's own (separate, also currently-on) sprint mode.
+constants from Low Value's own (separate, also currently-on) sprint mode. **Trades
+logged below the real 40 bar are excluded from weight calibration specifically (added
+2026-08-29, see 11.7)** — they still count toward every other diagnostic/readiness read.
 
 ### 11.4 Position Sizing and Concurrency
 
@@ -1011,11 +1014,13 @@ decision in 11.1.
 
 ### 11.7 Learning Loop — how it's supposed to actually improve
 
-`models/trading/automaton/learning.py: effective_weights()`. Below 50 closed Automaton
-trades, every scan uses the exact static weight table in 11.2 (untouched guesses). At
-50+, `compute_low_value_dynamic_weights(engine="automaton")` — a formula shared with Low
-Value's own dynamic-weight machinery, generalized with an `engine` param so the two
-engines' calibration never mixes — recomputes weights per signal as:
+`models/trading/automaton/learning.py: effective_weights()`. When 30+ of Automaton's own
+trades AT THE REAL ENTRY BAR have closed (see the sprint-mode exclusion below —
+**updated 2026-08-29**, was originally gated on 50 total closed trades including
+sprint-mode ones), `compute_low_value_dynamic_weights(engine="automaton",
+min_entry_score=ENTRY_THRESHOLD)` — a formula shared with Low Value's own dynamic-weight
+machinery, generalized with an `engine` param so the two engines' calibration never mixes
+— recomputes weights per signal as:
 
 ```
 raw_weight(signal) = max(0, (win_rate(signal) - 0.5) * (avg_pnl_pct(signal) / 100))
@@ -1029,9 +1034,25 @@ edge found anywhere yet). Recomputed at most once per 5 minutes (cached), and **
 trade Automaton places is decided using whatever weight table is active at scan time** —
 there is no retroactive re-scoring of past trades.
 
+**Sprint-mode exclusion (added 2026-08-29, per DeepSeek's review — see Section 13):**
+Automaton's sprint mode (11.3) logs/executes trades down to |score|=15, but weight
+calibration only ever trains on trades that closed at |score| >= 40 (the real entry bar)
+— sprint trades still count toward the 20/50/100 readiness tiers and the per-thesis-type/
+per-signal diagnostic reads shown on the dashboard, they're just excluded from the
+reweighting math itself. `learning_summary()` reports both `n_closed_total` (all closed
+trades) and `n_closed_qualifying_real_bar` (the count actually used for calibration) so
+the two numbers are never conflated.
+
+**Reset lever (added 2026-08-29, per DeepSeek's review):** `AUTOMATON_LEARNING_ENABLED`
+(bool, default True) — NOT a kill switch, has zero effect on scanning/entries/exits.
+Since weights were never persisted (recomputed live from trade history every call),
+setting this to False reverts every future scan to the untouched static starting weights
+within one cache refresh, with no DB cleanup needed — the "how do I roll back a bad
+learned state" gap DeepSeek flagged.
+
 **As of this writing: 0 closed Automaton trades.** The learning loop has never fired.
-Everything Automaton has done so far (or will do until 50 trades close) is on the static
-starting guess, identical to Low Value's own untuned starting point.
+Everything Automaton has done so far (or will do until 30 real-entry-bar trades close) is
+on the static starting guess, identical to Low Value's own untuned starting point.
 
 ### 11.8 Scheduling
 
@@ -1101,3 +1122,87 @@ this much logging/transparency is that none of it is trusted yet.
 Reminder, same as every other section in this document: there is no real performance
 data behind Low Value or Automaton yet. These are architecture questions about mechanism
 and risk, not requests to validate results — there are no results to validate.
+
+---
+
+## 13. DeepSeek Review (2026-08-29) — Response and Status
+
+Shared this document with DeepSeek for independent feedback. Full review covered High
+Value (Sections 3-9), Low Value/Automaton (Sections 10-12), and general suggestions.
+Two claims were checked against the actual code before acting on anything (both were
+off in ways worth recording for future reviewers):
+
+- DeepSeek estimated Automaton could reach ~50-60 new positions/year. With the actual
+  5-concurrent-position cap and up to a 126-trading-day hold, the real ceiling if every
+  slot runs full-term is **~10/year** (5 x 252/126). This makes the "will the learning
+  loop ever get enough data" concern worse than DeepSeek's own framing, not better.
+- DeepSeek described "no rollback mechanism except manually editing the DB weights
+  table." There is no persisted weights table — `effective_weights()` recomputes live
+  from trade history every call (5-min cache). A rollback lever was trivial to add
+  precisely because nothing was ever persisted (see 13.2 below).
+
+### 13.1 Fixed now — sprint-mode trades excluded from weight calibration (P0)
+
+DeepSeek's concern: reweighting on sub-threshold (sprint, |score| 15-39) trades risks
+converging on weights tuned for weak signals that were never tested at the real 40-point
+entry bar. **Agreed, implemented.** `signal_calibration.py`'s Low Value calibration
+functions gained a `min_entry_score` param (default 0.0 — every existing caller,
+including Low Value's own, is unaffected); Automaton's `effective_weights()` now passes
+`min_entry_score=ENTRY_THRESHOLD` (40) specifically for the weight-calibration call.
+Sprint-mode trades still count toward readiness tiers and the per-thesis-type/per-signal
+diagnostic reads (the "velocity, not calibration" distinction DeepSeek proposed) — only
+the actual reweighting math excludes them. Verified with a synthetic test: 35 winning
+sprint-mode trades alone produced zero learning; adding 30 winning real-bar trades
+correctly triggered it. See 11.7.
+
+### 13.2 Fixed now — a real reset lever for learned weights (part of DeepSeek's #4)
+
+`AUTOMATON_LEARNING_ENABLED` (bool, default True, `models/trading/automaton/learning.py`)
+— explicitly NOT a kill switch (zero effect on scanning, entries, or exits, honoring the
+user's "it shouldn't be killed" requirement) — controls only whether `effective_weights()`
+may deviate from the static starting table. Flipping it to False reverts every future
+scan to the untouched weights within one cache TTL. Verified with a synthetic test.
+
+### 13.3 Deferred to the user's explicit decision — not implemented
+
+These change what the engine screens for or its risk profile, not just a correctness
+fix, so they need the user's sign-off rather than an autonomous edit:
+
+- **P0 — add momentum/growth signals** (price vs. 50-day high, longer-window relative
+  strength, earnings surprise if reliably available). DeepSeek's core critique: Low
+  Value's 8 signals are mean-reversion-polarized (near-low, oversold RSI, high short
+  interest all score bullish) and structurally cannot express "rising relative strength,
+  new catalyst, improving fundamentals" — the actual shape of a 6-month explosive-growth
+  thesis. The learning loop can only reweight the features it has; it can't discover it
+  needs different ones. This is the single biggest open item.
+- **P1 — target:stop ratio.** Current ±50%/±50% is Low Value's 5-day exit unchanged,
+  stretched across a hold ~25x longer. DeepSeek's suggestion (e.g. 60% target / 20% stop,
+  a 3:1 ratio) reflects a "win less often, win bigger" growth-thesis risk profile instead
+  of the current "win about half the time" mean-reversion profile — which is really the
+  same underlying question as 13.3's first item: the right target:stop ratio depends on
+  which thesis the signal set is actually built to detect.
+- **P1 — position size / concurrency cap.** DeepSeek's proposed fix (raise $25 and/or the
+  5-position cap to speed up learning) is reasonable in isolation, but changes how much
+  paper capital-equivalent risk sits in each trade — a call about risk posture, not a bug.
+- **Movers cross-check as a scored signal, not just a universe filter** (DeepSeek's #6,
+  matches this doc's own Section 12 Q6). Investigated but NOT implemented as suggested:
+  DeepSeek's proposed polarity (gainer=bullish, loser=bearish) is a MOMENTUM framing that
+  directly contradicts every other signal in the composite, which is CONTRARIAN (a top
+  loser today, under this engine's existing "sold off = bullish" polarity, would actually
+  read as MORE bullish, not less). Scoring it DeepSeek's way would make the composite
+  internally inconsistent without first resolving 13.3's first item. This is coupled to
+  the signal-set question, not a standalone fix.
+- **Graduated sprint threshold** (P2 — start at 15, raise gradually as trade count grows)
+  and **N-gram historical validation on the High Value engine** (P2) — smaller items, not
+  actioned, open for a future round.
+
+### 13.4 Where this leaves Section 12's open questions
+
+Q1 (signal-thesis fit) and Q2 (exit-level scaling) — DeepSeek concurred these are real
+problems, not resolved, tracked in 13.3. Q5 (sprint-mode selection bias) — DeepSeek
+concurred, **fixed**, see 13.1. Q6 (movers as a real signal) — DeepSeek concurred it's a
+missed opportunity, investigated, **coupled to Q1**, see 13.3. Q3, Q4, Q7 — DeepSeek's
+answers (Q3: fixed sizing defensible, cap limits learning speed; Q4: honor "no kill
+switch," but a reset lever for LEARNED STATE specifically is fine — addressed, see 13.2;
+Q7: keep Automaton/Low Value calibration fully separate) all agree with this document's
+original reasoning; no change made.

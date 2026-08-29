@@ -865,7 +865,7 @@ LOW_VALUE_DYNAMIC_WEIGHT_MIN_TRADES: int = 50
 LOW_VALUE_EMPIRICAL_SIZING_MIN_TRADES: int = 100
 
 
-def _load_closed_low_value_trades(engine: str = "low_value") -> list[dict]:
+def _load_closed_low_value_trades(engine: str = "low_value", min_entry_score: float = 0.0) -> list[dict]:
     """
     All closed trades with the lv_* columns, scoped to one engine.
 
@@ -876,6 +876,18 @@ def _load_closed_low_value_trades(engine: str = "low_value") -> list[dict]:
     be calibrated against Low Value's own trade history (different hold
     horizon, different execution mode) — every function in this section
     takes the same param for that reason.
+
+    min_entry_score (added 2026-08-29, per external AI review — see
+    trading_model_4kimi.md Section 12 and the DeepSeek feedback that
+    prompted this): both engines can run a "sprint mode" that logs/executes
+    trades below the real entry bar (e.g. Automaton logs at |score|>=15
+    while the real bar is 40) purely to accelerate data collection. Those
+    sub-threshold trades are real, honest data points about weak signals —
+    but weight-CALIBRATION math shouldn't be fit on them, since the
+    resulting weights are meant to describe how the composite behaves AT
+    the real entry bar, not below it. 0.0 (default) filters nothing, so
+    every existing caller (readiness counts, thesis-type reports, dashboard
+    per-signal accuracy) is completely unaffected — this is opt-in per call.
     """
     try:
         from db.database import get_db
@@ -892,9 +904,12 @@ def _load_closed_low_value_trades(engine: str = "low_value") -> list[dict]:
                 """,
                 (engine,),
             ).fetchall()
-        return [dict(r) for r in rows]
+        trades = [dict(r) for r in rows]
     except Exception:
         return []
+    if min_entry_score > 0:
+        trades = [t for t in trades if t.get("entry_score") is not None and abs(t["entry_score"]) >= min_entry_score]
+    return trades
 
 
 # Added 2026-07-16 (Tier 0 of the trading-model audit — see CODEMAP.md).
@@ -915,6 +930,7 @@ def low_value_per_signal_accuracy_report(
     min_trades: int = 10,
     active_threshold: float = 10.0,
     engine: str = "low_value",
+    min_entry_score: float = 0.0,
 ) -> dict:
     """
     Win rate and average P&L (in R, when available) per individual Low Value
@@ -924,11 +940,14 @@ def low_value_per_signal_accuracy_report(
 
     engine: see _load_closed_low_value_trades — default preserves existing
     (Low Value) behavior; Automaton passes engine="automaton".
+    min_entry_score: see _load_closed_low_value_trades — 0.0 default filters
+    nothing; compute_low_value_dynamic_weights passes a real threshold here
+    when computing weights specifically (not for general diagnostic reads).
     """
     import json as _json
     from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
 
-    trades = _load_closed_low_value_trades(engine=engine)
+    trades = _load_closed_low_value_trades(engine=engine, min_entry_score=min_entry_score)
     n_total = len(trades)
 
     by_signal = []
@@ -997,7 +1016,7 @@ def low_value_per_signal_accuracy_report(
 # fallback-to-static behavior, same min_trades floor, just sourced from
 # low_value_per_signal_accuracy_report's avg_pnl_pct (Low Value's edge-
 # magnitude stand-in for R — see that function's comment) instead of avg_r.
-def compute_low_value_dynamic_weights(min_trades: int = 30, engine: str = "low_value") -> Optional[dict]:
+def compute_low_value_dynamic_weights(min_trades: int = 30, engine: str = "low_value", min_entry_score: float = 0.0) -> Optional[dict]:
     """
     Empirically-driven signal weights (Low Value or, since 2026-08-28,
     Automaton — see engine param on _load_closed_low_value_trades above).
@@ -1007,15 +1026,27 @@ def compute_low_value_dynamic_weights(min_trades: int = 30, engine: str = "low_v
     Normalized: weight = raw / sum(all raws).
     Falls back to thesis_tracker.SIGNAL_WEIGHTS when sum of raws is zero.
 
-    Returns None when total closed trades for this engine < min_trades.
+    Returns None when the number of QUALIFYING closed trades (see
+    min_entry_score) for this engine < min_trades.
+
+    min_entry_score (added 2026-08-29, per external AI review — DeepSeek's
+    P0 finding on Automaton's sprint mode): when > 0, trades logged below
+    this |entry_score| are excluded from BOTH the min_trades gate and the
+    actual weight computation — sprint-mode trades are real data, but
+    weights are meant to describe how the composite behaves at the real
+    entry bar, and fitting them on sub-threshold trades risks converging on
+    weights that work for weak signals but don't hold at the real bar.
+    total_closed_all is returned alongside n_trades (the qualifying count
+    actually used) so a caller can see both numbers, not just one.
     """
     from models.trading.low_value.thesis_tracker import SIGNAL_WEIGHTS
 
-    trades = _load_closed_low_value_trades(engine=engine)
+    trades_all = _load_closed_low_value_trades(engine=engine)
+    trades = _load_closed_low_value_trades(engine=engine, min_entry_score=min_entry_score) if min_entry_score > 0 else trades_all
     if len(trades) < min_trades:
         return None
 
-    report = low_value_per_signal_accuracy_report(min_trades=5, active_threshold=10.0, engine=engine)
+    report = low_value_per_signal_accuracy_report(min_trades=5, active_threshold=10.0, engine=engine, min_entry_score=min_entry_score)
 
     raw_weights: dict[str, float] = {}
     negative_utility: list[str] = []
@@ -1045,6 +1076,8 @@ def compute_low_value_dynamic_weights(min_trades: int = 30, engine: str = "low_v
         "raw_weights": {k: round(v, 6) for k, v in raw_weights.items()},
         "negative_utility": negative_utility,
         "n_trades": len(trades),
+        "n_trades_total_closed": len(trades_all),
+        "min_entry_score": min_entry_score,
         "status": status,
     }
 

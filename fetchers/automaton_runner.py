@@ -637,8 +637,10 @@ def get_runner_status() -> dict:
     """Current Automaton runner state for GET /trade/automaton/runner/status."""
     _clear_stale_scan()
     open_pos = _load_open_positions()
+    from models.trading.automaton.learning import AUTOMATON_LEARNING_ENABLED
     return {
         "engine": ENGINE,
+        "learning_enabled": AUTOMATON_LEARNING_ENABLED,
         "active": _runner_active and bool(_runner_thread and _runner_thread.is_alive()),
         "autonomous_execution": True,
         "kill_switch": False,

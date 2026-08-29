@@ -13159,3 +13159,38 @@ calls: get_daily_universe (low_value_runner.py), _todays_movers_symbols
 called_by: _runner_loop, trigger_scan_async, POST /trade/automaton/scan-now
 mutates: intraday_trades (engine='automaton'), real Alpaca PAPER orders
 ---
+
+## Automaton: response to external AI code review (added 2026-08-29)
+
+User shared trading_model_4kimi.md with DeepSeek for feedback; DeepSeek's
+review correctly flagged (independently confirming a concern already in
+the doc's own Section 12 Q1) that Automaton reuses Low Value's contrarian
+mean-reversion signals for a stated momentum/growth thesis, plus two
+concrete, correctable P0/P1 issues: sprint-mode sub-threshold trades could
+bias the learning loop's weight calibration, and there was no way to reset
+learned weights back to static without a code change. Implemented the two
+correctable items now (no strategy/risk-profile change); deferred the
+bigger ones (new signal categories, target:stop ratio, position sizing) to
+the user's explicit decision, since those materially change what the
+engine screens for and how much capital-equivalent risk each trade carries.
+
+---
+name: _load_closed_low_value_trades / low_value_per_signal_accuracy_report / compute_low_value_dynamic_weights (extended: min_entry_score)
+type: function
+file: models/trading/shared/signal_calibration.py
+purpose: extended 2026-08-29 — min_entry_score: float = 0.0 param (default filters nothing, every existing caller unaffected) excludes trades with |entry_score| below the given threshold. compute_low_value_dynamic_weights returns both n_trades (qualifying count actually used) and n_trades_total_closed (unfiltered) so a caller can see both numbers. Used by Automaton's learning.py to exclude sprint-mode sub-threshold trades from weight calibration specifically, while readiness/thesis-type/per-signal diagnostic reads stay unfiltered (sprint trades still count for those).
+inputs: (unchanged) + min_entry_score: float = 0.0
+outputs: (unchanged shapes) + compute_low_value_dynamic_weights gains n_trades_total_closed, min_entry_score keys
+calls: none new
+called_by: models.trading.automaton.learning.effective_weights (min_entry_score=ENTRY_THRESHOLD)
+mutates: none
+---
+
+---
+name: AUTOMATON_LEARNING_ENABLED / _WEIGHT_CALIBRATION_MIN_ENTRY_SCORE
+type: variable
+file: models/trading/automaton/learning.py
+purpose: AUTOMATON_LEARNING_ENABLED (bool, default True) is a reset lever, NOT a kill switch — trading/scanning/exits are completely unaffected; it only controls whether effective_weights() may deviate from the static starting table. Since weights were never persisted (computed live from trade history each call), flipping this to False reverts every future scan to the untouched starting weights within one cache TTL, no DB cleanup needed. _WEIGHT_CALIBRATION_MIN_ENTRY_SCORE (= thesis_tracker.ENTRY_THRESHOLD, 40) is the sprint-mode exclusion threshold passed to compute_low_value_dynamic_weights.
+called_by: effective_weights, learning_summary (both in this file)
+mutates: none (module-level flags)
+---
