@@ -1,23 +1,35 @@
-# Predicta Trading Model — Technical Overview for Kimi
+# Predicta Trading Model — Technical Overview for AI Review
 
-Date: 2026-07-06 (updated after round-1 review — see Section 8; most recently updated 2026-07-18, see Section 8.12)
-Purpose: Full technical dump of the current trading system for feedback review.
+Date: 2026-07-06 (updated after round-1 review — see Section 8; updated 2026-07-18, see
+Section 8.12; **updated 2026-08-29 to cover all three engines — see Sections 10-12**)
+Purpose: Full technical dump of the current trading system for feedback review. Originally
+written for Kimi specifically; this doc is now meant to be shareable with any AI reviewer.
 
 ---
 
 ## 1. What This System Is
 
-Predicta runs **two separate, independent signal engines** for two different trading
-styles. They share no code and are never mixed:
+Predicta runs **three separate, independent paper-trading engines**. They share almost
+no signal logic and are never mixed into a combined position or score:
 
-| Engine | File | Style | Hold time |
-|--------|------|-------|-----------|
-| Daily swing engine | `models/trading/signals.py` | Multi-day swing trades | Days to weeks |
-| Intraday engine | `models/trading/intraday.py` | Day trading | 30–60 minutes |
+| Engine | Files | Style | Hold time | Execution |
+|--------|-------|-------|-----------|-----------|
+| **High Value** | `models/trading/high_value/signals.py`, `intraday.py` | Day trading + multi-day swing on liquid large/low-priced caps | 30–60 min (intraday) to days/weeks (swing) | Human clicks Buy/Sell |
+| **Low Value** | `models/trading/low_value/*` | Contrarian "buy the fear" on sub-$20 beaten-down stocks | 1–5 trading days | Human clicks Buy/Sell |
+| **Automaton** | `models/trading/automaton/*`, `fetchers/automaton_runner.py` | Reuses Low Value's contrarian signal engine, held for a much longer horizon | Up to ~126 trading days (~6 months) | **Fully autonomous — no click, buys and sells itself** |
 
-Everything below the "Current Status" section is broken into these two engines, plus
-the shared infrastructure (position sizing, calibration feedback, automated data
-collection) that both use.
+**Sections 3-9 below are the original, detailed technical dump of the High Value
+engine** (its two sub-styles: the daily swing engine and the intraday engine), plus the
+shared infrastructure both use. **Sections 10-12 (added 2026-08-29) cover Low Value and
+Automaton** — Low Value's full technical detail already lives in a companion document
+(`low_value_trading4kimi.md`), summarized here; Automaton is new and documented here in
+full, since it's the newest and least-reviewed piece of the system.
+
+All three engines currently trade **paper money only** (Alpaca's paper API). A human can
+promote an individual High Value or Low Value candidate to a real paper order by clicking
+Buy; Automaton places real paper orders on its own. **No engine is authorized to place a
+real-money order autonomously** — that action is 100% human-gated on every engine, via a
+passcode-protected endpoint, by explicit and deliberate design (see Section 12.5).
 
 ---
 
@@ -853,3 +865,239 @@ round-6 read-through:)
 Reminder: there is still no real performance data. All of the above are
 architecture questions, not results — the system still needs its first 100
 closed trades before any of this can be empirically validated.
+
+---
+
+## 10. Low Value Engine (Summary — full detail in `low_value_trading4kimi.md`)
+
+Contrarian "buy the fear" engine, completely independent from High Value — shares only
+infrastructure (position logger, calibration helpers), zero signal logic.
+
+**Universe** (`models/trading/low_value/scanner.py`): all active, tradable, non-OTC US
+equities, filtered to price < $20, 20-day avg daily volume > 100k shares, market cap >
+$50M, no earnings in the near term, no bankruptcy (SEC 8-K Item 1.03) filing in the last
+90 days. Capped at 200 symbols/day.
+
+**Signal engine** (`models/trading/low_value/thesis_tracker.py`): 8 signals, weighted
+composite -100..+100 (see table in Section 11.3 below — Automaton reuses this exact
+formula). Contrarian polarity: near a 20-day low / oversold RSI / high short interest are
+all scored **bullish** here (the opposite of a trend-following engine).
+
+**Entry:** |composite| >= 40 -> BUY (long) or SELL (short, if shortable). **Exit** (checked
+once daily): +50% target, -50% stop, thesis-resolved (entered on bad news, a fresh
+positive headline appears), or 5 trading days elapsed — whichever comes first. **Sizing:**
+fixed $25/trade, max 3 concurrent positions.
+
+**Execution:** human-gated. The scan only ever logs a hypothetical candidate; a human
+clicks Buy to place the real paper order.
+
+**Learning:** `signal_calibration.py`'s `compute_low_value_dynamic_weights()` reweights
+the 8 signals toward whatever's empirically been winning, but only after 50+ closed Low
+Value trades (20 for a preliminary per-thesis-type read, 100 for empirical position
+sizing). As of this writing, Low Value has real trade history accumulating but has not
+yet crossed the 50-trade dynamic-weight threshold.
+
+---
+
+## 11. Automaton Engine (added 2026-08-28 — new, least-reviewed piece of the system)
+
+### 11.1 What This Is and Why It Exists
+
+Direct user request, modeled on the real "Automaton" AI agent project
+(github.com/Conway-Research/automaton — a continuously-running agent that pays for its
+own compute and dies if it can't, or spins up funded child agents if it can). Researched
+that project first, then asked the user directly how far to take the analogy. Their
+answers, which are the actual spec:
+
+- **Autonomous execution: yes**, but scoped entirely to paper trading. It buys and sells
+  with no human click.
+- **A kill switch on drawdown: explicitly no.** ("It shouldn't be killed, it should
+  learn.") There is no code path anywhere in this engine that disables or pauses trading
+  based on performance.
+- **Cloning / capital-scaling on success: explicitly no.** ("No clone.") One strategy, one
+  fixed position size, no variant-spawning, no capital reallocation.
+- **What they actually want:** a continuous learn-from-wins-and-losses loop that keeps
+  finding more of whatever's been working.
+
+So structurally, Automaton is **Low Value's exact signal formula, wearing a different
+hold horizon and a different execution/learning wrapper** — deliberately reused rather
+than reimplemented, since "underrated, overlooked stock with a positive catalyst" is the
+same thesis Low Value already scores.
+
+### 11.2 Universe (identical formula to Low Value, plus one addition)
+
+Same filtered universe as Low Value (`get_daily_universe()`, literally shared/cached
+between the two engines — one scan builds it, the other reuses the same day's result),
+**plus**, added 2026-08-29: today's real Alpaca top gainers, top losers, and
+most-active-by-volume symbols (`fetchers/alpaca.py: get_top_movers` /`get_most_active`,
+free endpoints, same API key). This is purely additive — it can only add candidates to
+the scan, never remove any from the filtered universe. Rationale: the filtered universe
+answers "is this cheap/liquid/solvent," never "is this actually moving today, and in
+which direction" — the movers cross-check answers that second question.
+
+### 11.3 Signal Engine — identical 8-signal composite to Low Value
+
+| Signal | Weight | Bullish when... |
+|---|---|---|
+| Price vs. 20-day low | 20% | Close to the recent low (contrarian: "sold off, may bounce") |
+| Insider buying (30d) | 20% | Insiders bought and didn't sell (+100); mixed buy+sell (+40); sold only (-60); neither (0) |
+| RSI(14) | 15% | Oversold (<30) |
+| Volume spike | 10% | Today's volume >> 20-day average (magnitude only, direction comes from other signals) |
+| Short interest % | 10% | Higher = more squeeze potential (scored as upside, not risk) |
+| Sector relative strength | 10% | Outperforming its sector ETF over 5 days |
+| Cash burn runway | 10% | Longer runway (also flags if extended by a recent dilutive share sale — display-only warning, not scored) |
+| News sentiment | 5% | Positive VADER sentiment / positive-catalyst headline flag |
+
+Composite: weighted average of whichever signals are computable for a given symbol —
+**a missing signal is excluded and its weight redistributed proportionally, never
+estimated or defaulted.** Composite range -100..+100; positive -> long candidate,
+negative -> short candidate (short only if Alpaca confirms the symbol is actually
+shortable).
+
+**Real entry bar is |composite| >= 40** (same as Low Value). **Currently running in
+"sprint mode"** — logs/executes anything >= 15 instead of 40 — because at the real 40
+bar, a live test found only ~2 qualifying candidates out of 500 evaluated per day; at
+that rate the 50-closed-trade threshold needed for the learning loop (11.6) to activate
+at all could take months. The real composite score is always stored regardless of which
+bar let a trade in, so this is fully reversible with no data loss. `AUTOMATON_DATA_
+COLLECTION_SPRINT_MODE` (bool) / `AUTOMATON_SPRINT_MIN_SCORE` (15.0), independent
+constants from Low Value's own (separate, also currently-on) sprint mode.
+
+### 11.4 Position Sizing and Concurrency
+
+Fixed **$25 per trade** (`AUTOMATON_FIXED_POSITION_DOLLARS`), independent constant from
+Low Value's own $25 — not ATR/Kelly/volatility-scaled. Max **5 concurrent open
+positions** (`AUTOMATON_MAX_CONCURRENT_POSITIONS`) — a starting guess, not fitted to
+anything; larger than Low Value's 3 on the reasoning that a ~6-month hold ties up capital
+per-slot for much longer, so more slots are needed to keep the scan doing anything most
+days.
+
+### 11.5 Exit Rules (checked once daily, not intraday)
+
+Whichever fires first:
+- **+50% target** (`AUTOMATON_TARGET_PCT`)
+- **-50% stop** (`AUTOMATON_STOP_PCT`)
+- **Thesis resolved** — entered on a negative-news thesis (earnings miss, downgrade,
+  regulatory scare, operational crisis) and a fresh positive-catalyst headline appears
+- **126 trading days elapsed** (`AUTOMATON_MAX_HOLD_DAYS`, ~6 months) — forced exit
+  regardless of price
+
+Same target/stop percentages as Low Value's 5-day hold, just stretched across a ~25x
+longer time horizon — **not re-derived for the longer horizon, an open question below.**
+
+### 11.6 Autonomous Execution — the actual mechanism
+
+`fetchers/automaton_runner.py: run_automaton_scan()` scores each candidate, and for
+anything crossing the entry bar, **immediately** (same function call, no queue, no
+approval step) calls `_auto_execute_entry()`, which places a real Alpaca **paper** market
+order — floors to whole shares for a short or a non-fractionable symbol (Alpaca doesn't
+support fractional shorts), promotes the DB row from hypothetical to real in place, and
+attests the transaction to HSIP (a tamper-proof off-chain hash log of every real order
+this app places, across all three engines). `check_automaton_exits()` does the same on
+the close side — once daily, it evaluates every open position's exit rule and, if
+triggered, calls Alpaca to actually liquidate the position, no approval step.
+
+**This never touches real money.** Every order-placing/closing call in `fetchers/
+alpaca.py` runs through `_assert_paper_mode()`, which raises if the configured base URL
+isn't Alpaca's paper endpoint — the same guard every other engine's human-triggered
+orders already go through. There is no code path in this engine, or anywhere in this
+app, that can place a live order without a human clicking a passcode-gated endpoint.
+
+**Human override exists but is not the primary path:** `execute_automaton_trade` (retry
+a single candidate whose autonomous order failed) and `close_automaton_trade` (close one
+position early) are passcode-gated manual escape hatches. Neither pauses the strategy —
+there is no "stop trading" switch anywhere in this engine, by the explicit design
+decision in 11.1.
+
+### 11.7 Learning Loop — how it's supposed to actually improve
+
+`models/trading/automaton/learning.py: effective_weights()`. Below 50 closed Automaton
+trades, every scan uses the exact static weight table in 11.2 (untouched guesses). At
+50+, `compute_low_value_dynamic_weights(engine="automaton")` — a formula shared with Low
+Value's own dynamic-weight machinery, generalized with an `engine` param so the two
+engines' calibration never mixes — recomputes weights per signal as:
+
+```
+raw_weight(signal) = max(0, (win_rate(signal) - 0.5) * (avg_pnl_pct(signal) / 100))
+weight(signal) = raw_weight(signal) / sum(all raw_weights)
+```
+
+i.e. a signal only gets weight if it's both winning more than half the time AND has
+positive average P&L when active; weight is proportional to how strong that edge is.
+Falls back to the static table if every signal's raw weight computes to zero (no real
+edge found anywhere yet). Recomputed at most once per 5 minutes (cached), and **every
+trade Automaton places is decided using whatever weight table is active at scan time** —
+there is no retroactive re-scoring of past trades.
+
+**As of this writing: 0 closed Automaton trades.** The learning loop has never fired.
+Everything Automaton has done so far (or will do until 50 trades close) is on the static
+starting guess, identical to Low Value's own untuned starting point.
+
+### 11.8 Scheduling
+
+Daily scan window 8:15-8:29 ET (offset 15 min after Low Value's 8:00-8:14 window, to
+avoid both engines hitting Finnhub's 60-calls/min budget simultaneously — they share the
+same universe-build call). A durable per-date marker (`automaton_scan_log` table) lets
+the runner catch up immediately if the process starts/restarts after today's window has
+already passed, rather than silently waiting until tomorrow.
+
+### 11.9 Current Status
+
+**v1, uncalibrated, zero resolved trades.** Nothing above has been validated against
+real outcomes. This is a rules-based heuristic composite score with human-guessed
+weights, not a backtested or fitted model. The entire reason it runs in paper mode with
+this much logging/transparency is that none of it is trusted yet.
+
+---
+
+## 12. Open Questions — Requesting AI Feedback (2026-08-29)
+
+1. **Is reusing Low Value's contrarian signal set conceptually right for Automaton's
+   stated thesis?** Low Value's 8 signals were built around "beaten-down stock, sellers
+   overshot, reverts in 1-5 days." Automaton's stated goal is "underrated stock that
+   could explode in price within 6 months" — closer to an asymmetric-upside/catalyst
+   thesis than a pure mean-reversion one. Is scoring both engines with the identical
+   formula defensible (shared "overlooked value" thesis), or does a 6-month explosive-
+   growth thesis actually need different signals entirely (e.g. relative strength /
+   momentum breakout components, which Low Value's contrarian polarity actively scores
+   as bearish)?
+2. **Are the ±50% target/stop levels right for a ~126-trading-day hold, unchanged from
+   Low Value's 5-day hold?** Low Value's own docs note that in practice a wrong-thesis
+   position usually exits via the time limit around -10%, long before the -50% stop ever
+   triggers — that logic doesn't obviously transfer to a hold 25x longer, where far more
+   underlying business/market drift can happen before a time-based exit ever fires. Should
+   the stop be tighter, or trail, for a hold this long?
+3. **Is a fixed $25/trade position size defensible for a 6-month hold?** Low Value's
+   rationale for fixed sizing (cap the damage of one bad pick, thin/illiquid names) still
+   applies, but capital sits committed 25x longer per trade here with only 5 concurrent
+   slots — is there a real opportunity cost worth addressing (e.g. should closed-early
+   capital get recycled faster, or is the 6-month lockup by design)?
+4. **Is "no kill switch, ever" the right call even for pure paper trading?** The user was
+   explicit and this was a deliberate design choice, not an oversight — but is there a
+   version of "it should learn, not be killed" that still includes some form of automatic
+   circuit breaker (e.g. pause NEW entries, not existing positions, past some extreme
+   drawdown) without contradicting the user's actual intent, or does any such mechanism
+   inherently become the kill switch they explicitly rejected?
+5. **Sprint mode's 15-point entry bar (vs. the real 40) — is this introducing selection
+   bias into the very data the learning loop will train on?** Trades logged at 15-39
+   points are, by the model's own logic, weaker-conviction signals. If the learning loop
+   (Section 11.7) reweights based on a pool dominated by sub-threshold trades, is there a
+   risk it converges on weights that look good on weak signals but wouldn't hold at the
+   real 40-point bar Automaton is meant to eventually run at?
+6. **Movers cross-check (Section 11.2) has no separate scoring treatment** — a symbol
+   pulled in because it's today's #1 gainer gets scored by the exact same contrarian
+   formula as everything else, with no signal for "this is already moving, right now,"
+   which seems like exactly the information a movers feed is meant to supply. Should
+   there be a 9th signal (or a scoring modifier) that actually uses the movers data
+   itself, rather than just widening which symbols get the existing formula?
+7. **Should Automaton and Low Value share ANY learned state, or is full separation
+   (current design) correct?** They run the identical signal formula on largely
+   overlapping universes with different hold horizons. Right now their calibration data
+   is 100% siloed (`engine="automaton"` vs `engine="low_value"`) — is there value in one
+   informing the other's priors once one has real trade history and the other doesn't, or
+   would that contaminate the very thing that makes each engine's calibration meaningful
+   (its own actual hold-horizon-specific outcomes)?
+
+Reminder, same as every other section in this document: there is no real performance
+data behind Low Value or Automaton yet. These are architecture questions about mechanism
+and risk, not requests to validate results — there are no results to validate.
