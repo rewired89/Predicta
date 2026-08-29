@@ -59,7 +59,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fetchers.high_value_runner import _et_now, _et_minutes
-from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability
+from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability, get_top_movers, get_most_active
 from fetchers.trading_logger import (
     log_low_value_trade, log_trade_exit, promote_trade_to_real,
     log_automaton_scan_completed, get_automaton_scan_for_date,
@@ -113,6 +113,47 @@ AUTOMATON_SPRINT_MIN_SCORE: float = 15.0
 _runner_thread: Optional[threading.Thread] = None
 _runner_active: bool = False
 _run_log: list[dict] = []
+
+# Real-time movers cross-check (added 2026-08-29, direct user request: "we
+# need Predicta to get that data" about what's actually moving today).
+# get_top_movers/get_most_active are Alpaca's own free screener endpoints
+# (/v1beta1/screener/stocks/{movers,most-actives}) — same Alpaca key already
+# configured for everything else in this codebase, no new credentials, and
+# already proven working code (models/trading/screener.py's run_screener,
+# use_movers=True). They were never wired into Low Value's or Automaton's
+# universe before this — build_low_value_universe only ever asks "is this
+# symbol cheap/liquid/not bankrupt," never "is this symbol actually moving
+# TODAY, and in which direction." This adds today's real gainers, losers,
+# and most-active-by-volume symbols on top of that filtered universe as
+# extra candidates each scan, purely additive — the existing universe is
+# untouched, this can only ever add symbols, never remove any.
+AUTOMATON_MOVERS_CROSS_CHECK: bool = True
+AUTOMATON_MOVERS_LIMIT: int = 50
+AUTOMATON_MOST_ACTIVE_LIMIT: int = 30
+
+
+def _todays_movers_symbols() -> dict:
+    """
+    Today's real Alpaca gainers/losers/most-active symbols, deduped. Fails
+    safe to an empty set on any API error (get_top_movers/get_most_active
+    already fail safe themselves) — a movers-API hiccup degrades to "scan
+    the core universe only," same as before this feature existed, never a
+    scan failure.
+    """
+    try:
+        movers = get_top_movers(AUTOMATON_MOVERS_LIMIT)
+        active = get_most_active(AUTOMATON_MOST_ACTIVE_LIMIT)
+    except Exception as exc:
+        log.warning(f"[AUTOMATON] Movers cross-check fetch failed: {exc}")
+        return {"symbols": set(), "gainers": 0, "losers": 0, "most_active": 0}
+
+    gainers = {g.get("symbol") for g in movers.get("gainers", []) if g.get("symbol")}
+    losers = {l.get("symbol") for l in movers.get("losers", []) if l.get("symbol")}
+    most_active = {a.get("symbol") for a in active if a.get("symbol")}
+    return {
+        "symbols": gainers | losers | most_active,
+        "gainers": len(gainers), "losers": len(losers), "most_active": len(most_active),
+    }
 
 _scan_lock = threading.Lock()
 _scan_in_progress: bool = False
@@ -236,15 +277,34 @@ def _auto_execute_entry(trade_id: int, symbol: str, side: str, qty: float) -> di
 
 def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
     """
-    Scans the (Low-Value-shared) daily universe, scores each candidate with
-    Automaton's own learned weights (models.trading.automaton.learning.
+    Scans the (Low-Value-shared) daily universe PLUS today's real Alpaca
+    movers/most-active symbols (see AUTOMATON_MOVERS_CROSS_CHECK above —
+    additive only, never narrows the core universe), scores each candidate
+    with Automaton's own learned weights (models.trading.automaton.learning.
     effective_weights — starts identical to the static Low Value weights,
     reweights itself once enough Automaton trades have closed), logs and
     IMMEDIATELY autonomously executes any candidate crossing the effective
     entry bar. Returns the trade_ids created (whether or not execution
     succeeded — a failed autonomous order still leaves real calibration data).
+
+    An explicit `symbols` override (e.g. a manual scan-now call with a
+    specific list) is used exactly as given — the movers cross-check only
+    applies to the normal daily-universe path, never silently expands a
+    caller-specified list.
     """
-    syms = symbols if symbols is not None else get_daily_universe()
+    if symbols is not None:
+        syms = symbols
+        movers_info = None
+    else:
+        core = set(get_daily_universe())
+        movers_info = _todays_movers_symbols() if AUTOMATON_MOVERS_CROSS_CHECK else {"symbols": set(), "gainers": 0, "losers": 0, "most_active": 0}
+        syms = list(core | movers_info["symbols"])
+        _run_log.append({
+            "ts": _et_now().isoformat(), "event": "UNIVERSE_BUILT",
+            "core_count": len(core), "movers_added": len(movers_info["symbols"] - core),
+            "gainers": movers_info["gainers"], "losers": movers_info["losers"], "most_active": movers_info["most_active"],
+            "total_count": len(syms),
+        })
     if not syms:
         return []
 
@@ -590,6 +650,7 @@ def get_runner_status() -> dict:
         "entry_threshold": ENTRY_THRESHOLD,
         "data_collection_sprint_mode": AUTOMATON_DATA_COLLECTION_SPRINT_MODE,
         "sprint_min_score": AUTOMATON_SPRINT_MIN_SCORE if AUTOMATON_DATA_COLLECTION_SPRINT_MODE else None,
+        "movers_cross_check": AUTOMATON_MOVERS_CROSS_CHECK,
         "open_positions": len(open_pos),
         "open_symbols": [p["symbol"] for p in open_pos],
         "et_now": _et_now().isoformat(),

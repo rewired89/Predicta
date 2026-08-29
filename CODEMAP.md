@@ -13123,3 +13123,39 @@ calls: get_automaton_scan_for_date, run_automaton_scan, check_automaton_exits, l
 called_by: start_runner
 mutates: automaton_scan_log, intraday_trades (engine='automaton')
 ---
+
+## Automaton: real-time movers cross-check (added 2026-08-29, direct user request)
+
+User believed Predicta was connected to separate apps tracking real-time
+stock movers with their own DBs; clarified via AskUserQuestion that this
+meant Alpaca (already the configured source) plus wanting to know about a
+free second source to "double check all the stocks of the day." Found
+Alpaca's own free screener endpoints were already proven, live code
+(models/trading/screener.py's run_screener(use_movers=True)) but never
+wired into Low Value's or Automaton's own universe-building — the shared
+scanner only ever filtered for cheap/liquid/not-bankrupt, never checked
+which symbols are actually moving today or in which direction.
+
+---
+name: _todays_movers_symbols / AUTOMATON_MOVERS_CROSS_CHECK
+type: function
+file: fetchers/automaton_runner.py
+purpose: calls fetchers.alpaca.get_top_movers/get_most_active (Alpaca's free /v1beta1/screener endpoints, same key as everything else, no new credentials) and returns the deduped gainer/loser/most-active symbol set for today, plus per-category counts. Fails safe to an empty set on any API error — a movers-fetch hiccup degrades to "scan the core universe only," never a scan failure.
+inputs: none
+outputs: {"symbols": set[str], "gainers": int, "losers": int, "most_active": int}
+calls: fetchers.alpaca.get_top_movers, fetchers.alpaca.get_most_active
+called_by: run_automaton_scan (automaton_runner.py)
+mutates: none
+---
+
+---
+name: run_automaton_scan (extended: movers cross-check)
+type: function
+file: fetchers/automaton_runner.py
+purpose: extended 2026-08-29 — when called with no explicit symbols override (the normal daily-runner path), the scan universe is now the union of get_daily_universe() (Low-Value-shared, cheap/liquid/not-bankrupt filter) and _todays_movers_symbols() — purely additive, never narrows the core universe. An explicit symbols list (e.g. a manual scan-now call) bypasses this and is used exactly as given. Logs a UNIVERSE_BUILT entry to _run_log with core/movers/total counts for transparency.
+inputs: symbols: Optional[list[str]]
+outputs: list[int] (trade_ids)
+calls: get_daily_universe (low_value_runner.py), _todays_movers_symbols
+called_by: _runner_loop, trigger_scan_async, POST /trade/automaton/scan-now
+mutates: intraday_trades (engine='automaton'), real Alpaca PAPER orders
+---

@@ -281,6 +281,7 @@ def render_automaton_dashboard() -> str:
     <div class="card-title" style="color:var(--purple);">What Automaton Is</div>
     <div style="font-size:.85rem; line-height:1.6;">
       This engine scans for underrated stocks daily, buys and sells them <strong>on its own — no click required</strong> — using Alpaca's real paper-trading account (fake money, real order mechanics), and holds up to {AUTOMATON_MAX_HOLD_DAYS} trading days (~6 months) looking for a bigger move than the 5-day Low Value engine targets.
+      Every scan also cross-checks today's real Alpaca gainers, losers, and most-active-by-volume symbols {"(on)" if runner_status.get("movers_cross_check") else "(off)"} — not just the filtered cheap/liquid universe — so it's actually looking at what's moving today, not only what fits a static price filter.
       It never places a real-money order by itself — that stays 100% human-gated, unchanged, on every other engine in this app.
       It has <strong>no kill switch</strong> (a losing streak doesn't stop it — it keeps trading and learning) and <strong>does not clone or scale itself</strong> — by explicit design choice, not because either would be hard to build.
     </div>
