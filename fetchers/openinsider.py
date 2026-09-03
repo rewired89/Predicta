@@ -36,6 +36,29 @@ from a discretionary, conviction-driven open-market sale. OpenInsider's
 screener does expose a 10b5-1 flag per row, but parsing it reliably needs
 more careful scraping than this v1 does — treat insider_sales_30d as a
 noisier signal than insider_purchases_30d for that reason.
+
+2026-09-03 (user-requested — High Value "Copy Trades" feature): added
+get_latest_filings(), a MARKET-WIDE feed (openinsider.com's own
+"latest-insider-trading" page, not the per-symbol screener above) so the
+UI can browse today's/this week's real Form 4 filings across every
+company, not just check one symbol at a time. Same fail-safe convention
+and same tempered-dot per-row isolation as the rest of this file, but the
+exact 13-column layout this assumes (Filing Date / Trade Date / Ticker /
+Company / Insider Name / Title / Trade Type / Price / Qty / Owned / ΔOwn /
+Value) has NOT been live-verified from this sandbox — openinsider.com is
+blocked by this environment's egress proxy, the same class of block every
+other new data source in this codebase has hit first (see CLAUDE.md's UFC
+section for the identical pattern: ship best-effort, confirm via a live
+diagnostic after deploy). Use GET /copy-trades-diag on Railway to check
+the very next real fetch before trusting this in production.
+
+Congress/politician trades were considered and deliberately NOT added
+here — real congressional data needs a paid Quiver Quantitative API key
+(no free tier with full history), and by law disclosures lag up to 45
+days, so "today's trades" would misleadingly describe filings that could
+be over a month old. Corporate insiders (this function) file within 2
+business days, which is the closest genuinely "recent" free public-record
+data available. Revisit if the user supplies a QUIVER_API_KEY.
 """
 from __future__ import annotations
 import re
@@ -120,3 +143,128 @@ def get_recent_insider_purchases(symbol: str, days: int = 30) -> list[str]:
 def has_insider_buying(symbol: str, days: int = 30) -> bool:
     """Boolean convenience wrapper for thesis_tracker.py's insider_buying_30d signal."""
     return bool(get_recent_insider_purchases(symbol, days=days))
+
+
+# ── Market-wide latest filings (Copy Trades feature, 2026-09-03) ────────────
+
+LATEST_FILINGS_URL = "http://openinsider.com/latest-insider-trading"
+
+_CELL_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+_NUM_RE = re.compile(r"[-+]?[\d,]*\.?\d+")
+
+
+def _cell_text(raw: str) -> str:
+    return _TAG_RE.sub("", raw).replace("&nbsp;", " ").strip()
+
+
+def _parse_number(text: str) -> Optional[float]:
+    """Strips $, commas, %% from a cell and returns the first number found, or None."""
+    m = _NUM_RE.search((text or "").replace(",", ""))
+    if not m:
+        return None
+    try:
+        return float(m.group(0))
+    except Exception:
+        return None
+
+
+def _fetch_latest_html() -> Optional[str]:
+    if not _HAS_REQUESTS:
+        return None
+    try:
+        r = requests.get(
+            LATEST_FILINGS_URL,
+            headers={"User-Agent": "Mozilla/5.0 (Predicta copy-trades scan)"},
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.text
+    except Exception:
+        return None
+
+
+def _parse_latest_filings_html(html: str) -> list[dict]:
+    """
+    Parses openinsider.com's "latest-insider-trading" table. Column layout
+    (0-indexed, 13 cells per real data row): 0=row#, 1=Filing Date,
+    2=Trade Date, 3=Ticker, 4=Company Name, 5=Insider Name, 6=Title,
+    7=Trade Type, 8=Price, 9=Qty, 10=Owned, 11=ΔOwn, 12=Value.
+    Rows with fewer cells (header/footer/ad rows) are skipped, not guessed.
+    """
+    out: list[dict] = []
+    for row_match in _ROW_BLOCK_RE.finditer(html or ""):
+        row_html = row_match.group(1)
+        cells = [_cell_text(c) for c in _CELL_RE.findall(row_html)]
+        if len(cells) < 13:
+            continue
+        trade_type_raw = cells[7].strip()
+        if trade_type_raw.upper().startswith("P - PURCHASE"):
+            trade_type = "Purchase"
+        elif trade_type_raw.upper() == "S - SALE":  # exact match only, excludes "S - Sale+OE" — same convention as the per-symbol screener above
+            trade_type = "Sale"
+        else:
+            continue
+        ticker = cells[3].strip().upper()
+        if not ticker or not ticker.isalnum():
+            continue
+        out.append({
+            "filing_date":  cells[1].strip(),
+            "trade_date":   cells[2].strip(),
+            "ticker":       ticker,
+            "company":      cells[4].strip(),
+            "insider_name": cells[5].strip(),
+            "title":        cells[6].strip(),
+            "trade_type":   trade_type,
+            "filed_price":  _parse_number(cells[8]),
+            "qty":          _parse_number(cells[9]),
+            "value":        _parse_number(cells[12]),
+        })
+    return out
+
+
+def get_latest_filings(limit: int = 40, days: int = 7) -> list[dict]:
+    """
+    Most recent market-wide Form 4 open-market Buy/Sell filings (corporate
+    insiders — CEOs, execs, board members), newest first, capped at `limit`
+    and filtered to filings within the last `days` days. Empty list on any
+    fetch/parse failure — fails safe, never fabricates data.
+    """
+    html = _fetch_latest_html()
+    if not html:
+        return []
+    rows = _parse_latest_filings_html(html)
+    if not rows:
+        return []
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+
+    def _within_window(r: dict) -> bool:
+        try:
+            return datetime.strptime(r["filing_date"][:10], "%Y-%m-%d").date() >= cutoff
+        except Exception:
+            return True  # unparseable date — don't silently drop real data, let the limit/sort handle it
+
+    filtered = [r for r in rows if _within_window(r)]
+    filtered.sort(key=lambda r: r.get("filing_date") or "", reverse=True)
+    return filtered[:limit]
+
+
+def diagnose_latest_filings() -> dict:
+    """
+    Live diagnostic for get_latest_filings() — raw fetch status plus the
+    first few parsed rows, so a real deploy can confirm (or disprove) the
+    column-layout assumption in _parse_latest_filings_html() against the
+    live page, the same way every other new source in this codebase gets
+    its first real check via a /*-diag endpoint.
+    """
+    html = _fetch_latest_html()
+    if not html:
+        return {"fetch_ok": False, "reason": "request failed or requests not installed"}
+    rows = _parse_latest_filings_html(html)
+    return {
+        "fetch_ok": True,
+        "html_length": len(html),
+        "parsed_row_count": len(rows),
+        "sample_rows": rows[:5],
+    }

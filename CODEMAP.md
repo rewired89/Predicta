@@ -13194,3 +13194,122 @@ purpose: AUTOMATON_LEARNING_ENABLED (bool, default True) is a reset lever, NOT a
 called_by: effective_weights, learning_summary (both in this file)
 mutates: none (module-level flags)
 ---
+
+## Copy Trades (High Value, added 2026-09-03, direct user request)
+
+User asked for a Robinhood/Autopilot-style "copy trading" feature scoped
+to High Value: browse real trades from rich people and one-click copy
+them into a paper portfolio. Researched real options first (see
+CLAUDE.md): House/Senate Stock Watcher are dead as of 2026, Capitol
+Trades has no API, real congressional data needs a paid Quiver
+Quantitative key and lags up to 45 days by law (STOCK Act), and Autopilot
+is a closed consumer app with no data API to integrate against. Asked the
+user directly (AskUserQuestion) which data scope and order type they
+wanted; they chose corporate insiders only (SEC Form 4 — already free,
+no key, disclosed within 2 business days) and paper trades only (no real
+Alpaca order on copy). Two new categories: Copy Trades (browse recent
+insider filings, click Copy) and Portfolio (your copied paper positions,
+Buy More / Sell). Reuses the existing intraday_trades table (engine
+stays 'high_value') rather than a new table — is_copy_trade + four new
+copy_source_* columns distinguish these rows from scanned signal
+candidates. No passcode gate on any of this: every action here is a
+logged paper position, never a real Alpaca order — turning a specific
+position into a real trade still goes through the existing
+passcode-gated execute_high_value_trade flow, unchanged.
+
+Data source is unverified from this sandbox (openinsider.com is blocked
+by the egress proxy here, same class of block as ESPN/FanGraphs/UFC
+sources elsewhere in this codebase) — built diagnostic-first per this
+repo's established convention, and parser logic was verified against
+hand-built synthetic HTML matching the assumed 13-column layout before
+shipping (correctly excluded a synthetic "S - Sale+OE" row, parsed
+negative qty and nested-tag cells correctly). Check GET /copy-trades-diag
+on the next real deploy before trusting this in production.
+
+---
+name: get_latest_filings / _parse_latest_filings_html / diagnose_latest_filings
+type: function
+file: fetchers/openinsider.py
+purpose: get_latest_filings(limit, days) is a MARKET-WIDE feed (openinsider.com's "latest-insider-trading" page, not the per-symbol screener the rest of this file uses) — every recent Form 4 open-market Buy/Sell filing across all companies, newest first. _parse_latest_filings_html assumes a 13-cell-per-row column layout (Filing Date/Trade Date/Ticker/Company/Insider Name/Title/Trade Type/Price/Qty/Owned/ΔOwn/Value), reuses the file's existing tempered-dot per-row isolation, and only keeps exact "P - Purchase"/"S - Sale" rows (excludes "S - Sale+OE" etc., same convention as get_recent_insider_activity). diagnose_latest_filings() is the live /copy-trades-diag check. Fails safe to [] on any fetch/parse error.
+inputs: limit: int = 40, days: int = 7
+outputs: list[dict] with filing_date, trade_date, ticker, company, insider_name, title, trade_type ("Purchase"/"Sale"), filed_price, qty, value
+calls: none new (uses the module's existing requests/regex machinery)
+called_by: fetchers.copy_trading.list_copy_trade_candidates, GET /copy-trades-diag
+mutates: none
+---
+
+---
+name: copy_insider_trade / buy_more / sell_copy_trade / list_copy_trade_candidates / get_portfolio_with_unrealized_pnl
+type: function
+file: fetchers/copy_trading.py (new)
+purpose: Business logic for the Copy Trades feature. list_copy_trade_candidates enriches get_latest_filings() output with a live Alpaca price snapshot per symbol. copy_insider_trade logs a new paper position (Buy filing -> long, Sale filing -> short) via trading_logger.log_copy_trade_entry — no Alpaca order placed. buy_more adds shares to an open copy-trade position at the current live price, recomputing a weighted-average entry price. sell_copy_trade fully closes a position at the current live price via the existing generic log_trade_exit. get_portfolio_with_unrealized_pnl attaches live price + unrealized P&L to every open copy-trade row.
+inputs: symbol, trade_type ("Purchase"/"Sale"), qty, insider_name, insider_title, company, filing_date (copy_insider_trade); trade_id, additional_qty (buy_more); trade_id (sell_copy_trade)
+outputs: dict with status/trade_id/symbol/side/qty/entry_price, or {"error": ...}
+calls: fetchers.openinsider.get_latest_filings, fetchers.alpaca.get_snapshots, fetchers.trading_logger.{log_copy_trade_entry, add_to_copy_trade, log_trade_exit, get_copy_trade_portfolio, get_closed_copy_trades}
+called_by: app.py POST /trade/copy/execute, /trade/portfolio/buy-more/{id}, /trade/portfolio/sell/{id}; GET /trade/copy-trades, /trade/portfolio (via copy_trading_dashboard.py)
+mutates: intraday_trades (engine='high_value', is_copy_trade=1) — no Alpaca calls, ever
+---
+
+---
+name: log_copy_trade_entry / add_to_copy_trade / get_copy_trade_portfolio / get_closed_copy_trades
+type: function
+file: fetchers/trading_logger.py
+purpose: log_copy_trade_entry inserts a new is_hypothetical=1, is_copy_trade=1 row with the copy_source_* metadata (insider name/title/company/filing date) and no stop/target bracket (not a scored signal). add_to_copy_trade updates qty + a recomputed weighted-average entry_price on an existing open copy-trade row rather than inserting a duplicate. get_copy_trade_portfolio/get_closed_copy_trades are the open/closed queries the Portfolio page reads, scoped by is_copy_trade=1 so scanned High Value candidates never leak into this view.
+inputs: symbol, side, entry_price, qty, insider_name, insider_title, company, filing_date (log_copy_trade_entry); trade_id, additional_qty, current_price (add_to_copy_trade); days (get_closed_copy_trades)
+outputs: trade_id (log_copy_trade_entry); dict (add_to_copy_trade); list[dict] (the two getters)
+calls: db.database.get_db
+called_by: fetchers/copy_trading.py
+mutates: intraday_trades
+---
+
+---
+name: render_copy_trades_page / render_portfolio_page
+type: function
+file: fetchers/copy_trading_dashboard.py (new)
+purpose: Standalone HTML renderers for the two new pages, same dark-theme CSS/class convention as fetchers/low_value_dashboard.py. render_copy_trades_page lists recent insider filings with a "Copy this trade" button per row (prompts for qty client-side, POSTs to /trade/copy/execute). render_portfolio_page lists open copy-trade positions (with live unrealized P&L) plus Buy More / Sell buttons, and the last 60 days of closed copy trades below. No passcode prompt in the JS here (unlike predictaAction in the other dashboards) — these actions are paper-only.
+inputs: none (both read live from copy_trading.py/trading_logger.py)
+outputs: str (full HTML page)
+calls: fetchers.copy_trading.{list_copy_trade_candidates, get_portfolio_with_unrealized_pnl}, fetchers.trading_logger.get_closed_copy_trades
+called_by: app.py GET /trade/copy-trades, GET /trade/portfolio
+mutates: none
+---
+
+---
+name: intraday_trades (is_copy_trade, copy_source_name, copy_source_title, copy_source_company, copy_filing_date)
+type: schema
+file: db/schema.sql, db/database.py
+purpose: v8 columns for Copy Trades — is_copy_trade (INTEGER DEFAULT 0) flags a row as a copied insider position rather than a scanned signal candidate; the four copy_source_* TEXT columns store the insider filing's metadata at copy time. Added to db/database.py's expected_cols idempotent ALTER TABLE list, same migration pattern as every prior intraday_trades extension (v3-v7) — existing rows default is_copy_trade to 0 and are unaffected.
+mutates: intraday_trades table structure only (idempotent, safe on redeploy)
+---
+
+---
+name: /trade/copy-trades, /trade/portfolio, /trade/copy/execute, /trade/portfolio/buy-more/{trade_id}, /trade/portfolio/sell/{trade_id}, /copy-trades-diag
+type: route
+file: app.py
+purpose: GET /trade/copy-trades and GET /trade/portfolio render the two new pages. POST /trade/copy/execute (body: CopyTradeRequest — symbol, trade_type, qty, insider_name, insider_title, company, filing_date) logs a new paper copy-trade position. POST /trade/portfolio/buy-more/{trade_id} (body: BuyMoreRequest — qty) and POST /trade/portfolio/sell/{trade_id} manage an open position. None of these five require require_trade_passcode — unlike /trade/execute and /trade/close, nothing here ever places a real Alpaca order. GET /copy-trades-diag is the live openinsider.com scrape check (see fetchers/openinsider.py's diagnose_latest_filings).
+inputs: see fetchers/copy_trading.py's function signatures
+outputs: HTMLResponse (page routes) or JSON (action routes)
+calls: fetchers.copy_trading_dashboard, fetchers.copy_trading, fetchers.openinsider.diagnose_latest_filings
+called_by: templates/trading_hub.html's new "Copy Trades" card; browser navigation between the two pages
+mutates: intraday_trades (via fetchers.copy_trading)
+---
+
+## Model migration: Haiku 4.5 -> Sonnet 5 across all AI-agent narrative/parsing call sites (2026-09-03, direct user request via /claude-api migrate)
+
+User invoked the claude-api skill's `migrate` subcommand ("I just want the project to use the current model, which is Sonnet 5"). Audited every Claude API call site in the repo (`grep` for `client.messages.create`/`anthropic.Anthropic()`) and found 12 files, all on the same dated snapshot `claude-haiku-4-5-20251001`, none using any of the params that break on Sonnet 5 (no `temperature`/`top_p`/`top_k`, no `budget_tokens`, no assistant prefill) — a clean, low-risk migration. Files: `ai_agent.py`, `ai_agent_baseball.py`, `ai_agent_soccer.py`, `ai_agent_tennis.py`, `ai_agent_table_tennis.py`, `ai_agent_rugby.py`, `ai_agent_ufc.py`, `ai_agent_esports.py`, `ai_agent_trading.py`, `ai_agent_portfolio.py`, `fetchers/esports.py`, `fetchers/ticker_vision.py`.
+
+Two changes at every one of the 30 `client.messages.create`/`resp = client.messages.create` call sites: (1) model string -> `claude-sonnet-5` (10 files via a shared `MODEL` constant, 2 via inline literals in `fetchers/esports.py` and `ai_agent_esports.py`); (2) added `thinking={"type": "disabled"}` explicitly. The second change is not cosmetic: every one of these 30 call sites does `msg.content[0].text` (or `resp.content[0].text`) directly, assuming index 0 is a text block — on Claude Sonnet 5, a request that omits `thinking` now runs **adaptive thinking by default** (a silent behavior change from Haiku 4.5, which never thinks), and an adaptive-thinking response can put a `ThinkingBlock` at `content[0]` instead of a `TextBlock`, which has no `.text` attribute — that would have broken all 30 call sites unpredictably (only when the model chose to think) rather than consistently. Since every one of these tasks is short, scoped extraction/classification/narrative-writing (JSON field extraction, 2-3 sentence prediction summaries, ticker OCR) — exactly the profile the migration guide calls out as not intelligence-sensitive — explicit `thinking: {"type": "disabled"}` was chosen over adaptive+low-effort to keep behavior fully deterministic and 1:1 with the pre-migration Haiku behavior, rather than refactoring all 30 call sites to loop over content blocks by type. Verified against the actually-installed `anthropic` 1.3.0 SDK with a mocked client asserting both `model` and `thinking` on every call, then exercising `parse_query`, `generate_narrative`, `parse_trade_query`, `generate_trade_narrative`, `generate_baseball_narrative`, `generate_ufc_narrative`, `generate_portfolio_review`, and `extract_tickers_from_image` end-to-end.
+
+`requirements.txt`'s `anthropic>=0.28.0` floor was left unchanged — no lock file pins a version, so Railway's build already resolves to the latest published `anthropic` release on every fresh install, which already supports `claude-sonnet-5` and `thinking`.
+
+---
+name: MODEL (Haiku 4.5 -> Sonnet 5) / thinking={"type": "disabled"}
+type: variable
+file: ai_agent.py, ai_agent_baseball.py, ai_agent_soccer.py, ai_agent_tennis.py, ai_agent_table_tennis.py, ai_agent_rugby.py, ai_agent_ufc.py, ai_agent_esports.py, ai_agent_trading.py, ai_agent_portfolio.py, fetchers/esports.py, fetchers/ticker_vision.py
+purpose: Every Claude API call in the repo now targets claude-sonnet-5 instead of the retired-from-active-use claude-haiku-4-5-20251001 dated snapshot. thinking is explicitly disabled at every call site to preserve deterministic non-thinking behavior and avoid breaking the content[0].text assumption used everywhere in this codebase's response parsing (see prose section above for why this matters specifically on Sonnet 5, where thinking is on-by-default when omitted).
+inputs: none (module-level constant / per-call kwarg)
+outputs: none
+calls: none
+called_by: every parse_*/interpret_*/generate_* function in these 12 files
+mutates: none
+---

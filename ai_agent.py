@@ -14,7 +14,7 @@ from typing import Optional
 import anthropic
 from ai_client import get_client
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-5"
 
 
 def _client() -> anthropic.Anthropic:
@@ -34,6 +34,7 @@ def parse_query(user_text: str) -> dict:
     client = _client()
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=256,
         system=PARSE_SYSTEM,
         messages=[{"role": "user", "content": user_text}],
@@ -106,6 +107,7 @@ Extract the signals."""
 
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=800,
         system=SIGNALS_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
@@ -160,6 +162,7 @@ Write the prediction narrative."""
 
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=200,
         system=NARRATIVE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],

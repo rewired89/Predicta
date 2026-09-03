@@ -137,6 +137,15 @@ CREATE TABLE IF NOT EXISTS intraday_trades (
     lv_news_flags TEXT,                      -- JSON list of news_overlay.py category flags at entry
     lv_news_sentiment REAL,                  -- VADER compound sentiment (-1..+1) at entry
     lv_headline_count INTEGER,               -- number of headlines the sentiment/flags were computed from
+    -- v8: Copy Trades (2026-09-03, user-requested) — High Value "copy an
+    -- insider's disclosed trade" positions. Reuses this same table (engine
+    -- stays 'high_value'); is_copy_trade distinguishes these from scanned
+    -- signal candidates so the Portfolio view can query them separately.
+    is_copy_trade INTEGER DEFAULT 0,
+    copy_source_name TEXT,                   -- insider's name from the SEC Form 4 filing
+    copy_source_title TEXT,                  -- insider's title (CEO, Director, 10% Owner, etc.)
+    copy_source_company TEXT,                -- issuer name at time of filing
+    copy_filing_date TEXT,                   -- filing date of the trade being copied
     logged_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id);

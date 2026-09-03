@@ -2498,6 +2498,79 @@ def paper_runner_stop():
     return {"ok": True}
 
 
+# ── Copy Trades (High Value, 2026-09-03, user-requested) ────────────────────
+# Browse real SEC Form 4 insider filings and paper-copy one. No passcode
+# gate here — every action is a logged paper position, never a real Alpaca
+# order (see fetchers/copy_trading.py's module docstring). Real-money
+# execution, if ever wanted for a specific position, still goes through the
+# existing passcode-gated /trade/execute/{id}.
+
+class CopyTradeRequest(BaseModel):
+    symbol: str
+    trade_type: str  # "Purchase" or "Sale"
+    qty: float
+    insider_name: str = ""
+    insider_title: str = ""
+    company: str = ""
+    filing_date: str = ""
+
+
+class BuyMoreRequest(BaseModel):
+    qty: float
+
+
+@app.get("/trade/copy-trades", response_class=HTMLResponse)
+def copy_trades_page():
+    """Browse recent insider filings and pick one to copy as a paper position."""
+    from fetchers.copy_trading_dashboard import render_copy_trades_page
+    return HTMLResponse(content=render_copy_trades_page())
+
+
+@app.get("/trade/portfolio", response_class=HTMLResponse)
+def copy_trade_portfolio_page():
+    """Your copied insider-trade paper positions — Buy More / Sell."""
+    from fetchers.copy_trading_dashboard import render_portfolio_page
+    return HTMLResponse(content=render_portfolio_page())
+
+
+@app.post("/trade/copy/execute")
+def copy_trade_execute(body: CopyTradeRequest):
+    from fetchers.copy_trading import copy_insider_trade
+    result = copy_insider_trade(
+        symbol=body.symbol, trade_type=body.trade_type, qty=body.qty,
+        insider_name=body.insider_name, insider_title=body.insider_title,
+        company=body.company, filing_date=body.filing_date,
+    )
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/trade/portfolio/buy-more/{trade_id}")
+def copy_trade_buy_more(trade_id: int, body: BuyMoreRequest):
+    from fetchers.copy_trading import buy_more
+    result = buy_more(trade_id, body.qty)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/trade/portfolio/sell/{trade_id}")
+def copy_trade_sell(trade_id: int):
+    from fetchers.copy_trading import sell_copy_trade
+    result = sell_copy_trade(trade_id)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.get("/copy-trades-diag")
+def copy_trades_diag():
+    """Live check of the openinsider.com market-wide scrape — confirms (or disproves) the column-layout assumption against the real page."""
+    from fetchers.openinsider import diagnose_latest_filings
+    return diagnose_latest_filings()
+
+
 @app.get("/trade/dashboard", response_class=HTMLResponse)
 def trade_dashboard():
     """

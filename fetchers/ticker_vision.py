@@ -12,7 +12,7 @@ import re
 
 from ai_client import get_client
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-5"
 
 EXTRACT_SYSTEM = """You extract stock/ETF ticker symbols from images of trading apps, watchlists, or stock lists.
 Return ONLY a JSON array of uppercase ticker symbols, nothing else — no markdown fences, no explanation.
@@ -32,6 +32,7 @@ def extract_tickers_from_image(image_bytes: bytes, media_type: str) -> list[str]
     b64 = base64.b64encode(image_bytes).decode("ascii")
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=1024,
         system=EXTRACT_SYSTEM,
         messages=[{
