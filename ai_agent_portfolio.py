@@ -18,7 +18,7 @@ import re
 import anthropic
 from ai_client import get_client
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-5"
 
 REVIEW_SYSTEM = """You are reviewing ONE stock for a personal investor who already
 owns or is watching it. You will be given the company name, its current price and
@@ -96,6 +96,7 @@ Write the review."""
         client = _client()
         msg = client.messages.create(
             model=MODEL,
+            thinking={"type": "disabled"},
             max_tokens=300,
             system=REVIEW_SYSTEM,
             messages=[{"role": "user", "content": prompt}],

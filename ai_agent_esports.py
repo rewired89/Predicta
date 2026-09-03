@@ -19,8 +19,9 @@ def parse_esports_query(user_text: str) -> dict:
         client = anthropic.Anthropic()
         today = datetime.now(timezone.utc).date().isoformat()
         resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-5",
             max_tokens=300,
+            thinking={"type": "disabled"},
             messages=[{
                 "role": "user",
                 "content": (
@@ -89,8 +90,9 @@ def generate_esports_narrative(
         region_a = team_a_data.get("region", "")
         region_b = team_b_data.get("region", "")
         resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-5",
             max_tokens=200,
+            thinking={"type": "disabled"},
             messages=[{
                 "role": "user",
                 "content": (

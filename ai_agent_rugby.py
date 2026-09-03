@@ -12,7 +12,7 @@ import re
 import anthropic
 from ai_client import get_client
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-5"
 
 
 def _client() -> anthropic.Anthropic:
@@ -54,6 +54,7 @@ def parse_rugby_query(user_text: str) -> dict:
     client = _client()
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=384,
         system=PARSE_SYSTEM,
         messages=[{"role": "user", "content": user_text}],
@@ -98,6 +99,7 @@ Data confidence: {confidence}
 Write the narrative."""
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=220,
         system=NARRATIVE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],

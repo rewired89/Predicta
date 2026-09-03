@@ -13293,3 +13293,23 @@ calls: fetchers.copy_trading_dashboard, fetchers.copy_trading, fetchers.openinsi
 called_by: templates/trading_hub.html's new "Copy Trades" card; browser navigation between the two pages
 mutates: intraday_trades (via fetchers.copy_trading)
 ---
+
+## Model migration: Haiku 4.5 -> Sonnet 5 across all AI-agent narrative/parsing call sites (2026-09-03, direct user request via /claude-api migrate)
+
+User invoked the claude-api skill's `migrate` subcommand ("I just want the project to use the current model, which is Sonnet 5"). Audited every Claude API call site in the repo (`grep` for `client.messages.create`/`anthropic.Anthropic()`) and found 12 files, all on the same dated snapshot `claude-haiku-4-5-20251001`, none using any of the params that break on Sonnet 5 (no `temperature`/`top_p`/`top_k`, no `budget_tokens`, no assistant prefill) — a clean, low-risk migration. Files: `ai_agent.py`, `ai_agent_baseball.py`, `ai_agent_soccer.py`, `ai_agent_tennis.py`, `ai_agent_table_tennis.py`, `ai_agent_rugby.py`, `ai_agent_ufc.py`, `ai_agent_esports.py`, `ai_agent_trading.py`, `ai_agent_portfolio.py`, `fetchers/esports.py`, `fetchers/ticker_vision.py`.
+
+Two changes at every one of the 30 `client.messages.create`/`resp = client.messages.create` call sites: (1) model string -> `claude-sonnet-5` (10 files via a shared `MODEL` constant, 2 via inline literals in `fetchers/esports.py` and `ai_agent_esports.py`); (2) added `thinking={"type": "disabled"}` explicitly. The second change is not cosmetic: every one of these 30 call sites does `msg.content[0].text` (or `resp.content[0].text`) directly, assuming index 0 is a text block — on Claude Sonnet 5, a request that omits `thinking` now runs **adaptive thinking by default** (a silent behavior change from Haiku 4.5, which never thinks), and an adaptive-thinking response can put a `ThinkingBlock` at `content[0]` instead of a `TextBlock`, which has no `.text` attribute — that would have broken all 30 call sites unpredictably (only when the model chose to think) rather than consistently. Since every one of these tasks is short, scoped extraction/classification/narrative-writing (JSON field extraction, 2-3 sentence prediction summaries, ticker OCR) — exactly the profile the migration guide calls out as not intelligence-sensitive — explicit `thinking: {"type": "disabled"}` was chosen over adaptive+low-effort to keep behavior fully deterministic and 1:1 with the pre-migration Haiku behavior, rather than refactoring all 30 call sites to loop over content blocks by type. Verified against the actually-installed `anthropic` 1.3.0 SDK with a mocked client asserting both `model` and `thinking` on every call, then exercising `parse_query`, `generate_narrative`, `parse_trade_query`, `generate_trade_narrative`, `generate_baseball_narrative`, `generate_ufc_narrative`, `generate_portfolio_review`, and `extract_tickers_from_image` end-to-end.
+
+`requirements.txt`'s `anthropic>=0.28.0` floor was left unchanged — no lock file pins a version, so Railway's build already resolves to the latest published `anthropic` release on every fresh install, which already supports `claude-sonnet-5` and `thinking`.
+
+---
+name: MODEL (Haiku 4.5 -> Sonnet 5) / thinking={"type": "disabled"}
+type: variable
+file: ai_agent.py, ai_agent_baseball.py, ai_agent_soccer.py, ai_agent_tennis.py, ai_agent_table_tennis.py, ai_agent_rugby.py, ai_agent_ufc.py, ai_agent_esports.py, ai_agent_trading.py, ai_agent_portfolio.py, fetchers/esports.py, fetchers/ticker_vision.py
+purpose: Every Claude API call in the repo now targets claude-sonnet-5 instead of the retired-from-active-use claude-haiku-4-5-20251001 dated snapshot. thinking is explicitly disabled at every call site to preserve deterministic non-thinking behavior and avoid breaking the content[0].text assumption used everywhere in this codebase's response parsing (see prose section above for why this matters specifically on Sonnet 5, where thinking is on-by-default when omitted).
+inputs: none (module-level constant / per-call kwarg)
+outputs: none
+calls: none
+called_by: every parse_*/interpret_*/generate_* function in these 12 files
+mutates: none
+---

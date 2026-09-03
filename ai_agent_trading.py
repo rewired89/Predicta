@@ -9,7 +9,7 @@ import json
 import anthropic
 from ai_client import get_client
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-5"
 
 
 def _client() -> anthropic.Anthropic:
@@ -25,6 +25,7 @@ def parse_trade_query(query: str) -> str:
     client = _client()
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=20,
         system=PARSE_SYSTEM,
         messages=[{"role": "user", "content": query}],
@@ -80,6 +81,7 @@ Write the trading analysis."""
 
     msg = client.messages.create(
         model=MODEL,
+        thinking={"type": "disabled"},
         max_tokens=220,
         system=NARRATIVE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
