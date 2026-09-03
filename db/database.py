@@ -211,6 +211,12 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         # verbatim as JSON so the dashboard (and any future analysis) can
         # show the real reasoning, not just the final score.
         ("lv_signals_json",        "TEXT"),
+        # v8: Copy Trades (2026-09-03, user-requested) — see schema.sql
+        ("is_copy_trade",          "INTEGER DEFAULT 0"),
+        ("copy_source_name",       "TEXT"),
+        ("copy_source_title",      "TEXT"),
+        ("copy_source_company",    "TEXT"),
+        ("copy_filing_date",       "TEXT"),
     ]
 
     existing_cols = {

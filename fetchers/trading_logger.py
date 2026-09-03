@@ -590,3 +590,114 @@ def get_manual_overrides(days: int = 30) -> list[dict]:
             (f"-{days}",),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Copy Trades (High Value, 2026-09-03, user-requested) ────────────────────
+# A human browses today's/this week's real SEC Form 4 insider filings
+# (fetchers/openinsider.py: get_latest_filings) and picks one to mirror at a
+# quantity they choose. Deliberately logged as a PAPER position only
+# (is_hypothetical=1, no Alpaca call ever made here) — same authority model
+# as every other engine: Predicta logs the position, a human would still
+# have to go through the existing passcode-gated execute_high_value_trade
+# flow to ever turn it into a real order. engine stays 'high_value';
+# is_copy_trade + the copy_source_* columns are what let the Portfolio view
+# (fetchers/copy_trading_dashboard.py) query these separately from scanned
+# signal candidates on the same table.
+
+def log_copy_trade_entry(
+    symbol: str,
+    side: str,
+    entry_price: float,
+    qty: float,
+    insider_name: str = "",
+    insider_title: str = "",
+    company: str = "",
+    filing_date: str = "",
+) -> int:
+    """Logs a new open copy-trade position. Returns the trade_id."""
+    entry_time = datetime.now(timezone.utc).isoformat()
+    position_value = round(entry_price * qty, 4)
+    notes = f"Copied from insider filing: {insider_name} ({insider_title}) at {company}, filed {filing_date}"
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO intraday_trades (
+                symbol, side, entry_time,
+                entry_price, theoretical_entry, qty, position_value,
+                model_version, is_hypothetical, notes,
+                engine, is_copy_trade,
+                copy_source_name, copy_source_title, copy_source_company, copy_filing_date,
+                time_of_day_label,
+                logged_at
+            ) VALUES (
+                ?, ?, ?,
+                ?, ?, ?, ?,
+                'copy_trade_v1', 1, ?,
+                'high_value', 1,
+                ?, ?, ?, ?,
+                'COPY_TRADE',
+                datetime('now')
+            )
+            """,
+            (
+                symbol, side, entry_time,
+                entry_price, entry_price, qty, position_value,
+                notes,
+                insider_name, insider_title, company, filing_date,
+            ),
+        )
+        return cur.lastrowid
+
+
+def add_to_copy_trade(trade_id: int, additional_qty: float, current_price: float) -> dict:
+    """
+    "Buy more" on an already-open copy-trade position — adds shares at the
+    current price and recomputes a weighted-average entry_price, rather than
+    creating a second row for the same position.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT qty, entry_price FROM intraday_trades WHERE id = ? AND is_copy_trade = 1 AND exit_time IS NULL",
+            (trade_id,),
+        ).fetchone()
+        if not row:
+            return {"error": "Open copy-trade position not found."}
+
+        old_qty, old_price = row["qty"] or 0.0, row["entry_price"] or current_price
+        new_qty = old_qty + additional_qty
+        new_avg_price = round(((old_qty * old_price) + (additional_qty * current_price)) / new_qty, 4) if new_qty else current_price
+
+        conn.execute(
+            "UPDATE intraday_trades SET qty = ?, entry_price = ?, position_value = ? WHERE id = ?",
+            (new_qty, new_avg_price, round(new_avg_price * new_qty, 4), trade_id),
+        )
+    return {"trade_id": trade_id, "qty": new_qty, "avg_entry_price": new_avg_price}
+
+
+def get_copy_trade_portfolio() -> list[dict]:
+    """All open copy-trade positions, newest first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM intraday_trades
+            WHERE is_copy_trade = 1 AND exit_time IS NULL
+            ORDER BY entry_time DESC
+            """
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_closed_copy_trades(days: int = 60) -> list[dict]:
+    """Closed copy-trade positions in the last N days, newest first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM intraday_trades
+            WHERE is_copy_trade = 1 AND exit_time IS NOT NULL
+            AND exit_time >= datetime('now', ? || ' days')
+            ORDER BY exit_time DESC
+            """,
+            (f"-{days}",),
+        ).fetchall()
+    return [dict(r) for r in rows]
