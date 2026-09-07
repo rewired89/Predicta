@@ -153,14 +153,43 @@ _CELL_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL)
 _TAG_RE = re.compile(r"<[^>]+>")
 _NUM_RE = re.compile(r"[-+]?[\d,]*\.?\d+")
 
+# The ticker cell's <a> tag carries an onmouseover="Tip('<img src=...>', ...)"
+# chart-tooltip attribute — a LITERAL '<img ...>' as text inside a quoted HTML
+# attribute value, not a real nested tag. _TAG_RE's naive "<[^>]+>" strips up
+# to the FIRST '>' it finds, which lands inside that embedded fake img tag,
+# truncating the real <a>/<b> wrapper early and leaving garbage like
+# "', DELAY, 1)\" onmouseout=\"UnTip()\">RXT" instead of "RXT" — confirmed
+# 2026-09-07 from a real /copy-trades-diag capture (raw_best_row_cells).
+# That garbled text then always fails the ticker.isalnum() check below,
+# which is the actual reason get_latest_filings() returned zero rows in
+# production despite fetch_ok=true and 100 real 17-cell data rows present.
+# Every other cell parses correctly via cells[i] — only the ticker cell has
+# this embedded-attribute problem — so pull the ticker straight from the
+# anchor's href="/TICKER" instead of relying on the corrupted inner text.
+# The href match requires an immediate closing quote, so it does NOT match
+# the SEC filing link (an absolute http:// URL) or the insider-profile link
+# (href="/insider/Name/id" — the "/" before "id" breaks the character class
+# before a closing quote is reached).
+_TICKER_HREF_RE = re.compile(r'href="/([A-Za-z0-9.\-]{1,8})"')
+
 
 def _cell_text(raw: str) -> str:
     return _TAG_RE.sub("", raw).replace("&nbsp;", " ").strip()
 
 
 def _parse_number(text: str) -> Optional[float]:
-    """Strips $, commas, %% from a cell and returns the first number found, or None."""
-    m = _NUM_RE.search((text or "").replace(",", ""))
+    """
+    Strips $, commas, % from a cell and returns the first number found, or
+    None. Must strip '$'/'%' before the regex search, not just ',' — a
+    negative value like "-$1,600,917" has the sign BEFORE the currency
+    symbol, so _NUM_RE's leading [-+]? never reaches the digits (it sits
+    right against '$', not a digit) and the match silently starts at "1"
+    instead, dropping the sign. Confirmed live 2026-09-07 via a real
+    /copy-trades-diag capture showing a "-$1,600,917" Value cell parsing as
+    positive 1600917.0.
+    """
+    cleaned = (text or "").replace(",", "").replace("$", "").replace("%", "")
+    m = _NUM_RE.search(cleaned)
     if not m:
         return None
     try:
@@ -187,10 +216,14 @@ def _fetch_latest_html() -> Optional[str]:
 def _parse_latest_filings_html(html: str) -> list[dict]:
     """
     Parses openinsider.com's "latest-insider-trading" table. Column layout
-    (0-indexed, 13 cells per real data row): 0=row#, 1=Filing Date,
-    2=Trade Date, 3=Ticker, 4=Company Name, 5=Insider Name, 6=Title,
-    7=Trade Type, 8=Price, 9=Qty, 10=Owned, 11=ΔOwn, 12=Value.
-    Rows with fewer cells (header/footer/ad rows) are skipped, not guessed.
+    (0-indexed, confirmed live 2026-09-07 against a real captured row — 17
+    cells per real data row, not the originally-assumed 13; the extra 4
+    trailing cells are empty in the raw HTML and unused): 0=row#(unused),
+    1=Filing Date, 2=Trade Date, 3=Ticker (see _TICKER_HREF_RE — this cell's
+    inner text is corrupted by an embedded onmouseover attribute and is not
+    used directly), 4=Company Name, 5=Insider Name, 6=Title, 7=Trade Type,
+    8=Price, 9=Qty, 10=Owned, 11=ΔOwn, 12=Value. Rows with fewer than 13
+    cells (header/footer/ad rows) are skipped, not guessed.
     """
     out: list[dict] = []
     for row_match in _ROW_BLOCK_RE.finditer(html or ""):
@@ -205,8 +238,9 @@ def _parse_latest_filings_html(html: str) -> list[dict]:
             trade_type = "Sale"
         else:
             continue
-        ticker = cells[3].strip().upper()
-        if not ticker or not ticker.isalnum():
+        ticker_match = _TICKER_HREF_RE.search(row_html)
+        ticker = ticker_match.group(1).upper() if ticker_match else ""
+        if not ticker or not ticker.replace(".", "").isalnum():
             continue
         out.append({
             "filing_date":  cells[1].strip(),
