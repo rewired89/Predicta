@@ -94,6 +94,21 @@ function buyMore(tradeId, symbol) {
 function sellPosition(tradeId, symbol) {
   predictaCopyPost('/trade/portfolio/sell/' + tradeId, {}, 'Sell your entire ' + symbol + ' copy-trade position now?');
 }
+async function scanForNewFilings() {
+  const btn = document.getElementById('scan-filings-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
+  try {
+    const res = await fetch('/trade/copy-trades/scan-now', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert('Scan failed: ' + predictaErrorText(data)); return; }
+    alert(data.count + ' insider filing(s) found in the last 7 days. Reloading.');
+    location.reload();
+  } catch (e) {
+    alert('Scan failed: ' + e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan Now'; }
+  }
+}
 """
 
 _NAV = """
@@ -174,7 +189,10 @@ def render_copy_trades_page() -> str:
   </div>
 
   <div class="card">
-    <div class="card-title">Recent Insider Filings ({len(candidates)})</div>
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Recent Insider Filings ({len(candidates)})</span>
+      <button id="scan-filings-btn" class="trade-btn buy-btn" onclick="scanForNewFilings()">Scan Now</button>
+    </div>
     {rows_html}
   </div>
 </main>

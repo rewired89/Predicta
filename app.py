@@ -1484,14 +1484,25 @@ class TradeRequest(BaseModel):
     bankroll: float = 10000.0
 
 
-# Phrases that mean "scan the watchlist" rather than "analyze this one ticker".
-# Multi-word phrases only (not bare "scan"/"watchlist") to avoid mis-firing on
-# an actual ticker query. Checked before ticker parsing so there's no fallback
-# risk of these being misread as a symbol.
-_BRIEF_TRIGGERS = (
-    "brief", "scan the market", "scan market", "market scan", "market brief",
+# Phrases that mean "scan" rather than "analyze this one ticker" — split into
+# two intents (fixed 2026-09-07, direct user request: "I never had one, I
+# dont want to have one either"). "scan the market" et al used to silently
+# route to get_active_watchlist() — a fixed 15-symbol candidate list the user
+# never asked for and doesn't want — instead of an actual market-wide scan.
+# Now it maps to the same real top-gainers/losers/most-active screener
+# (run_screener(use_movers=True)) the dashboard's own "Top Movers / Most
+# Active" button already uses. A literal "watchlist" request still scans
+# screener.py's DEFAULT_WATCHLIST — that phrase says what it does and stays.
+# Multi-word phrases only (not bare "scan") to avoid mis-firing on an actual
+# ticker query. Checked before ticker parsing so there's no fallback risk of
+# these being misread as a symbol. Market-scan phrases are checked first so
+# "market brief" isn't swallowed by the bare "brief" watchlist trigger.
+_MARKET_SCAN_TRIGGERS = (
+    "scan the market", "scan market", "market scan", "market brief",
     "any signals", "check the market", "today's picks", "todays picks",
-    "scan watchlist", "scan my watchlist",
+)
+_WATCHLIST_SCAN_TRIGGERS = (
+    "brief", "scan watchlist", "scan my watchlist",
 )
 
 
@@ -1501,10 +1512,13 @@ def analyze_trade(body: TradeRequest):
         raise HTTPException(400, "Query cannot be empty")
 
     q_lower = body.query.strip().lower()
-    if any(trig in q_lower for trig in _BRIEF_TRIGGERS):
-        from models.trading.screener import run_screener
-        from fetchers.high_value_runner import get_active_watchlist
-        result = run_screener(symbols=get_active_watchlist())
+    from models.trading.screener import run_screener
+    if any(trig in q_lower for trig in _MARKET_SCAN_TRIGGERS):
+        result = run_screener(use_movers=True)
+        result["mode"] = "brief"
+        return result
+    if any(trig in q_lower for trig in _WATCHLIST_SCAN_TRIGGERS):
+        result = run_screener()
         result["mode"] = "brief"
         return result
 
@@ -2534,6 +2548,22 @@ def copy_trade_portfolio_page():
     """Your copied insider-trade paper positions — Buy More / Sell."""
     from fetchers.copy_trading_dashboard import render_portfolio_page
     return HTMLResponse(content=render_portfolio_page())
+
+
+@app.post("/trade/copy-trades/scan-now")
+def copy_trades_scan_now():
+    """
+    Manually re-check openinsider.com for new insider filings (added
+    2026-09-07, direct user request — the page previously only refreshed on
+    a page load / its own 10-min meta-refresh, with no explicit action to
+    trigger a fresh check). The underlying fetch is a single fast HTTP call
+    plus one batched Alpaca snapshot request (unlike the multi-minute
+    per-symbol scans in the other engines), so this runs synchronously —
+    no fire-and-forget/polling needed here.
+    """
+    from fetchers.copy_trading import list_copy_trade_candidates
+    candidates = list_copy_trade_candidates(limit=40, days=7)
+    return {"count": len(candidates)}
 
 
 @app.post("/trade/copy/execute")

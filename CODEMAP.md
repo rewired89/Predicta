@@ -3443,21 +3443,21 @@ mutates: matches, signals, predictions tables
 name: analyze_trade
 type: function
 file: app.py
-purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query. Checks body.query against _BRIEF_TRIGGERS first (case-insensitive substring match); if matched, runs run_screener(symbols=RUNNER_SYMBOLS) instead of the single-ticker pipeline and returns {"mode": "brief", ...scan result...} so the frontend can render the watchlist scan (with entry/stop/target1/rr_ratio per symbol) instead of the single-ticker card. Non-brief queries return {"mode": "single", ...run_trade_analysis result...}.
+purpose: POST /analyze-trade — runs the full trading analysis pipeline for a ticker query. Checks body.query against _MARKET_SCAN_TRIGGERS and _WATCHLIST_SCAN_TRIGGERS first (case-insensitive substring match, market checked first). Fixed 2026-09-07, direct user request ("I never had one, I dont want to have one either") — a market-scan phrase ("scan the market", "any signals", etc.) previously silently routed to run_screener(symbols=get_active_watchlist()), the fixed 15-symbol low-price candidate list also used by the autonomous runner — not an actual market-wide scan, and CODEMAP itself had drifted from that real behavior (previously described here as RUNNER_SYMBOLS, which was already stale). Now a market-scan phrase runs run_screener(use_movers=True) — the same real top-gainers/losers/most-active screener the dashboard's own "Top Movers / Most Active" button already uses. A literal watchlist phrase ("brief", "scan watchlist") still runs run_screener() against screener.py's own DEFAULT_WATCHLIST (16 large-cap/liquid names) — that phrase says what it does and is unchanged. Either match returns {"mode": "brief", ...scan result...}; non-matching queries return {"mode": "single", ...run_trade_analysis result...}.
 inputs: body: TradeRequest
 outputs: dict (trading analysis result, or scan result with mode="brief")
-calls: run_trade_analysis, run_screener (screener.py), RUNNER_SYMBOLS (high_value_runner.py)
+calls: run_trade_analysis, run_screener (models/trading/screener.py)
 called_by: HTTP POST /analyze-trade
 mutates: none
 ---
 
 ---
-name: _BRIEF_TRIGGERS
+name: _MARKET_SCAN_TRIGGERS / _WATCHLIST_SCAN_TRIGGERS
 type: variable
 file: app.py
-purpose: Multi-word phrases (e.g. "brief", "scan the market", "any signals") that route a query typed into the Analyze-tab text box to a watchlist scan instead of single-ticker analysis. Deliberately excludes bare "scan"/"watchlist" to avoid mis-firing on an actual ticker symbol.
+purpose: Split 2026-09-07 from the single _BRIEF_TRIGGERS tuple (see analyze_trade). _MARKET_SCAN_TRIGGERS ("scan the market", "scan market", "market scan", "market brief", "any signals", "check the market", "today's/todays picks") route to a real market-wide scan (run_screener(use_movers=True)); _WATCHLIST_SCAN_TRIGGERS ("brief", "scan watchlist", "scan my watchlist") route to screener.py's DEFAULT_WATCHLIST scan. Market triggers are checked first so "market brief" isn't swallowed by the bare "brief" watchlist trigger. Deliberately excludes bare "scan"/"watchlist" to avoid mis-firing on an actual ticker symbol.
 inputs: none
-outputs: tuple[str, ...]
+outputs: tuple[str, ...] (each)
 calls: none
 called_by: analyze_trade
 mutates: none
@@ -13290,11 +13290,23 @@ mutates: intraday_trades
 name: render_copy_trades_page / render_portfolio_page
 type: function
 file: fetchers/copy_trading_dashboard.py (new)
-purpose: Standalone HTML renderers for the two new pages, same dark-theme CSS/class convention as fetchers/low_value_dashboard.py. render_copy_trades_page lists recent insider filings with a "Copy this trade" button per row (prompts for qty client-side, POSTs to /trade/copy/execute). render_portfolio_page lists open copy-trade positions (with live unrealized P&L) plus Buy More / Sell buttons, and the last 60 days of closed copy trades below. No passcode prompt in the JS here (unlike predictaAction in the other dashboards) — these actions are paper-only.
+purpose: Standalone HTML renderers for the two new pages, same dark-theme CSS/class convention as fetchers/low_value_dashboard.py. render_copy_trades_page lists recent insider filings with a "Copy this trade" button per row (prompts for qty client-side, POSTs to /trade/copy/execute). render_portfolio_page lists open copy-trade positions (with live unrealized P&L) plus Buy More / Sell buttons, and the last 60 days of closed copy trades below. No passcode prompt in the JS here (unlike predictaAction in the other dashboards) — these actions are paper-only. **2026-09-07 (direct user request — "there's no scan button ... so I dont know what Copy Trades are supposed to do"):** render_copy_trades_page now has a "Scan Now" button (id=scan-filings-btn) next to the filings card title, calling scanForNewFilings() JS -> POST /trade/copy-trades/scan-now -> reloads on success. The page always re-fetched fresh on every load already (no caching), but had no explicit user-triggered action or loading feedback — the page just looked static/dead, especially with zero filings showing (see get_latest_filings' CODEMAP entry for the still-open parser bug behind that).
 inputs: none (both read live from copy_trading.py/trading_logger.py)
 outputs: str (full HTML page)
 calls: fetchers.copy_trading.{list_copy_trade_candidates, get_portfolio_with_unrealized_pnl}, fetchers.trading_logger.get_closed_copy_trades
 called_by: app.py GET /trade/copy-trades, GET /trade/portfolio
+mutates: none
+---
+
+---
+name: copy_trades_scan_now
+type: route
+file: app.py
+purpose: POST /trade/copy-trades/scan-now — added 2026-09-07 so the Copy Trades page has an explicit, user-triggered "check for new filings now" action instead of relying only on a page reload / the page's own 10-min meta-refresh. Runs synchronously (no fire-and-forget needed) — the underlying fetch is one HTTP call to openinsider.com plus one batched Alpaca snapshot request, not a multi-minute per-symbol scan like the other engines.
+inputs: none
+outputs: dict {count: int}
+calls: fetchers.copy_trading.list_copy_trade_candidates
+called_by: scanForNewFilings() JS (Copy Trades page)
 mutates: none
 ---
 
