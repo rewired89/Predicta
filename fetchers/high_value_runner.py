@@ -200,6 +200,22 @@ _runner_thread: Optional[threading.Thread] = None
 _runner_active: bool = False
 _run_log: list[dict] = []           # ring buffer — last 100 events
 
+# Manual "Scan Now" state (fixed 2026-09-07) — POST /trade/paper-runner/scan-now
+# used to call run_open_scan() synchronously inside the HTTP request. Scanning
+# the low-price watchlist means ~15 symbols x (0.8s throttle sleep + 2 Alpaca
+# bars calls) plus a market-regime snapshot up front — comfortably enough to
+# exceed Railway's edge timeout, so the button's fetch() would just die with
+# no visible result. Same fire-and-forget fix already applied to Low Value's
+# and Automaton's scan-now endpoints (fetchers/low_value_runner.py,
+# fetchers/automaton_runner.py: trigger_scan_async/_scan_worker) — this one
+# endpoint was missed when that pattern was introduced.
+_manual_scan_in_progress: bool = False
+_manual_scan_thread: Optional[threading.Thread] = None
+_last_manual_scan_started_at: Optional[str] = None
+_last_manual_scan_completed_at: Optional[str] = None
+_last_manual_scan_trade_ids: list[int] = []
+_last_manual_scan_error: Optional[str] = None
+
 # Intraday regime escalation state (Kimi review, round 3) — reset on new day
 _intraday_regime_override: Optional[str] = None
 _override_date: Optional[str] = None
@@ -760,6 +776,41 @@ def run_open_scan(
     return trade_ids
 
 
+def _manual_scan_worker(min_score: int) -> None:
+    """Background-thread body for trigger_scan_async — never runs inside an HTTP request."""
+    global _manual_scan_in_progress, _last_manual_scan_completed_at, _last_manual_scan_trade_ids, _last_manual_scan_error
+    _last_manual_scan_error = None
+    try:
+        ids = run_open_scan(min_score=min_score)
+        _last_manual_scan_trade_ids = ids
+    except Exception as exc:
+        _last_manual_scan_error = str(exc)
+        log.warning(f"[RUNNER] manual scan-now failed: {exc}")
+    finally:
+        _last_manual_scan_completed_at = _et_now().isoformat()
+        _manual_scan_in_progress = False
+
+
+def trigger_scan_async(min_score: int = RUNNER_MIN_SCORE) -> dict:
+    """
+    Fire-and-forget manual scan trigger for POST /trade/paper-runner/scan-now
+    — a scan is a multi-symbol, many-Alpaca-call operation and must never
+    block the HTTP request (same fix as low_value_runner.trigger_scan_async).
+    Poll GET /trade/paper-runner/status for scan_in_progress /
+    last_manual_scan_completed_at / last_manual_scan_trade_ids.
+    """
+    global _manual_scan_in_progress, _manual_scan_thread, _last_manual_scan_started_at
+    if _manual_scan_in_progress:
+        return {"status": "already_running", "started_at": _last_manual_scan_started_at}
+    _manual_scan_in_progress = True
+    _last_manual_scan_started_at = _et_now().isoformat()
+    _manual_scan_thread = threading.Thread(
+        target=_manual_scan_worker, args=(min_score,), daemon=True, name="high-value-manual-scan"
+    )
+    _manual_scan_thread.start()
+    return {"status": "started", "started_at": _last_manual_scan_started_at}
+
+
 # ── Position exit checker ─────────────────────────────────────────────────────
 
 def _load_open_positions() -> list[dict]:
@@ -1315,4 +1366,9 @@ def get_runner_status() -> dict:
         "suppression_stats": get_suppression_stats(),
         "pending_review":  pending_review,
         "recent_log":     list(reversed(_run_log[-20:])),
+        "manual_scan_in_progress":        _manual_scan_in_progress,
+        "last_manual_scan_started_at":    _last_manual_scan_started_at,
+        "last_manual_scan_completed_at":  _last_manual_scan_completed_at,
+        "last_manual_scan_trade_ids":     _last_manual_scan_trade_ids,
+        "last_manual_scan_error":         _last_manual_scan_error,
     }

@@ -776,8 +776,20 @@ purpose: Run intraday signal computation on all configured symbols. For each sym
 inputs: symbols: Optional[list[str]] = None, min_score: int = RUNNER_MIN_SCORE
 outputs: list[int] (trade_ids)
 calls: _fetch_market_regime, _is_earnings_blackout, get_snapshots, get_bars, get_daily_bars, _avg_daily_vol, compute_intraday_signals, log_hypothetical_trade, _queue_for_review, _load_open_positions, _et_now, _HOLD_BARS
-called_by: _runner_loop, paper_runner_scan_now (app.py)
+called_by: _runner_loop, _manual_scan_worker (this file, fired by paper_runner_scan_now in app.py via trigger_scan_async)
 mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
+---
+
+---
+name: trigger_scan_async / _manual_scan_worker
+type: function
+file: fetchers/high_value_runner.py
+purpose: Added 2026-09-07 — fire-and-forget wrapper around run_open_scan() for the manual "Scan Now" button, mirroring low_value_runner.py's trigger_scan_async/_scan_worker pattern exactly. Fixes a real production bug: POST /trade/paper-runner/scan-now used to call run_open_scan() synchronously inside the HTTP request, and scanning the ~15-symbol low-price watchlist (0.8s throttle sleep + 2 Alpaca calls per symbol, plus a market-regime snapshot up front) was long enough to exceed Railway's request timeout — the dashboard button would just fail with no usable error. trigger_scan_async starts _manual_scan_worker on a daemon thread and returns immediately; _manual_scan_worker runs run_open_scan and records completion/error/trade_ids into module state for polling.
+inputs: trigger_scan_async(min_score: int = RUNNER_MIN_SCORE); _manual_scan_worker(min_score: int) [thread target]
+outputs: trigger_scan_async -> dict {status: "started"|"already_running", started_at}; _manual_scan_worker -> none (writes to module state)
+calls: run_open_scan
+called_by: paper_runner_scan_now (app.py)
+mutates: _manual_scan_in_progress, _manual_scan_thread, _last_manual_scan_started_at/_completed_at/_trade_ids/_error
 ---
 
 ---
@@ -856,7 +868,7 @@ mutates: _runner_active
 name: get_runner_status
 type: function
 file: fetchers/high_value_runner.py
-purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), pending_review count of AWAITING_REVIEW rows in the last day (round 6), and last 20 _run_log events (newest first).
+purpose: Return current state of the paper runner for the status endpoint. Includes: active flag, configured symbols/min_score, data_collection_sprint_mode + sprint_min_score (round 4), market_open status, ET time, count of open positions, their symbols, suppression_stats (round 4), pending_review count of AWAITING_REVIEW rows in the last day (round 6), last 20 _run_log events (newest first), and (added 2026-09-07) manual_scan_in_progress/last_manual_scan_started_at/last_manual_scan_completed_at/last_manual_scan_trade_ids/last_manual_scan_error for polling the async "Scan Now" trigger.
 inputs: none
 outputs: dict
 calls: _runner_active, _runner_thread, _is_market_open, _et_now, _load_open_positions, get_suppression_stats, get_review_queue
@@ -6618,12 +6630,24 @@ mutates: none
 name: paper_runner_scan_now
 type: function
 file: app.py
-purpose: POST /trade/paper-runner/scan-now — manually trigger a signal scan outside the scheduled window. Useful for afternoon session or ad-hoc testing.
+purpose: POST /trade/paper-runner/scan-now — manually trigger a signal scan outside the scheduled window. Fixed 2026-09-07 — used to call run_open_scan() synchronously inside the request (~15-symbol low-price watchlist x throttled Alpaca calls, enough to exceed Railway's request timeout and make the dashboard's "Scan Now" button appear broken with no error); now fire-and-forget via trigger_scan_async, same pattern already used by Low Value/Automaton's scan-now endpoints.
 inputs: min_score: int = 20 (query)
-outputs: dict {logged, trade_ids}
-calls: run_open_scan (high_value_runner.py)
-called_by: POST /trade/paper-runner/scan-now
-mutates: intraday_trades table (INSERT via run_open_scan)
+outputs: dict {status: "started"|"already_running", started_at}
+calls: trigger_scan_async (high_value_runner.py)
+called_by: POST /trade/paper-runner/scan-now, predictaScanNow() JS (High Value dashboard)
+mutates: none directly (background thread mutates intraday_trades via run_open_scan)
+---
+
+---
+name: signals_audit
+type: route
+file: app.py
+purpose: GET /trade/signals-audit — added 2026-09-07 per direct user request. Renders the cross-engine signals audit page (see fetchers/signals_audit_dashboard.py) so every candidate a scan logged as a possible trade, across High Value/Low Value/Automaton, can be browsed and filtered — specifically so Automaton's autonomous (no human click) decisions are auditable.
+inputs: engine: str = "all", status: str = "all", limit: int = 150 (query params)
+outputs: HTMLResponse
+calls: fetchers.signals_audit_dashboard.render_signals_audit
+called_by: browser navigation; linked from High Value/Low Value/Automaton dashboard nav rows
+mutates: none
 ---
 
 ---
@@ -13230,7 +13254,7 @@ on the next real deploy before trusting this in production.
 name: get_latest_filings / _parse_latest_filings_html / diagnose_latest_filings
 type: function
 file: fetchers/openinsider.py
-purpose: get_latest_filings(limit, days) is a MARKET-WIDE feed (openinsider.com's "latest-insider-trading" page, not the per-symbol screener the rest of this file uses) — every recent Form 4 open-market Buy/Sell filing across all companies, newest first. _parse_latest_filings_html assumes a 13-cell-per-row column layout (Filing Date/Trade Date/Ticker/Company/Insider Name/Title/Trade Type/Price/Qty/Owned/ΔOwn/Value), reuses the file's existing tempered-dot per-row isolation, and only keeps exact "P - Purchase"/"S - Sale" rows (excludes "S - Sale+OE" etc., same convention as get_recent_insider_activity). diagnose_latest_filings() is the live /copy-trades-diag check. Fails safe to [] on any fetch/parse error.
+purpose: get_latest_filings(limit, days) is a MARKET-WIDE feed (openinsider.com's "latest-insider-trading" page, not the per-symbol screener the rest of this file uses) — every recent Form 4 open-market Buy/Sell filing across all companies, newest first. _parse_latest_filings_html assumes a 13-cell-per-row column layout (Filing Date/Trade Date/Ticker/Company/Insider Name/Title/Trade Type/Price/Qty/Owned/ΔOwn/Value), reuses the file's existing tempered-dot per-row isolation, and only keeps exact "P - Purchase"/"S - Sale" rows (excludes "S - Sale+OE" etc., same convention as get_recent_insider_activity). diagnose_latest_filings() is the live /copy-trades-diag check. Fails safe to [] on any fetch/parse error. **CONFIRMED BROKEN live 2026-09-07**: production /copy-trades-diag returned fetch_ok=true, html_length=125829 (a real, full-size page — not a proxy block) but parsed_row_count=0 — the 13-column layout assumption does not match openinsider.com's real current markup, so the Copy Trades page has been silently showing zero filings since launch (2026-09-03). Root cause not yet identified (this sandbox's own network egress also blocks openinsider.com, confirmed via both a direct curl and the WebFetch tool, so the real HTML can't be inspected from here either) — diagnose_latest_filings() was extended the same day with a structure-agnostic raw probe (raw_tr_count, raw_cell_count_histogram, raw_best_row_cells, raw_best_row_html_snippet, raw_html_has_table_tag, raw_html_head_snippet) that doesn't depend on the 13-column assumption being right, so the next live /copy-trades-diag hit can show the actual row shape and let _parse_latest_filings_html be fixed to match reality instead of guessing again.
 inputs: limit: int = 40, days: int = 7
 outputs: list[dict] with filing_date, trade_date, ticker, company, insider_name, title, trade_type ("Purchase"/"Sale"), filed_price, qty, value
 calls: none new (uses the module's existing requests/regex machinery)
@@ -13360,4 +13384,32 @@ outputs: none (prints to stdout)
 calls: env_loader.load_env, analyze_baseball.run_baseball_analysis (debug_full.py), ai_agent_baseball.parse_baseball_query (debug_query.py)
 called_by: none (standalone scripts)
 mutates: none
+---
+
+---
+
+## fetchers/signals_audit_dashboard.py (new, added 2026-09-07)
+
+---
+name: render_signals_audit
+type: function
+file: fetchers/signals_audit_dashboard.py
+purpose: Direct user request — "a database to see only signals that passed the scan and were put as possible tradings ... so we can also see what Automaton is doing ... audit it and make improvements." Automaton places real paper orders with no human click at all, so there was previously no way to browse why it acted on a symbol without reading raw DB rows. Renders a standalone HTML page listing every intraday_trades row (is_copy_trade excluded — those come from copying an insider filing, not a scan signal) across all three engines, filterable by engine (all/high_value/low_value/automaton) and status (all/open/closed). Each row is a <details> that expands to show the per-signal score columns that were non-null at entry (composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge_score, ngram fields, lv_thesis_type/lv_news_*, regime tags) via _detail_html — the actual audit trail. Does not add a new table; reuses the existing intraday_trades schema.
+inputs: engine: str = "all", status: str = "all", limit: int = 150
+outputs: str (HTML page)
+calls: _fetch_rows, _pnl_color, _pnl_text, _status_badge, _real_badge, _detail_html, db.database.get_db
+called_by: signals_audit (app.py, GET /trade/signals-audit)
+side_effects: none (read-only)
+---
+
+---
+name: _fetch_rows
+type: function
+file: fetchers/signals_audit_dashboard.py
+purpose: Queries intraday_trades filtered by engine/status (is_copy_trade=0 always), newest first, capped at limit.
+inputs: engine: str, status: str, limit: int
+outputs: list[dict]
+calls: db.database.get_db
+called_by: render_signals_audit
+side_effects: none (read-only)
 ---

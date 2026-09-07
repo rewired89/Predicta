@@ -257,14 +257,41 @@ def diagnose_latest_filings() -> dict:
     column-layout assumption in _parse_latest_filings_html() against the
     live page, the same way every other new source in this codebase gets
     its first real check via a /*-diag endpoint.
+
+    2026-09-07: parsed_row_count came back 0 in production with a real,
+    full-size page fetched OK (html_length ~126KB) — meaning the 13-cells-
+    per-row assumption in _parse_latest_filings_html() doesn't match the
+    live markup (a redesign, or the table isn't <table>/<tr>/<td> at all
+    anymore). Added a raw-structure probe below that doesn't depend on that
+    assumption being right, so the actual live cell counts/content can be
+    read back directly instead of guessing again.
     """
     html = _fetch_latest_html()
     if not html:
         return {"fetch_ok": False, "reason": "request failed or requests not installed"}
     rows = _parse_latest_filings_html(html)
+
+    row_blocks = list(_ROW_BLOCK_RE.finditer(html))
+    cell_counts: dict[int, int] = {}
+    best_row_html = ""
+    best_row_cells: list[str] = []
+    for m in row_blocks:
+        row_html = m.group(1)
+        cells = [_cell_text(c) for c in _CELL_RE.findall(row_html)]
+        cell_counts[len(cells)] = cell_counts.get(len(cells), 0) + 1
+        if len(cells) > len(best_row_cells):
+            best_row_cells = cells
+            best_row_html = row_html
+
     return {
         "fetch_ok": True,
         "html_length": len(html),
         "parsed_row_count": len(rows),
         "sample_rows": rows[:5],
+        "raw_tr_count": len(row_blocks),
+        "raw_cell_count_histogram": cell_counts,
+        "raw_best_row_cells": best_row_cells,
+        "raw_best_row_html_snippet": best_row_html[:1500],
+        "raw_html_has_table_tag": "<table" in html.lower(),
+        "raw_html_head_snippet": html[:800],
     }

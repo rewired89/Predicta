@@ -2450,12 +2450,15 @@ def paper_runner_status():
 @app.post("/trade/paper-runner/scan-now")
 def paper_runner_scan_now(min_score: int = 20):
     """
-    Manually trigger a signal scan outside the scheduled window.
-    Useful for testing or catching afternoon setups.
+    Manually trigger a signal scan outside the scheduled window. Fire-and-
+    forget (fixed 2026-09-07 — scanning the low-price watchlist is enough
+    Alpaca calls to exceed Railway's request timeout; see
+    fetchers.high_value_runner.trigger_scan_async). Poll
+    GET /trade/paper-runner/status for manual_scan_in_progress /
+    last_manual_scan_completed_at / last_manual_scan_trade_ids.
     """
-    from fetchers.high_value_runner import run_open_scan
-    ids = run_open_scan(min_score=min_score)
-    return {"logged": len(ids), "trade_ids": ids}
+    from fetchers.high_value_runner import trigger_scan_async
+    return trigger_scan_async(min_score=min_score)
 
 
 @app.post("/trade/execute/{trade_id}", dependencies=[Depends(require_trade_passcode)])
@@ -3121,7 +3124,8 @@ def trade_dashboard():
     <a href="/trading">Stock Market</a><span>·</span>
     <a href="/trading/high-value">High Value (query box)</a><span>·</span>
     <a href="/trade/low-value/dashboard">Low Value dashboard</a><span>·</span>
-    <a href="/trade/automaton/dashboard">Automaton dashboard</a>
+    <a href="/trade/automaton/dashboard">Automaton dashboard</a><span>·</span>
+    <a href="/trade/signals-audit">Signals audit</a>
   </div>
 
   <!-- Phase banner -->
@@ -3259,7 +3263,11 @@ async function predictaScanNow() {{
   try {{
     const res = await fetch('/trade/paper-runner/scan-now', {{ method: 'POST' }});
     const data = await res.json();
-    alert('Scan complete — ' + data.logged + ' candidate(s) found. Reloading.');
+    if (data.status === 'already_running') {{
+      alert('A scan is already running (started ' + data.started_at + '). Check back shortly.');
+      return;
+    }}
+    alert('Scan started in the background — this can take a minute or two. Reloading now; refresh again shortly to see results.');
     location.reload();
   }} catch (e) {{ alert('Scan failed: ' + e); }}
 }}
@@ -3390,6 +3398,20 @@ def low_value_dashboard():
     """Plain-English Low Value engine monitor — separate page from the High Value /trade/dashboard."""
     from fetchers.low_value_dashboard import render_low_value_dashboard
     return HTMLResponse(content=render_low_value_dashboard())
+
+
+@app.get("/trade/signals-audit", response_class=HTMLResponse)
+def signals_audit(engine: str = "all", status: str = "all", limit: int = 150):
+    """
+    Browsable audit trail of every signal that passed a scan and was logged
+    as a possible trade (is_hypothetical rows and their real-order
+    promotions alike), across all three engines — added 2026-09-07 per
+    direct user request specifically to make Automaton's autonomous
+    decisions auditable, not just High Value/Low Value's human-reviewed
+    ones. See fetchers.signals_audit_dashboard module docstring.
+    """
+    from fetchers.signals_audit_dashboard import render_signals_audit
+    return HTMLResponse(content=render_signals_audit(engine=engine, status=status, limit=limit))
 
 
 # ── Automaton engine endpoints (2026-08-28, direct user request) ────────────
