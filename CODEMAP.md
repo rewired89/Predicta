@@ -13313,3 +13313,51 @@ calls: none
 called_by: every parse_*/interpret_*/generate_* function in these 12 files
 mutates: none
 ---
+
+---
+
+## env_loader.py
+
+---
+name: load_env
+type: function
+file: env_loader.py
+purpose: Loads .env into os.environ without ever raising. Tries python-dotenv first; falls back to a manual parser that handles Windows CRLF line endings, a UTF-8 BOM, inline comments, and quoted values. Never overrides a variable already set in the real environment (Railway env vars always win over a committed/local .env). Auto-runs once at import time.
+inputs: path: Path = _ENV_PATH (defaults to .env next to this file)
+outputs: none
+calls: dotenv.load_dotenv (optional dependency)
+called_by: analyze.py, analyze_baseball.py, analyze_esports.py, analyze_rugby.py, analyze_soccer.py, analyze_table_tennis.py, analyze_tennis.py, analyze_trading.py, analyze_ufc.py, app.py, ai_agent_esports.py, fetchers/esports.py, debug_full.py, debug_query.py
+mutates: os.environ (adds missing keys only)
+---
+
+---
+
+## cli.py
+
+---
+name: build_parser / COMMANDS / __main__
+type: function
+file: cli.py
+purpose: Standalone argparse-based CLI entry point for the paper-tracking core (soccer/table_tennis/tennis matches, signals, odds, predictions, calibration) — a manual/offline alternative to the FastAPI app in app.py, not used by any web route. Subcommands: init, add-match, list-matches, add-signal, list-signals, add-odds, predict, record-outcome, calibration, report, update-elo, train-ml.
+inputs: sys.argv (parsed via argparse)
+outputs: none (prints to stdout; report writes an HTML file)
+calls: db.database.init_db/get_db, engine.predict_match/record_outcome, models.calibration.compute_metrics_from_db, models.devig.devig_market, fetchers.odds.log_manual_odds, fetchers.signals.log_signal/get_signals_for_match, report.generate_html_report, models.elo.EloModel, models.ml_layer.train
+called_by: none (standalone script, `python cli.py <command>`)
+mutates: predicta.db (via init_db/add-match/add-signal/add-odds/predict/record-outcome); writes report.html (or --output path) via cmd_report
+---
+
+---
+
+## debug_full.py / debug_query.py
+
+---
+name: debug_full.py / debug_query.py
+type: variable
+file: debug_full.py, debug_query.py
+purpose: Temporary, ad-hoc diagnostic scripts (marked in their own docstrings as "safe to delete once the 'A's vs CHW' query parsing issue is confirmed fixed") used to reproduce a specific baseball query-parsing bug. debug_full.py runs run_baseball_analysis("A's vs CHW today") once and prints team_a/team_b; debug_query.py calls parse_baseball_query on the same string 10 times in a loop to check for flaky/non-deterministic parsing. Not imported by any other module and not part of any pipeline.
+inputs: none (hardcoded query string)
+outputs: none (prints to stdout)
+calls: env_loader.load_env, analyze_baseball.run_baseball_analysis (debug_full.py), ai_agent_baseball.parse_baseball_query (debug_query.py)
+called_by: none (standalone scripts)
+mutates: none
+---

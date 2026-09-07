@@ -2,10 +2,16 @@
 
 ## CodeMap Protocol
 
-- On session start: read CODEMAP.md before touching any code
-- After any function or variable change: update its entry in CODEMAP.md
+- CODEMAP.md is a structural reference, not a replacement for source code
+- On session start: read only the CODEMAP.md sections relevant to the current task — do not automatically load the entire file for every task
+- Before modifying a symbol documented in CODEMAP.md, verify its current implementation in the source file — never trust CODEMAP.md over the actual source; if they conflict, the source code is authoritative
+- After any architecturally meaningful function/class/route/service change: update its entry in CODEMAP.md
 - After adding anything new: add its entry
 - After deleting anything: remove its entry
+- Do not update CODEMAP.md for trivial local-variable changes
+- Never regenerate the entire CODEMAP.md after a code change — update only the entries directly affected, and only the verified affected caller/dependency relationships
+- Prefer searching the existing CODEMAP.md over rereading the entire file
+- If the repository grows past 150 source files or gains new services, re-run mapping incrementally per unit rather than regenerating the full file in one pass
 - CODEMAP.md must be committed in the same commit as the code change
 
 ## Git Rules
