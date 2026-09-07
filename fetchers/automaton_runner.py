@@ -575,10 +575,11 @@ def _runner_loop() -> None:
             )
             if should_scan:
                 log.info(f"[AUTOMATON] Daily scan for {today}")
-                check_automaton_exits()
+                exit_result = check_automaton_exits()
                 ids = run_automaton_scan()
                 today_scanned = today
                 log.info(f"[AUTOMATON] Scan complete — {len(ids)} trades logged")
+                _log_scan_event("scheduled", ids, exit_result)
         except Exception as exc:
             log.error(f"[AUTOMATON] Loop error: {exc}")
         time.sleep(60)
@@ -605,12 +606,34 @@ def stop_runner() -> None:
     log.info("[AUTOMATON] Stop signalled")
 
 
+def _log_scan_event(triggered_by: str, trade_ids: list[int], exit_result: dict) -> None:
+    """Shared by the scheduled loop and manual scan-now — see low_value_runner.py's identically-named helper for why this exists (2026-09-07, direct user request for a per-engine monthly audit trail)."""
+    from fetchers.trading_logger import log_scan_event
+    closed_list = exit_result.get("closed", [])
+    log_scan_event(
+        engine="automaton", triggered_by=triggered_by,
+        symbols_scanned=len(get_daily_universe(force_refresh=False)),
+        trade_ids_logged=trade_ids,
+        positions_checked=exit_result.get("checked", 0),
+        positions_closed=len(closed_list),
+        closed_pnl_dollars=sum(c.get("pnl_dollars") or 0.0 for c in closed_list),
+        trade_ids_closed=[c.get("trade_id") for c in closed_list],
+    )
+
+
 def _scan_worker(symbols: Optional[list[str]]) -> None:
+    """
+    Changed 2026-09-07, direct user request: a manual scan-now now also
+    checks existing open positions first (matching what the scheduled daily
+    tick already did), logging the combined result to trade_scan_log.
+    """
     global _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error
     _last_scan_error = None
     try:
+        exit_result = check_automaton_exits()
         ids = run_automaton_scan(symbols=symbols)
         _last_scan_trade_ids = ids
+        _log_scan_event("manual", ids, exit_result)
     except Exception as exc:
         _last_scan_error = str(exc)
         log.error(f"[AUTOMATON] Async scan failed: {exc}")

@@ -844,10 +844,11 @@ def _runner_loop() -> None:
             today = now_et.strftime("%Y-%m-%d")
             if now_et.weekday() < 5 and _in_scan_window() and today_scanned != today:
                 log.info(f"[LOW_VALUE] Daily scan for {today}")
-                check_low_value_exits()
+                exit_result = check_low_value_exits()
                 ids = run_low_value_scan()
                 today_scanned = today
                 log.info(f"[LOW_VALUE] Scan complete — {len(ids)} trades logged")
+                _log_scan_event("scheduled", ids, exit_result)
         except Exception as exc:
             log.error(f"[LOW_VALUE] Loop error: {exc}")
         time.sleep(60)
@@ -874,13 +875,44 @@ def stop_runner() -> None:
     log.info("[LOW_VALUE] Stop signalled")
 
 
+def _log_scan_event(triggered_by: str, trade_ids: list[int], exit_result: dict) -> None:
+    """
+    Shared by both the scheduled loop and the manual scan-now path (added
+    2026-09-07, direct user request for a monthly-comparable audit trail
+    across all three engines). check_low_value_exits()'s "closed" field is a
+    list of per-position result dicts (each carrying pnl_dollars from
+    log_trade_exit), not just a count — summarized here into trade_scan_log's
+    columns.
+    """
+    from fetchers.trading_logger import log_scan_event
+    closed_list = exit_result.get("closed", [])
+    log_scan_event(
+        engine="low_value", triggered_by=triggered_by,
+        symbols_scanned=len(get_daily_universe(force_refresh=False)),
+        trade_ids_logged=trade_ids,
+        positions_checked=exit_result.get("checked", 0),
+        positions_closed=len(closed_list),
+        closed_pnl_dollars=sum(c.get("pnl_dollars") or 0.0 for c in closed_list),
+        trade_ids_closed=[c.get("trade_id") for c in closed_list],
+    )
+
+
 def _scan_worker(symbols: Optional[list[str]]) -> None:
-    """Background-thread body for trigger_scan_async — never runs inside an HTTP request."""
+    """
+    Background-thread body for trigger_scan_async — never runs inside an
+    HTTP request. Changed 2026-09-07, direct user request: a manual scan
+    now also checks existing open positions for target/stop/thesis/time
+    exits first (matching what the scheduled daily loop already did), so
+    clicking Scan Now mid-day doesn't just look for new candidates while
+    ignoring what already happened to the ones from the last scan.
+    """
     global _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error
     _last_scan_error = None
     try:
+        exit_result = check_low_value_exits()
         ids = run_low_value_scan(symbols=symbols)
         _last_scan_trade_ids = ids
+        _log_scan_event("manual", ids, exit_result)
     except Exception as exc:
         _last_scan_error = str(exc)
         log.error(f"[LOW_VALUE] Async scan failed: {exc}")

@@ -777,12 +777,36 @@ def run_open_scan(
 
 
 def _manual_scan_worker(min_score: int) -> None:
-    """Background-thread body for trigger_scan_async — never runs inside an HTTP request."""
+    """
+    Background-thread body for trigger_scan_async — never runs inside an
+    HTTP request. Changed 2026-09-07, direct user request: High Value no
+    longer runs an automatic background loop at all (see app.py's startup()
+    — start_runner() is no longer called there), so this manual click is
+    now the ONLY time High Value ever does anything. That means it must
+    also check what happened to whatever it suggested/bought last time,
+    not just look for new candidates — check_and_close_positions() runs
+    first, then run_open_scan(), and the combined result is written to
+    trade_scan_log via log_scan_event() so a month-later review can see
+    every scan (not just the ones that found a candidate), how many
+    buy/sell suggestions came out of it, and what closing existing
+    positions made or lost in the same pass.
+    """
     global _manual_scan_in_progress, _last_manual_scan_completed_at, _last_manual_scan_trade_ids, _last_manual_scan_error
     _last_manual_scan_error = None
+    from fetchers.trading_logger import log_scan_event
     try:
+        exit_result = check_and_close_positions()
         ids = run_open_scan(min_score=min_score)
         _last_manual_scan_trade_ids = ids
+        log_scan_event(
+            engine="high_value", triggered_by="manual",
+            symbols_scanned=len(get_active_watchlist()),
+            trade_ids_logged=ids,
+            positions_checked=exit_result.get("checked", 0),
+            positions_closed=exit_result.get("closed", 0),
+            closed_pnl_dollars=exit_result.get("closed_pnl_dollars"),
+            trade_ids_closed=exit_result.get("closed_trade_ids"),
+        )
     except Exception as exc:
         _last_manual_scan_error = str(exc)
         log.warning(f"[RUNNER] manual scan-now failed: {exc}")
@@ -1173,16 +1197,19 @@ def check_and_close_positions(force_close: bool = False) -> dict:
     Check all open hypothetical positions against recent Alpaca bar data.
     Closes any that hit stop, target, or time limit; updates DB via log_trade_exit.
     force_close=True exits everything at current market price (end-of-day call).
-    Returns {"checked": N, "closed": M}.
+    Returns {"checked": N, "closed": M, "closed_trade_ids": [...], "closed_pnl_dollars": float}
+    (the last two added 2026-09-07 for trade_scan_log's monthly audit trail).
     """
     positions = _load_open_positions()
     if not positions:
-        return {"checked": 0, "closed": 0}
+        return {"checked": 0, "closed": 0, "closed_trade_ids": [], "closed_pnl_dollars": 0.0}
 
     symbols   = list({p["symbol"] for p in positions})
     snapshots = get_snapshots(symbols)
     now_utc   = datetime.now(timezone.utc)
     closed    = 0
+    closed_trade_ids: list[int] = []
+    closed_pnl_total  = 0.0
 
     for pos in positions:
         sym           = pos["symbol"]
@@ -1213,6 +1240,8 @@ def check_and_close_positions(force_close: bool = False) -> dict:
                 slippage_exit    = 0.0,
             )
             closed += 1
+            closed_trade_ids.append(pos["id"])
+            closed_pnl_total += result.get("pnl_dollars") or 0.0
             _run_log.append({
                 "ts":     _et_now().isoformat(),
                 "event":  "EXIT",
@@ -1231,7 +1260,10 @@ def check_and_close_positions(force_close: bool = False) -> dict:
 
     if len(_run_log) > 100:
         _run_log[:] = _run_log[-100:]
-    return {"checked": len(positions), "closed": closed}
+    return {
+        "checked": len(positions), "closed": closed,
+        "closed_trade_ids": closed_trade_ids, "closed_pnl_dollars": round(closed_pnl_total, 4),
+    }
 
 
 # ── Background scheduler loop ─────────────────────────────────────────────────

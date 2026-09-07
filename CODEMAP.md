@@ -784,12 +784,12 @@ mutates: intraday_trades table (INSERT via log_hypothetical_trade), _run_log
 name: trigger_scan_async / _manual_scan_worker
 type: function
 file: fetchers/high_value_runner.py
-purpose: Added 2026-09-07 — fire-and-forget wrapper around run_open_scan() for the manual "Scan Now" button, mirroring low_value_runner.py's trigger_scan_async/_scan_worker pattern exactly. Fixes a real production bug: POST /trade/paper-runner/scan-now used to call run_open_scan() synchronously inside the HTTP request, and scanning the ~15-symbol low-price watchlist (0.8s throttle sleep + 2 Alpaca calls per symbol, plus a market-regime snapshot up front) was long enough to exceed Railway's request timeout — the dashboard button would just fail with no usable error. trigger_scan_async starts _manual_scan_worker on a daemon thread and returns immediately; _manual_scan_worker runs run_open_scan and records completion/error/trade_ids into module state for polling.
+purpose: Added 2026-09-07 — fire-and-forget wrapper around run_open_scan() for the manual "Scan Now" button, mirroring low_value_runner.py's trigger_scan_async/_scan_worker pattern exactly. Fixes a real production bug: POST /trade/paper-runner/scan-now used to call run_open_scan() synchronously inside the HTTP request, and scanning the ~15-symbol low-price watchlist (0.8s throttle sleep + 2 Alpaca calls per symbol, plus a market-regime snapshot up front) was long enough to exceed Railway's request timeout — the dashboard button would just fail with no usable error. trigger_scan_async starts _manual_scan_worker on a daemon thread and returns immediately. **Extended same day, direct user request** ("it shouldn't be active... ONLY if I click the scan button"): High Value's automatic background runner is no longer started at all (app.py's startup() no longer calls start_runner() for this engine — see that entry), so this manual click became the ONLY thing that ever runs High Value. _manual_scan_worker now calls check_and_close_positions() FIRST (checking every existing open position for its target/stop/time exit — the thing the removed scheduled loop used to do every 30 min) and THEN run_open_scan() for new candidates, logging the combined result via trading_logger.log_scan_event() into trade_scan_log so a month-later review has a full record even for scans that found nothing.
 inputs: trigger_scan_async(min_score: int = RUNNER_MIN_SCORE); _manual_scan_worker(min_score: int) [thread target]
-outputs: trigger_scan_async -> dict {status: "started"|"already_running", started_at}; _manual_scan_worker -> none (writes to module state)
-calls: run_open_scan
+outputs: trigger_scan_async -> dict {status: "started"|"already_running", started_at}; _manual_scan_worker -> none (writes to module state + trade_scan_log)
+calls: check_and_close_positions, run_open_scan, trading_logger.log_scan_event
 called_by: paper_runner_scan_now (app.py)
-mutates: _manual_scan_in_progress, _manual_scan_thread, _last_manual_scan_started_at/_completed_at/_trade_ids/_error
+mutates: _manual_scan_in_progress, _manual_scan_thread, _last_manual_scan_started_at/_completed_at/_trade_ids/_error, intraday_trades (via check_and_close_positions/run_open_scan), trade_scan_log
 ---
 
 ---
@@ -820,11 +820,11 @@ mutates: none
 name: check_and_close_positions
 type: function
 file: fetchers/high_value_runner.py
-purpose: Check all open hypothetical positions and close any that hit stop, target, or time limit. Gets current snapshots + last 6 five-min bars per symbol; evaluates via _check_exit; calls log_trade_exit for each position that exits. force_close=True exits all at current price regardless of levels (used at 15:50 ET). Returns {"checked": N, "closed": M}.
+purpose: Check all open hypothetical positions and close any that hit stop, target, or time limit. Gets current snapshots + last 6 five-min bars per symbol; evaluates via _check_exit; calls log_trade_exit for each position that exits. force_close=True exits all at current price regardless of levels (used by the now-unused scheduled 15:50 ET call — see app.py startup entry). Extended 2026-09-07 to also return closed_trade_ids/closed_pnl_dollars (previously closed was just a count) so _manual_scan_worker can log a full trade_scan_log row.
 inputs: force_close: bool = False
-outputs: dict {checked, closed}
+outputs: dict {checked, closed, closed_trade_ids: list[int], closed_pnl_dollars: float}
 calls: _load_open_positions, get_snapshots, get_bars, _check_exit, log_trade_exit, _et_now
-called_by: _runner_loop, paper_runner_scan_now (app.py indirectly)
+called_by: _manual_scan_worker (the only caller now that _runner_loop is never started — see app.py startup entry; _runner_loop itself is unchanged/unused, not deleted)
 mutates: intraday_trades table (UPDATE via log_trade_exit), _run_log
 ---
 
@@ -3239,12 +3239,12 @@ mutates: none
 name: startup
 type: hook
 file: app.py
-purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners, soccer auto-collection loop, tennis auto-resolve loop, and NRFI daily pipeline. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern. **Added 2026-07-23:** tasks.tennis_auto.start_tennis_auto() call, gated behind TENNIS_AUTO_DISABLED, same shape as the existing SOCCER_AUTO_DISABLED gate — runs tennis's resolve_finished() every 3 h automatically instead of requiring a manual POST /tennis-auto/resolve.
+purpose: FastAPI startup event handler. Initializes SQLite DB, launches background auto-resolve pass, and starts the automated paper trading runners, soccer auto-collection loop, tennis auto-resolve loop, and NRFI daily pipeline. Fixed 2026-07-12: added the missing fetchers.low_value_runner.start_runner() call — it was never invoked anywhere at startup (only reachable via the manual POST /trade/low-value/runner/start endpoint), so _runner_loop() (the daily 8:00-8:14 AM ET universe scan + entry/exit check) never ran on its own, and the in-memory "started" state reset on every Railway restart/redeploy anyway — the Low Value engine's automatic daily collection had effectively never been running. Now starts alongside the High Value runner, same pattern. **Added 2026-07-23:** tasks.tennis_auto.start_tennis_auto() call, gated behind TENNIS_AUTO_DISABLED, same shape as the existing SOCCER_AUTO_DISABLED gate — runs tennis's resolve_finished() every 3 h automatically instead of requiring a manual POST /tennis-auto/resolve. **REMOVED 2026-09-07, direct user request** ("it shouldn't be active, it shouldn't activate every time it wants, it should activate ONLY if I click the scan button"): the fetchers.high_value_runner.start_runner() call is gone — High Value no longer has any automatic background activity at all (no 9:35 ET morning scan, no 30-min position checks, no 15:50 ET force-close). POST /trade/paper-runner/scan-now (the dashboard's Scan Now button) is now the ONLY thing that ever runs High Value; see fetchers.high_value_runner._manual_scan_worker, which now does the exit-check + new-candidate scan together on every click. Low Value's and Automaton's start_runner() calls are UNCHANGED — this removal was explicitly scoped to High Value only.
 inputs: none
 outputs: none
-calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (high_value_runner.py), start_runner (low_value_runner.py), start_soccer_auto (tasks/soccer_auto.py), start_tennis_auto (tasks/tennis_auto.py), start_nrfi_auto (tasks/nrfi_auto.py)
+calls: init_db, run_auto_resolve (tasks/auto_resolve.py), start_runner (low_value_runner.py), start_runner (automaton_runner.py), start_soccer_auto (tasks/soccer_auto.py), start_tennis_auto (tasks/tennis_auto.py), start_nrfi_auto (tasks/nrfi_auto.py)
 called_by: FastAPI on_event("startup")
-mutates: predicta.db, _runner_thread/_runner_active (high_value_runner.py globals), _runner_thread/_runner_active (low_value_runner.py globals)
+mutates: predicta.db, _runner_thread/_runner_active (low_value_runner.py globals), _runner_thread/_runner_active (automaton_runner.py globals)
 ---
 
 ---
@@ -6647,6 +6647,18 @@ inputs: engine: str = "all", status: str = "all", limit: int = 150 (query params
 outputs: HTMLResponse
 calls: fetchers.signals_audit_dashboard.render_signals_audit
 called_by: browser navigation; linked from High Value/Low Value/Automaton dashboard nav rows
+mutates: none
+---
+
+---
+name: trade_monthly_report / trade_scan_log_endpoint
+type: route
+file: app.py
+purpose: Added 2026-09-07, direct user request for an end-of-month comparison across all three trading engines. GET /trade/monthly-report?engine=...&month=YYYY-MM returns trading_logger.get_monthly_report()'s summary (scans run, buy/sell suggestions, positions checked/closed during scans, trades closed this month, win rate, total P&L) — month defaults to the current UTC month. GET /trade/scan-log?engine=...&limit=... returns the raw trade_scan_log rows (trading_logger.get_scan_log()) for anyone who wants the individual events rather than the monthly rollup.
+inputs: trade_monthly_report(engine: str, month: Optional[str] = None); trade_scan_log_endpoint(engine: Optional[str] = None, limit: int = 100)
+outputs: dict (JSON)
+calls: fetchers.trading_logger.get_monthly_report / get_scan_log
+called_by: HTTP GET /trade/monthly-report, GET /trade/scan-log
 mutates: none
 ---
 
@@ -10576,12 +10588,24 @@ mutates: _scan_in_progress, _scan_thread, _last_scan_started_at
 name: _scan_worker
 type: function
 file: fetchers/low_value_runner.py
-purpose: Background-thread body for trigger_scan_async — runs run_low_value_scan(), records the result/error, clears _scan_in_progress on completion (success or failure).
+purpose: Background-thread body for trigger_scan_async — runs run_low_value_scan(), records the result/error, clears _scan_in_progress on completion (success or failure). **Extended 2026-09-07, direct user request** (parity with High Value's manual-scan behavior): now calls check_low_value_exits() FIRST, matching what the scheduled daily loop (_runner_loop) already did — previously a manual scan-now click only looked for new candidates and never checked what happened to existing open positions. Both results are summarized via the new _log_scan_event() helper into trade_scan_log.
 inputs: symbols: Optional[list[str]]
 outputs: none
-calls: run_low_value_scan
+calls: check_low_value_exits, run_low_value_scan, _log_scan_event
 called_by: trigger_scan_async (thread target)
-mutates: _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error
+mutates: _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error, intraday_trades (via check_low_value_exits), trade_scan_log
+---
+
+---
+name: _log_scan_event
+type: function
+file: fetchers/low_value_runner.py, fetchers/automaton_runner.py
+purpose: Added 2026-09-07 (direct user request for a monthly cross-engine audit trail) — shared by each file's scheduled _runner_loop and manual _scan_worker. Summarizes check_low_value_exits()/check_automaton_exits()'s return (a "checked" count plus a "closed" list of per-position result dicts) into trading_logger.log_scan_event()'s flat columns (positions_checked, positions_closed as a count, closed_pnl_dollars summed, trade_ids_closed extracted). symbols_scanned uses get_daily_universe(force_refresh=False), which is already warm from the scan that just ran moments earlier in the same call, so this adds no extra API cost.
+inputs: triggered_by: str ("manual"|"scheduled"), trade_ids: list[int], exit_result: dict
+outputs: none
+calls: trading_logger.log_scan_event, get_daily_universe
+called_by: _runner_loop, _scan_worker (same file)
+mutates: trade_scan_log (INSERT via log_scan_event)
 ---
 
 ---
@@ -13048,12 +13072,24 @@ mutates: none
 name: log_low_value_trade (extended: engine, position_dollars params)
 type: function
 file: fetchers/trading_logger.py
-purpose: extended 2026-08-28 for the Automaton engine — engine (default "low_value") and position_dollars (default 25.0, was hardcoded via low_value_position_size) let a sibling engine share this exact logging function instead of duplicating it. Every existing caller omitting both gets byte-identical behavior; Automaton passes engine="automaton" and its own fixed dollar size.
+purpose: extended 2026-08-28 for the Automaton engine — engine (default "low_value") and position_dollars (default 25.0, was hardcoded via low_value_position_size) let a sibling engine share this exact logging function instead of duplicating it. Every existing caller omitting both gets byte-identical behavior; Automaton passes engine="automaton" and its own fixed dollar size. **Bug fixed 2026-09-07** (found via a real trade-history review, direct user request): the stored stop_price/target1_price/target_price were always entry*0.5/entry*1.5 regardless of `side` — correct for a long, backwards for a short (whose stop should be ABOVE entry, target BELOW). Now branches on side. Did NOT affect any past exit decision — check_low_value_exits()/check_automaton_exits() recompute fresh from side+pct_move and never read these stored columns back, and the dashboard's own display (low_value_dashboard.py's _target_stop_prices()) already mirrored correctly by side — but every short row's stored levels were backwards, which a raw DB read (e.g. the Signals Audit page) would show wrong.
 inputs: (unchanged) + engine: str = "low_value", position_dollars: float = 25.0
 outputs: int (trade_id)
 calls: none new
 called_by: run_low_value_scan (low_value_runner.py), run_automaton_scan (automaton_runner.py)
 mutates: intraday_trades
+---
+
+---
+name: log_scan_event / get_scan_log / get_monthly_report
+type: function
+file: fetchers/trading_logger.py
+purpose: Added 2026-09-07, direct user request for a monthly, per-engine audit trail ("database should have some kind of category for months... signals scanned, buy suggestions, bought stocks and sells, how much money did we make") across High Value/Low Value/Automaton. log_scan_event records one row in the new trade_scan_log table per scan event (manual click or scheduled tick) — symbols scanned, how many buy/sell candidates were logged (buy_count/sell_count derived by looking up trade_ids_logged's `side`, not passed by the caller), and the result of checking existing open positions in the same pass (positions_checked/closed, closed_pnl_dollars, trade_ids_closed). get_scan_log returns recent raw scan events, optionally filtered by engine. get_monthly_report(engine, "YYYY-MM") combines trade_scan_log (scan activity for that month) with intraday_trades (realized P&L keyed off exit_time's month, since a trade can open in one month and close in a later one) into one summary dict: scans_run, buy_suggestions, sell_suggestions, candidates_logged, positions_checked/closed_during_scans, trades_closed_this_month, trades_promoted_to_real, win_rate, total_pnl_dollars.
+inputs: log_scan_event(engine, triggered_by, symbols_scanned, trade_ids_logged=None, positions_checked=0, positions_closed=0, closed_pnl_dollars=None, trade_ids_closed=None, notes=""); get_scan_log(engine=None, limit=100); get_monthly_report(engine, year_month)
+outputs: log_scan_event -> int (row id); get_scan_log -> list[dict]; get_monthly_report -> dict
+calls: db.database.get_db
+called_by: fetchers.high_value_runner._manual_scan_worker, fetchers.low_value_runner._log_scan_event, fetchers.automaton_runner._log_scan_event, app.py's trade_monthly_report (GET /trade/monthly-report) and trade_scan_log_endpoint (GET /trade/scan-log)
+mutates: trade_scan_log (INSERT via log_scan_event)
 ---
 
 ---
@@ -13137,6 +13173,18 @@ mutates: automaton_scan_log
 ---
 
 ---
+name: trade_scan_log table
+type: table
+file: db/schema.sql
+purpose: Added 2026-09-07, direct user request for a monthly, per-engine comparison ("database should have some kind of category for months... signals scanned, buy suggestions, bought stocks and sells, how much money did we make"). One row per scan EVENT (manual click or scheduled tick) across all three trading engines — distinct from automaton_scan_log above, which is a narrow one-row-per-date "did today's scan run" marker; this table exists so a month can be reconstructed later even for scans that found zero qualifying candidates (which previously left no trace at all — intraday_trades only ever gets a row when a candidate clears its entry-score threshold). Columns: engine, triggered_by ('manual'|'scheduled'), scan_time, symbols_scanned, candidates_logged, buy_count, sell_count, positions_checked, positions_closed, closed_pnl_dollars, trade_ids_logged/trade_ids_closed (JSON arrays of intraday_trades.id), notes.
+inputs: none (DDL)
+outputs: none (DDL)
+calls: none
+called_by: fetchers.trading_logger.log_scan_event (INSERT), get_scan_log/get_monthly_report (SELECT)
+mutates: none (DDL)
+---
+
+---
 name: _runner_loop / _past_scan_window (catch-up scheduling)
 type: function
 file: fetchers/automaton_runner.py
@@ -13182,6 +13230,18 @@ outputs: list[int] (trade_ids)
 calls: get_daily_universe (low_value_runner.py), _todays_movers_symbols
 called_by: _runner_loop, trigger_scan_async, POST /trade/automaton/scan-now
 mutates: intraday_trades (engine='automaton'), real Alpaca PAPER orders
+---
+
+---
+name: _scan_worker (Automaton)
+type: function
+file: fetchers/automaton_runner.py
+purpose: Background-thread body for trigger_scan_async. Extended 2026-09-07 (direct user request, same fix applied to Low Value's identically-shaped _scan_worker) — now calls check_automaton_exits() FIRST, matching what the scheduled _runner_loop already did, so a manual scan-now click also resolves what happened to existing positions instead of only looking for new candidates. Result summarized via the new _log_scan_event() helper (same name/shape as low_value_runner.py's) into trade_scan_log.
+inputs: symbols: Optional[list[str]]
+outputs: none
+calls: check_automaton_exits, run_automaton_scan, _log_scan_event
+called_by: trigger_scan_async (thread target)
+mutates: _scan_in_progress, _last_scan_completed_at, _last_scan_trade_ids, _last_scan_error, intraday_trades (via check_automaton_exits), trade_scan_log
 ---
 
 ## Automaton: response to external AI code review (added 2026-08-29)

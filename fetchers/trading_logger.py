@@ -438,6 +438,23 @@ def log_low_value_trade(
     si_detail = thesis_result.get("signals", {}).get("short_interest_pct", {}).get("detail", {})
     short_interest_asof = si_detail.get("short_interest_as_of")
 
+    # Fixed 2026-09-07 (direct user request, found via a trade-history
+    # review): these stored levels were always entry*0.5/entry*1.5
+    # regardless of side — correct for a long (stop below entry, target
+    # above), backwards for a short (whose stop should be ABOVE entry and
+    # target BELOW). The actual exit decision was never affected —
+    # check_low_value_exits()/check_automaton_exits() both recompute fresh
+    # from side + pct_move and never read these columns back — and neither
+    # does the dashboard's own display (low_value_dashboard.py's
+    # _target_stop_prices() already mirrors correctly by side). So no past
+    # trade was mis-exited by this, but every short row's stored
+    # stop_price/target1_price/target_price was backwards, which is exactly
+    # what a raw DB read (e.g. the Signals Audit page) would show.
+    if side == "short":
+        stop_level, target_level = entry_price * 1.5, entry_price * 0.5
+    else:
+        stop_level, target_level = entry_price * 0.5, entry_price * 1.5
+
     with get_db() as conn:
         cur = conn.execute(
             """
@@ -466,7 +483,7 @@ def log_low_value_trade(
             (
                 symbol, side, entry_time, hold_days,
                 entry_price, entry_price,
-                round(entry_price * 0.5, 4), round(entry_price * 1.5, 4), round(entry_price * 1.5, 4),
+                round(stop_level, 4), round(target_level, 4), round(target_level, 4),
                 sizing.get("shares"), sizing.get("position_size"),
                 score_value, model_version, is_hypothetical,
                 f"HYPOTHETICAL: {engine} engine, no order placed" if is_hypothetical
@@ -701,3 +718,134 @@ def get_closed_copy_trades(days: int = 60) -> list[dict]:
             (f"-{days}",),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Trade scan audit log (added 2026-09-07, direct user request) ────────────
+# See trade_scan_log's schema comment (db/schema.sql) for why this table
+# exists: a month-later comparison needs to know how many times an engine
+# actually scanned and what it found, not just the candidates that cleared
+# the entry-score threshold and got a row in intraday_trades — a scan that
+# found nothing left no trace before this table existed.
+
+def log_scan_event(
+    engine: str,
+    triggered_by: str,
+    symbols_scanned: int,
+    trade_ids_logged: Optional[list[int]] = None,
+    positions_checked: int = 0,
+    positions_closed: int = 0,
+    closed_pnl_dollars: Optional[float] = None,
+    trade_ids_closed: Optional[list[int]] = None,
+    notes: str = "",
+) -> int:
+    """
+    Record one scan event (manual click or scheduled tick) for the given
+    engine. buy_count/sell_count are derived by looking up trade_ids_logged's
+    `side` column, so callers only need to pass the ids run_open_scan/
+    run_low_value_scan/run_automaton_scan already return.
+    """
+    import json
+
+    trade_ids_logged = trade_ids_logged or []
+    trade_ids_closed = trade_ids_closed or []
+    buy_count = sell_count = 0
+    if trade_ids_logged:
+        with get_db() as conn:
+            placeholders = ",".join("?" * len(trade_ids_logged))
+            rows = conn.execute(
+                f"SELECT side FROM intraday_trades WHERE id IN ({placeholders})",
+                trade_ids_logged,
+            ).fetchall()
+        buy_count = sum(1 for r in rows if r["side"] == "long")
+        sell_count = sum(1 for r in rows if r["side"] == "short")
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO trade_scan_log (
+                engine, triggered_by, scan_time, symbols_scanned,
+                candidates_logged, buy_count, sell_count,
+                positions_checked, positions_closed, closed_pnl_dollars,
+                trade_ids_logged, trade_ids_closed, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                engine, triggered_by, datetime.now(timezone.utc).isoformat(), symbols_scanned,
+                len(trade_ids_logged), buy_count, sell_count,
+                positions_checked, positions_closed, closed_pnl_dollars,
+                json.dumps(trade_ids_logged), json.dumps(trade_ids_closed), notes,
+            ),
+        )
+        return cur.lastrowid
+
+
+def get_scan_log(engine: Optional[str] = None, limit: int = 100) -> list[dict]:
+    """Recent scan events, newest first. Filter by engine, or omit for all three."""
+    with get_db() as conn:
+        if engine:
+            rows = conn.execute(
+                "SELECT * FROM trade_scan_log WHERE engine = ? ORDER BY scan_time DESC LIMIT ?",
+                (engine, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM trade_scan_log ORDER BY scan_time DESC LIMIT ?", (limit,)
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_monthly_report(engine: str, year_month: str) -> dict:
+    """
+    Month-in-review for one engine, `year_month` as "YYYY-MM". Combines
+    trade_scan_log (scan activity: how many times it ran, how many buy/sell
+    suggestions it made, how many existing positions it checked) with
+    intraday_trades (realized P&L: keyed off exit_time's month, since a
+    trade opened in one month can close in a later one — the money made/lost
+    belongs to the month it actually closed in, not the month it was
+    scanned).
+    """
+    with get_db() as conn:
+        scans = conn.execute(
+            """
+            SELECT COUNT(*) AS scan_count,
+                   COALESCE(SUM(candidates_logged), 0) AS candidates_logged,
+                   COALESCE(SUM(buy_count), 0) AS buy_count,
+                   COALESCE(SUM(sell_count), 0) AS sell_count,
+                   COALESCE(SUM(positions_checked), 0) AS positions_checked,
+                   COALESCE(SUM(positions_closed), 0) AS positions_closed
+            FROM trade_scan_log
+            WHERE engine = ? AND substr(scan_time, 1, 7) = ?
+            """,
+            (engine, year_month),
+        ).fetchone()
+
+        closed = conn.execute(
+            """
+            SELECT COUNT(*) AS closed_count,
+                   COALESCE(SUM(pnl_dollars), 0) AS total_pnl,
+                   SUM(CASE WHEN pnl_dollars > 0 THEN 1 ELSE 0 END) AS wins,
+                   SUM(CASE WHEN is_hypothetical = 0 THEN 1 ELSE 0 END) AS real_count
+            FROM intraday_trades
+            WHERE engine = ? AND exit_time IS NOT NULL
+              AND substr(exit_time, 1, 7) = ? AND is_copy_trade = 0
+            """,
+            (engine, year_month),
+        ).fetchone()
+
+    closed_count = closed["closed_count"] or 0
+    win_rate = round(closed["wins"] / closed_count, 3) if closed_count else None
+
+    return {
+        "engine": engine,
+        "month": year_month,
+        "scans_run": scans["scan_count"],
+        "buy_suggestions": scans["buy_count"],
+        "sell_suggestions": scans["sell_count"],
+        "candidates_logged": scans["candidates_logged"],
+        "positions_checked_during_scans": scans["positions_checked"],
+        "positions_closed_during_scans": scans["positions_closed"],
+        "trades_closed_this_month": closed_count,
+        "trades_promoted_to_real": closed["real_count"] or 0,
+        "win_rate": win_rate,
+        "total_pnl_dollars": round(closed["total_pnl"] or 0, 2),
+    }

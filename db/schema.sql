@@ -302,3 +302,32 @@ CREATE TABLE IF NOT EXISTS automaton_scan_log (
     trades_logged INTEGER NOT NULL DEFAULT 0,
     completed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Trade scan audit log (added 2026-09-07, direct user request), all three
+-- trading engines. Distinct from automaton_scan_log above (a narrow "did
+-- today's scan run" marker) — this is one row per actual scan EVENT
+-- (manual click or scheduled tick), across High Value/Low Value/Automaton,
+-- so a month can be reconstructed later: how many times did each engine
+-- scan, how many buy vs sell suggestions did it produce, how many existing
+-- positions did it check/close in the same pass, and how much money did
+-- those closes make or lose — without having to re-derive "was this a scan
+-- event" from intraday_trades rows alone (a scan that found zero
+-- qualifying candidates left no trace before this table existed).
+-- trade_ids_logged/trade_ids_closed are JSON arrays of intraday_trades.id.
+CREATE TABLE IF NOT EXISTS trade_scan_log (
+    id INTEGER PRIMARY KEY,
+    engine TEXT NOT NULL CHECK(engine IN ('high_value', 'low_value', 'automaton')),
+    triggered_by TEXT NOT NULL DEFAULT 'manual' CHECK(triggered_by IN ('manual', 'scheduled')),
+    scan_time TEXT NOT NULL,
+    symbols_scanned INTEGER,
+    candidates_logged INTEGER NOT NULL DEFAULT 0,
+    buy_count INTEGER NOT NULL DEFAULT 0,
+    sell_count INTEGER NOT NULL DEFAULT 0,
+    positions_checked INTEGER NOT NULL DEFAULT 0,
+    positions_closed INTEGER NOT NULL DEFAULT 0,
+    closed_pnl_dollars REAL,
+    trade_ids_logged TEXT,
+    trade_ids_closed TEXT,
+    notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trade_scan_log_engine_time ON trade_scan_log(engine, scan_time);

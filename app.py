@@ -42,14 +42,29 @@ def startup():
             pass
     threading.Thread(target=_bg_resolve, daemon=True).start()
 
-    # Start automated hypothetical paper trading runner (Kimi phase-1 protocol).
-    # Runs Mon-Fri during market hours: morning scan at 9:35 ET, position checks
-    # every 30 min, force-close at 15:50 ET. No Alpaca orders placed.
-    try:
-        from fetchers.high_value_runner import start_runner
-        start_runner()
-    except Exception:
-        pass
+    # High Value's automatic background runner is DELIBERATELY NOT started
+    # here (removed 2026-09-07, direct user request: "it shouldn't be
+    # active, it shouldn't activate every time it wants, it should activate
+    # ONLY if I click the scan button"). Previously this ran Mon-Fri during
+    # market hours unattended: morning scan at 9:35 ET, position checks
+    # every 30 min, force-close at 15:50 ET. Now POST /trade/paper-runner/
+    # scan-now (the dashboard's "Scan Now" button) is the ONLY thing that
+    # ever runs High Value — see fetchers/high_value_runner.py's
+    # _manual_scan_worker, which checks existing open positions for
+    # target/stop/time exits AND scans for new candidates every time it's
+    # clicked, logging both to trade_scan_log so nothing is lost by not
+    # having a background loop. start_runner()/stop_runner() and the
+    # scheduled 9:35/30-min/15:50 _runner_loop still exist in that file,
+    # unused, in case this is ever reverted — not deleted, just not called.
+    #
+    # Real consequence of this change, not hidden: a REAL (human-bought)
+    # High Value position's stop/target legs still live at Alpaca as a
+    # native bracket order and fire on their own regardless of whether
+    # this app is scanning — but the "force-close by end of day, never
+    # hold overnight" rule is Predicta-side logic, not an Alpaca order
+    # type, so it no longer happens automatically. A real position that
+    # hits neither leg by market close will sit open until the next manual
+    # Scan Now click (or a manual Sell).
 
     # Start the Low Value engine's own runner (2026-07-12 fix — this call
     # was missing entirely). Without it, _runner_loop() never runs, so the
@@ -3442,6 +3457,41 @@ def signals_audit(engine: str = "all", status: str = "all", limit: int = 150):
     """
     from fetchers.signals_audit_dashboard import render_signals_audit
     return HTMLResponse(content=render_signals_audit(engine=engine, status=status, limit=limit))
+
+
+@app.get("/trade/monthly-report")
+def trade_monthly_report(engine: str, month: Optional[str] = None):
+    """
+    Month-in-review for one engine — added 2026-09-07, direct user request
+    for an end-of-month comparison across all three engines: how many times
+    it scanned, how many buy/sell suggestions it made, how many existing
+    positions it checked/closed in those same scans, and how much money
+    those closes made or lost (keyed off the month a trade actually closed
+    in, not when it was opened). `month` defaults to the current UTC month;
+    pass "YYYY-MM" for any other month. See
+    fetchers.trading_logger.get_monthly_report for exactly what's aggregated
+    and from where (trade_scan_log for scan activity, intraday_trades for
+    realized P&L).
+    """
+    if engine not in ("high_value", "low_value", "automaton"):
+        raise HTTPException(400, "engine must be one of: high_value, low_value, automaton")
+    if month is None:
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
+    from fetchers.trading_logger import get_monthly_report
+    return get_monthly_report(engine, month)
+
+
+@app.get("/trade/scan-log")
+def trade_scan_log_endpoint(engine: Optional[str] = None, limit: int = 100):
+    """
+    Raw scan-event history (added 2026-09-07) — one row per scan click/tick
+    across all three engines, newest first. Filter by engine, or omit for
+    all three combined. See fetchers.trading_logger.get_scan_log.
+    """
+    if engine and engine not in ("high_value", "low_value", "automaton"):
+        raise HTTPException(400, "engine must be one of: high_value, low_value, automaton")
+    from fetchers.trading_logger import get_scan_log
+    return {"scans": get_scan_log(engine=engine, limit=limit)}
 
 
 # ── Automaton engine endpoints (2026-08-28, direct user request) ────────────
