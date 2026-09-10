@@ -493,24 +493,56 @@ def execute_automaton_trade(trade_id: int) -> dict:
 
 
 def close_automaton_trade(trade_id: int) -> dict:
-    """Human-triggered early close of a single real Automaton position — not a kill switch on the strategy, just this one position."""
+    """
+    Human-triggered early close of a single real Automaton position — not a
+    kill switch on the strategy, just this one position.
+
+    Fixed 2026-09-10 (real user report: "Sell Now doesn't work"): the entry
+    order is placed autonomously at 8:15 ET, before the 9:30 ET market open
+    — a plain "day" market order submitted pre-market queues as
+    accepted/pending and does not actually fill until the open. If a human
+    clicks Sell Now in that gap, Alpaca has no real position for the symbol
+    yet, and DELETE /v2/positions/{symbol} 404s. This used to surface as a
+    raw, unhelpful HTTPError string (close_low_value_trade already got a
+    friendly 404 message for the identical race on 2026-08-06; this function
+    never did). Now checks the entry order's actual fill status first: if
+    it hasn't filled, cancels the pending order instead of trying to close a
+    position that doesn't exist yet — so Sell Now genuinely backs the human
+    out, rather than just failing with a clearer error.
+    """
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, symbol, side, qty, alpaca_order_id FROM intraday_trades WHERE id = ? AND engine = ? AND is_hypothetical = 0 AND exit_time IS NULL",
+            "SELECT id, symbol, side, qty, entry_price, alpaca_order_id FROM intraday_trades WHERE id = ? AND engine = ? AND is_hypothetical = 0 AND exit_time IS NULL",
             (trade_id, ENGINE),
         ).fetchone()
     if not row:
         return {"error": "Real open position not found, or already closed."}
     pos = dict(row)
     symbol = pos["symbol"]
+
+    from fetchers.alpaca import close_position, get_order, cancel_order
+
+    if pos.get("alpaca_order_id"):
+        order_info = get_order(pos["alpaca_order_id"])
+        status = order_info.get("status") if isinstance(order_info, dict) else None
+        if status and status not in ("filled", "partially_filled"):
+            cancel_result = cancel_order(pos["alpaca_order_id"])
+            if "error" in cancel_result:
+                return {"error": f"{symbol}'s entry order hasn't filled yet (status={status}) and couldn't be canceled: {cancel_result['error']}"}
+            exit_result = log_trade_exit(trade_id, pos.get("entry_price") or 0, "CANCELED_UNFILLED")
+            log.info(f"[AUTOMATON MANUAL] Human canceled unfilled entry order for {symbol} tid={trade_id} (was {status})")
+            return {"status": "CANCELED", "predicta_trade_id": trade_id, "symbol": symbol,
+                     "note": "Entry order hadn't filled yet (pre-market/queued) — canceled instead of closed.", **exit_result}
+
     snap = get_snapshots([symbol]).get(symbol, {})
     current_price = snap.get("price", 0)
     if current_price <= 0:
         return {"error": f"Could not get a current price for {symbol} — try again."}
 
-    from fetchers.alpaca import close_position
     result = close_position(symbol)
     if "error" in result:
+        if result.get("status_code") == 404:
+            return {"error": f"Alpaca has no open position for {symbol} yet — the entry order likely hasn't filled. Check Orders in your Alpaca paper dashboard, then try Sell again once it shows filled."}
         return {"error": result["error"]}
 
     exit_result = log_trade_exit(trade_id, current_price, "MANUAL_CLOSE")

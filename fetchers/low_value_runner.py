@@ -710,9 +710,23 @@ def execute_low_value_trade(trade_id: int) -> dict:
         return {"error": "This candidate has no valid position size and cannot be executed."}
 
     alpaca_side = "buy" if pos["side"] == "long" else "sell"
-    from fetchers.alpaca import place_order, get_asset_fractionability, friendly_order_error
+    from fetchers.alpaca import place_order, get_asset_fractionability, get_asset_shortability, friendly_order_error
 
     if pos["side"] == "short":
+        # Re-check shortability HERE, not just trust the scan-time gate
+        # (build_low_value_universe / run_low_value_scan): that gate fails
+        # OPEN on an unconfirmed answer (shortable=None, e.g. Alpaca's asset
+        # lookup errored at scan time) so an actually-not-shortable symbol
+        # can still get logged as a SHORT candidate. A candidate can also
+        # sit for hours/days before a human clicks Execute, and shortability
+        # can change in that window. Fixed 2026-09-10 (real user report:
+        # "Short doesn't work") — without this, the only failure mode was a
+        # raw Alpaca order-rejection message from place_order below, which
+        # is what actually happens today; this turns that into a clear,
+        # specific reason instead of a generic rejected-order message.
+        shortability = get_asset_shortability(symbol)
+        if shortability.get("shortable") is False:
+            return {"error": f"{symbol} is not shortable on Alpaca right now — this candidate can no longer be executed as a short."}
         qty = float(int(qty))  # floor to whole shares — fractional shorting isn't supported by Alpaca
         if qty < 1:
             return {"error": f"Position size ({pos['qty']} shares) rounds to 0 whole shares — too small to short."}
@@ -777,11 +791,21 @@ def execute_low_value_trade(trade_id: int) -> dict:
 
 
 def close_low_value_trade(trade_id: int) -> dict:
-    """Human clicked Sell on a real, still-open Low Value position — liquidates it at Alpaca, records the close, attests it."""
+    """
+    Human clicked Sell on a real, still-open Low Value position — liquidates
+    it at Alpaca, records the close, attests it.
+
+    Hardened 2026-09-10 (same fix as Automaton's close_automaton_trade, same
+    day, real user report there): if the entry order hasn't actually filled
+    yet (e.g. a human clicks Sell within seconds of Buy), there's no real
+    position at Alpaca to close — now cancels the still-pending entry order
+    instead, so Sell genuinely backs the human out rather than just hitting
+    the pre-existing 404 message below.
+    """
     with get_db() as conn:
         row = conn.execute(
             """
-            SELECT id, symbol, side, qty, alpaca_order_id
+            SELECT id, symbol, side, qty, entry_price, alpaca_order_id
             FROM intraday_trades
             WHERE id = ? AND engine = 'low_value' AND is_hypothetical = 0 AND exit_time IS NULL
             """,
@@ -792,12 +816,26 @@ def close_low_value_trade(trade_id: int) -> dict:
 
     pos = dict(row)
     symbol = pos["symbol"]
+
+    from fetchers.alpaca import close_position, get_order, cancel_order
+
+    if pos.get("alpaca_order_id"):
+        order_info = get_order(pos["alpaca_order_id"])
+        status = order_info.get("status") if isinstance(order_info, dict) else None
+        if status and status not in ("filled", "partially_filled"):
+            cancel_result = cancel_order(pos["alpaca_order_id"])
+            if "error" in cancel_result:
+                return {"error": f"{symbol}'s entry order hasn't filled yet (status={status}) and couldn't be canceled: {cancel_result['error']}"}
+            exit_result = log_trade_exit(trade_id, pos.get("entry_price") or 0, "CANCELED_UNFILLED")
+            log.info(f"[LOW_VALUE MANUAL] Human canceled unfilled entry order for {symbol} tid={trade_id} (was {status})")
+            return {"status": "CANCELED", "predicta_trade_id": trade_id, "symbol": symbol,
+                     "note": "Entry order hadn't filled yet — canceled instead of closed.", **exit_result}
+
     snap = get_snapshots([symbol]).get(symbol, {})
     current_price = snap.get("price", 0)
     if current_price <= 0:
         return {"error": f"Could not get a current price for {symbol} — try again."}
 
-    from fetchers.alpaca import close_position
     result = close_position(symbol)
     if "error" in result:
         if result.get("status_code") == 404:

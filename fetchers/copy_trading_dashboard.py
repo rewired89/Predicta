@@ -16,6 +16,9 @@ flow, which already requires the trade passcode).
 """
 from __future__ import annotations
 
+import html
+import json
+
 from fetchers.copy_trading import list_copy_trade_candidates, get_portfolio_with_unrealized_pnl
 from fetchers.trading_logger import get_closed_copy_trades
 
@@ -77,9 +80,14 @@ async function predictaCopyPost(url, body, confirmLabel) {
     location.reload();
   } catch (e) { alert('Request failed: ' + e); }
 }
+function copyThisTradeFromButton(btn) {
+  const d = JSON.parse(btn.dataset.copy);
+  copyThisTrade(d.ticker, d.trade_type, d.insider_name, d.title, d.company, d.filing_date);
+}
 function copyThisTrade(symbol, tradeType, insiderName, insiderTitle, company, filingDate) {
   const qty = prompt('How many shares of ' + symbol + ' do you want to copy this ' + tradeType + ' with?', '10');
-  if (!qty || isNaN(qty) || Number(qty) <= 0) return;
+  if (qty === null) return; // user hit Cancel — no action, no error needed
+  if (!qty || isNaN(qty) || Number(qty) <= 0) { alert('Enter a whole number of shares greater than 0.'); return; }
   predictaCopyPost('/trade/copy/execute', {
     symbol: symbol, trade_type: tradeType, qty: Number(qty),
     insider_name: insiderName, insider_title: insiderTitle,
@@ -149,10 +157,22 @@ def render_copy_trades_page() -> str:
         badge = '<span class="badge badge-buy">BUY (Insider Purchase)</span>' if is_buy else '<span class="badge badge-sell">SELL (Insider Sale)</span>'
         live = _money(f.get("live_price"))
         filed = _money(f.get("filed_price"))
-        args = ", ".join(
-            "'" + str(x).replace("'", "\\'") + "'"
-            for x in (f["ticker"], f["trade_type"], f["insider_name"], f["title"], f["company"], f["filing_date"])
-        )
+        # Fixed 2026-09-10 (real user report: "I clicked and nothing
+        # happened") — this used to build the onclick handler by
+        # hand-interpolating each scraped field into a single-quoted JS
+        # string, escaping only apostrophes. openinsider.com's raw scraped
+        # text (insider_name/title/company) can carry embedded newlines or
+        # backslashes from multi-line table cells, and a literal newline
+        # inside a plain '...' JS string is a SyntaxError — silently
+        # breaking that one row's onclick with no visible error, so the
+        # button just does nothing when clicked. Now passes the row as a
+        # properly JSON-encoded, HTML-escaped data attribute instead, which
+        # is safe for any scraped text content.
+        row_data = html.escape(json.dumps({
+            "ticker": f["ticker"], "trade_type": f["trade_type"],
+            "insider_name": f["insider_name"], "title": f["title"],
+            "company": f["company"], "filing_date": f["filing_date"],
+        }), quote=True)
         rows_html += f"""<div class="trade-row">
               <div class="trade-icon">{"🟢" if is_buy else "🔴"}</div>
               <div class="trade-info">
@@ -161,7 +181,7 @@ def render_copy_trades_page() -> str:
                 <span class="trade-detail">Filed price: {filed} · Live price now: {live} · Qty on filing: {f.get('qty') or '—'}</span>
                 <span class="trade-time">Filed {f['filing_date']} (trade date {f.get('trade_date') or '—'})</span>
                 <div style="margin-top:8px;">
-                  <button class="trade-btn {'buy-btn' if is_buy else 'sell-btn'}" onclick="copyThisTrade({args})">Copy this trade</button>
+                  <button class="trade-btn {'buy-btn' if is_buy else 'sell-btn'}" data-copy="{row_data}" onclick="copyThisTradeFromButton(this)">Copy this trade</button>
                 </div>
               </div>
             </div>"""
