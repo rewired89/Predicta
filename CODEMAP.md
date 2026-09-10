@@ -12809,12 +12809,12 @@ mutates: closes real Alpaca positions; intraday_trades UPDATE (exit fields) via 
 name: execute_low_value_trade / close_low_value_trade
 type: function
 file: fetchers/low_value_runner.py
-purpose: added 2026-07-23 — the Low Value equivalent of execute_high_value_trade/close_high_value_trade above; same human-click-only rule. Uses a plain market order (fetchers.alpaca.place_order), not a bracket order like High Value — Low Value's fixed $25/trade sizing (models.trading.shared.kelly.low_value_position_size) produces fractional share counts, which Alpaca's bracket order type doesn't support. A SHORT candidate's fractional qty is additionally floored to a whole share and the call rejected outright if that rounds to 0, since fractional shorting isn't supported by Alpaca either — never silently placing a different-sized order than what the human saw.
+purpose: added 2026-07-23 — the Low Value equivalent of execute_high_value_trade/close_high_value_trade above; same human-click-only rule. Uses a plain market order (fetchers.alpaca.place_order), not a bracket order like High Value — Low Value's fixed $25/trade sizing (models.trading.shared.kelly.low_value_position_size) produces fractional share counts, which Alpaca's bracket order type doesn't support. A SHORT candidate's fractional qty is additionally floored to a whole share and the call rejected outright if that rounds to 0, since fractional shorting isn't supported by Alpaca either — never silently placing a different-sized order than what the human saw. **Fixed 2026-09-10 (real user report — Short execute failing):** execute_low_value_trade now re-checks fetchers.alpaca.get_asset_shortability at execute time, not just trusting run_low_value_scan's scan-time gate — that gate fails OPEN on an unconfirmed shortable=None answer, so a candidate that's actually not shortable could still get logged, then fail with a generic Alpaca order-rejection message when a human finally clicked Execute (possibly hours/days later, since a candidate can sit unexecuted). Now returns a specific "not shortable" error up front instead. Also (parity with the Automaton fix below, same day): close_low_value_trade now checks the entry order's fill status via get_order before attempting close_position — if the entry order hasn't filled yet (human clicks Sell within seconds of Buy), it cancels the pending order instead of hitting the pre-existing 404-not-found path.
 inputs: execute_low_value_trade(trade_id: int); close_low_value_trade(trade_id: int)
-outputs: dict (order/close confirmation, or {"error": str})
-calls: fetchers.alpaca.place_order/close_position/get_snapshots, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, fetchers.hsip_client.attest_transaction
+outputs: dict (order/close/cancel confirmation, or {"error": str})
+calls: fetchers.alpaca.place_order/close_position/get_snapshots/get_asset_shortability/get_order/cancel_order, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, fetchers.hsip_client.attest_transaction
 called_by: execute_low_value (app.py POST /trade/low-value/execute/:id), close_low_value (app.py POST /trade/low-value/close/:id)
-mutates: places/closes a real paper order at Alpaca; intraday_trades UPDATE
+mutates: places/closes/cancels a real paper order at Alpaca; intraday_trades UPDATE
 ---
 
 ---
@@ -13048,12 +13048,12 @@ mutates: intraday_trades (engine='automaton' rows), real Alpaca PAPER positions
 name: execute_automaton_trade / close_automaton_trade (human safety-valve, not a kill switch)
 type: function
 file: fetchers/automaton_runner.py
-purpose: the ONLY human-triggered actions in this file — execute_automaton_trade retries a single candidate whose autonomous entry order failed at scan time; close_automaton_trade closes one real position early. Neither pauses or disables the strategy itself (no kill switch exists anywhere in this engine, by explicit user design choice) — the daily scan/exit tick keeps running and learning regardless of either being called.
+purpose: the ONLY human-triggered actions in this file — execute_automaton_trade retries a single candidate whose autonomous entry order failed at scan time; close_automaton_trade closes one real position early. Neither pauses or disables the strategy itself (no kill switch exists anywhere in this engine, by explicit user design choice) — the daily scan/exit tick keeps running and learning regardless of either being called. **Fixed 2026-09-10 (real user report — "Sell Now doesn't work"):** the autonomous entry order is placed at 8:15 ET, before the 9:30 ET open — a "day" market order submitted pre-market queues as accepted/pending and hasn't actually filled yet, so Alpaca has no real position to close if a human clicks Sell Now in that gap; DELETE /v2/positions/:symbol 404'd with a raw, unhelpful error (close_low_value_trade already had a friendly 404 message for the identical race — this function never did). close_automaton_trade now checks the entry order's real fill status via get_order first, and if it hasn't filled, cancels the pending order instead of trying to close a nonexistent position — so Sell Now genuinely backs the human out rather than failing.
 inputs: trade_id: int
-outputs: dict ({"status":...} or {"error":...})
-calls: fetchers.alpaca.place_order/close_position, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, hsip_client.attest_transaction
+outputs: dict ({"status": "CLOSED"/"CANCELED"/...} or {"error":...})
+calls: fetchers.alpaca.place_order/close_position/get_order/cancel_order, fetchers.trading_logger.promote_trade_to_real/log_trade_exit, hsip_client.attest_transaction
 called_by: POST /trade/automaton/execute/:id, POST /trade/automaton/close/:id (app.py, both passcode-gated)
-mutates: intraday_trades (one row), real Alpaca PAPER position
+mutates: intraday_trades (one row), real Alpaca PAPER position (closes or cancels)
 ---
 
 ---
