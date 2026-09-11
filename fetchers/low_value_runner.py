@@ -31,6 +31,7 @@ from db.database import get_db
 
 from models.trading.low_value.scanner import build_low_value_universe
 from models.trading.low_value.news_overlay import scan_universe_news
+from models.trading.low_value.social_overlay import scan_universe_social
 from models.trading.low_value.thesis_tracker import (
     compute_thesis_score, dominant_thesis_type, sector_etf_for_symbol, ENTRY_THRESHOLD,
 )
@@ -334,6 +335,7 @@ def analyze_low_value_tickers(symbols: list[str]) -> list[dict]:
         return []
     symbols = sorted({s.strip().upper() for s in symbols if s.strip()})
     news_by_symbol = scan_universe_news(symbols, days=7)
+    social_by_symbol = scan_universe_social(symbols)
     results = []
     for sym in symbols:
         try:
@@ -348,7 +350,8 @@ def analyze_low_value_tickers(symbols: list[str]) -> list[dict]:
             sector_etf = sector_etf_for_symbol(sym)
             sector_bars = get_daily_bars(sector_etf, days=25)
             news_result = news_by_symbol.get(sym)
-            thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result)
+            social_result = social_by_symbol.get(sym)
+            thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result, social_result=social_result)
             composite = thesis.get("composite")
             results.append({
                 "symbol": sym,
@@ -364,6 +367,12 @@ def analyze_low_value_tickers(symbols: list[str]) -> list[dict]:
                     "flags": (news_result or {}).get("flags", []),
                     "sentiment": (news_result or {}).get("sentiment"),
                     "headline_count": (news_result or {}).get("headline_count"),
+                },
+                "social": {
+                    "sentiment": (social_result or {}).get("sentiment"),
+                    "bullish": (social_result or {}).get("bullish"),
+                    "bearish": (social_result or {}).get("bearish"),
+                    "tagged_count": (social_result or {}).get("tagged_count"),
                 },
             })
         except Exception as exc:
@@ -466,6 +475,7 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     # alone until it actually closes.
     already_open_symbols = {p["symbol"] for p in open_positions}
     news_by_symbol = scan_universe_news(syms)
+    social_by_symbol = scan_universe_social(syms)
     trade_ids: list[int] = []
     min_score = LOW_VALUE_SPRINT_MIN_SCORE if LOW_VALUE_DATA_COLLECTION_SPRINT_MODE else ENTRY_THRESHOLD
 
@@ -485,8 +495,9 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
             sector_etf = sector_etf_for_symbol(sym)
             sector_bars = get_daily_bars(sector_etf, days=25)
             news_result = news_by_symbol.get(sym)
+            social_result = social_by_symbol.get(sym)
 
-            thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result)
+            thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result, social_result=social_result)
             composite = thesis.get("composite")
             if composite is None or abs(composite) < min_score:
                 continue

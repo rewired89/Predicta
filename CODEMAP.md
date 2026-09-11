@@ -10024,7 +10024,7 @@ mutates: none
 name: SIGNAL_WEIGHTS
 type: variable
 file: models/trading/low_value/thesis_tracker.py
-purpose: The 8-signal weight table for the Low Value composite (price_vs_20d_low 20%, rsi_14 15%, volume_spike 10%, insider_buying_30d 20%, short_interest_pct 10%, sector_relative_strength 10%, cash_burn_months 10%, news_sentiment 5%). Sums to 1.0 (asserted at import time).
+purpose: The 9-signal weight table for the Low Value composite (price_vs_20d_low 20%, rsi_14 15%, volume_spike 10%, insider_buying_30d 20%, short_interest_pct 7.5%, sector_relative_strength 7.5%, cash_burn_months 10%, news_sentiment 5%, social_sentiment 5%). Sums to 1.0 (asserted at import time). social_sentiment added 2026-09-11 (see models/trading/low_value/social_overlay.py) — funded by taking 2.5pp each from short_interest_pct/sector_relative_strength, the two lowest-conviction signals, leaving price_vs_20d_low/insider_buying_30d untouched.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -10177,6 +10177,66 @@ mutates: none
 ---
 
 ---
+name: _score_social_sentiment
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Added 2026-09-11 (see social_overlay.py). StockTwits bullish/bearish sentiment * 100 as the social_sentiment signal. None if social_overlay.score_symbol_social found fewer than MIN_TAGGED_MESSAGES tagged posts (tagged_count forced to 0 by that function in that case).
+inputs: social_result: Optional[dict]
+outputs: Optional[tuple[float, dict]]
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: score_symbol_social
+type: function
+file: models/trading/low_value/social_overlay.py
+purpose: Added 2026-09-11 (TradingAgents-review follow-up). Aggregates fetchers.stocktwits.get_symbol_sentiment's bullish/bearish tally into a single -1..+1 sentiment score. Forces tagged_count to 0 (sentiment 0.0) below MIN_TAGGED_MESSAGES (5) so a single tagged post can't swing to ±100 — mirrors news_overlay.score_symbol_news's headline_count==0 "no signal" convention.
+inputs: social_result: Optional[dict]
+outputs: dict {sentiment, bullish, bearish, tagged_count}
+calls: none
+called_by: scan_universe_social
+mutates: none
+---
+
+---
+name: scan_universe_social
+type: function
+file: models/trading/low_value/social_overlay.py
+purpose: Added 2026-09-11. Fetches + scores StockTwits sentiment for every symbol in a Low Value/Automaton universe in one capped batch.
+inputs: symbols: list[str]
+outputs: dict[str, dict]
+calls: fetchers.stocktwits.fetch_social_batch, score_symbol_social
+called_by: analyze_low_value_tickers, run_low_value_scan (low_value_runner.py), run_automaton_scan (automaton_runner.py)
+mutates: none
+---
+
+---
+name: get_symbol_sentiment
+type: function
+file: fetchers/stocktwits.py
+purpose: Added 2026-09-11 (user asked whether TauricResearch/TradingAgents — a multi-agent LLM trading framework — could improve the trading models; its Sentiment Analyst role was the one piece adopted, as a calibratable signal rather than an LLM judgment call). Public, no-key StockTwits symbol-stream call; tallies bullish/bearish user-tagged messages. Fails safe (all-zero) on any error — unverified from this sandbox like every other external source in this codebase (see CLAUDE.md).
+inputs: symbol: str, limit: int = 30
+outputs: dict {bullish, bearish, tagged_count, total_count}
+calls: none (requests.get against api.stocktwits.com)
+called_by: fetch_social_batch
+mutates: none
+---
+
+---
+name: fetch_social_batch
+type: function
+file: fetchers/stocktwits.py
+purpose: Added 2026-09-11. Batch version of get_symbol_sentiment, capped at MAX_CALLS_PER_HOUR (200, StockTwits' unauthenticated ceiling) calls per invocation — symbols beyond the cap get no result this scan (treated as a missing signal, excluded/reweighted, never faked) rather than sleeping up to an hour for a 5%-weighted signal.
+inputs: symbols: list[str], max_calls: int = 200
+outputs: dict[str, dict]
+calls: get_symbol_sentiment
+called_by: scan_universe_social (social_overlay.py)
+mutates: none
+---
+
+---
 name: label_for_score
 type: function
 file: models/trading/low_value/thesis_tracker.py
@@ -10204,11 +10264,11 @@ mutates: none
 name: compute_thesis_score
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: Full 8-signal composite for one Low Value candidate. Missing signals are excluded from the weighted average and their weight redistributed proportionally across available signals — never faked.
-inputs: symbol: str, daily_bars: list[dict], sector_bars: list[dict], news_result: Optional[dict] = None
+purpose: Full 9-signal composite for one Low Value candidate (social_sentiment added 2026-09-11). Missing signals are excluded from the weighted average and their weight redistributed proportionally across available signals — never faked.
+inputs: symbol: str, daily_bars: list[dict], sector_bars: list[dict], news_result: Optional[dict] = None, weights: Optional[dict[str, float]] = None, social_result: Optional[dict] = None
 outputs: dict {composite, label, entry_eligible, signals, missing_signals}
-calls: _score_price_vs_20d_low, _score_rsi_14, _score_volume_spike, _score_insider_buying, _score_short_interest, _score_sector_relative_strength, _score_cash_burn, _score_news_sentiment
-called_by: run_low_value_scan (low_value_runner.py)
+calls: _score_price_vs_20d_low, _score_rsi_14, _score_volume_spike, _score_insider_buying, _score_short_interest, _score_sector_relative_strength, _score_cash_burn, _score_news_sentiment, _score_social_sentiment
+called_by: run_low_value_scan/analyze_low_value_tickers (low_value_runner.py), run_automaton_scan (automaton_runner.py)
 mutates: none
 ---
 
@@ -12225,10 +12285,10 @@ User asked a 4-question audit of all trading models (missing variables / overwei
 name: low_value_per_signal_accuracy_report
 type: function
 file: models/trading/shared/signal_calibration.py
-purpose: added 2026-07-16 (Tier 0) — mirrors per_signal_accuracy_report's exact methodology (active if |score| >= active_threshold, then win_rate/avg_r over that active cohort) but reads Low Value's 8 signals from lv_signals_json instead of High Value's dedicated DB columns. Before this, Low Value could report win rate per THESIS TYPE but not per individual SIGNAL — a question like "is short_interest_pct actually protective, or is treating a squeeze as bullish wrong?" was structurally unanswerable from data even with thousands of trades, since the per-signal score was captured in lv_signals_json but never aggregated. No new logging needed — the JSON was already being written per trade for _signals_breakdown_html's display use; this just aggregates it.
+purpose: added 2026-07-16 (Tier 0) — mirrors per_signal_accuracy_report's exact methodology (active if |score| >= active_threshold, then win_rate/avg_r over that active cohort) but reads Low Value's signals (9 as of 2026-09-11) from lv_signals_json instead of High Value's dedicated DB columns. Before this, Low Value could report win rate per THESIS TYPE but not per individual SIGNAL — a question like "is short_interest_pct actually protective, or is treating a squeeze as bullish wrong?" was structurally unanswerable from data even with thousands of trades, since the per-signal score was captured in lv_signals_json but never aggregated. No new logging needed — the JSON was already being written per trade for _signals_breakdown_html's display use; this just aggregates it.
 inputs: min_trades (int, default 10), active_threshold (float, default 10.0 — matches per_signal_accuracy_report's default on the same -100..100 scale)
 outputs: dict {total_closed, by_signal: [{signal, n, win_rate, avg_pnl_r, note}], active_threshold, note}
-calls: _load_closed_low_value_trades, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS (for the canonical 8-signal name list, not a hardcoded duplicate)
+calls: _load_closed_low_value_trades, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS (for the canonical signal name list, not a hardcoded duplicate)
 called_by: render_low_value_dashboard (new "Per-Signal Accuracy" card)
 mutates: none
 ---

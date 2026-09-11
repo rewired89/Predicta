@@ -1,7 +1,8 @@
 """
-Low Value engine — signal engine (Kimi review round 6 follow-up).
+Low Value engine — signal engine (Kimi review round 6 follow-up; 9th signal,
+social_sentiment, added 2026-09-11 — see social_overlay.py).
 
-Computes 8 signals for a sub-$20 contrarian candidate from DAILY bars only
+Computes 9 signals for a sub-$20 contrarian candidate from DAILY bars only
 (no 5-minute data — these names don't have the intraday liquidity High
 Value's engine relies on). No regime-conditioning from High Value: these
 stocks don't have reliable trends to condition on, per spec.
@@ -36,10 +37,16 @@ SIGNAL_WEIGHTS: dict[str, float] = {
     "rsi_14":                  0.15,
     "volume_spike":            0.10,
     "insider_buying_30d":      0.20,
-    "short_interest_pct":      0.10,
-    "sector_relative_strength": 0.10,
+    "short_interest_pct":      0.075,
+    "sector_relative_strength": 0.075,
     "cash_burn_months":        0.10,
     "news_sentiment":          0.05,
+    # Added 2026-09-11 (see models/trading/low_value/social_overlay.py) —
+    # took 2.5pp each from short_interest_pct/sector_relative_strength
+    # (the two next-lowest-conviction signals) to fund this rather than
+    # touching price_vs_20d_low/insider_buying_30d, the two highest-weight
+    # signals the thesis actually leans on.
+    "social_sentiment":        0.05,
 }
 assert abs(sum(SIGNAL_WEIGHTS.values()) - 1.0) < 1e-9
 
@@ -248,6 +255,19 @@ def _score_news_sentiment(news_result: Optional[dict]) -> Optional[tuple[float, 
     return round(sentiment * 100, 2), {"sentiment": sentiment, "headline_count": news_result.get("headline_count"), "flags": news_result.get("flags", [])}
 
 
+def _score_social_sentiment(social_result: Optional[dict]) -> Optional[tuple[float, dict]]:
+    """social_result: models.trading.low_value.social_overlay.score_symbol_social output."""
+    if not social_result or not social_result.get("tagged_count"):
+        return None
+    sentiment = social_result.get("sentiment", 0.0)
+    return round(sentiment * 100, 2), {
+        "sentiment": sentiment,
+        "bullish": social_result.get("bullish"),
+        "bearish": social_result.get("bearish"),
+        "tagged_count": social_result.get("tagged_count"),
+    }
+
+
 def label_for_score(score: float) -> str:
     if score >= 70:
         return "STRONG_BUY"
@@ -324,13 +344,17 @@ def compute_thesis_score(
     sector_bars: list[dict],
     news_result: Optional[dict] = None,
     weights: Optional[dict[str, float]] = None,
+    social_result: Optional[dict] = None,
 ) -> dict:
     """
-    Full 8-signal composite for one Low Value candidate.
+    Full 9-signal composite for one Low Value candidate.
 
     daily_bars / sector_bars: Alpaca get_daily_bars() output for the symbol
     and its sector ETF (see sector_etf_for_symbol). news_result: news_overlay.
-    score_symbol_news() output, or None if not yet scanned.
+    score_symbol_news() output, or None if not yet scanned. social_result
+    (added 2026-09-11): social_overlay.score_symbol_social() output, or None
+    if not yet scanned — every existing caller omits it and gets the signal
+    excluded/reweighted exactly like any other missing signal, never faked.
 
     weights (added 2026-08-28 for the Automaton engine — see
     models/trading/automaton/learning.py): when given, used verbatim instead
@@ -352,6 +376,7 @@ def compute_thesis_score(
         "sector_relative_strength": _score_sector_relative_strength(daily_bars, sector_bars),
         "cash_burn_months":         _score_cash_burn(symbol),
         "news_sentiment":           _score_news_sentiment(news_result),
+        "social_sentiment":         _score_social_sentiment(social_result),
     }
 
     available = {name: res for name, res in raw_results.items() if res is not None}
