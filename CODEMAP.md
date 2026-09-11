@@ -12988,10 +12988,10 @@ mutates: (unchanged)
 name: execute_high_value_trade (extended, whole-share bracket floor)
 type: function
 file: fetchers/high_value_runner.py
-purpose: extended 2026-08-06 — Kelly-sized qty is now always floored to a whole share before calling place_bracket_order (Alpaca's bracket order class never accepts a fractional quantity, for any symbol — unlike Low Value there's no per-symbol exception), rejecting with a clear message if that rounds to 0 instead of a guaranteed Alpaca-side 422. Verified with 2 mocked scenarios: a fractional Kelly qty floors correctly and the order still submits, and a qty that floors to 0 rejects without ever calling place_bracket_order.
+purpose: extended 2026-08-06 — Kelly-sized qty is now always floored to a whole share before calling place_bracket_order (Alpaca's bracket order class never accepts a fractional quantity, for any symbol — unlike Low Value there's no per-symbol exception), rejecting with a clear message if that rounds to 0 instead of a guaranteed Alpaca-side 422. Verified with 2 mocked scenarios: a fractional Kelly qty floors correctly and the order still submits, and a qty that floors to 0 rejects without ever calling place_bracket_order. **Fixed 2026-09-11 (real user report: "Failed: take_profit.limit_price must be <= base_price - 0.01"):** stop_price/target_price on a candidate row are computed once, at scan time — a candidate can sit on the dashboard for minutes to hours before a human clicks Execute, and Alpaca validates take_profit/stop_loss against the market price AT SUBMIT TIME. If the price moved past the stored target in that window (a real, fairly common race for day-trading candidates, not an edge case), Alpaca rejected the bracket order with its own raw, confusing validation message. Now fetches a live snapshot first and checks the stored stop/target still make directional sense versus the CURRENT price (target still profitable, stop still on the loss side) before ever calling place_bracket_order; if not, returns a clear "this candidate is stale, re-scan for a fresh one" error instead. Deliberately does not recompute/adjust the stale levels itself — this function's whole point is executing exactly what the human saw and approved, so silently trading different terms would violate that, the honest fix is refusing and saying why.
 inputs: trade_id: int
 outputs: dict (unchanged shape)
-calls: fetchers.alpaca.place_bracket_order, fetchers.alpaca.friendly_order_error
+calls: fetchers.alpaca.get_snapshots (new), place_bracket_order, friendly_order_error
 called_by: app.py POST /trade/execute/:id
 mutates: (unchanged)
 ---
@@ -13544,4 +13544,16 @@ outputs: predictaModal -> Promise<{value} | null>; predictaToast -> none (side-e
 calls: none
 called_by: predictaAction (3 copies), predictaCopyPost, copyThisTrade, buyMore (copy_trading_dashboard.py)
 side_effects: DOM insertion/removal only; no network calls
+---
+
+---
+name: copy_insider_trade (extended, error surfacing)
+type: function
+file: fetchers/copy_trading.py
+purpose: extended 2026-09-11, alongside the logged_at schema fix (db/database.py) — the log_copy_trade_entry() INSERT call is now wrapped in try/except so any future DB error (this one or a new one) returns a readable {"error": ...} message pointing at GET /db-diag, instead of an uncaught exception reaching FastAPI as a bare, contentless 500. Defense-in-depth: the actual root cause (missing logged_at column) is fixed at the migration level, this just ensures the next drift of this kind is diagnosable from the response body alone.
+inputs: (unchanged)
+outputs: dict (unchanged success shape; error shape now covers DB failures too)
+calls: fetchers.trading_logger.log_copy_trade_entry
+called_by: app.py POST /trade/copy/execute
+mutates: (unchanged)
 ---

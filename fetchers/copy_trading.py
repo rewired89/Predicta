@@ -99,11 +99,21 @@ def copy_insider_trade(
     if not price:
         return {"error": f"Could not get a live price for {symbol} right now — try again in a moment."}
 
-    trade_id = log_copy_trade_entry(
-        symbol=symbol, side=side, entry_price=price, qty=qty,
-        insider_name=insider_name, insider_title=insider_title,
-        company=company, filing_date=filing_date,
-    )
+    # Fixed 2026-09-11 (real user report — "Internal Server Error every
+    # time"): the actual bug was a missing DB column (logged_at — see
+    # db/database.py's _migrate_intraday_trades), but that failure was a
+    # raw, uncaught sqlite3 exception bubbling all the way to a bare FastAPI
+    # 500 with zero information. Wrapping it here means any FUTURE DB error
+    # (this one or a new one) surfaces as a real, readable message instead
+    # of another silent 500 — check GET /db-diag first if this fires again.
+    try:
+        trade_id = log_copy_trade_entry(
+            symbol=symbol, side=side, entry_price=price, qty=qty,
+            insider_name=insider_name, insider_title=insider_title,
+            company=company, filing_date=filing_date,
+        )
+    except Exception as exc:
+        return {"error": f"Could not save this trade: {exc}. Check GET /db-diag for a schema mismatch."}
     return {
         "status": "COPIED", "trade_id": trade_id, "symbol": symbol,
         "side": side, "qty": qty, "entry_price": price,

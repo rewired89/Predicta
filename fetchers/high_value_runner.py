@@ -1072,6 +1072,37 @@ def execute_high_value_trade(trade_id: int) -> dict:
             )
         }
 
+    # Fixed 2026-09-11 (real user report: "Failed: take_profit.limit_price
+    # must be <= base_price - 0.01"). stop/target here are whatever the scan
+    # computed when the candidate was FIRST logged — a candidate can sit on
+    # the dashboard for minutes to hours before a human clicks Execute, and
+    # day-trading prices move. Alpaca validates take_profit/stop_loss
+    # against the market price AT SUBMIT TIME, not scan time — if the price
+    # has since crossed the stored target (a real, fairly common race, not
+    # an edge case), the bracket order is rejected with Alpaca's own raw,
+    # confusing message. Deliberately NOT silently recomputing stop/target
+    # to the new price — this function's whole point (see docstring above)
+    # is executing exactly the levels the human saw and approved; if those
+    # no longer make sense, the honest answer is to say so and let the
+    # human re-scan for a fresh candidate, not quietly trade different terms
+    # than what was shown on screen.
+    snap = get_snapshots([symbol]).get(symbol) or {}
+    live_price = snap.get("price")
+    if live_price:
+        stale = (
+            (pos["side"] == "long" and (live_price >= target or live_price <= stop))
+            or (pos["side"] == "short" and (live_price <= target or live_price >= stop))
+        )
+        if stale:
+            return {
+                "error": (
+                    f"{symbol} has moved since this candidate was suggested "
+                    f"(now ${live_price:,.2f}, target was ${target:,.2f}, stop was ${stop:,.2f}) "
+                    f"— the stored target/stop no longer make sense at the current price. "
+                    f"Run a fresh scan to get a current candidate instead of executing stale levels."
+                )
+            }
+
     alpaca_side = "buy" if pos["side"] == "long" else "sell"
     order_result = place_bracket_order(
         symbol      = symbol,
