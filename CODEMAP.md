@@ -12633,12 +12633,24 @@ mutates: none
 name: trade_dashboard (extended, universe mode label)
 type: function
 file: app.py
-purpose: extended 2026-07-18 — header now shows "Low-Price Mode (under $70)" or "Large-Cap Mode" depending on ACTIVE_UNIVERSE_MODE, same visibility convention as Low Value's "SPRINT MODE" label. Both remaining RUNNER_SYMBOLS references (the screener-brief chat trigger, and the inventory/exposure snapshot loop) switched to get_active_watchlist() so every part of the dashboard reflects the currently active universe consistently. Verified end-to-end: mocked snapshot prices correctly excluded two over-$70 candidates (PLTR $185, UBER $85) from both get_runner_status()'s symbols field and the rendered dashboard.
+purpose: extended 2026-07-18 — header now shows "Low-Price Mode (under $70)" or "Large-Cap Mode" depending on ACTIVE_UNIVERSE_MODE, same visibility convention as Low Value's "SPRINT MODE" label. Both remaining RUNNER_SYMBOLS references (the screener-brief chat trigger, and the inventory/exposure snapshot loop) switched to get_active_watchlist() so every part of the dashboard reflects the currently active universe consistently. Verified end-to-end: mocked snapshot prices correctly excluded two over-$70 candidates (PLTR $185, UBER $85) from both get_runner_status()'s symbols field and the rendered dashboard. **Fixed 2026-09-11 (direct user complaint: "how can I have a watchlist if I dont have a fucking brief of the stocks I want to put on a watchlist" — the "Automatic Scanner" card's copy was three separate stale claims: it hardcoded the OLD large-cap 8-symbol list text regardless of which universe mode was actually active, said "every morning at 9:35 AM ET" (untrue since the 2026-09-07 manual-only change), and said positions get checked "every 30 minutes" and force-closed "by 3:50 PM ET" automatically, which also stopped being true the same day):** card renamed "Scanner (manual — click to run)"; copy now renders the REAL current watchlist symbols live (current_watchlist, from get_runner_status()'s existing symbols field) instead of a hardcoded string, and accurately describes manual-only behavior. Also added a second button, "Scan the Market" (alongside the renamed "Scan Watchlist"), addressing the actual underlying complaint — there was no way to scan real market movers from this dashboard at all, only the fixed/filtered watchlist, unlike Automaton's movers cross-check. Both buttons call the same predictaScanNow(useMovers) JS function, now parameterized instead of hardcoded to the watchlist-only call.
 inputs: none
-outputs: HTML (header gains mode label; inventory card reflects active watchlist)
-calls: fetchers.high_value_runner.get_active_watchlist (new)
+outputs: HTML (header gains mode label; inventory card reflects active watchlist; Scanner card shows live watchlist symbols and both Scan Watchlist / Scan the Market buttons)
+calls: fetchers.high_value_runner.get_active_watchlist (new), get_movers_watchlist (new)
 called_by: GET /trade/dashboard
 mutates: none
+---
+
+---
+name: get_movers_watchlist / trigger_scan_async (extended, use_movers)
+type: function
+file: fetchers/high_value_runner.py
+purpose: added 2026-09-11, direct user complaint — High Value's dashboard only ever offered a fixed/filtered watchlist scan, no way to scan real market movers, forcing the user to somehow already know which stocks to watch. get_movers_watchlist() is a self-contained duplicate of automaton_runner._todays_movers_symbols' pattern (Alpaca's get_top_movers/get_most_active screener endpoints, same key, no new credentials) — not shared via import because automaton_runner already imports FROM this module (_et_now/_et_minutes), so the reverse import would be circular. trigger_scan_async/_manual_scan_worker gained a use_movers param (default False, preserves the exact prior "Scan Watchlist" behavior byte-for-bit): when True, syms = get_active_watchlist() UNION get_movers_watchlist() (additive only, same convention as Automaton's movers cross-check — never narrows the existing watchlist), passed to run_open_scan(symbols=syms) instead of relying on its internal default. log_scan_event's triggered_by is tagged "manual_market_scan" vs "manual" so a later trade_scan_log review can tell which scan type found what.
+inputs: get_movers_watchlist() -> list[str]; trigger_scan_async(min_score, use_movers=False)
+outputs: get_movers_watchlist: deduped symbol list (empty on API failure, fails safe); trigger_scan_async: dict (scan-started confirmation)
+calls: fetchers.alpaca.get_top_movers/get_most_active
+called_by: app.py POST /trade/paper-runner/scan-now (use_movers query param, new)
+mutates: none directly (spawns the existing manual-scan background thread)
 ---
 
 ## Portfolio Watch (added 2026-07-19, direct user request)

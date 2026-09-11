@@ -2497,7 +2497,7 @@ def paper_runner_status():
 
 
 @app.post("/trade/paper-runner/scan-now")
-def paper_runner_scan_now(min_score: int = 20):
+def paper_runner_scan_now(min_score: int = 20, use_movers: bool = False):
     """
     Manually trigger a signal scan outside the scheduled window. Fire-and-
     forget (fixed 2026-09-07 — scanning the low-price watchlist is enough
@@ -2505,9 +2505,14 @@ def paper_runner_scan_now(min_score: int = 20):
     fetchers.high_value_runner.trigger_scan_async). Poll
     GET /trade/paper-runner/status for manual_scan_in_progress /
     last_manual_scan_completed_at / last_manual_scan_trade_ids.
+
+    use_movers (added 2026-09-11, direct user request — "Scan the Market"):
+    when true, scans the fixed low-price watchlist UNIONED with today's real
+    Alpaca gainers/losers/most-active, instead of the watchlist alone. See
+    fetchers.high_value_runner.get_movers_watchlist.
     """
     from fetchers.high_value_runner import trigger_scan_async
-    return trigger_scan_async(min_score=min_score)
+    return trigger_scan_async(min_score=min_score, use_movers=use_movers)
 
 
 @app.post("/trade/execute/{trade_id}", dependencies=[Depends(require_trade_passcode)])
@@ -2961,12 +2966,14 @@ def trade_dashboard():
         market_is_open = rs.get("market_open", False)
         universe_mode  = rs.get("universe_mode", "large_cap")
         low_price_ceiling = rs.get("low_price_ceiling")
+        current_watchlist = rs.get("symbols", [])
     except Exception:
         runner_active = False
         runner_open   = 0
         market_is_open = False
         universe_mode  = "large_cap"
         low_price_ceiling = None
+        current_watchlist = []
 
     try:
         from fetchers.high_value_runner import _et_now
@@ -3278,17 +3285,20 @@ def trade_dashboard():
 
   <!-- Runner status -->
   <div class="card">
-    <div class="card-title">Automatic Scanner</div>
+    <div class="card-title">Scanner (manual — click to run)</div>
     <div class="runner-card">
       <span style="font-size:2rem">{'🟢' if runner_active else '🔴'}</span>
       <div class="runner-info">
         <div class="runner-status">{runner_lbl}</div>
         <div class="runner-detail">
-          Scans AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL, TSLA every morning at 9:35 AM ET, and suggests candidates below.<br>
-          It only ever analyzes and suggests — it never buys or sells anything on its own. You decide, using the buttons above.<br>
-          Once you place a real order, it checks that position every 30 minutes and force-closes it by 3:50 PM ET, same as the day-trading plan you approved when you clicked Buy.
+          High Value only ever scans when you click a button below — there's no automatic morning scan anymore.<br>
+          <b>Scan Watchlist</b> checks {', '.join(current_watchlist) if current_watchlist else f'nothing right now (0 candidates currently under ${low_price_ceiling or 70:.0f})'} — this engine's own candidate pool, filtered live to whatever's currently trading under ${low_price_ceiling or 70:.0f}.<br>
+          <b>Scan the Market</b> checks that same pool PLUS today's real top gainers/losers/most-active stocks from Alpaca — not a list you have to build yourself.<br>
+          Either way, it only ever analyzes and suggests — it never buys or sells anything on its own. You decide, using the buttons above.<br>
+          Clicking either button also checks any real position you already hold against its target/stop/time-limit first — nothing runs on a schedule anymore, so this is also how existing positions actually get closed out now.
         </div>
-        <button class="trade-btn" style="margin-top:12px;" onclick="predictaScanNow()">Scan Now</button>
+        <button class="trade-btn" style="margin-top:12px;" onclick="predictaScanNow(false)">Scan Watchlist</button>
+        <button class="trade-btn" style="margin-top:12px;" onclick="predictaScanNow(true)">Scan the Market</button>
       </div>
     </div>
   </div>
@@ -3324,9 +3334,10 @@ async function predictaAction(url, label) {{
     location.reload();
   }} catch (e) {{ alert('Request failed: ' + e); }}
 }}
-async function predictaScanNow() {{
+async function predictaScanNow(useMovers) {{
   try {{
-    const res = await fetch('/trade/paper-runner/scan-now', {{ method: 'POST' }});
+    const url = '/trade/paper-runner/scan-now' + (useMovers ? '?use_movers=true' : '');
+    const res = await fetch(url, {{ method: 'POST' }});
     const data = await res.json();
     if (data.status === 'already_running') {{
       alert('A scan is already running (started ' + data.started_at + '). Check back shortly.');

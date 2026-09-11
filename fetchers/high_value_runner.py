@@ -26,7 +26,7 @@ try:
 except ImportError:
     _EASTERN = None  # fallback: use UTC offset approximation
 
-from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position, friendly_order_error
+from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position, friendly_order_error, get_top_movers, get_most_active
 from fetchers.trading_logger import log_hypothetical_trade, log_trade_entry, log_trade_exit, promote_trade_to_real
 from fetchers import hsip_client
 from models.trading.high_value.intraday import compute_intraday_signals
@@ -192,6 +192,41 @@ def get_active_watchlist() -> list[str]:
     if not filtered:
         log.warning(f"[RUNNER] low_price mode: 0 of {len(LOW_PRICE_WATCHLIST_CANDIDATES)} candidates are currently under ${LOW_PRICE_CEILING:.0f}")
     return filtered
+
+
+# get_top_movers/get_most_active are Alpaca's own free screener endpoints,
+# already proven in Automaton (fetchers.automaton_runner._todays_movers_symbols,
+# 2026-08-29) and in the chat interface's "scan the market" path
+# (models.trading.screener.run_screener(use_movers=True)) — same Alpaca key,
+# no new credentials. Added here 2026-09-11 (direct user complaint: the
+# dashboard's only scan option is the fixed low-price watchlist — "how can I
+# have a watchlist if I dont have a brief of the stocks I want to put on a
+# watchlist" — there was no way to scan real market movers from this
+# dashboard at all, unlike Automaton). A self-contained duplicate rather
+# than importing automaton_runner's helper, since automaton_runner already
+# imports FROM this module (_et_now/_et_minutes) — importing back would be
+# circular.
+MOVERS_LIMIT: int = 50
+MOST_ACTIVE_LIMIT: int = 30
+
+
+def get_movers_watchlist() -> list[str]:
+    """
+    Today's real Alpaca gainers/losers/most-active symbols, deduped — a
+    genuine market-wide scan, independent of the fixed/filtered watchlist
+    above. Fails safe to an empty list on any API error (get_top_movers/
+    get_most_active already fail safe themselves).
+    """
+    try:
+        movers = get_top_movers(MOVERS_LIMIT)
+        active = get_most_active(MOST_ACTIVE_LIMIT)
+    except Exception as exc:
+        log.warning(f"[RUNNER] Movers fetch failed: {exc}")
+        return []
+    gainers = {g.get("symbol") for g in movers.get("gainers", []) if g.get("symbol")}
+    losers = {l.get("symbol") for l in movers.get("losers", []) if l.get("symbol")}
+    most_active = {a.get("symbol") for a in active if a.get("symbol")}
+    return sorted(gainers | losers | most_active)
 
 
 # ── Internal state ────────────────────────────────────────────────────────────
@@ -776,7 +811,7 @@ def run_open_scan(
     return trade_ids
 
 
-def _manual_scan_worker(min_score: int) -> None:
+def _manual_scan_worker(min_score: int, use_movers: bool = False) -> None:
     """
     Background-thread body for trigger_scan_async — never runs inside an
     HTTP request. Changed 2026-09-07, direct user request: High Value no
@@ -790,17 +825,25 @@ def _manual_scan_worker(min_score: int) -> None:
     every scan (not just the ones that found a candidate), how many
     buy/sell suggestions came out of it, and what closing existing
     positions made or lost in the same pass.
+
+    use_movers (added 2026-09-11): "Scan the Market" — unions the fixed
+    watchlist with today's real Alpaca gainers/losers/most-active
+    (get_movers_watchlist), same additive convention as Automaton's movers
+    cross-check. False (the default, unchanged "Scan Watchlist" button)
+    scans only the existing filtered low-price watchlist, exactly as before.
     """
     global _manual_scan_in_progress, _last_manual_scan_completed_at, _last_manual_scan_trade_ids, _last_manual_scan_error
     _last_manual_scan_error = None
     from fetchers.trading_logger import log_scan_event
     try:
         exit_result = check_and_close_positions()
-        ids = run_open_scan(min_score=min_score)
+        watchlist = get_active_watchlist()
+        syms = sorted(set(watchlist) | set(get_movers_watchlist())) if use_movers else watchlist
+        ids = run_open_scan(symbols=syms, min_score=min_score)
         _last_manual_scan_trade_ids = ids
         log_scan_event(
-            engine="high_value", triggered_by="manual",
-            symbols_scanned=len(get_active_watchlist()),
+            engine="high_value", triggered_by="manual_market_scan" if use_movers else "manual",
+            symbols_scanned=len(syms),
             trade_ids_logged=ids,
             positions_checked=exit_result.get("checked", 0),
             positions_closed=exit_result.get("closed", 0),
@@ -815,7 +858,7 @@ def _manual_scan_worker(min_score: int) -> None:
         _manual_scan_in_progress = False
 
 
-def trigger_scan_async(min_score: int = RUNNER_MIN_SCORE) -> dict:
+def trigger_scan_async(min_score: int = RUNNER_MIN_SCORE, use_movers: bool = False) -> dict:
     """
     Fire-and-forget manual scan trigger for POST /trade/paper-runner/scan-now
     — a scan is a multi-symbol, many-Alpaca-call operation and must never
@@ -829,7 +872,7 @@ def trigger_scan_async(min_score: int = RUNNER_MIN_SCORE) -> dict:
     _manual_scan_in_progress = True
     _last_manual_scan_started_at = _et_now().isoformat()
     _manual_scan_thread = threading.Thread(
-        target=_manual_scan_worker, args=(min_score,), daemon=True, name="high-value-manual-scan"
+        target=_manual_scan_worker, args=(min_score, use_movers), daemon=True, name="high-value-manual-scan"
     )
     _manual_scan_thread.start()
     return {"status": "started", "started_at": _last_manual_scan_started_at}
