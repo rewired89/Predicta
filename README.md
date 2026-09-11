@@ -7,6 +7,10 @@ AI (Kimi, Gemini, etc.) for independent review — it documents exactly what the
 does today, including a few places where the code, comments, and docs disagree with
 each other (see [Known Discrepancies](#known-discrepancies--doc-vs-code-mismatches)).
 
+**License:** source-available, non-commercial — see [LICENSE](LICENSE). You're free
+to run it, modify it, and contribute; commercial use requires the copyright holder's
+written permission.
+
 ---
 
 ## Systems Covered
