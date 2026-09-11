@@ -154,12 +154,36 @@ mutates: predicta.db schema
 name: _migrate_intraday_trades
 type: function
 file: db/database.py
-purpose: Idempotent migration for intraday_trades — runs on every startup, adds any missing columns from master list covering v2 (lifecycle + sizing), v3 (hypothetical mode + signal context), v4 (per-signal scores: composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge scores, ngram_signal, ngram_confidence), v5/v5b/v5c (market regime tags), v6/v6b (Low Value engine columns), and v6c (2026-07-13: lv_signals_json — see log_low_value_trade's entry). For empty tables, drops and recreates clean. Never destroys rows. idx_trades_hypo created here (not in schema.sql) since is_hypothetical may not exist in old tables.
+purpose: Idempotent migration for intraday_trades — runs on every startup, adds any missing columns from master list covering v2 (lifecycle + sizing), v3 (hypothetical mode + signal context), v4 (per-signal scores: composite_raw, vwap/or/rsi/relvol/gap/trend/bollinger/volsurge scores, ngram_signal, ngram_confidence), v5/v5b/v5c (market regime tags), v6/v6b (Low Value engine columns), and v6c (2026-07-13: lv_signals_json — see log_low_value_trade's entry). For empty tables, drops and recreates clean. Never destroys rows. idx_trades_hypo created here (not in schema.sql) since is_hypothetical may not exist in old tables. **Fixed 2026-09-11 (real production bug, root-caused by diffing this list against schema.sql column-by-column via a fresh in-memory PRAGMA table_info, not by re-reading code that had already been reviewed several times): `logged_at` is in schema.sql's CREATE TABLE but was never in this list — the ONLY column with that gap — so any database that only ever grew via this incremental ALTER-TABLE path (never a fresh schema.sql create) was missing it. Every INSERT of a NEW row (log_trade_entry, log_hypothetical_trade, log_low_value_trade, log_copy_trade_entry — all explicitly supply logged_at) failed outright with "no such column: logged_at"; UPDATEs to already-open rows (closing/promoting an existing candidate) never touch this column and were unaffected — exactly matching the observed split between what worked and what didn't. Added `("logged_at", "TEXT DEFAULT ''")`. Reproduced and verified end-to-end before pushing: built an in-memory DB missing exactly this column with existing rows (simulating the real production state), ran the actual (fixed) migration function, then ran the real log_copy_trade_entry INSERT statement against it — confirmed success where it previously raised. NOT NULL is deliberately dropped vs. schema.sql's version: SQLite's ALTER TABLE ADD COLUMN rejects a NOT NULL column without a CONSTANT default, and `DEFAULT (datetime('now'))` is treated as non-constant (verified directly: raises "Cannot add a column with non-constant default") — a literal `''` default only ever backfills historical rows that never needed the value anyway; every future INSERT still explicitly supplies a real datetime('now'). Also hardened the ALTER-TABLE loop itself with a per-column try/except (logs a warning, continues) — previously one bad column definition (exactly this failure mode) would raise out of `_migrate_intraday_trades` uncaught, which `init_db()` also doesn't catch, which app.py's `startup()` also doesn't catch — a single mistake here could silently skip every subsequent column AND crash the app on every future boot. See GET /db-diag (app.py) for the live diagnostic this same diffing approach was turned into.
 inputs: conn: sqlite3.Connection
 outputs: none
 calls: PRAGMA table_info, ALTER TABLE, DROP TABLE, CREATE INDEX
 called_by: init_db
 mutates: predicta.db schema
+---
+
+---
+name: db_diag
+type: function
+file: app.py
+purpose: added 2026-09-11, direct response to the logged_at production bug above — diffs the LIVE intraday_trades table's real columns (PRAGMA table_info) against every column schema.sql actually defines (built by creating a throwaway in-memory table from schema.sql's own CREATE TABLE text, not a hand-maintained list, so it can never itself drift the way _migrate_intraday_trades' expected_cols list did). Reports missing_from_live_db (a real, urgent problem — INSERTs will fail) and extra_in_live_db_not_in_schema (columns the migration adds that schema.sql's CREATE TABLE doesn't define — currently lv_missing_signals/lv_short_interest_asof/lv_signals_json, a harmless pre-existing asymmetry, not a bug). Turns "is the schema drifted" from an hours-long guessing exercise into one URL visit.
+inputs: none (GET, no params)
+outputs: dict (status, live_column_count, schema_column_count, missing_from_live_db, extra_in_live_db_not_in_schema)
+calls: db.database.get_db, db/schema.sql (read directly)
+called_by: none (direct browser/curl check)
+side_effects: none (read-only; the in-memory comparison table is throwaway)
+---
+
+---
+name: paper_runner_scan_brief / predictaScanNow (extended, polls for real results)
+type: function
+file: app.py
+purpose: added 2026-09-11, direct user complaint — "every time I hit Scan the market... it never gives me a brief of whats good, in what should I invest." trigger_scan_async was always fire-and-forget by design (a real scan is 50+ throttled Alpaca calls, too slow for one HTTP request), but the dashboard's JS previously just waited a fixed 1.5s and reloaded — nowhere near long enough for a real scan, so the page almost always reloaded before any result existed, showing nothing new and giving no sign the click had done anything. predictaScanNow now polls GET /trade/paper-runner/status every 3s (up to 3 minutes) until manual_scan_in_progress clears, then either shows the real error, says plainly that nothing met today's entry bar (a legitimate, honest outcome — not every scan should find a hot pick), or calls the new GET /trade/paper-runner/scan-brief?ids=... to show a real plain-language brief per candidate (symbol, long/short, entry price, score, and its two strongest signals) via predictaModal, before reloading.
+inputs: paper_runner_scan_brief(ids: str) — comma-separated trade_ids
+outputs: dict {candidates: [{symbol, side, entry_price, score, time_label, why}]}
+calls: db.database.get_db
+called_by: predictaScanNow (JS, trade_dashboard)
+side_effects: none (read-only)
 ---
 
 ---

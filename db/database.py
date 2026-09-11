@@ -1,3 +1,4 @@
+import logging
 import os
 import sqlite3
 from pathlib import Path
@@ -217,6 +218,30 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         ("copy_source_title",      "TEXT"),
         ("copy_source_company",    "TEXT"),
         ("copy_filing_date",       "TEXT"),
+        # Fixed 2026-09-11 (real user report, root-caused by diffing this
+        # list against schema.sql's actual CREATE TABLE column-by-column):
+        # logged_at is in schema.sql's intraday_trades definition but was
+        # NEVER in this list, the only column with that gap. Every INSERT
+        # function in trading_logger.py (log_trade_entry, log_hypothetical_
+        # trade, log_low_value_trade, log_copy_trade_entry) explicitly
+        # supplies it, so any database that only ever grew via this
+        # incremental ALTER-TABLE path (not a fresh schema.sql create) would
+        # reject every new-row INSERT with "no such column: logged_at" —
+        # while UPDATEs to already-existing rows (closing a position,
+        # promoting a candidate to real) are entirely unaffected, since they
+        # never touch this column. That split exactly matches what was
+        # observed: Copy Trade's INSERT-only execute path failed outright,
+        # while Automaton's close and Low Value's execute (both UPDATEs on
+        # already-open rows) succeeded. NOT NULL is deliberately dropped
+        # here versus schema.sql's version — SQLite's ALTER TABLE ADD COLUMN
+        # rejects a NOT NULL column without a CONSTANT default, and
+        # DEFAULT (datetime('now')) is treated as non-constant (verified:
+        # this exact combination throws "Cannot add a column with
+        # non-constant default"), so a literal '' default is used instead;
+        # it only ever backfills historical rows that never needed this
+        # value anyway, every future INSERT still explicitly supplies a
+        # real datetime('now').
+        ("logged_at",              "TEXT DEFAULT ''"),
     ]
 
     existing_cols = {
@@ -231,10 +256,24 @@ def _migrate_intraday_trades(conn: sqlite3.Connection) -> None:
         conn.commit()
         return
 
-    # Add any missing columns (idempotent)
+    # Add any missing columns (idempotent). Each ALTER is independently
+    # try/excepted (added 2026-09-11, alongside the logged_at fix above) —
+    # this loop previously let one bad column definition raise straight out
+    # of init_db(), which app.py's startup() calls with no try/except of its
+    # own: a single mistake here (e.g. a NOT NULL column with a non-constant
+    # default, exactly the class of error the logged_at fix above avoids)
+    # would silently skip every column listed after it AND crash the app on
+    # every future boot until someone noticed and fixed the schema by hand.
+    # Now a bad column logs a warning and the rest of the migration
+    # continues, so this class of mistake can degrade instead of cascading.
     for col, coltype in expected_cols:
         if col not in existing_cols:
-            conn.execute(f"ALTER TABLE intraday_trades ADD COLUMN {col} {coltype}")
+            try:
+                conn.execute(f"ALTER TABLE intraday_trades ADD COLUMN {col} {coltype}")
+            except sqlite3.OperationalError as exc:
+                logging.getLogger(__name__).warning(
+                    f"[MIGRATE] Failed to add intraday_trades.{col} ({coltype}): {exc}"
+                )
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_trades_alpaca ON intraday_trades(alpaca_order_id)"

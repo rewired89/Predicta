@@ -49,6 +49,45 @@ def version_info():
     }
 
 
+@app.get("/db-diag")
+def db_diag():
+    """
+    Added 2026-09-11, direct response to a real production bug: Copy Trades'
+    "Internal Server Error" turned out to be a genuine schema drift —
+    intraday_trades.logged_at existed in schema.sql but was never in
+    _migrate_intraday_trades' expected_cols list, so a database that only
+    ever grew via that incremental ALTER-TABLE path (not a fresh create)
+    was missing it entirely, and every function that INSERTs a NEW row
+    (log_copy_trade_entry, log_hypothetical_trade, log_low_value_trade,
+    log_trade_entry — all of them explicitly supply logged_at) failed with
+    a raw, uncaught "no such column" error. UPDATEs to already-existing
+    rows never touch that column, so closing/executing an existing
+    candidate kept working, which is exactly why only some actions failed.
+    This endpoint diffs the LIVE table's real columns (PRAGMA table_info)
+    against every column schema.sql actually defines — the same diff that
+    caught the logged_at gap — so the next time something like this happens,
+    it's a one-URL-visit answer instead of hours of guessing.
+    """
+    import re
+    with get_db() as conn:
+        live_cols = {r[1] for r in conn.execute("PRAGMA table_info(intraday_trades)").fetchall()}
+    schema_text = (Path(__file__).parent / "db" / "schema.sql").read_text()
+    m = re.search(r"CREATE TABLE IF NOT EXISTS intraday_trades \((.*?)\n\);", schema_text, re.S)
+    tmp_conn = __import__("sqlite3").connect(":memory:")
+    tmp_conn.execute(f"CREATE TABLE intraday_trades ({m.group(1)}\n)")
+    schema_cols = {r[1] for r in tmp_conn.execute("PRAGMA table_info(intraday_trades)").fetchall()}
+    tmp_conn.close()
+    missing = sorted(schema_cols - live_cols)
+    extra = sorted(live_cols - schema_cols)
+    return {
+        "status": "DRIFT DETECTED — restart the app to trigger migration, then re-check" if missing else "OK — live table matches schema.sql",
+        "live_column_count": len(live_cols),
+        "schema_column_count": len(schema_cols),
+        "missing_from_live_db": missing,
+        "extra_in_live_db_not_in_schema": extra,
+    }
+
+
 @app.on_event("startup")
 def startup():
     init_db()
@@ -2496,6 +2535,60 @@ def paper_runner_status():
     return get_runner_status()
 
 
+@app.get("/trade/paper-runner/scan-brief")
+def paper_runner_scan_brief(ids: str = ""):
+    """
+    Added 2026-09-11, direct user complaint: "every time I hit Scan the
+    market... it never gives me a brief of whats good, in what should I
+    invest, what are the underrated stocks." The scan itself
+    (trigger_scan_async) was always fire-and-forget by design (a real scan
+    is 50+ throttled Alpaca calls, too slow for one HTTP request — see its
+    own docstring), but nothing ever showed the actual RESULT once it
+    finished; the dashboard just silently reloaded, showing nothing new on
+    a day with no strong signal and giving no indication it had even run.
+    Takes the comma-separated trade_ids from GET /trade/paper-runner/status'
+    last_manual_scan_trade_ids and returns a plain-language row per
+    candidate — symbol, long/short, entry price, score, and why (the same
+    signal breakdown already computed and stored per trade, just never
+    surfaced here) — so a completed scan can show a real brief instead of
+    just a bare reload.
+    """
+    id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    if not id_list:
+        return {"candidates": []}
+    placeholders = ",".join("?" * len(id_list))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT id, symbol, side, entry_price, entry_score, time_of_day_label,
+                   vwap_score, or_score, rsi_score, relvol_score, gap_score,
+                   trend_score, bollinger_score, volsurge_score
+            FROM intraday_trades WHERE id IN ({placeholders})
+            """,
+            id_list,
+        ).fetchall()
+
+    def _why(r: dict) -> str:
+        signals = {
+            "VWAP reclaim": r.get("vwap_score"), "opening range": r.get("or_score"),
+            "RSI": r.get("rsi_score"), "relative volume": r.get("relvol_score"),
+            "gap": r.get("gap_score"), "trend": r.get("trend_score"),
+            "Bollinger": r.get("bollinger_score"), "volume surge": r.get("volsurge_score"),
+        }
+        strongest = sorted(((k, v) for k, v in signals.items() if v), key=lambda kv: abs(kv[1]), reverse=True)[:2]
+        return ", ".join(f"{k} ({v:+.0f})" for k, v in strongest) if strongest else "composite score"
+
+    candidates = []
+    for row in rows:
+        r = dict(row)
+        candidates.append({
+            "symbol": r["symbol"], "side": r["side"], "entry_price": r["entry_price"],
+            "score": r["entry_score"], "time_label": r.get("time_of_day_label"),
+            "why": _why(r),
+        })
+    return {"candidates": candidates}
+
+
 @app.post("/trade/paper-runner/scan-now")
 def paper_runner_scan_now(min_score: int = 20, use_movers: bool = False):
     """
@@ -3397,6 +3490,16 @@ async function predictaAction(url, label) {{
     setTimeout(function() {{ location.reload(); }}, 1500);
   }} catch (e) {{ predictaToast('Request failed: ' + e); }}
 }}
+// Fixed 2026-09-11 (real user complaint: "every time I hit Scan the
+// market... it never gives me a brief of whats good"). This used to fire
+// the scan, wait a fixed 1.5s (nowhere near long enough — a real scan is
+// 50+ throttled Alpaca calls, often a minute or more), and reload — so the
+// page almost always reloaded before the scan even finished, showing
+// nothing new. Now it actually polls scan status until the background scan
+// completes, then fetches and displays a real brief (symbol, side, score,
+// and why) via the new GET /trade/paper-runner/scan-brief endpoint —
+// or clearly says "nothing met today's bar" when that's the real, honest
+// result, instead of leaving the button looking like it did nothing.
 async function predictaScanNow(useMovers) {{
   try {{
     const url = '/trade/paper-runner/scan-now' + (useMovers ? '?use_movers=true' : '');
@@ -3406,8 +3509,33 @@ async function predictaScanNow(useMovers) {{
       predictaToast('A scan is already running (started ' + data.started_at + '). Check back shortly.');
       return;
     }}
-    predictaToast('Scan started in the background — this can take a minute or two. Reloading now; refresh again shortly to see results.');
-    setTimeout(function() {{ location.reload(); }}, 1500);
+    predictaToast((useMovers ? 'Scanning the market' : 'Scanning your watchlist') + ' — this can take a minute or two. Waiting for it to finish...');
+    for (let attempt = 0; attempt < 60; attempt++) {{
+      await new Promise(function(r) {{ setTimeout(r, 3000); }});
+      const statusRes = await fetch('/trade/paper-runner/status');
+      const status = await statusRes.json();
+      if (!status.manual_scan_in_progress) {{
+        if (status.last_manual_scan_error) {{
+          await predictaModal('Scan failed: ' + status.last_manual_scan_error, {{ okLabel: 'Close' }});
+          return;
+        }}
+        const ids = status.last_manual_scan_trade_ids || [];
+        if (!ids.length) {{
+          await predictaModal('Scan complete — nothing met today\\'s bar (min score ' + status.min_score + '). No candidates means no strong signal today, not that anything broke.', {{ okLabel: 'Close' }});
+          return;
+        }}
+        const briefRes = await fetch('/trade/paper-runner/scan-brief?ids=' + ids.join(','));
+        const brief = await briefRes.json();
+        const lines = brief.candidates.map(function(c) {{
+          return (c.side === 'long' ? 'BUY ' : 'SHORT ') + c.symbol + ' @ $' + c.entry_price.toFixed(2) +
+                 ' — score ' + c.score + ' (' + c.time_label + ') — ' + c.why;
+        }});
+        await predictaModal('Scan complete — ' + ids.length + ' candidate(s) found:\\n\\n' + lines.join('\\n'), {{ okLabel: 'Show me' }});
+        location.reload();
+        return;
+      }}
+    }}
+    predictaToast('Scan is taking longer than expected — check back in a minute and reload manually.');
   }} catch (e) {{ predictaToast('Scan failed: ' + e); }}
 }}
 </script>
