@@ -3180,6 +3180,12 @@ def trade_dashboard():
   .nav-row {{ display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }}
   .nav-row a {{ color: var(--muted); text-decoration: none; }}
   .nav-row a:hover {{ color: var(--blue); text-decoration: underline; }}
+  .predicta-modal-backdrop {{ position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }}
+  .predicta-modal {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: 380px; width: 100%; }}
+  .predicta-modal p {{ font-size: .85rem; margin-bottom: 12px; white-space: pre-wrap; color: var(--text); }}
+  .predicta-modal input {{ width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px; font-size: .85rem; margin-bottom: 12px; }}
+  .predicta-modal-actions {{ display: flex; gap: 8px; justify-content: flex-end; }}
+  .predicta-toast {{ position: fixed; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: .82rem; max-width: 360px; z-index: 1000; white-space: pre-wrap; color: var(--text); }}
 </style>
 </head>
 <body>
@@ -3323,16 +3329,73 @@ function predictaErrorText(data) {{
   if (data.detail) return JSON.stringify(data.detail);
   return JSON.stringify(data);
 }}
+// Fixed 2026-09-11 (real user report — Buy/Sell "only works once"): every
+// action here used TWO chained native browser popups (confirm() then
+// prompt()) per click. Browsers silently suppress ALL further popups on a
+// page after enough have fired in a short session (an anti-spam feature,
+// no visible warning once tripped) — exactly matching "worked once, then
+// nothing." predictaModal/predictaToast below are plain in-page DOM
+// elements, immune to that throttling, replacing every confirm/prompt/alert
+// in this file.
+function predictaModal(message, opts) {{
+  opts = opts || {{}};
+  return new Promise(function(resolve) {{
+    const backdrop = document.createElement('div');
+    backdrop.className = 'predicta-modal-backdrop';
+    const box = document.createElement('div');
+    box.className = 'predicta-modal';
+    const p = document.createElement('p');
+    p.textContent = message;
+    box.appendChild(p);
+    let input = null;
+    if (opts.needsInput) {{
+      input = document.createElement('input');
+      input.type = opts.inputType || 'text';
+      input.placeholder = opts.inputPlaceholder || '';
+      box.appendChild(input);
+    }}
+    const actions = document.createElement('div');
+    actions.className = 'predicta-modal-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'trade-btn sell-btn';
+    cancelBtn.textContent = 'Cancel';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'trade-btn buy-btn';
+    okBtn.textContent = opts.okLabel || 'Confirm';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(actions);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    if (input) input.focus();
+    function cleanup(result) {{ document.body.removeChild(backdrop); resolve(result); }}
+    cancelBtn.onclick = function() {{ cleanup(null); }};
+    okBtn.onclick = function() {{ cleanup({{ value: input ? input.value : true }}); }};
+    backdrop.onclick = function(e) {{ if (e.target === backdrop) cleanup(null); }};
+    if (input) input.onkeydown = function(e) {{ if (e.key === 'Enter') {{ e.preventDefault(); okBtn.onclick(); }} }};
+  }});
+}}
+function predictaToast(message) {{
+  const t = document.createElement('div');
+  t.className = 'predicta-toast';
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(function() {{ t.remove(); }}, 6000);
+}}
 async function predictaAction(url, label) {{
-  if (!confirm('Confirm: ' + label + '?\\n\\nThis places (or closes) a real Alpaca paper order.')) return;
-  const passcode = prompt('Trade passcode (leave blank if none is set):') || '';
+  const result = await predictaModal(
+    'Confirm: ' + label + '\\n\\nThis places (or closes) a real Alpaca paper order.\\n\\nEnter your trade passcode below (leave blank if none is set), or Cancel to abort.',
+    {{ needsInput: true, inputPlaceholder: 'passcode (optional)', okLabel: 'Confirm' }}
+  );
+  if (!result) return;
+  const passcode = result.value || '';
   try {{
     const res = await fetch(url, {{ method: 'POST', headers: {{ 'X-Trade-Passcode': passcode }} }});
     const data = await res.json();
-    if (!res.ok) {{ alert('Failed: ' + predictaErrorText(data)); return; }}
-    alert('Done.\\n' + JSON.stringify(data, null, 2));
-    location.reload();
-  }} catch (e) {{ alert('Request failed: ' + e); }}
+    if (!res.ok) {{ predictaToast('Failed: ' + predictaErrorText(data)); return; }}
+    predictaToast('Done: ' + (data.status || JSON.stringify(data)));
+    setTimeout(function() {{ location.reload(); }}, 1500);
+  }} catch (e) {{ predictaToast('Request failed: ' + e); }}
 }}
 async function predictaScanNow(useMovers) {{
   try {{
@@ -3340,12 +3403,12 @@ async function predictaScanNow(useMovers) {{
     const res = await fetch(url, {{ method: 'POST' }});
     const data = await res.json();
     if (data.status === 'already_running') {{
-      alert('A scan is already running (started ' + data.started_at + '). Check back shortly.');
+      predictaToast('A scan is already running (started ' + data.started_at + '). Check back shortly.');
       return;
     }}
-    alert('Scan started in the background — this can take a minute or two. Reloading now; refresh again shortly to see results.');
-    location.reload();
-  }} catch (e) {{ alert('Scan failed: ' + e); }}
+    predictaToast('Scan started in the background — this can take a minute or two. Reloading now; refresh again shortly to see results.');
+    setTimeout(function() {{ location.reload(); }}, 1500);
+  }} catch (e) {{ predictaToast('Scan failed: ' + e); }}
 }}
 </script>
 </body>

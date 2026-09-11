@@ -13497,3 +13497,27 @@ calls: db.database.get_db
 called_by: render_signals_audit
 side_effects: none (read-only)
 ---
+
+---
+name: version_info
+type: function
+file: app.py
+purpose: added 2026-09-11 — GET /version reports Railway's own injected RAILWAY_GIT_COMMIT_SHA/RAILWAY_GIT_BRANCH/RAILWAY_DEPLOYMENT_ID/RAILWAY_ENVIRONMENT_NAME env vars. Direct user need: after disabling Railway's auto-deploy, the dashboard's manual-redeploy buttons went unresponsive with no way to tell whether a pushed fix had actually reached the running server. One URL visit now answers that instead of guessing from dashboard state.
+inputs: none
+outputs: dict (git_commit, git_branch, deployment_id, environment)
+calls: none
+called_by: none (direct browser/curl check)
+side_effects: none
+---
+
+---
+name: predictaModal / predictaToast (shared UI pattern, duplicated per dashboard)
+type: function (JS)
+file: app.py (trade_dashboard), fetchers/low_value_dashboard.py, fetchers/automaton_dashboard.py, fetchers/copy_trading_dashboard.py
+purpose: added 2026-09-11, real user report ("Buy or Sell is only working once") — every trade action on every dashboard used chained native browser dialogs (confirm() then prompt(), sometimes two prompts) per click. Browsers silently suppress ALL further window.alert/confirm/prompt calls on a page after enough fire in a short session (a built-in anti-spam throttle, no visible warning once tripped) — exactly matching "worked once, then nothing," and this codebase's dashboards are dialog-heavy by convention, making it easy to trip. predictaModal(message, opts) is a Promise-based in-page DOM modal (optional text input, Cancel/Confirm buttons) replacing confirm()+prompt(); predictaToast(message) is a self-dismissing DOM banner replacing alert(). Neither is a native dialog, so neither can be throttled by the browser. Every predictaAction (High Value/Low Value/Automaton) and predictaCopyPost/copyThisTrade/buyMore (Copy Trades) call site was rewritten to use these instead — dialog count per action also dropped from 2 native calls to 1 in-page modal. Duplicated per-file rather than shared, consistent with this codebase's existing "self-contained duplicate over cross-dashboard import" convention (see automaton_runner.py's docstring on the same choice). A reload after a successful action is now delayed ~1.5s (setTimeout) since the toast is non-blocking, unlike alert() which paused execution until dismissed — without the delay the page would navigate away before the user could read the result.
+inputs: predictaModal(message: str, opts: {needsInput, inputType, inputPlaceholder, inputDefault, okLabel}); predictaToast(message: str)
+outputs: predictaModal -> Promise<{value} | null>; predictaToast -> none (side-effecting DOM insert)
+calls: none
+called_by: predictaAction (3 copies), predictaCopyPost, copyThisTrade, buyMore (copy_trading_dashboard.py)
+side_effects: DOM insertion/removal only; no network calls
+---

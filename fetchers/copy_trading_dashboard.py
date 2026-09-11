@@ -58,6 +58,12 @@ _STYLE = """
   .sell-btn { background: var(--red); color: #1a0303; }
   .qty-input { width: 70px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 6px 8px; font-size: .8rem; margin-right: 6px; }
   footer { text-align: center; color: var(--muted); font-size: .78rem; margin-top: 20px; }
+  .predicta-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+  .predicta-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: 380px; width: 100%; }
+  .predicta-modal p { font-size: .85rem; margin-bottom: 12px; white-space: pre-wrap; color: var(--text); }
+  .predicta-modal input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px; font-size: .85rem; margin-bottom: 12px; }
+  .predicta-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .predicta-toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: .82rem; max-width: 360px; z-index: 1000; white-space: pre-wrap; color: var(--text); }
 """
 
 _JS = """
@@ -66,8 +72,64 @@ function predictaErrorText(data) {
   if (data.detail) return JSON.stringify(data.detail);
   return JSON.stringify(data);
 }
+// Fixed 2026-09-11 (real user report — Buy/Sell "only works once" on the
+// other dashboards, same root cause here): every action used chained native
+// browser popups (prompt() then confirm(), sometimes both). Browsers
+// silently suppress ALL further popups on a page after enough have fired in
+// a short session (an anti-spam feature, no visible warning once tripped).
+// predictaModal/predictaToast are plain in-page DOM elements, immune to
+// that throttling, replacing every confirm/prompt/alert in this file.
+function predictaModal(message, opts) {
+  opts = opts || {};
+  return new Promise(function(resolve) {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'predicta-modal-backdrop';
+    const box = document.createElement('div');
+    box.className = 'predicta-modal';
+    const p = document.createElement('p');
+    p.textContent = message;
+    box.appendChild(p);
+    let input = null;
+    if (opts.needsInput) {
+      input = document.createElement('input');
+      input.type = opts.inputType || 'text';
+      input.placeholder = opts.inputPlaceholder || '';
+      if (opts.inputDefault) input.value = opts.inputDefault;
+      box.appendChild(input);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'predicta-modal-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'trade-btn sell-btn';
+    cancelBtn.textContent = 'Cancel';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'trade-btn buy-btn';
+    okBtn.textContent = opts.okLabel || 'Confirm';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(actions);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    if (input) input.focus();
+    function cleanup(result) { document.body.removeChild(backdrop); resolve(result); }
+    cancelBtn.onclick = function() { cleanup(null); };
+    okBtn.onclick = function() { cleanup({ value: input ? input.value : true }); };
+    backdrop.onclick = function(e) { if (e.target === backdrop) cleanup(null); };
+    if (input) input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); okBtn.onclick(); } };
+  });
+}
+function predictaToast(message) {
+  const t = document.createElement('div');
+  t.className = 'predicta-toast';
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 6000);
+}
 async function predictaCopyPost(url, body, confirmLabel) {
-  if (confirmLabel && !confirm(confirmLabel + '\\n\\nThis is a PAPER position — no real money, no Alpaca order.')) return;
+  if (confirmLabel) {
+    const result = await predictaModal(confirmLabel + '\\n\\nThis is a PAPER position — no real money, no Alpaca order.', { okLabel: 'Confirm' });
+    if (!result) return;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -75,28 +137,31 @@ async function predictaCopyPost(url, body, confirmLabel) {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) { alert('Failed: ' + predictaErrorText(data)); return; }
-    alert('Done.\\n' + JSON.stringify(data, null, 2));
-    location.reload();
-  } catch (e) { alert('Request failed: ' + e); }
+    if (!res.ok) { predictaToast('Failed: ' + predictaErrorText(data)); return; }
+    predictaToast('Done: ' + (data.status || JSON.stringify(data)));
+    setTimeout(function() { location.reload(); }, 1500);
+  } catch (e) { predictaToast('Request failed: ' + e); }
 }
 function copyThisTradeFromButton(btn) {
   const d = JSON.parse(btn.dataset.copy);
   copyThisTrade(d.ticker, d.trade_type, d.insider_name, d.title, d.company, d.filing_date);
 }
-function copyThisTrade(symbol, tradeType, insiderName, insiderTitle, company, filingDate) {
-  const qty = prompt('How many shares of ' + symbol + ' do you want to copy this ' + tradeType + ' with?', '10');
-  if (qty === null) return; // user hit Cancel — no action, no error needed
-  if (!qty || isNaN(qty) || Number(qty) <= 0) { alert('Enter a whole number of shares greater than 0.'); return; }
+async function copyThisTrade(symbol, tradeType, insiderName, insiderTitle, company, filingDate) {
+  const result = await predictaModal('How many shares of ' + symbol + ' do you want to copy this ' + tradeType + ' with?', { needsInput: true, inputType: 'number', inputDefault: '10', okLabel: 'Copy this trade' });
+  if (!result) return; // user hit Cancel — no action, no error needed
+  const qty = result.value;
+  if (!qty || isNaN(qty) || Number(qty) <= 0) { predictaToast('Enter a whole number of shares greater than 0.'); return; }
   predictaCopyPost('/trade/copy/execute', {
     symbol: symbol, trade_type: tradeType, qty: Number(qty),
     insider_name: insiderName, insider_title: insiderTitle,
     company: company, filing_date: filingDate,
   }, 'Copy ' + tradeType + ' ' + symbol + ' x' + qty + '?');
 }
-function buyMore(tradeId, symbol) {
-  const qty = prompt('How many MORE shares of ' + symbol + ' do you want to add?', '10');
-  if (!qty || isNaN(qty) || Number(qty) <= 0) return;
+async function buyMore(tradeId, symbol) {
+  const result = await predictaModal('How many MORE shares of ' + symbol + ' do you want to add?', { needsInput: true, inputType: 'number', inputDefault: '10', okLabel: 'Add' });
+  if (!result) return;
+  const qty = result.value;
+  if (!qty || isNaN(qty) || Number(qty) <= 0) { predictaToast('Enter a whole number of shares greater than 0.'); return; }
   predictaCopyPost('/trade/portfolio/buy-more/' + tradeId, { qty: Number(qty) }, 'Add ' + qty + ' shares of ' + symbol + '?');
 }
 function sellPosition(tradeId, symbol) {
@@ -108,11 +173,11 @@ async function scanForNewFilings() {
   try {
     const res = await fetch('/trade/copy-trades/scan-now', { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { alert('Scan failed: ' + predictaErrorText(data)); return; }
-    alert(data.count + ' insider filing(s) found in the last 7 days. Reloading.');
-    location.reload();
+    if (!res.ok) { predictaToast('Scan failed: ' + predictaErrorText(data)); return; }
+    predictaToast(data.count + ' insider filing(s) found in the last 7 days. Reloading.');
+    setTimeout(function() { location.reload(); }, 1500);
   } catch (e) {
-    alert('Scan failed: ' + e);
+    predictaToast('Scan failed: ' + e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Scan Now'; }
   }
