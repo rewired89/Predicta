@@ -3899,6 +3899,43 @@ def portfolio_watch_analyze(body: PortfolioWatchRequest):
     return review_watchlist(body.symbols)
 
 
+@app.get("/trade/portfolio-watch/trade-log")
+def portfolio_watch_trade_log(limit: int = 200):
+    """
+    Added 2026-09-11, direct user request: "I should be able to see the
+    stocks that were manually Bought or Sell... from what category, meaning
+    if it was a stock from High Value or Low Value, and then the date and
+    time... Automaton movements should be there with the same information."
+
+    Every REAL action across every engine (High Value manual clicks, Low
+    Value manual clicks, Automaton's own autonomous trades) — is_hypothetical
+    = 0 means a real order was actually placed, not just a suggested
+    candidate; is_copy_trade is excluded since Copy Trades gets its own
+    separate feed (GET /trade/copy-trades). engine tells you the category
+    (high_value/low_value/automaton) the user explicitly asked for.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT symbol, side, engine, entry_time, exit_time,
+                   entry_price, exit_price, qty, pnl_dollars, exit_reason,
+                   lv_thesis_type
+            FROM intraday_trades
+            WHERE is_hypothetical = 0 AND (is_copy_trade = 0 OR is_copy_trade IS NULL)
+            ORDER BY entry_time DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    trades = []
+    for r in rows:
+        d = dict(r)
+        d["status"] = "CLOSED" if d.get("exit_time") else "OPEN"
+        d["action"] = "BUY" if d.get("side") == "long" else "SHORT"
+        trades.append(d)
+    return {"trades": trades, "count": len(trades)}
+
+
 @app.get("/trade/paper-data")
 def paper_data_export(days: int = 60, include_open: bool = False):
     """

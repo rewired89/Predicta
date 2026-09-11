@@ -38,6 +38,18 @@
   .result-reasoning { font-size: .87rem; line-height: 1.55; color: var(--text); }
   .pw-loading { color: var(--muted); font-style: italic; }
   .pw-error { color: var(--red); font-size: .85rem; }
+  .log-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .log-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .log-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .log-table tr:last-child td { border-bottom: none; }
+  .engine-badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: .03em; }
+  .engine-high_value { background: rgba(56,189,248,.15); color: var(--blue); }
+  .engine-low_value { background: rgba(167,139,250,.15); color: var(--purple); }
+  .engine-automaton { background: rgba(245,158,11,.15); color: var(--amber); }
+  .action-buy { color: var(--green); font-weight: 700; }
+  .action-short { color: var(--red); font-weight: 700; }
+  .status-open { color: var(--amber); }
+  .status-closed { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -75,6 +87,13 @@
     </div>
     <div id="pw-count"></div>
     <div id="pw-results"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Trade Actions — What Actually Happened</div>
+    <p class="sub" style="margin-bottom:14px;">Every real Buy/Sell you clicked on High Value or Low Value, plus every real trade Automaton placed on its own — one list, so you can see what the model actually decided and when.</p>
+    <div id="log-status" class="pw-loading">Loading trade history…</div>
+    <div id="log-table-wrap" style="overflow-x:auto;"></div>
   </div>
 </main>
 <script>
@@ -159,6 +178,66 @@ async function pwAnalyze() {
     btn.disabled = false;
   }
 }
+
+const ENGINE_LABEL = { high_value: "High Value", low_value: "Low Value", automaton: "Automaton" };
+
+function logMoney(v) {
+  if (v === null || v === undefined) return "—";
+  return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
+}
+
+function logDate(s) {
+  if (!s) return "—";
+  // Trade timestamps are stored/returned as UTC; show date + time together.
+  return s.replace("T", " ").slice(0, 16) + " UTC";
+}
+
+async function loadTradeLog() {
+  const statusEl = document.getElementById("log-status");
+  const wrapEl = document.getElementById("log-table-wrap");
+  try {
+    const res = await fetch("/trade/portfolio-watch/trade-log");
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.textContent = "Error loading trade history: " + (data.detail || res.statusText);
+      statusEl.className = "pw-error";
+      return;
+    }
+    if (!data.trades.length) {
+      statusEl.textContent = "No real trades placed yet across any engine — this fills in once you click Buy/Sell somewhere, or Automaton places its first trade.";
+      return;
+    }
+    statusEl.style.display = "none";
+    let rows = "";
+    data.trades.forEach(t => {
+      const engineCls = "engine-" + (t.engine || "high_value");
+      const actionCls = t.side === "long" ? "action-buy" : "action-short";
+      const statusCls = t.status === "OPEN" ? "status-open" : "status-closed";
+      rows += `<tr>
+        <td><span class="engine-badge ${engineCls}">${ENGINE_LABEL[t.engine] || t.engine}</span></td>
+        <td><b>${t.symbol}</b></td>
+        <td class="${actionCls}">${t.action}</td>
+        <td>$${(t.entry_price || 0).toFixed(2)}</td>
+        <td>${logDate(t.entry_time)}</td>
+        <td class="${statusCls}">${t.status}</td>
+        <td>${t.status === "CLOSED" ? "$" + (t.exit_price || 0).toFixed(2) : "—"}</td>
+        <td>${t.status === "CLOSED" ? logDate(t.exit_time) : "—"}</td>
+        <td>${t.status === "CLOSED" ? logMoney(t.pnl_dollars) : "—"}</td>
+      </tr>`;
+    });
+    wrapEl.innerHTML = `<table class="log-table">
+      <thead><tr>
+        <th>Category</th><th>Symbol</th><th>Action</th><th>Entry $</th><th>Entry Date/Time</th>
+        <th>Status</th><th>Exit $</th><th>Exit Date/Time</th><th>P&L</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch (e) {
+    statusEl.textContent = "Request failed: " + e.message;
+    statusEl.className = "pw-error";
+  }
+}
+loadTradeLog();
 </script>
 </body>
 </html>

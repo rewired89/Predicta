@@ -13557,3 +13557,15 @@ calls: fetchers.trading_logger.log_copy_trade_entry
 called_by: app.py POST /trade/copy/execute
 mutates: (unchanged)
 ---
+
+---
+name: portfolio_watch_trade_log / loadTradeLog (Trade Actions log)
+type: function
+file: app.py (backend), templates/portfolio_watch.html (frontend)
+purpose: added 2026-09-11, direct user request — "I should be able to see the stocks that were manually Bought or Sell... from what category, meaning if it was a stock from High Value or Low Value, and then the date and time... Automaton movements should be there with the same information." New "Trade Actions" section on the existing Portfolio Watch page (previously an unrelated tool — real-news HOLD/WATCH/TRIM reads for stocks the user names, nothing to do with Predicta's own engines) lists every REAL trade across all three engines: High Value/Low Value manual Buy/Sell clicks and Automaton's own autonomous trades, all is_hypothetical=0 rows (is_copy_trade excluded — that gets its own separate feed on /trade/copy-trades). Each row shows category (engine, color-coded badge), symbol, BUY/SHORT, entry price + full date/time, OPEN/CLOSED status, and exit price/date/P&L once closed.
+inputs: portfolio_watch_trade_log(limit: int = 200)
+outputs: dict {trades: [{symbol, side, engine, entry_time, exit_time, entry_price, exit_price, qty, pnl_dollars, exit_reason, status, action}], count}
+calls: db.database.get_db
+called_by: GET /trading/portfolio-watch (loadTradeLog() JS, runs on page load)
+side_effects: none (read-only)
+---
