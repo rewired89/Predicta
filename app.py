@@ -29,6 +29,26 @@ from fetchers.signals import log_signal
 app = FastAPI(title="Predicta", description="Multi-sport prediction & calibration tracker", version="1.0.0")
 
 
+@app.get("/version")
+def version_info():
+    """
+    Added 2026-09-11 (direct user need — after disabling Railway's
+    auto-deploy, the dashboard's own manual-redeploy buttons went
+    unresponsive, and there was no way to tell whether a fix pushed to
+    GitHub had actually made it to the running server or not). Railway
+    injects these RAILWAY_GIT_*/RAILWAY_DEPLOYMENT_ID env vars into every
+    deploy automatically — reading them back here means checking "is my
+    latest fix actually live" is one URL visit, no dashboard interaction
+    required at all.
+    """
+    return {
+        "git_commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "unknown (not running on Railway, or var unset)"),
+        "git_branch": os.environ.get("RAILWAY_GIT_BRANCH", "unknown"),
+        "deployment_id": os.environ.get("RAILWAY_DEPLOYMENT_ID", "unknown"),
+        "environment": os.environ.get("RAILWAY_ENVIRONMENT_NAME", "unknown"),
+    }
+
+
 @app.on_event("startup")
 def startup():
     init_db()
