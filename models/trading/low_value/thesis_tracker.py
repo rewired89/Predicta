@@ -314,6 +314,20 @@ def _effective_signal_weights() -> dict[str, float]:
 
     Cached for _EFFECTIVE_WEIGHTS_CACHE_TTL_SEC: this runs once per
     candidate per scan, and recalibration doesn't change moment-to-moment.
+
+    min_entry_score (fixed 2026-09-15 — real gap found while auditing Low
+    Value's daily-scan reliability): this call previously omitted
+    min_entry_score entirely, meaning dynamic weight calibration would fit
+    on sprint-mode trades (LOW_VALUE_DATA_COLLECTION_SPRINT_MODE logs down
+    to |score|>=15) mixed with real-entry-bar trades (>=ENTRY_THRESHOLD),
+    diluting the fit with signal behavior below the bar any live decision
+    is actually made at. This is the exact DeepSeek-review risk
+    (trading_model_4kimi.md) that was fixed for Automaton's own
+    effective_weights() (models/trading/automaton/learning.py,
+    _WEIGHT_CALIBRATION_MIN_ENTRY_SCORE) on 2026-08-29 but never backported
+    to Low Value's own weight-computation call site, even though Low Value
+    is where sprint mode originated. Now passes ENTRY_THRESHOLD explicitly,
+    matching Automaton's convention.
     """
     import time
     now = time.monotonic()
@@ -327,7 +341,7 @@ def _effective_signal_weights() -> dict[str, float]:
             low_value_calibration_readiness, compute_low_value_dynamic_weights,
         )
         if low_value_calibration_readiness().get("dynamic_weights_ready"):
-            result = compute_low_value_dynamic_weights(min_trades=30)
+            result = compute_low_value_dynamic_weights(min_trades=30, min_entry_score=ENTRY_THRESHOLD)
             if result and result.get("status") == "dynamic":
                 weights = dict(result["weights"])
     except Exception:

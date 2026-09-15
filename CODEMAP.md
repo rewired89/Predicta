@@ -12433,9 +12433,9 @@ mutates: none
 name: _effective_signal_weights
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: added 2026-07-16 (Tier 1) — Low Value's mirror of intraday.py's _effective_weights(). SIGNAL_WEIGHTS unless 50+ closed Low Value trades (low_value_calibration_readiness's dynamic_weights_ready) unlock compute_low_value_dynamic_weights() AND it found real edge. Same 5-minute cache rationale.
+purpose: added 2026-07-16 (Tier 1) — Low Value's mirror of intraday.py's _effective_weights(). SIGNAL_WEIGHTS unless 50+ closed Low Value trades (low_value_calibration_readiness's dynamic_weights_ready) unlock compute_low_value_dynamic_weights() AND it found real edge. Same 5-minute cache rationale. Fixed 2026-09-15: now passes min_entry_score=ENTRY_THRESHOLD to compute_low_value_dynamic_weights — previously omitted, so weight calibration was fitting on sprint-mode sub-threshold trades mixed with real-entry-bar ones (the exact risk DeepSeek's review fixed for Automaton's effective_weights() on 2026-08-29, never backported here).
 inputs: none
-outputs: dict[str, float] — same shape as SIGNAL_WEIGHTS (8 signal names -> weight)
+outputs: dict[str, float] — same shape as SIGNAL_WEIGHTS (9 signal names -> weight, as of 2026-09-11)
 calls: models.trading.shared.signal_calibration.low_value_calibration_readiness, compute_low_value_dynamic_weights
 called_by: compute_thesis_score
 mutates: none (module-level cache only)
