@@ -25,7 +25,10 @@ from typing import Optional
 
 from fetchers.high_value_runner import _et_now, _et_minutes
 from fetchers.alpaca import get_daily_bars, get_snapshots, get_asset_shortability
-from fetchers.trading_logger import log_low_value_trade, log_trade_exit, log_universe_snapshot, promote_trade_to_real
+from fetchers.trading_logger import (
+    log_low_value_trade, log_trade_exit, log_universe_snapshot, promote_trade_to_real,
+    log_low_value_scan_completed, get_low_value_scan_for_date,
+)
 from fetchers import hsip_client
 from db.database import get_db
 
@@ -183,6 +186,17 @@ def _in_scan_window() -> bool:
     t = _et_minutes()
     scan_start = LOW_VALUE_SCAN_HOUR_ET * 60
     return scan_start <= t < scan_start + 15
+
+
+def _past_scan_window() -> bool:
+    """
+    True once today's normal 08:00-08:14 ET window has already elapsed
+    (added 2026-09-15, mirrors automaton_runner.py's _past_scan_window) —
+    lets _runner_loop's catch-up check fire a scan later the same day
+    instead of only during the 15-minute window itself. Weekday-agnostic on
+    purpose: _runner_loop's own weekday gate decides whether to act on it.
+    """
+    return _et_minutes() >= LOW_VALUE_SCAN_HOUR_ET * 60 + 15
 
 
 def get_daily_universe(force_refresh: bool = False) -> list[str]:
@@ -543,6 +557,15 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
 
     if len(_run_log) > 100:
         _run_log[:] = _run_log[-100:]
+
+    # Durable marker (see db/schema.sql: low_value_scan_log) that a scan
+    # happened for this ET date regardless of how many candidates qualified
+    # — logged even at trade_ids=[] so a zero-candidate day doesn't look
+    # indistinguishable from "never ran" to _runner_loop's catch-up check.
+    # Unconditional (manual scan-now included, same as automaton_runner.py's
+    # equivalent) — a manual scan already covering today means the
+    # scheduled loop shouldn't also fire later that day.
+    log_low_value_scan_completed(_et_now().strftime("%Y-%m-%d"), len(trade_ids))
     return trade_ids
 
 
@@ -882,7 +905,23 @@ def close_low_value_trade(trade_id: int) -> dict:
 
 
 def _runner_loop() -> None:
-    """Background thread body. Sleeps 60s between ticks; scans once per day in the 8:00-8:14 ET window."""
+    """
+    Background thread body. Sleeps 60s between ticks; scans once per day,
+    normally in the 8:00-8:14 ET window.
+
+    Catch-up behavior (added 2026-09-15 — backport of the exact fix
+    automaton_runner.py got on 2026-08-28 for the same "scans never
+    started" confusion Low Value hit first): today_scanned is seeded from
+    the DB-persisted low_value_scan_log, not just an in-memory None, so a
+    restart mid-day doesn't forget a scan that already ran earlier today.
+    And the scan trigger fires on EITHER being inside today's normal window
+    OR today's window having already passed with still no completed scan
+    on record — so a process that starts (or restarts, e.g. a Railway
+    redeploy) after 8:14 ET catches up immediately on its next tick instead
+    of silently waiting until tomorrow morning, which is the actual
+    mechanism behind "why didn't today's data get collected" when nothing
+    else is wrong.
+    """
     global _runner_active
     today_scanned: Optional[str] = None
     log.info("[LOW_VALUE] Background loop started")
@@ -891,7 +930,19 @@ def _runner_loop() -> None:
         try:
             now_et = _et_now()
             today = now_et.strftime("%Y-%m-%d")
-            if now_et.weekday() < 5 and _in_scan_window() and today_scanned != today:
+            if today_scanned != today:
+                # Seed/refresh from the durable marker once per new day —
+                # cheap DB lookup, only matters right after a restart or at
+                # the first tick of a new calendar date.
+                persisted = get_low_value_scan_for_date(today)
+                if persisted:
+                    today_scanned = today
+            should_scan = (
+                now_et.weekday() < 5
+                and today_scanned != today
+                and (_in_scan_window() or _past_scan_window())
+            )
+            if should_scan:
                 log.info(f"[LOW_VALUE] Daily scan for {today}")
                 exit_result = check_low_value_exits()
                 ids = run_low_value_scan()
@@ -1039,6 +1090,11 @@ def get_runner_status() -> dict:
         "open_symbols":    [p["symbol"] for p in open_pos],
         "universe_cached_today": today_str in _universe_cache,
         "universe_size":   len(_universe_cache.get(today_str, [])),
+        # Added 2026-09-15 alongside the catch-up fix — lets you confirm
+        # from this endpoint whether today's scan is durably recorded
+        # (survives a restart) rather than only trusting the in-memory
+        # _runner_loop state, which is exactly what silently failed before.
+        "scheduled_scan_completed_today": get_low_value_scan_for_date(today_str) is not None,
         "et_now":          _et_now().isoformat(),
         "recent_log":      list(reversed(_run_log[-20:])),
         "scan_in_progress":       _scan_in_progress,

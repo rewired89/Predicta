@@ -10813,13 +10813,13 @@ mutates: intraday_trades table (via log_trade_exit), _run_log
 ---
 
 ---
-name: _runner_loop (low_value_runner)
+name: _runner_loop / _past_scan_window (low_value_runner, catch-up scheduling)
 type: function
 file: fetchers/low_value_runner.py
-purpose: Background thread body — sleeps 60s between ticks, scans once per day in the 8:00-8:14 ET window (exit check then entry scan). No force-close, no intraday checks (Low Value holds multi-day by design).
+purpose: Background thread body — sleeps 60s between ticks, scans once per day, normally in the 8:00-8:14 ET window (exit check then entry scan). No force-close, no intraday checks (Low Value holds multi-day by design). Extended 2026-09-15 — backport of the exact catch-up fix automaton_runner.py got on 2026-08-28 for the same "scans never started" problem Low Value hit first (CLAUDE.md's 2026-07-12 missing-start_runner() note): today_scanned is now seeded from the DB-persisted low_value_scan_log (not just in-memory None), so a mid-day restart doesn't forget a scan that already ran earlier today. The scan trigger now fires on EITHER being inside the normal 8:00-8:14 ET window OR that window having already passed today with still no completed scan on record (_past_scan_window) — so a late-day start/redeploy catches up on its very next 60s tick instead of waiting until tomorrow.
 inputs: none
 outputs: none
-calls: _et_now, check_low_value_exits, run_low_value_scan
+calls: _et_now, get_low_value_scan_for_date, check_low_value_exits, run_low_value_scan, _in_scan_window, _past_scan_window
 called_by: start_runner (thread target)
 mutates: _runner_active (reads), today_scanned (local)
 ---
@@ -12543,6 +12543,18 @@ outputs: list[int] (trade_ids) — unchanged shape
 calls: fetchers.alpaca.get_asset_shortability (new)
 called_by: trigger_scan_async, _runner_loop, GET/POST low-value scan endpoints (app.py)
 mutates: intraday_trades (unchanged behavior for non-blocked trades)
+---
+
+---
+name: low_value_scan_log table / log_low_value_scan_completed / get_low_value_scan_for_date
+type: table + function pair
+file: db/schema.sql (table), fetchers/trading_logger.py (functions)
+purpose: added 2026-09-15 — backport of automaton_scan_log's exact fix (2026-08-28) to Low Value, which had the same in-memory-only today_scanned gap the Automaton fix was built to prevent (and which Low Value itself hit first, per CLAUDE.md's 2026-07-12 missing-start_runner() note — this closes the same failure mode a second time, this time inside the loop itself rather than the call to start it). run_low_value_scan() now upserts one low_value_scan_log row per ET calendar date, logged even at trade_ids=[] so a zero-candidate day is distinguishable from "the scan never ran." _runner_loop seeds today_scanned from this table on every tick, so a Railway restart/redeploy landing after the normal 8:00-8:14 ET window no longer waits until tomorrow to catch up.
+inputs: log_low_value_scan_completed(scan_date: str, trades_logged: int); get_low_value_scan_for_date(scan_date: str)
+outputs: log_low_value_scan_completed: none (upsert); get_low_value_scan_for_date: Optional[dict]
+calls: db.database.get_db
+called_by: run_low_value_scan / _runner_loop (low_value_runner.py), get_runner_status (new scheduled_scan_completed_today field)
+mutates: low_value_scan_log
 ---
 
 ---

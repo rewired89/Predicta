@@ -549,6 +549,33 @@ def get_universe_snapshot_for_date(scan_date: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def log_low_value_scan_completed(scan_date: str, trades_logged: int) -> None:
+    """
+    Durable "did Low Value's daily scan actually run today" marker (added
+    2026-09-15 — backport of automaton_scan_log's fix, below, to the older
+    engine it was originally modeled on). One row per ET calendar date,
+    upserted whether or not any candidate qualified that day, so a
+    zero-candidate day doesn't look indistinguishable from "never ran" to
+    _runner_loop's catch-up check. See db/schema.sql's low_value_scan_log
+    and fetchers/low_value_runner.py's _runner_loop.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO low_value_scan_log (scan_date, trades_logged, completed_at) VALUES (?, ?, datetime('now')) "
+            "ON CONFLICT(scan_date) DO UPDATE SET trades_logged = excluded.trades_logged, completed_at = excluded.completed_at",
+            (scan_date, trades_logged),
+        )
+
+
+def get_low_value_scan_for_date(scan_date: str) -> Optional[dict]:
+    """Whether Low Value's daily scan already completed for this exact ET calendar date, or None if it hasn't."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM low_value_scan_log WHERE scan_date = ?", (scan_date,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def log_automaton_scan_completed(scan_date: str, trades_logged: int) -> None:
     """
     Durable "did Automaton's daily scan actually run today" marker (added
