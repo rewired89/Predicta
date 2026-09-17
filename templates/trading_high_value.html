@@ -385,11 +385,10 @@
   <div class="tab-pane" id="tab-scanner">
 
     <div class="scan-controls">
-      <button class="scan-btn" id="scan-watchlist-btn" onclick="runScanner(false)">
+      <button class="scan-btn" id="scan-watchlist-btn" onclick="runScanner(true)">
         <span class="spinner" id="scan-spinner-wl" style="border-color:rgba(0,0,0,.2); border-top-color:#000;"></span>
-        Scan Watchlist
+        Scan the Market
       </button>
-      <button class="movers-btn" id="scan-movers-btn" onclick="runScanner(true)">Top Movers / Most Active</button>
       <span style="font-size:.78rem; color:var(--muted)">Requires ALPACA_API_KEY in .env</span>
     </div>
 
@@ -803,9 +802,8 @@ function switchTab(name) {
 // ── Scanner ──────────────────────────────────────────────────────────────────
 async function runScanner(useMovers) {
   const wlBtn = document.getElementById("scan-watchlist-btn");
-  const mvBtn = document.getElementById("scan-movers-btn");
   const sp = document.getElementById("scan-spinner-wl");
-  wlBtn.disabled = true; mvBtn.disabled = true;
+  wlBtn.disabled = true;
   sp.style.display = "block";
   document.getElementById("scan-error").style.display = "none";
   document.getElementById("scan-results").style.display = "none";
@@ -824,7 +822,7 @@ async function runScanner(useMovers) {
     el.textContent = "Scanner error: " + err.message;
     el.style.display = "block";
   } finally {
-    wlBtn.disabled = false; mvBtn.disabled = false;
+    wlBtn.disabled = false;
     sp.style.display = "none";
   }
 }
