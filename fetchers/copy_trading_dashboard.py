@@ -254,7 +254,14 @@ def render_copy_trades_page() -> str:
     if not rows_html:
         rows_html = '<div class="muted-note">No recent insider filings loaded — either nothing new filed in the last 7 days, or the live fetch from openinsider.com failed. Refresh in a bit, or check /copy-trades-diag.</div>'
 
-    html = f"""<!DOCTYPE html>
+    # Named page_html, not html — this function calls html.escape() above,
+    # and Python treats a name assigned anywhere in a function as local for
+    # the WHOLE function, so naming this `html` shadowed the html module
+    # before the escape() call ever ran, crashing every load with
+    # UnboundLocalError. Same fix applied to render_portfolio_page() below
+    # even though it doesn't currently call html.escape(), so it can't
+    # silently regress the same way if that ever changes.
+    page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -285,7 +292,7 @@ def render_copy_trades_page() -> str:
 <script>{_JS}</script>
 </body>
 </html>"""
-    return html
+    return page_html
 
 
 def render_portfolio_page() -> str:
@@ -324,7 +331,7 @@ def render_portfolio_page() -> str:
     if not closed_html:
         closed_html = '<div class="muted-note">No closed copy trades yet.</div>'
 
-    html = f"""<!DOCTYPE html>
+    page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -353,4 +360,4 @@ def render_portfolio_page() -> str:
 <script>{_JS}</script>
 </body>
 </html>"""
-    return html
+    return page_html
