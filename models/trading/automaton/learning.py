@@ -18,8 +18,9 @@ survival tier deciding whether the agent lives, a resolved-trade count
 decides how much the SAME strategy trusts its own history yet. Below the
 calibration floor, it runs on the same static SIGNAL_WEIGHTS every other
 paper-trading engine in this codebase starts on. Once enough of its own
-trades have closed, it reweights toward whatever combination of the 8 Low
-Value signals has actually been winning — the "keep finding more of the
+trades have closed, it reweights toward whatever combination of the Low
+Value signals (9 as of 2026-09-11 — see thesis_tracker.SIGNAL_WEIGHTS) has
+actually been winning — the "keep finding more of the
 stock it needs" behavior the user asked for — using machinery that already
 existed for Low Value (compute_low_value_dynamic_weights) and was "not yet
 wired to SIGNAL_WEIGHTS" per LOW_VALUE_README.md. This is that wiring,

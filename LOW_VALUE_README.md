@@ -71,11 +71,23 @@ engine-tagged rows) without an architecturally awkward relocation.
    headline flag, matching the spec.
 
 3. **Signal engine** (`models/trading/low_value/thesis_tracker.py`,
-   `compute_thesis_score`) — 8 signals from DAILY bars only, weighted
+   `compute_thesis_score`) — 9 signals from DAILY bars only, weighted
    `price_vs_20d_low 20% / rsi_14 15% / volume_spike 10% / insider_buying_30d
-   20% / short_interest_pct 10% / sector_relative_strength 10% /
-   cash_burn_months 10% / news_sentiment 5%`. Composite -100..+100, label
-   STRONG_BUY/BUY/NEUTRAL/SELL/STRONG_SELL, entry threshold `|score| >= 40`.
+   20% / short_interest_pct 7.5% / sector_relative_strength 7.5% /
+   cash_burn_months 10% / news_sentiment 5% / social_sentiment 5%`. Composite
+   -100..+100, label STRONG_BUY/BUY/NEUTRAL/SELL/STRONG_SELL, entry threshold
+   `|score| >= 40`. `social_sentiment` (`models/trading/low_value/
+   social_overlay.py`, added 2026-09-11) is the one idea kept from a review
+   of TauricResearch/TradingAgents — a multi-agent LLM trading framework the
+   user asked about — after concluding the framework itself (LLM agents
+   debating a trade decision) would be a regression from this codebase's
+   auditable, win-rate-calibrated signal scoring: its Sentiment Analyst role
+   is ported as a plain, calibratable signal instead, sourced from
+   StockTwits' public, no-key symbol stream (`fetchers/stocktwits.py`;
+   Reddit has no equivalent free structured per-symbol endpoint, so it was
+   left out). Funded by taking 2.5pp each from short_interest_pct/
+   sector_relative_strength (the two next-lowest-conviction signals), not
+   from price_vs_20d_low/insider_buying_30d.
    **Missing signals are excluded from the weighted average and their weight
    redistributed proportionally — never faked as a default value**, same
    "no faking" discipline as every calibration gate in this codebase.
@@ -156,6 +168,7 @@ engine-tagged rows) without an architecturally awkward relocation.
 | OpenInsider (`fetchers/openinsider.py`) | Insider Form 4 purchases | None |
 | Nasdaq public API (`fetchers/finra.py`) | Short interest (FINRA settlement data, ~2wk lag) | None |
 | Yahoo Finance (`fetchers/yahoo_quote.py`) | Market cap backup | None |
+| StockTwits (`fetchers/stocktwits.py`) | Retail social sentiment (bullish/bearish tagged posts) | None — unauthenticated, ~200 calls/hour |
 
 All fetchers fail safe (return `None`/`[]`/`False`) on a missing key or
 request error — a data-source hiccup degrades a signal to "unavailable,"

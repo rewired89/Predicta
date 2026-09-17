@@ -1168,6 +1168,7 @@ def missing_signal_impact_report(min_trades: int = LOW_VALUE_THESIS_PRELIMINARY_
     signal_names = [
         "price_vs_20d_low", "rsi_14", "volume_spike", "insider_buying_30d",
         "short_interest_pct", "sector_relative_strength", "cash_burn_months", "news_sentiment",
+        "social_sentiment",
     ]
 
     def _stats(cohort: list[dict]) -> dict:

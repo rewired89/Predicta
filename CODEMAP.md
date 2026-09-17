@@ -10048,7 +10048,7 @@ mutates: none
 name: SIGNAL_WEIGHTS
 type: variable
 file: models/trading/low_value/thesis_tracker.py
-purpose: The 8-signal weight table for the Low Value composite (price_vs_20d_low 20%, rsi_14 15%, volume_spike 10%, insider_buying_30d 20%, short_interest_pct 10%, sector_relative_strength 10%, cash_burn_months 10%, news_sentiment 5%). Sums to 1.0 (asserted at import time).
+purpose: The 9-signal weight table for the Low Value composite (price_vs_20d_low 20%, rsi_14 15%, volume_spike 10%, insider_buying_30d 20%, short_interest_pct 7.5%, sector_relative_strength 7.5%, cash_burn_months 10%, news_sentiment 5%, social_sentiment 5%). Sums to 1.0 (asserted at import time). social_sentiment added 2026-09-11 (see models/trading/low_value/social_overlay.py) — funded by taking 2.5pp each from short_interest_pct/sector_relative_strength, the two lowest-conviction signals, leaving price_vs_20d_low/insider_buying_30d untouched.
 inputs: none
 outputs: dict[str, float]
 calls: none
@@ -10201,6 +10201,66 @@ mutates: none
 ---
 
 ---
+name: _score_social_sentiment
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: Added 2026-09-11 (see social_overlay.py). StockTwits bullish/bearish sentiment * 100 as the social_sentiment signal. None if social_overlay.score_symbol_social found fewer than MIN_TAGGED_MESSAGES tagged posts (tagged_count forced to 0 by that function in that case).
+inputs: social_result: Optional[dict]
+outputs: Optional[tuple[float, dict]]
+calls: none
+called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: score_symbol_social
+type: function
+file: models/trading/low_value/social_overlay.py
+purpose: Added 2026-09-11 (TradingAgents-review follow-up). Aggregates fetchers.stocktwits.get_symbol_sentiment's bullish/bearish tally into a single -1..+1 sentiment score. Forces tagged_count to 0 (sentiment 0.0) below MIN_TAGGED_MESSAGES (5) so a single tagged post can't swing to ±100 — mirrors news_overlay.score_symbol_news's headline_count==0 "no signal" convention.
+inputs: social_result: Optional[dict]
+outputs: dict {sentiment, bullish, bearish, tagged_count}
+calls: none
+called_by: scan_universe_social
+mutates: none
+---
+
+---
+name: scan_universe_social
+type: function
+file: models/trading/low_value/social_overlay.py
+purpose: Added 2026-09-11. Fetches + scores StockTwits sentiment for every symbol in a Low Value/Automaton universe in one capped batch.
+inputs: symbols: list[str]
+outputs: dict[str, dict]
+calls: fetchers.stocktwits.fetch_social_batch, score_symbol_social
+called_by: analyze_low_value_tickers, run_low_value_scan (low_value_runner.py), run_automaton_scan (automaton_runner.py)
+mutates: none
+---
+
+---
+name: get_symbol_sentiment
+type: function
+file: fetchers/stocktwits.py
+purpose: Added 2026-09-11 (user asked whether TauricResearch/TradingAgents — a multi-agent LLM trading framework — could improve the trading models; its Sentiment Analyst role was the one piece adopted, as a calibratable signal rather than an LLM judgment call). Public, no-key StockTwits symbol-stream call; tallies bullish/bearish user-tagged messages. Fails safe (all-zero) on any error — unverified from this sandbox like every other external source in this codebase (see CLAUDE.md).
+inputs: symbol: str, limit: int = 30
+outputs: dict {bullish, bearish, tagged_count, total_count}
+calls: none (requests.get against api.stocktwits.com)
+called_by: fetch_social_batch
+mutates: none
+---
+
+---
+name: fetch_social_batch
+type: function
+file: fetchers/stocktwits.py
+purpose: Added 2026-09-11. Batch version of get_symbol_sentiment, capped at MAX_CALLS_PER_HOUR (200, StockTwits' unauthenticated ceiling) calls per invocation — symbols beyond the cap get no result this scan (treated as a missing signal, excluded/reweighted, never faked) rather than sleeping up to an hour for a 5%-weighted signal.
+inputs: symbols: list[str], max_calls: int = 200
+outputs: dict[str, dict]
+calls: get_symbol_sentiment
+called_by: scan_universe_social (social_overlay.py)
+mutates: none
+---
+
+---
 name: label_for_score
 type: function
 file: models/trading/low_value/thesis_tracker.py
@@ -10228,11 +10288,11 @@ mutates: none
 name: compute_thesis_score
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: Full 8-signal composite for one Low Value candidate. Missing signals are excluded from the weighted average and their weight redistributed proportionally across available signals — never faked.
-inputs: symbol: str, daily_bars: list[dict], sector_bars: list[dict], news_result: Optional[dict] = None
+purpose: Full 9-signal composite for one Low Value candidate (social_sentiment added 2026-09-11). Missing signals are excluded from the weighted average and their weight redistributed proportionally across available signals — never faked.
+inputs: symbol: str, daily_bars: list[dict], sector_bars: list[dict], news_result: Optional[dict] = None, weights: Optional[dict[str, float]] = None, social_result: Optional[dict] = None
 outputs: dict {composite, label, entry_eligible, signals, missing_signals}
-calls: _score_price_vs_20d_low, _score_rsi_14, _score_volume_spike, _score_insider_buying, _score_short_interest, _score_sector_relative_strength, _score_cash_burn, _score_news_sentiment
-called_by: run_low_value_scan (low_value_runner.py)
+calls: _score_price_vs_20d_low, _score_rsi_14, _score_volume_spike, _score_insider_buying, _score_short_interest, _score_sector_relative_strength, _score_cash_burn, _score_news_sentiment, _score_social_sentiment
+called_by: run_low_value_scan/analyze_low_value_tickers (low_value_runner.py), run_automaton_scan (automaton_runner.py)
 mutates: none
 ---
 
@@ -10777,13 +10837,13 @@ mutates: intraday_trades table (via log_trade_exit), _run_log
 ---
 
 ---
-name: _runner_loop (low_value_runner)
+name: _runner_loop / _past_scan_window (low_value_runner, catch-up scheduling)
 type: function
 file: fetchers/low_value_runner.py
-purpose: Background thread body — sleeps 60s between ticks, scans once per day in the 8:00-8:14 ET window (exit check then entry scan). No force-close, no intraday checks (Low Value holds multi-day by design).
+purpose: Background thread body — sleeps 60s between ticks, scans once per day, normally in the 8:00-8:14 ET window (exit check then entry scan). No force-close, no intraday checks (Low Value holds multi-day by design). Extended 2026-09-15 — backport of the exact catch-up fix automaton_runner.py got on 2026-08-28 for the same "scans never started" problem Low Value hit first (CLAUDE.md's 2026-07-12 missing-start_runner() note): today_scanned is now seeded from the DB-persisted low_value_scan_log (not just in-memory None), so a mid-day restart doesn't forget a scan that already ran earlier today. The scan trigger now fires on EITHER being inside the normal 8:00-8:14 ET window OR that window having already passed today with still no completed scan on record (_past_scan_window) — so a late-day start/redeploy catches up on its very next 60s tick instead of waiting until tomorrow.
 inputs: none
 outputs: none
-calls: _et_now, check_low_value_exits, run_low_value_scan
+calls: _et_now, get_low_value_scan_for_date, check_low_value_exits, run_low_value_scan, _in_scan_window, _past_scan_window
 called_by: start_runner (thread target)
 mutates: _runner_active (reads), today_scanned (local)
 ---
@@ -12249,10 +12309,10 @@ User asked a 4-question audit of all trading models (missing variables / overwei
 name: low_value_per_signal_accuracy_report
 type: function
 file: models/trading/shared/signal_calibration.py
-purpose: added 2026-07-16 (Tier 0) — mirrors per_signal_accuracy_report's exact methodology (active if |score| >= active_threshold, then win_rate/avg_r over that active cohort) but reads Low Value's 8 signals from lv_signals_json instead of High Value's dedicated DB columns. Before this, Low Value could report win rate per THESIS TYPE but not per individual SIGNAL — a question like "is short_interest_pct actually protective, or is treating a squeeze as bullish wrong?" was structurally unanswerable from data even with thousands of trades, since the per-signal score was captured in lv_signals_json but never aggregated. No new logging needed — the JSON was already being written per trade for _signals_breakdown_html's display use; this just aggregates it.
+purpose: added 2026-07-16 (Tier 0) — mirrors per_signal_accuracy_report's exact methodology (active if |score| >= active_threshold, then win_rate/avg_r over that active cohort) but reads Low Value's signals (9 as of 2026-09-11) from lv_signals_json instead of High Value's dedicated DB columns. Before this, Low Value could report win rate per THESIS TYPE but not per individual SIGNAL — a question like "is short_interest_pct actually protective, or is treating a squeeze as bullish wrong?" was structurally unanswerable from data even with thousands of trades, since the per-signal score was captured in lv_signals_json but never aggregated. No new logging needed — the JSON was already being written per trade for _signals_breakdown_html's display use; this just aggregates it.
 inputs: min_trades (int, default 10), active_threshold (float, default 10.0 — matches per_signal_accuracy_report's default on the same -100..100 scale)
 outputs: dict {total_closed, by_signal: [{signal, n, win_rate, avg_pnl_r, note}], active_threshold, note}
-calls: _load_closed_low_value_trades, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS (for the canonical 8-signal name list, not a hardcoded duplicate)
+calls: _load_closed_low_value_trades, models.trading.low_value.thesis_tracker.SIGNAL_WEIGHTS (for the canonical signal name list, not a hardcoded duplicate)
 called_by: render_low_value_dashboard (new "Per-Signal Accuracy" card)
 mutates: none
 ---
@@ -12397,9 +12457,9 @@ mutates: none
 name: _effective_signal_weights
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: added 2026-07-16 (Tier 1) — Low Value's mirror of intraday.py's _effective_weights(). SIGNAL_WEIGHTS unless 50+ closed Low Value trades (low_value_calibration_readiness's dynamic_weights_ready) unlock compute_low_value_dynamic_weights() AND it found real edge. Same 5-minute cache rationale.
+purpose: added 2026-07-16 (Tier 1) — Low Value's mirror of intraday.py's _effective_weights(). SIGNAL_WEIGHTS unless 50+ closed Low Value trades (low_value_calibration_readiness's dynamic_weights_ready) unlock compute_low_value_dynamic_weights() AND it found real edge. Same 5-minute cache rationale. Fixed 2026-09-15: now passes min_entry_score=ENTRY_THRESHOLD to compute_low_value_dynamic_weights — previously omitted, so weight calibration was fitting on sprint-mode sub-threshold trades mixed with real-entry-bar ones (the exact risk DeepSeek's review fixed for Automaton's effective_weights() on 2026-08-29, never backported here).
 inputs: none
-outputs: dict[str, float] — same shape as SIGNAL_WEIGHTS (8 signal names -> weight)
+outputs: dict[str, float] — same shape as SIGNAL_WEIGHTS (9 signal names -> weight, as of 2026-09-11)
 calls: models.trading.shared.signal_calibration.low_value_calibration_readiness, compute_low_value_dynamic_weights
 called_by: compute_thesis_score
 mutates: none (module-level cache only)
@@ -12507,6 +12567,18 @@ outputs: list[int] (trade_ids) — unchanged shape
 calls: fetchers.alpaca.get_asset_shortability (new)
 called_by: trigger_scan_async, _runner_loop, GET/POST low-value scan endpoints (app.py)
 mutates: intraday_trades (unchanged behavior for non-blocked trades)
+---
+
+---
+name: low_value_scan_log table / log_low_value_scan_completed / get_low_value_scan_for_date
+type: table + function pair
+file: db/schema.sql (table), fetchers/trading_logger.py (functions)
+purpose: added 2026-09-15 — backport of automaton_scan_log's exact fix (2026-08-28) to Low Value, which had the same in-memory-only today_scanned gap the Automaton fix was built to prevent (and which Low Value itself hit first, per CLAUDE.md's 2026-07-12 missing-start_runner() note — this closes the same failure mode a second time, this time inside the loop itself rather than the call to start it). run_low_value_scan() now upserts one low_value_scan_log row per ET calendar date, logged even at trade_ids=[] so a zero-candidate day is distinguishable from "the scan never ran." _runner_loop seeds today_scanned from this table on every tick, so a Railway restart/redeploy landing after the normal 8:00-8:14 ET window no longer waits until tomorrow to catch up.
+inputs: log_low_value_scan_completed(scan_date: str, trades_logged: int); get_low_value_scan_for_date(scan_date: str)
+outputs: log_low_value_scan_completed: none (upsert); get_low_value_scan_for_date: Optional[dict]
+calls: db.database.get_db
+called_by: run_low_value_scan / _runner_loop (low_value_runner.py), get_runner_status (new scheduled_scan_completed_today field)
+mutates: low_value_scan_log
 ---
 
 ---

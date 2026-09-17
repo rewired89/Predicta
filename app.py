@@ -137,8 +137,16 @@ def startup():
     try:
         from fetchers.low_value_runner import start_runner as start_low_value_runner
         start_low_value_runner()
-    except Exception:
-        pass
+    except Exception as exc:
+        # Bare `except: pass` here was itself a live risk of the exact
+        # "daily collection silently never ran" failure this block's own
+        # 2026-07-12 fix (see comment above) was written to prevent — a
+        # future import error or refactor bug would fail exactly this
+        # quietly again, with nothing in the logs to say so. Logged (not
+        # re-raised) so one broken engine's startup can't take down the
+        # whole app, but now at least visible in Railway's log stream.
+        import logging as _logging
+        _logging.getLogger("low_value_runner").error(f"[LOW_VALUE] start_runner() failed at startup: {exc}")
 
     # Start the Automaton engine's runner (2026-08-28, direct user request).
     # Same shape as the Low Value start-call above. Unlike every other engine

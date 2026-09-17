@@ -296,6 +296,8 @@ def _signal_explanation(name: str, entry: dict) -> str:
             return base
         if name == "news_sentiment":
             return f"{detail.get('headline_count', 0)} recent headlines, sentiment {detail.get('sentiment', 0):+.2f} (-1 very negative to +1 very positive)"
+        if name == "social_sentiment":
+            return f"StockTwits chatter: {detail.get('bullish', 0)} bullish vs {detail.get('bearish', 0)} bearish tagged posts, sentiment {detail.get('sentiment', 0):+.2f}"
     except (KeyError, TypeError, ValueError):
         pass
     return f"{name.replace('_', ' ')}: {score}"

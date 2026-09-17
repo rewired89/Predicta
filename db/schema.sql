@@ -289,6 +289,21 @@ CREATE TABLE IF NOT EXISTS low_value_universe_snapshot (
 );
 CREATE INDEX IF NOT EXISTS idx_lv_universe_date ON low_value_universe_snapshot(scan_date);
 
+-- Low Value engine (added 2026-09-15) — durable "did the daily scan actually
+-- run today" marker, one row per ET calendar date. Low Value's own
+-- _runner_loop (fetchers/low_value_runner.py) only ever tracked this
+-- in-memory, unlike automaton_scan_log below (added 2026-08-28 for the
+-- exact same problem, on the newer engine) — so a Railway restart/redeploy
+-- landing after today's 8:00-8:14 ET window silently pushed that day's scan
+-- to tomorrow with no record and no catch-up. This table backports the same
+-- fix to Low Value: _runner_loop checks it on every restart to catch up
+-- immediately if today's window already passed with no scan on record.
+CREATE TABLE IF NOT EXISTS low_value_scan_log (
+    scan_date TEXT PRIMARY KEY,
+    trades_logged INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Automaton engine (2026-08-28) — durable "did the daily scan actually run
 -- today" marker, one row per ET calendar date. Exists specifically so a
 -- Railway restart/redeploy that lands AFTER today's 8:15-8:29 ET scan
