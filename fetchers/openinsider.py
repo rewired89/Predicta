@@ -29,13 +29,24 @@ this immediately visible in testing. Fixed by extracting each <tr>...</tr>
 block first (bounded, can't cross a row boundary), then searching for date
 and type within that isolated block.
 
-Known limitation, not solved here: this does not distinguish a routine,
-pre-scheduled 10b5-1 plan sale (common, usually not a signal — e.g. an
-executive's standing plan to sell N shares/quarter for diversification)
-from a discretionary, conviction-driven open-market sale. OpenInsider's
-screener does expose a 10b5-1 flag per row, but parsing it reliably needs
-more careful scraping than this v1 does — treat insider_sales_30d as a
-noisier signal than insider_purchases_30d for that reason.
+Known limitation, partially addressed 2026-09-29: this does not distinguish
+a routine, pre-scheduled 10b5-1 plan sale (common, usually not a signal —
+e.g. an executive's standing plan to sell N shares/quarter for
+diversification) from a discretionary, conviction-driven open-market sale.
+OpenInsider's screener does expose a 10b5-1 flag per row, but parsing it
+reliably needs more careful scraping than this v1 does — treat
+insider_sales_30d as a noisier signal than insider_purchases_30d for that
+reason. What WAS fixed: _SALE_TYPE_RE used to require an exact "S - Sale"
+cell match, so a differently-suffixed sale-type label (confirmed live on a
+real EOSE Form 4 — an RSU-vest-then-partial-sell by the CEO, two days
+apart) went completely undetected, making a mechanical vest-and-flip look
+like a pure, undiluted insider purchase instead of a discounted mixed
+signal. The regex now matches "S - Sale" as a prefix, so any suffixed
+variant still counts as a sale. This closes the "silently miscounted as a
+stronger buy signal" failure mode — it does not (and can't, without the
+10b5-1 flag) tell a scheduled sale from a discretionary one; see
+thesis_tracker.py's insider_vest_flip_pattern for the date-proximity
+heuristic that leans on this fix.
 
 2026-09-03 (user-requested — High Value "Copy Trades" feature): added
 get_latest_filings(), a MARKET-WIDE feed (openinsider.com's own
@@ -79,7 +90,18 @@ OPENINSIDER_URL = "http://openinsider.com/screener"
 _ROW_BLOCK_RE = re.compile(r"<tr[^>]*>((?:(?!</tr>).)*?)</tr>", re.IGNORECASE | re.DOTALL)
 _DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _PURCHASE_TYPE_RE = re.compile(r"<td[^>]*>\s*P\s*-\s*Purchase\s*</td>", re.IGNORECASE)
-_SALE_TYPE_RE = re.compile(r"<td[^>]*>\s*S\s*-\s*Sale\s*</td>", re.IGNORECASE)  # exact "S - Sale" only, not "S - Sale+OE" — v1, see module docstring
+# Broadened 2026-09-29 (real live miss found: EOSE's CEO sold 250k shares
+# two days after a 500k RSU-vest acquisition, and the sale was invisible to
+# insider_buying_30d's discount because openinsider apparently labels this
+# kind of disposal with a suffix — "S - Sale+OE" and similar variants — that
+# the old exact-match "S - Sale" </td>-anchored regex never caught. Missing
+# the sale meant a mechanical vest-then-flip looked like an undiluted +100
+# "bought, not sold" signal instead of the discounted "bought AND sold" tier
+# it should have hit. Now matches "S - Sale" as a prefix (word boundary, not
+# exact cell contents) so any suffixed sale-type label still counts as a
+# sale — see thesis_tracker.py's vest-flip window check for the other half
+# of this fix.
+_SALE_TYPE_RE = re.compile(r"<td[^>]*>\s*S\s*-\s*Sale\b", re.IGNORECASE)
 
 
 def _fetch_screener_html(symbol: str) -> Optional[str]:

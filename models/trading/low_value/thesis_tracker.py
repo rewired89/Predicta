@@ -150,6 +150,31 @@ def _score_volume_spike(daily_bars: list[dict]) -> Optional[tuple[float, dict]]:
     return round(score, 2), {"spike_ratio": round(spike, 3)}
 
 
+# Added 2026-09-29 — real live case: EOSE's CEO acquired 500k shares (RSU
+# vest) on 2026-09-14 and sold 250k of them on 2026-09-16, two days later.
+# That's a mechanical vesting-and-partial-sell pattern, not a discretionary
+# "I believe in this stock" purchase — but the old bought/sold booleans gave
+# it the same +40 "mixed signal" score as any unrelated buy-and-sell pair in
+# the same 30-day window (and, before the openinsider.py regex fix above,
+# the sale wasn't even being detected, scoring it the full +100). A purchase
+# with a sale by the SAME kind of event within this many days of it is
+# treated as a weak, likely-mechanical signal rather than a real mixed one.
+INSIDER_VEST_FLIP_WINDOW_DAYS = 7
+
+
+def _has_nearby_pair(purchases: list[str], sales: list[str], window_days: int) -> bool:
+    """True if any purchase date and any sale date fall within window_days of each other."""
+    from datetime import datetime as _dt
+    parsed_purchases, parsed_sales = [], []
+    for lst, out in ((purchases, parsed_purchases), (sales, parsed_sales)):
+        for d in lst:
+            try:
+                out.append(_dt.strptime(d, "%Y-%m-%d").date())
+            except (ValueError, TypeError):
+                continue
+    return any(abs((p - s).days) <= window_days for p in parsed_purchases for s in parsed_sales)
+
+
 def _score_insider_buying(symbol: str) -> tuple[float, dict]:
     """
     Signal key stays "insider_buying_30d" (SIGNAL_WEIGHTS, dominant_thesis_type's
@@ -163,16 +188,25 @@ def _score_insider_buying(symbol: str) -> tuple[float, dict]:
 
     Scoring (v1, uncalibrated — tune once resolved trades exist, same
     disclaimer as every other signal weight in this file):
-      bought, not sold  -> +100 (strongest confirmation)
-      bought AND sold   -> +40  (mixed signal)
-      neither           -> 0    (no signal either way — same as the old default)
-      sold, not bought  -> -60  (insiders dumping into the dip — contradicts the thesis)
+      bought, not sold          -> +100 (strongest confirmation)
+      bought AND sold, nearby   -> +15  (added 2026-09-29 — looks like a
+                                          mechanical vest-and-flip, not
+                                          conviction buying; see
+                                          INSIDER_VEST_FLIP_WINDOW_DAYS)
+      bought AND sold, not near -> +40  (mixed signal, likely unrelated
+                                          transactions)
+      neither                   -> 0    (no signal either way)
+      sold, not bought          -> -60  (insiders dumping into the dip —
+                                          contradicts the thesis)
     """
     activity = get_recent_insider_activity(symbol, days=30)
-    bought = bool(activity["purchases"])
-    sold = bool(activity["sales"])
+    purchases, sales = activity["purchases"], activity["sales"]
+    bought, sold = bool(purchases), bool(sales)
+    vest_flip = bought and sold and _has_nearby_pair(purchases, sales, INSIDER_VEST_FLIP_WINDOW_DAYS)
     if bought and not sold:
         score = 100.0
+    elif vest_flip:
+        score = 15.0
     elif bought and sold:
         score = 40.0
     elif sold:  # sold and not bought
@@ -182,8 +216,9 @@ def _score_insider_buying(symbol: str) -> tuple[float, dict]:
     return score, {
         "insider_buying_30d": bought,
         "insider_selling_30d": sold,
-        "insider_purchase_dates": activity["purchases"],
-        "insider_sale_dates": activity["sales"],
+        "insider_vest_flip_pattern": vest_flip,
+        "insider_purchase_dates": purchases,
+        "insider_sale_dates": sales,
     }
 
 
@@ -286,12 +321,19 @@ def dominant_thesis_type(thesis_result: dict, news_result: Optional[dict]) -> st
     "20 trades per thesis type"). Preference order: a news category flag
     (the most specific, event-driven thesis) > insider buying > a generic
     technical-oversold bucket when only price/RSI/volume signals fired.
+
+    A vest-flip pattern (added 2026-09-29 — see _score_insider_buying)
+    deliberately does NOT qualify as an "INSIDER_BUYING" thesis: the signal
+    score already discounts it heavily, and labeling the trade's thesis
+    type "insiders believe in this" would be actively misleading when the
+    real story is a scheduled vest-and-sell, not conviction. Falls through
+    to TECHNICAL_OVERSOLD instead, same as having no insider signal at all.
     """
     flags = (news_result or {}).get("flags") or []
     if flags:
         return flags[0]
     insider = thesis_result.get("signals", {}).get("insider_buying_30d", {}).get("detail", {})
-    if insider.get("insider_buying_30d"):
+    if insider.get("insider_buying_30d") and not insider.get("insider_vest_flip_pattern"):
         return "INSIDER_BUYING"
     return "TECHNICAL_OVERSOLD"
 

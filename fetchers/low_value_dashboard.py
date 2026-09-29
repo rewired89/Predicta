@@ -278,6 +278,8 @@ def _signal_explanation(name: str, entry: dict) -> str:
                 return "Company insiders bought shares in the last 30 days" if bought else "No recorded insider buying in the last 30 days"
             if bought and not sold:
                 return "Insiders bought shares and did NOT sell — a strong sign this is fear-driven selling, not a real problem with the company"
+            if bought and sold and detail.get("insider_vest_flip_pattern"):
+                return "Looks like a scheduled vest-and-sell, not real conviction buying — an insider's purchase and sale landed within a week of each other, the pattern of an equity-award vesting and a routine partial sale, not someone independently deciding to buy the stock"
             if bought and sold:
                 return "Mixed insider activity — some insiders bought, but others sold, in the same 30 days"
             if sold:

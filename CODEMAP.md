@@ -9748,7 +9748,7 @@ mutates: none
 name: get_recent_insider_activity
 type: function
 file: fetchers/openinsider.py
-purpose: 2026-07-13, user-requested ("if the big companies are not getting rid of the share, we need to have that in mind"). One HTTP call, both directions: {"purchases": [...], "sales": [...]} filing dates for a symbol within the last N days, scraped from OpenInsider's per-ticker screener page (same source and one fetch, not two, as the pre-existing purchases-only lookup). {"purchases": [], "sales": []} on any fetch/parse failure. True institutional/13F ownership is 45-day-lagged by SEC rule and has no free source in this codebase — insider Form-4 selling (2-business-day disclosure) is the closest fresh, free proxy for "is smart money also bailing." Known limitation: doesn't distinguish a routine 10b5-1 scheduled sale from a discretionary one (see module docstring).
+purpose: 2026-07-13, user-requested ("if the big companies are not getting rid of the share, we need to have that in mind"). One HTTP call, both directions: {"purchases": [...], "sales": [...]} filing dates for a symbol within the last N days, scraped from OpenInsider's per-ticker screener page (same source and one fetch, not two, as the pre-existing purchases-only lookup). {"purchases": [], "sales": []} on any fetch/parse failure. True institutional/13F ownership is 45-day-lagged by SEC rule and has no free source in this codebase — insider Form-4 selling (2-business-day disclosure) is the closest fresh, free proxy for "is smart money also bailing." Known limitation: doesn't distinguish a routine 10b5-1 scheduled sale from a discretionary one (see module docstring). Fixed 2026-09-29: `_SALE_TYPE_RE` broadened from an exact "S - Sale" match to a prefix match, after a live EOSE case showed a suffixed sale-type label (e.g. "S - Sale+OE") going completely undetected — see thesis_tracker.py's `_score_insider_buying`/`_has_nearby_pair` for the vest-flip discount this fix enables.
 inputs: symbol: str, days: int = 30
 outputs: dict {purchases: list[str], sales: list[str]}
 calls: _fetch_screener_html, _dates_within
@@ -10144,11 +10144,23 @@ mutates: none
 name: _score_insider_buying
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: Fixed 2026-07-13 (user-requested — "if the big companies are not getting rid of the share, we need to have that in mind before making a prediction"): now folds insider SELLING into the same signal, not just buying. Signal key stays "insider_buying_30d" (SIGNAL_WEIGHTS, dominant_thesis_type's INSIDER_BUYING check both key off it unchanged). Scoring (v1, uncalibrated): bought-only +100 (strongest confirmation), bought-and-sold +40 (mixed), neither 0 (no signal, same as the old default), sold-only -60 (insiders dumping into the dip contradicts the "sellers overshot" thesis). detail dict now also carries insider_selling_30d/insider_purchase_dates/insider_sale_dates alongside the original insider_buying_30d bool — low_value_dashboard.py's _signal_explanation handles both the new shape and pre-2026-07-13 logged rows (which only have the bool) gracefully.
+purpose: Fixed 2026-07-13 (user-requested — "if the big companies are not getting rid of the share, we need to have that in mind before making a prediction"): now folds insider SELLING into the same signal, not just buying. Signal key stays "insider_buying_30d" (SIGNAL_WEIGHTS, dominant_thesis_type's INSIDER_BUYING check both key off it unchanged). Scoring (v1, uncalibrated): bought-only +100 (strongest confirmation), bought-and-sold-nearby +15 (added 2026-09-29 — likely a mechanical vest-and-flip, see below), bought-and-sold-not-nearby +40 (mixed, likely unrelated), neither 0, sold-only -60 (insiders dumping into the dip contradicts the "sellers overshot" thesis). detail dict now also carries insider_selling_30d/insider_vest_flip_pattern/insider_purchase_dates/insider_sale_dates alongside the original insider_buying_30d bool — low_value_dashboard.py's _signal_explanation handles both the new shape and pre-2026-07-13 logged rows (which only have the bool) gracefully. **2026-09-29 fix (user asked to cross-check a live brief against real SEC filings, found a real miss):** EOSE's CEO acquired 500k RSU-vest shares 2026-09-14 and sold 250k of them 2026-09-16 — a mechanical vest-and-flip, not conviction buying — but scored the full undiluted +100 because (a) openinsider.py's old exact-match sale regex never even detected the sale (fixed there, see get_recent_insider_activity), and (b) even a detected bought+sold pair got the same +40 "mixed" score as two genuinely unrelated transactions, no matter how close in time. New `_has_nearby_pair`/`INSIDER_VEST_FLIP_WINDOW_DAYS` (7 days) discounts a purchase-sale pair within that window to +15, and dominant_thesis_type no longer labels a vest-flip trade "INSIDER_BUYING." Verified against the real EOSE dates plus boundary/control cases (solo purchase, far-apart pair, sale-only, exactly-7-days, 8-days) via a standalone mocked run, not just read-through.
 inputs: symbol: str
 outputs: tuple[float, dict]
-calls: fetchers.openinsider.get_recent_insider_activity
+calls: fetchers.openinsider.get_recent_insider_activity, _has_nearby_pair
 called_by: compute_thesis_score
+mutates: none
+---
+
+---
+name: _has_nearby_pair
+type: function
+file: models/trading/low_value/thesis_tracker.py
+purpose: added 2026-09-29 — True if any insider purchase date and any sale date (as "YYYY-MM-DD" strings) fall within window_days of each other. Unparseable dates are skipped, not guessed. Used by _score_insider_buying to detect a likely vest-and-flip pattern.
+inputs: purchases: list[str], sales: list[str], window_days: int
+outputs: bool
+calls: none
+called_by: _score_insider_buying
 mutates: none
 ---
 
@@ -10276,7 +10288,7 @@ mutates: none
 name: dominant_thesis_type
 type: function
 file: models/trading/low_value/thesis_tracker.py
-purpose: Single thesis-type tag for per-thesis-type win-rate calibration. Priority: news category flag > insider buying > TECHNICAL_OVERSOLD generic bucket.
+purpose: Single thesis-type tag for per-thesis-type win-rate calibration. Priority: news category flag > insider buying > TECHNICAL_OVERSOLD generic bucket. Fixed 2026-09-29: a vest-flip-pattern purchase (insider_vest_flip_pattern True) no longer qualifies as "INSIDER_BUYING" — falls through to TECHNICAL_OVERSOLD instead, since labeling a mechanical vest-and-sell as a genuine insider-conviction thesis would be misleading.
 inputs: thesis_result: dict, news_result: Optional[dict]
 outputs: str
 calls: none
