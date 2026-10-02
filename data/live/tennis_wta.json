@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-02T16:23:54.588549+00:00",
+  "fetched_at": "2026-10-02T21:03:37.200331+00:00",
   "data": {
     "leagues": [
       {
@@ -15608,13 +15608,13 @@
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "8",
-                    "name": "STATUS_SUSPENDED",
+                    "id": "3",
+                    "name": "STATUS_FINAL",
                     "state": "post",
-                    "completed": false,
-                    "description": "Suspended",
-                    "detail": "Suspended",
-                    "shortDetail": "Suspended"
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15628,7 +15628,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(4) Leolia Jeanjean (FRA) bt (6) Lucrezia Stefanini (ITA) 6-4 1-6 5-1",
+                    "text": "(4) Leolia Jeanjean (FRA) bt (6) Lucrezia Stefanini (ITA) 6-4 1-6 6-1",
                     "type": "event"
                   }
                 ],
@@ -15642,6 +15642,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 6
                     },
@@ -15696,6 +15697,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
@@ -15709,8 +15711,8 @@
                         "winner": false
                       },
                       {
-                        "value": 5.0,
-                        "winner": false
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -15760,20 +15762,20 @@
               {
                 "id": "184148",
                 "uid": "s:850~l:900~e:1078-2026~c:184148",
-                "date": "2026-10-02T17:15Z",
-                "startDate": "2026-10-02T17:15Z",
+                "date": "2026-10-02T18:05Z",
+                "startDate": "2026-10-02T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 2nd at 1:15 PM EDT",
-                    "shortDetail": "10/2 - 1:15 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15785,7 +15787,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Antonia Ruzic (CRO) bt Teodora Kostovic (SER) 4-6 6-4 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15796,6 +15803,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "ca370891-0413-3862-9637-1cfaa120eb76",
                       "displayName": "Teodora Kostovic",
@@ -15833,9 +15855,24 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "68f997fb-74da-3d0e-80fb-11f31de65ba3",
                       "displayName": "Antonia Ruzic",
@@ -15883,9 +15920,9 @@
               {
                 "id": "184151",
                 "uid": "s:850~l:900~e:1078-2026~c:184151",
-                "date": "2026-10-03T04:00Z",
-                "startDate": "2026-10-03T04:00Z",
-                "timeValid": false,
+                "date": "2026-10-03T12:00Z",
+                "startDate": "2026-10-03T12:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -15895,13 +15932,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, October 3rd at 8:00 AM EDT",
+                    "shortDetail": "10/3 - 8:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Adana, T\u00fcrkiye",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -16003,9 +16040,9 @@
               {
                 "id": "184153",
                 "uid": "s:850~l:900~e:1078-2026~c:184153",
-                "date": "2026-10-03T04:00Z",
-                "startDate": "2026-10-03T04:00Z",
-                "timeValid": false,
+                "date": "2026-10-03T13:00Z",
+                "startDate": "2026-10-03T13:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -16015,13 +16052,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, October 3rd at 9:00 AM EDT",
+                    "shortDetail": "10/3 - 9:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Adana, T\u00fcrkiye",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -16034,30 +16071,82 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4453",
+                    "uid": "s:850~l:900~a:4453",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "d7309ed9-b61f-3624-8657-bb72feec433e",
+                      "displayName": "Leolia Jeanjean",
+                      "shortName": "L. Jeanjean",
+                      "fullName": "Leolia Jeanjean",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4453/leolia-jeanjean",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "6816",
+                    "uid": "s:850~l:900~a:6816",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "68f997fb-74da-3d0e-80fb-11f31de65ba3",
+                      "displayName": "Antonia Ruzic",
+                      "shortName": "A. Ruzic",
+                      "fullName": "Antonia Ruzic",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cro.png",
+                        "alt": "Croatia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6816/antonia-ruzic",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -18834,10 +18923,463 @@
               {
                 "id": "184121",
                 "uid": "s:850~l:900~e:1078-2026~c:184121",
-                "date": "2026-10-02T17:00Z",
-                "startDate": "2026-10-02T17:00Z",
+                "date": "2026-10-02T18:05Z",
+                "startDate": "2026-10-02T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
+                "status": {
+                  "period": 3,
+                  "type": {
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
+                  }
+                },
+                "venue": {
+                  "fullName": "Adana, T\u00fcrkiye",
+                  "court": "Cagla Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "Angelica Moratelli (ITA) & Vendula Valdmannova (CZE) bt (4) Weronika Falkowska (POL) & Alana Smith (USA) 6-2 5-7 1-0 (10-6)",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "4295-17702",
+                    "uid": "s:850~l:900~t:4295-17702",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Angelica Moratelli / Vendula Valdmannova",
+                      "shortDisplayName": "A. Moratelli / V. Valdmannova",
+                      "athletes": [
+                        {
+                          "guid": "936fbdba-0b41-33bd-a34a-8a7a39a94204",
+                          "displayName": "Angelica Moratelli",
+                          "shortName": "A. Moratelli",
+                          "fullName": "Angelica Moratelli",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4295/angelica-moratelli",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "32cdee8f-97cb-382c-9098-22d4a1f74c5b",
+                          "displayName": "Vendula Valdmannova",
+                          "shortName": "V. Valdmannova",
+                          "fullName": "Vendula Valdmannova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/17702/vendula-valdmannova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "8681-4720",
+                    "uid": "s:850~l:900~t:8681-4720",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": false,
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 6,
+                        "winner": false
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Weronika Falkowska / Alana Smith",
+                      "shortDisplayName": "W. Falkowska / A. Smith",
+                      "athletes": [
+                        {
+                          "guid": "44cdcd8b-f059-31d0-9a7f-9027afbcc7c4",
+                          "displayName": "Weronika Falkowska",
+                          "shortName": "W. Falkowska",
+                          "fullName": "Weronika Falkowska",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
+                            "alt": "Poland",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/8681/weronika-falkowska",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "d4581196-5fd1-3e0c-b1c7-6d2743824c77",
+                          "displayName": "Alana Smith",
+                          "shortName": "A. Smith",
+                          "fullName": "Alana Smith",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4720/alana-smith",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1078,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "6",
+                  "displayName": "Semifinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "184120",
+                "uid": "s:850~l:900~e:1078-2026~c:184120",
+                "date": "2026-10-02T18:05Z",
+                "startDate": "2026-10-02T18:05Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 2,
+                  "type": {
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
+                  }
+                },
+                "venue": {
+                  "fullName": "Adana, T\u00fcrkiye",
+                  "court": "Ipek Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "(3) Dalila Jakupovic (SLO) & Lara Salden (BEL) bt (1) Elena Pridankina (RUS) & Anastasia Tikhonova (RUS) 6-2 6-2",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "2669-3154",
+                    "uid": "s:850~l:900~t:2669-3154",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "winner": true,
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Dalila Jakupovic / Lara Salden",
+                      "shortDisplayName": "D. Jakupovic / L. Salden",
+                      "athletes": [
+                        {
+                          "guid": "c122b3ae-5852-6df2-3686-6ec0b2e1c38e",
+                          "displayName": "Dalila Jakupovic",
+                          "shortName": "D. Jakupovic",
+                          "fullName": "Dalila Jakupovic",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                            "alt": "Slovenia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2669/dalila-jakupovic",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "f65e2f61-3ce2-525a-bbbb-3476cb737b0f",
+                          "displayName": "Lara Salden",
+                          "shortName": "L. Salden",
+                          "fullName": "Lara Salden",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                            "alt": "Belgium",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3154/lara-salden",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "14946-5626",
+                    "uid": "s:850~l:900~t:14946-5626",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": false,
+                    "curatedRank": {
+                      "current": 1
+                    },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Elena Pridankina / Anastasia Tikhonova",
+                      "shortDisplayName": "E. Pridankina / A. Tikhonova",
+                      "athletes": [
+                        {
+                          "guid": "6b2ce574-b19e-35d0-9a69-d38b82155235",
+                          "displayName": "Elena Pridankina",
+                          "shortName": "E. Pridankina",
+                          "fullName": "Elena Pridankina",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/14946/elena-pridankina",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "2571111c-4ebb-32ac-872c-38058bf49c90",
+                          "displayName": "Anastasia Tikhonova",
+                          "shortName": "A. Tikhonova",
+                          "fullName": "Anastasia Tikhonova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5626/anastasia-tikhonova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1078,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "6",
+                  "displayName": "Semifinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "184122",
+                "uid": "s:850~l:900~e:1078-2026~c:184122",
+                "date": "2026-10-03T15:00Z",
+                "startDate": "2026-10-03T15:00Z",
+                "timeValid": true,
+                "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
@@ -18846,13 +19388,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, October 2nd at 1:00 PM EDT",
-                    "shortDetail": "10/2 - 1:00 PM EDT"
+                    "detail": "Sat, October 3rd at 11:00 AM EDT",
+                    "shortDetail": "10/3 - 11:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Adana, T\u00fcrkiye",
-                  "court": "Cagla Court"
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -18937,132 +19479,11 @@
                     "statistics": []
                   },
                   {
-                    "id": "8681-4720",
-                    "uid": "s:850~l:900~t:8681-4720",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 4
-                    },
-                    "roster": {
-                      "displayName": "Weronika Falkowska / Alana Smith",
-                      "shortDisplayName": "W. Falkowska / A. Smith",
-                      "athletes": [
-                        {
-                          "guid": "44cdcd8b-f059-31d0-9a7f-9027afbcc7c4",
-                          "displayName": "Weronika Falkowska",
-                          "shortName": "W. Falkowska",
-                          "fullName": "Weronika Falkowska",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/pol.png",
-                            "alt": "Poland",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/8681/weronika-falkowska",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "d4581196-5fd1-3e0c-b1c7-6d2743824c77",
-                          "displayName": "Alana Smith",
-                          "shortName": "A. Smith",
-                          "fullName": "Alana Smith",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
-                            "alt": "USA",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/4720/alana-smith",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1078,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "184120",
-                "uid": "s:850~l:900~e:1078-2026~c:184120",
-                "date": "2026-10-02T17:00Z",
-                "startDate": "2026-10-02T17:00Z",
-                "timeValid": true,
-                "recent": true,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 2nd at 1:00 PM EDT",
-                    "shortDetail": "10/2 - 1:00 PM EDT"
-                  }
-                },
-                "venue": {
-                  "fullName": "Adana, T\u00fcrkiye",
-                  "court": "Ipek Court"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
                     "id": "2669-3154",
                     "uid": "s:850~l:900~t:2669-3154",
                     "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
+                    "order": 1,
+                    "homeAway": "home",
                     "curatedRank": {
                       "current": 3
                     },
@@ -19129,155 +19550,6 @@
                           ]
                         }
                       ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "14946-5626",
-                    "uid": "s:850~l:900~t:14946-5626",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 1
-                    },
-                    "roster": {
-                      "displayName": "Elena Pridankina / Anastasia Tikhonova",
-                      "shortDisplayName": "E. Pridankina / A. Tikhonova",
-                      "athletes": [
-                        {
-                          "guid": "6b2ce574-b19e-35d0-9a69-d38b82155235",
-                          "displayName": "Elena Pridankina",
-                          "shortName": "E. Pridankina",
-                          "fullName": "Elena Pridankina",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                            "alt": "Russia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/14946/elena-pridankina",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "2571111c-4ebb-32ac-872c-38058bf49c90",
-                          "displayName": "Anastasia Tikhonova",
-                          "shortName": "A. Tikhonova",
-                          "fullName": "Anastasia Tikhonova",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                            "alt": "Russia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/5626/anastasia-tikhonova",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1078,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "184122",
-                "uid": "s:850~l:900~e:1078-2026~c:184122",
-                "date": "2026-10-04T04:00Z",
-                "startDate": "2026-10-04T04:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Adana, T\u00fcrkiye",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
                     },
                     "statistics": []
                   }
@@ -51168,8 +51440,8 @@
               {
                 "id": "186272",
                 "uid": "s:850~l:900~e:1029-2026~c:186272",
-                "date": "2026-10-03T05:00Z",
-                "startDate": "2026-10-03T05:00Z",
+                "date": "2026-10-03T06:00Z",
+                "startDate": "2026-10-03T06:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -51180,8 +51452,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Sat, October 2nd at 1:00 AM EDT",
-                    "shortDetail": "10/3 - 1:00 AM EDT"
+                    "detail": "Sat, October 2nd at 2:00 AM EDT",
+                    "shortDetail": "10/3 - 2:00 AM EDT"
                   }
                 },
                 "venue": {
