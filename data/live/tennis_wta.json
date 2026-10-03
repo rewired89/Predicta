@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-03T14:58:04.842136+00:00",
+  "fetched_at": "2026-10-03T19:33:15.293450+00:00",
   "data": {
     "leagues": [
       {
@@ -16222,20 +16222,20 @@
               {
                 "id": "184153",
                 "uid": "s:850~l:900~e:1078-2026~c:184153",
-                "date": "2026-10-03T14:55Z",
-                "startDate": "2026-10-03T14:55Z",
+                "date": "2026-10-03T15:00Z",
+                "startDate": "2026-10-03T15:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, October 3rd at 10:55 AM EDT",
-                    "shortDetail": "10/3 - 10:55 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -16247,7 +16247,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Leolia Jeanjean (FRA) bt (1) Antonia Ruzic (CRO) 4-6 6-1 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16258,9 +16263,24 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "d7309ed9-b61f-3624-8657-bb72feec433e",
                       "displayName": "Leolia Jeanjean",
@@ -16298,9 +16318,24 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "68f997fb-74da-3d0e-80fb-11f31de65ba3",
                       "displayName": "Antonia Ruzic",
@@ -16348,9 +16383,9 @@
               {
                 "id": "184152",
                 "uid": "s:850~l:900~e:1078-2026~c:184152",
-                "date": "2026-10-04T04:00Z",
-                "startDate": "2026-10-04T04:00Z",
-                "timeValid": false,
+                "date": "2026-10-04T15:00Z",
+                "startDate": "2026-10-04T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -16360,13 +16395,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sun, October 4th at 11:00 AM EDT",
+                    "shortDetail": "10/4 - 11:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Adana, T\u00fcrkiye",
-                  "court": ""
+                  "court": "Centre Court"
                 },
                 "format": {
                   "regulation": {
@@ -16416,16 +16451,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "4453",
+                    "uid": "s:850~l:900~a:4453",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "d7309ed9-b61f-3624-8657-bb72feec433e",
+                      "displayName": "Leolia Jeanjean",
+                      "shortName": "L. Jeanjean",
+                      "fullName": "Leolia Jeanjean",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4453/leolia-jeanjean",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -19581,20 +19642,20 @@
               {
                 "id": "184122",
                 "uid": "s:850~l:900~e:1078-2026~c:184122",
-                "date": "2026-10-03T16:00Z",
-                "startDate": "2026-10-03T16:00Z",
+                "date": "2026-10-03T17:30Z",
+                "startDate": "2026-10-03T17:30Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, October 3rd at 12:00 PM EDT",
-                    "shortDetail": "10/3 - 12:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -19606,7 +19667,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Angelica Moratelli (ITA) & Vendula Valdmannova (CZE) bt (3) Dalila Jakupovic (SLO) & Lara Salden (BEL) 7-6 (7-3) 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -19617,6 +19683,18 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Angelica Moratelli / Vendula Valdmannova",
                       "shortDisplayName": "A. Moratelli / V. Valdmannova",
@@ -19689,9 +19767,21 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Dalila Jakupovic / Lara Salden",
                       "shortDisplayName": "D. Jakupovic / L. Salden",
