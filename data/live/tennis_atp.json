@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-04T15:31:55.951801+00:00",
+  "fetched_at": "2026-10-04T19:49:31.985053+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-03T15:09Z"
+            "lastUpdated": "2026-10-03T20:53Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-03T15:09Z"
+            "lastUpdated": "2026-10-03T20:53Z"
           }
         ],
         "calendarType": "day",
@@ -33426,17 +33426,17 @@
                 "date": "2026-10-04T14:05Z",
                 "startDate": "2026-10-04T14:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -33450,7 +33450,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(7) Karolina Muchova (CZE) is tied with (29) Liudmila Samsonova (RUS) 4-6 4-2",
+                    "text": "(7) Karolina Muchova (CZE) bt (29) Liudmila Samsonova (RUS) 4-6 6-4 6-2",
                     "type": "event"
                   }
                 ],
@@ -33464,6 +33464,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 29
                     },
@@ -33473,7 +33474,12 @@
                         "winner": true
                       },
                       {
-                        "value": 2.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -33513,6 +33519,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
@@ -33522,7 +33529,12 @@
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -35156,16 +35168,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "3039",
+                    "uid": "s:850~l:851~a:3039",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "cc2cea69-f75c-09ea-f698-55b98e0a5b97",
+                      "displayName": "Karolina Muchova",
+                      "shortName": "K. Muchova",
+                      "fullName": "Karolina Muchova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3039/karolina-muchova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -39226,17 +39264,17 @@
                 "date": "2026-10-04T14:45Z",
                 "startDate": "2026-10-04T14:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -39250,7 +39288,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Julian Cash (GBR) & Lloyd Glasspool (GBR) leads Marcelo Melo (BRA) & Alexander Zverev (GER) 6-2 3-2",
+                    "text": "(2) Julian Cash (GBR) & Lloyd Glasspool (GBR) bt Marcelo Melo (BRA) & Alexander Zverev (GER) 6-2 6-4",
                     "type": "event"
                   }
                 ],
@@ -39264,7 +39302,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -39274,7 +39312,8 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -39349,14 +39388,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 2.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -39426,11 +39466,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 959,
                 "type": {
                   "id": "3",
@@ -39446,8 +39481,8 @@
               {
                 "id": "183479",
                 "uid": "s:850~l:851~e:959-2026~c:183479",
-                "date": "2026-10-05T10:00Z",
-                "startDate": "2026-10-05T10:00Z",
+                "date": "2026-10-05T09:00Z",
+                "startDate": "2026-10-05T09:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -39458,13 +39493,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Mon, October 5th at 6:00 AM EDT",
-                    "shortDetail": "10/5 - 6:00 AM EDT"
+                    "detail": "Mon, October 5th at 5:00 AM EDT",
+                    "shortDetail": "10/5 - 5:00 AM EDT"
                   }
                 },
                 "venue": {
                   "fullName": "Beijing, China PR",
-                  "court": "Lotus"
+                  "court": "Brad Drewett"
                 },
                 "format": {
                   "regulation": {
@@ -39477,26 +39512,75 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "2420-3064",
+                    "uid": "s:850~l:851~t:2420-3064",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Julian Cash / Lloyd Glasspool",
+                      "shortDisplayName": "J. Cash / L. Glasspool",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "4edc2a79-cb72-7341-0f43-d5271fefc34e",
+                          "displayName": "Julian Cash",
+                          "shortName": "J. Cash",
+                          "fullName": "Julian Cash",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2420/julian-cash",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "c8083296-45f2-3c07-64d7-56c59fae1f22",
+                          "displayName": "Lloyd Glasspool",
+                          "shortName": "L. Glasspool",
+                          "fullName": "Lloyd Glasspool",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3064/lloyd-glasspool",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -41854,8 +41938,8 @@
               {
                 "id": "184200",
                 "uid": "s:850~l:851~e:959-2026~c:184200",
-                "date": "2026-10-05T07:00Z",
-                "startDate": "2026-10-05T07:00Z",
+                "date": "2026-10-05T08:00Z",
+                "startDate": "2026-10-05T08:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -41866,8 +41950,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Mon, October 5th at 3:00 AM EDT",
-                    "shortDetail": "10/5 - 3:00 AM EDT"
+                    "detail": "Mon, October 5th at 4:00 AM EDT",
+                    "shortDetail": "10/5 - 4:00 AM EDT"
                   }
                 },
                 "venue": {
