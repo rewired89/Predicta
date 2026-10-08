@@ -2457,6 +2457,40 @@ mutates: none
 
 ---
 
+## fetchers/market_data_recorder.py
+
+---
+name: record_daily_bars
+type: function
+file: fetchers/market_data_recorder.py
+purpose: Fetches Alpaca daily bars (batched, 50 symbols/call, 60-day window) for the Low Value universe + High Value watchlist + benchmark ETFs and upserts them into market_daily_bars. Skips today's bar until 16:30 ET. Writes market_bars_log only when rows came back (so an outage retries).
+inputs: symbols: Optional[list[str]] = None
+outputs: dict {run_date, symbols_requested, symbols_with_data, rows_written}
+calls: _universe, _fetch_chunk, get_db
+called_by: low_value_runner._runner_loop, POST /trade/market-data/record
+mutates: market_daily_bars, market_bars_log
+---
+
+---
+name: forward_returns
+type: function
+file: fetchers/market_data_recorder.py
+purpose: Per symbol/day close plus 1/5/20-trading-day forward % return from recorded bars; the join target for tuning signals.
+inputs: horizons: tuple = (1,5,20), symbol: Optional[str]
+outputs: list[dict]
+calls: get_db
+called_by: GET /trade/market-data/forward-returns
+mutates: none
+---
+
+---
+name: coverage
+type: function
+file: fetchers/market_data_recorder.py
+purpose: Row/symbol/day counts, date range, and last 14 daily run logs for recorded bars.
+called_by: GET /trade/market-data/coverage
+---
+
 ## fetchers/thesportsdb.py
 
 ---

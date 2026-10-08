@@ -904,6 +904,9 @@ def close_low_value_trade(trade_id: int) -> dict:
     }
 
 
+_last_bars_attempt: list[float] = [0.0]   # 10-min retry cooldown for market-data recording
+
+
 def _runner_loop() -> None:
     """
     Background thread body. Sleeps 60s between ticks; scans once per day,
@@ -951,6 +954,18 @@ def _runner_loop() -> None:
                 _log_scan_event("scheduled", ids, exit_result)
         except Exception as exc:
             log.error(f"[LOW_VALUE] Loop error: {exc}")
+        # Daily market-data recording (2026-10-08) — independent of the scan
+        # above so a scan failure or cap never blocks it. Own try so a bars
+        # failure can't mask scan errors either.
+        try:
+            now_et = _et_now()
+            if now_et.weekday() < 5 and _past_scan_window():
+                from fetchers.market_data_recorder import recorded_today, record_daily_bars
+                if not recorded_today() and time.time() - _last_bars_attempt[0] > 600:
+                    _last_bars_attempt[0] = time.time()
+                    record_daily_bars()
+        except Exception as exc:
+            log.error(f"[LOW_VALUE] Market-data recording error: {exc}")
         time.sleep(60)
 
     log.info("[LOW_VALUE] Background loop exited")

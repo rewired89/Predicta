@@ -3604,6 +3604,30 @@ def low_value_scan_now():
     return trigger_scan_async()
 
 
+@app.post("/trade/market-data/record")
+def market_data_record():
+    """Kick off a market-data bar recording run in the background (same universe as the daily loop)."""
+    import threading
+    from fetchers.market_data_recorder import record_daily_bars
+    threading.Thread(target=record_daily_bars, daemon=True, name="bars-record").start()
+    return {"started": True, "poll": "/trade/market-data/coverage"}
+
+
+@app.get("/trade/market-data/coverage")
+def market_data_coverage():
+    """Rows/symbols/days of recorded daily bars plus the last 14 daily run logs."""
+    from fetchers.market_data_recorder import coverage
+    return coverage()
+
+
+@app.get("/trade/market-data/forward-returns")
+def market_data_forward_returns(symbol: str = None, limit: int = 500):
+    """Per-day close + 1/5/20-day forward % returns from recorded bars (tuning join target)."""
+    from fetchers.market_data_recorder import forward_returns
+    rows = forward_returns(symbol=symbol.upper() if symbol else None)
+    return {"count": len(rows), "rows": rows[-limit:]}
+
+
 @app.get("/trade/low-value/runner/status")
 def low_value_runner_status():
     """Status of the Low Value background runner."""

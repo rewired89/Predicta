@@ -346,3 +346,30 @@ CREATE TABLE IF NOT EXISTS trade_scan_log (
     notes TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_trade_scan_log_engine_time ON trade_scan_log(engine, scan_time);
+
+-- Market-data collection (2026-10-08): one row per symbol per trading day,
+-- recorded for the whole Low Value universe + High Value pool + benchmark ETFs
+-- regardless of whether any engine opened a trade. Exists because trade-based
+-- calibration data is capped by position slots (~13 Low Value trades/month);
+-- this is the uncapped sample for tuning. See fetchers/market_data_recorder.py.
+CREATE TABLE IF NOT EXISTS market_daily_bars (
+    symbol      TEXT NOT NULL,
+    bar_date    TEXT NOT NULL,
+    open        REAL,
+    high        REAL,
+    low         REAL,
+    close       REAL,
+    volume      REAL,
+    vwap        REAL,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (symbol, bar_date)
+);
+CREATE INDEX IF NOT EXISTS idx_market_daily_bars_date ON market_daily_bars(bar_date);
+
+CREATE TABLE IF NOT EXISTS market_bars_log (
+    run_date           TEXT PRIMARY KEY,
+    symbols_requested  INTEGER NOT NULL DEFAULT 0,
+    symbols_with_data  INTEGER NOT NULL DEFAULT 0,
+    rows_written       INTEGER NOT NULL DEFAULT 0,
+    completed_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
