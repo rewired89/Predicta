@@ -307,6 +307,8 @@ def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
             "total_count": len(syms),
         })
     if not syms:
+        log.error("[AUTOMATON] Scan ran with an EMPTY universe — check Alpaca/Finnhub keys")
+        log_automaton_scan_completed(_et_now().strftime("%Y-%m-%d"), 0)
         return []
 
     open_positions = _load_open_positions()

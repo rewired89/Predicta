@@ -158,8 +158,9 @@ def startup():
     try:
         from fetchers.automaton_runner import start_runner as start_automaton_runner
         start_automaton_runner()
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger("automaton_runner").error(f"[AUTOMATON] start_runner() failed at startup: {exc}")
 
     # Start the soccer auto-collection loop:
     #   scan_fixtures every 4 h, resolve_finished every 2 h, weekly_report

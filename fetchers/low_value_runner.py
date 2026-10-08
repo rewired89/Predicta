@@ -475,6 +475,12 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
     """
     syms = symbols if symbols is not None else get_daily_universe()
     if not syms:
+        # Empty universe = scan ran but had nothing to evaluate (usually a
+        # data-source failure, e.g. Finnhub/Alpaca). Still write the durable
+        # marker so the day shows as "ran, 0 trades" instead of "never ran",
+        # and say so loudly instead of returning silently.
+        log.error("[LOW_VALUE] Scan ran with an EMPTY universe — check Alpaca/Finnhub keys and /trade/low-value/universe diagnostics")
+        log_low_value_scan_completed(_et_now().strftime("%Y-%m-%d"), 0)
         return []
 
     open_positions = _load_open_positions()
