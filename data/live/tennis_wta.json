@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-10T15:58:21.025366+00:00",
+  "fetched_at": "2026-10-10T20:20:57.738964+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-09T06:34Z"
+            "lastUpdated": "2026-10-10T11:19Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-09T06:34Z"
+            "lastUpdated": "2026-10-10T11:19Z"
           }
         ],
         "calendarType": "day",
@@ -57161,17 +57161,17 @@
                 "date": "2026-10-10T15:20Z",
                 "startDate": "2026-10-10T15:20Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -57185,7 +57185,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(1) Elena Pridankina (RUS) & Anastasia Tikhonova (RUS) leads (4) Lucija Ciric Bagaric (CRO) & Zhibek Kulambayeva (KAZ) 4-4",
+                    "text": "(1) Elena Pridankina (RUS) & Anastasia Tikhonova (RUS) bt (4) Lucija Ciric Bagaric (CRO) & Zhibek Kulambayeva (KAZ) 7-5 6-3",
                     "type": "event"
                   }
                 ],
@@ -57199,13 +57199,18 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 4
                     },
                     "linescores": [
                       {
-                        "value": 4.0
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -57280,13 +57285,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
                     "linescores": [
                       {
-                        "value": 4.0
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -57356,11 +57366,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1036,
                 "type": {
                   "id": "4",
@@ -57479,26 +57484,75 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "14946-5626",
+                    "uid": "s:850~l:900~t:14946-5626",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Elena Pridankina / Anastasia Tikhonova",
+                      "shortDisplayName": "E. Pridankina / A. Tikhonova",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "6b2ce574-b19e-35d0-9a69-d38b82155235",
+                          "displayName": "Elena Pridankina",
+                          "shortName": "E. Pridankina",
+                          "fullName": "Elena Pridankina",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/14946/elena-pridankina",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "2571111c-4ebb-32ac-872c-38058bf49c90",
+                          "displayName": "Anastasia Tikhonova",
+                          "shortName": "A. Tikhonova",
+                          "fullName": "Anastasia Tikhonova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5626/anastasia-tikhonova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
