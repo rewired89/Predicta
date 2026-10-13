@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-13T17:50:13.254429+00:00",
+  "fetched_at": "2026-10-13T21:35:04.893522+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-12T20:38Z"
+            "lastUpdated": "2026-10-13T09:12Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-12T20:38Z"
+            "lastUpdated": "2026-10-13T09:12Z"
           }
         ],
         "calendarType": "day",
@@ -26078,17 +26078,17 @@
                 "date": "2026-10-13T16:00Z",
                 "startDate": "2026-10-13T16:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -26102,7 +26102,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Elsa Jacquemot (FRA) leads Teodora Kostovic (SER) 5-7 5-5",
+                    "text": "Teodora Kostovic (SER) bt Elsa Jacquemot (FRA) 7-5 7-6 (7-5)",
                     "type": "event"
                   }
                 ],
@@ -26116,14 +26116,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 7.0,
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -26163,14 +26165,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 5.0,
                         "winner": false
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -26205,11 +26209,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1025,
                 "type": {
                   "id": "2",
@@ -26378,17 +26377,17 @@
                 "date": "2026-10-13T17:40Z",
                 "startDate": "2026-10-13T17:40Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -26402,7 +26401,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Mia Ristic (SER) leads Bianca Andreescu (CAN) 1-0",
+                    "text": "Bianca Andreescu (CAN) bt Mia Ristic (SER) 6-2 6-2",
                     "type": "event"
                   }
                 ],
@@ -26416,10 +26415,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -26459,10 +26463,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -26497,11 +26506,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1025,
                 "type": {
                   "id": "2",
@@ -27280,16 +27284,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2979",
+                    "uid": "s:850~l:900~a:2979",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6fd6b28f-61b2-9ac1-4a0e-cd5bd4a3aa20",
+                      "displayName": "Bianca Andreescu",
+                      "shortName": "B. Andreescu",
+                      "fullName": "Bianca Andreescu",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                        "alt": "Canada",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2979/bianca-andreescu",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -27417,16 +27444,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "16002",
+                    "uid": "s:850~l:900~a:16002",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "ca370891-0413-3862-9637-1cfaa120eb76",
+                      "displayName": "Teodora Kostovic",
+                      "shortName": "T. Kostovic",
+                      "fullName": "Teodora Kostovic",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ser.png",
+                        "alt": "Serbia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/16002/teodora-kostovic",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
