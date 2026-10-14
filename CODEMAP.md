@@ -13687,3 +13687,13 @@ calls: db.database.get_db
 called_by: GET /trading/portfolio-watch (loadTradeLog() JS, runs on page load)
 side_effects: none (read-only)
 ---
+
+## models/trading/horizon/ + fetchers/horizon_backfill.py  (Horizon Forecast, 2026-10-14)
+Research-only 5/20/60-day "beats SPY" forecaster. Read-only on market_daily_bars; touches no other engine.
+file: models/trading/horizon/features.py: load_bars() / build_panel(bars, horizon) -> point-in-time features (FEATURES) + label (forward excess return vs SPY)
+file: models/trading/horizon/backtest.py: walk_forward() (monthly, h-day embargo) / summarize() / run_backtest(horizon) / predict_symbol(symbol, horizon)
+file: fetchers/horizon_backfill.py: backfill(years, symbols) -> multi-year bars into market_daily_bars (reuses market_data_recorder._fetch_chunk)
+routes: POST /trade/horizon/backfill, GET /trade/horizon/backtest, GET /trade/horizon/predict (app.py); card on templates/trading_hub.html
+verdicts: NO EDGE / RANKING SIGNAL ONLY / POSSIBLE EDGE / NOT ENOUGH HISTORY (<24 test months)
+caveats: survivorship bias (today's tradable universe), overlapping windows; verified on synthetic data only (random walk => no edge, planted momentum => ranking signal). Not live-verified: Alpaca unreachable from sandbox.
+---
