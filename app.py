@@ -3629,7 +3629,32 @@ def market_data_forward_returns(symbol: str = None, limit: int = 500):
     return {"count": len(rows), "rows": rows[-limit:]}
 
 
+@app.post("/trade/horizon/backfill")
+def horizon_backfill(years: int = 3):
+    """Horizon Forecast: backfill multi-year daily bars (background). Poll /trade/market-data/coverage."""
+    import threading
+    from fetchers.horizon_backfill import backfill
+    years = max(1, min(years, 8))
+    threading.Thread(target=backfill, kwargs={"years": years}, daemon=True, name="horizon-backfill").start()
+    return {"started": True, "years": years, "poll": "/trade/market-data/coverage"}
+
+
+@app.get("/trade/horizon/backtest")
+def horizon_backtest(horizon: int = 5):
+    """Horizon Forecast: walk-forward test of 'beats SPY over next N trading days' (5, 20 or 60). Research only."""
+    from models.trading.horizon.backtest import run_backtest
+    return run_backtest(horizon=max(1, min(horizon, 120)))
+
+
+@app.get("/trade/horizon/predict")
+def horizon_predict(symbol: str, horizon: int = 5):
+    """Horizon Forecast: P(symbol beats SPY over next N days). Trust only if the backtest shows an edge."""
+    from models.trading.horizon.backtest import predict_symbol
+    return predict_symbol(symbol, horizon=max(1, min(horizon, 120)))
+
+
 @app.get("/trade/low-value/runner/status")
+
 def low_value_runner_status():
     """Status of the Low Value background runner."""
     from fetchers.low_value_runner import get_runner_status
