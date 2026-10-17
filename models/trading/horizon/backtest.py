@@ -15,11 +15,11 @@ number is computed per month.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
-from models.trading.horizon.features import FEATURES, build_panel, load_bars
+from models.trading.horizon.features import build_panel, feature_cols, load_bars
 
 MIN_TRAIN_ROWS = 3000
 COST_BPS_PER_SIDE = 10.0
@@ -32,6 +32,7 @@ def _model():
 
 def walk_forward(panel: pd.DataFrame, horizon: int) -> pd.DataFrame:
     data = panel.dropna(subset=["label"])
+    cols = feature_cols(panel)
     dates = sorted(data.index.get_level_values(0).unique())
     if len(dates) < 120:
         return pd.DataFrame()
@@ -51,9 +52,9 @@ def walk_forward(panel: pd.DataFrame, horizon: int) -> pd.DataFrame:
         test = data[idx.isin(set(test_dates))]
         if test.empty:
             continue
-        mdl = _model().fit(train[FEATURES].values, train["label"].values)
+        mdl = _model().fit(train[cols].values, train["label"].values)
         res = test[["label", "fwd_excess"]].copy()
-        res["p"] = mdl.predict_proba(test[FEATURES].values)[:, 1]
+        res["p"] = mdl.predict_proba(test[cols].values)[:, 1]
         res["base"] = float(train["label"].mean())
         res["month"] = m
         out.append(res)
@@ -84,6 +85,15 @@ def summarize(res: pd.DataFrame, horizon: int) -> dict:
         top = g.nlargest(k, "p")["fwd_excess"].mean() - cost
         monthly.setdefault(g["month"].iloc[0], []).append(top)
     mvals = np.array([np.mean(v) for v in monthly.values()])
+    # RankIC (the headline metric in the Kronos paper): per signal date, rank-correlate
+    # the model score with the real forward excess return, then average over dates.
+    ics = []
+    for d, g in res.groupby(level=0):
+        if len(g) >= 20 and g["p"].nunique() > 1:
+            ics.append(g["p"].rank().corr(g["fwd_excess"].rank()))
+    ics = np.array([x for x in ics if np.isfinite(x)])
+    rank_ic = float(ics.mean()) if len(ics) else float("nan")
+    icir = float(ics.mean() / ics.std()) if len(ics) > 1 and ics.std() > 0 else float("nan")
     return {
         "status": "ok", "horizon_days": horizon, "test_rows": int(len(res)),
         "months_tested": int(len(mvals)), "first_month": min(monthly), "last_month": max(monthly),
@@ -91,6 +101,8 @@ def summarize(res: pd.DataFrame, horizon: int) -> dict:
         "brier": round(brier, 5), "brier_baseline": round(brier_base, 5),
         "brier_skill": round(1 - brier / brier_base, 5),
         "calibration": cal,
+        "rank_ic": None if np.isnan(rank_ic) else round(rank_ic, 4),
+        "rank_ic_consistency": None if np.isnan(icir) else round(icir, 3),
         "top_decile_excess_after_cost_pct": round(float(mvals.mean()) * 100, 3),
         "months_positive_pct": round(float((mvals > 0).mean()) * 100, 1),
         "monthly_excess_std_pct": round(float(mvals.std()) * 100, 3),
@@ -133,9 +145,55 @@ def predict_symbol(symbol: str, horizon: int = 5, bars: pd.DataFrame | None = No
     train = panel.dropna(subset=["label"])
     if len(train) < MIN_TRAIN_ROWS or train["label"].nunique() < 2:
         return {"status": "insufficient_data", "symbol": symbol, "detail": f"only {len(train)} labelled rows"}
-    mdl = _model().fit(train[FEATURES].values, train["label"].values)
+    cols = feature_cols(panel)
+    mdl = _model().fit(train[cols].values, train["label"].values)
     last = panel.xs(symbol, level=1).sort_index().iloc[-1:]
-    p = float(mdl.predict_proba(last[FEATURES].values)[0, 1])
+    p = float(mdl.predict_proba(last[cols].values)[0, 1])
     return {"status": "ok", "symbol": symbol, "as_of": str(last.index[0]), "horizon_days": horizon,
             "p_beats_spy": round(p, 3), "base_rate": round(float(train["label"].mean()), 3),
             "note": "Only meaningful if /trade/horizon/backtest shows a POSSIBLE EDGE for this horizon."}
+
+
+def run_vol_backtest(horizon: int = 5, bars: pd.DataFrame | None = None) -> dict:
+    """
+    Kronos also forecasts volatility, so this tests the same idea here: predict the
+    next `horizon` days of price swings and compare against the dumb baseline
+    ("it will swing as much as it did over the last 20 days"). Same walk-forward,
+    same embargo. Lower MAE than the baseline = the forecast adds something.
+    Useful for sizing and stop distance, not for picking direction.
+    """
+    bars = load_bars() if bars is None else bars
+    panel = build_panel(bars, horizon)
+    if panel.empty:
+        return {"status": "insufficient_data", "horizon_days": horizon}
+    cols = feature_cols(panel)
+    data = panel.dropna(subset=["fwd_vol"])
+    data = data[data["fwd_vol"] > 0]
+    dates = sorted(data.index.get_level_values(0).unique())
+    if len(dates) < 120:
+        return {"status": "insufficient_data", "horizon_days": horizon, "detail": f"{len(dates)} dates"}
+    idx = data.index.get_level_values(0)
+    out = []
+    for m in sorted({d[:7] for d in dates}):
+        td = [d for d in dates if d[:7] == m]
+        cutoff = dates.index(td[0]) - horizon
+        if cutoff <= 0:
+            continue
+        train = data[idx.isin(set(dates[:cutoff]))]
+        test = data[idx.isin(set(td))]
+        if len(train) < MIN_TRAIN_ROWS or test.empty:
+            continue
+        mdl = make_pipeline(StandardScaler(), Ridge(alpha=10.0)).fit(train[cols].values, np.log(train["fwd_vol"].values))
+        r = test[["fwd_vol", "vol_20"]].copy()
+        r["pred"] = np.exp(mdl.predict(test[cols].values))
+        out.append(r)
+    if not out:
+        return {"status": "insufficient_data", "horizon_days": horizon}
+    r = pd.concat(out)
+    mae_m = float(np.mean(np.abs(r["pred"] - r["fwd_vol"])))
+    mae_b = float(np.mean(np.abs(r["vol_20"] - r["fwd_vol"])))
+    return {"status": "ok", "horizon_days": horizon, "test_rows": int(len(r)),
+            "mae_model": round(mae_m, 5), "mae_baseline_trailing_20d": round(mae_b, 5),
+            "mae_improvement_pct": round((1 - mae_m / mae_b) * 100, 2),
+            "verdict": "FORECAST ADDS VALUE" if mae_m < mae_b * 0.98 else "NO BETTER THAN LAST-20-DAYS",
+            "use": "position sizing and stop distance, not direction"}

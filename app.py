@@ -3646,6 +3646,13 @@ def horizon_backtest(horizon: int = 5):
     return run_backtest(horizon=max(1, min(horizon, 120)))
 
 
+@app.get("/trade/horizon/volatility")
+def horizon_volatility(horizon: int = 5):
+    """Horizon Forecast: can we forecast next N days of price swings better than 'same as last 20 days'? Research only."""
+    from models.trading.horizon.backtest import run_vol_backtest
+    return run_vol_backtest(horizon=max(2, min(horizon, 120)))
+
+
 @app.get("/trade/horizon/predict")
 def horizon_predict(symbol: str, horizon: int = 5):
     """Horizon Forecast: P(symbol beats SPY over next N days). Trust only if the backtest shows an edge."""

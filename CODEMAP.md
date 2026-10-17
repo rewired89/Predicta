@@ -13693,7 +13693,8 @@ Research-only 5/20/60-day "beats SPY" forecaster. Read-only on market_daily_bars
 file: models/trading/horizon/features.py: load_bars() / build_panel(bars, horizon) -> point-in-time features (FEATURES) + label (forward excess return vs SPY)
 file: models/trading/horizon/backtest.py: walk_forward() (monthly, h-day embargo) / summarize() / run_backtest(horizon) / predict_symbol(symbol, horizon)
 file: fetchers/horizon_backfill.py: backfill(years, symbols) -> multi-year bars into market_daily_bars (reuses market_data_recorder._fetch_chunk)
-routes: POST /trade/horizon/backfill, GET /trade/horizon/backtest, GET /trade/horizon/predict (app.py); card on templates/trading_hub.html
+routes: POST /trade/horizon/backfill, GET /trade/horizon/backtest, GET /trade/horizon/volatility, GET /trade/horizon/predict (app.py)
+added 2026-10-17: features.py CANDLE_FEATURES + feature_cols(); backtest.py rank_ic in summarize(), run_vol_backtest(horizon); card on templates/trading_hub.html
 verdicts: NO EDGE / RANKING SIGNAL ONLY / POSSIBLE EDGE / NOT ENOUGH HISTORY (<24 test months)
 caveats: survivorship bias (today's tradable universe), overlapping windows; verified on synthetic data only (random walk => no edge, planted momentum => ranking signal). Not live-verified: Alpaca unreachable from sandbox.
 ---
