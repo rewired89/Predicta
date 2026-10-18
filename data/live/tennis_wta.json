@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-18T14:11:08.453186+00:00",
+  "fetched_at": "2026-10-18T19:01:53.642662+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-17T08:33Z"
+            "lastUpdated": "2026-10-18T06:00Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-17T08:33Z"
+            "lastUpdated": "2026-10-18T06:00Z"
           }
         ],
         "calendarType": "day",
@@ -36195,20 +36195,20 @@
               {
                 "id": "185480",
                 "uid": "s:850~l:900~e:1025-2026~c:185480",
-                "date": "2026-10-18T14:30Z",
-                "startDate": "2026-10-18T14:30Z",
+                "date": "2026-10-18T15:05Z",
+                "startDate": "2026-10-18T15:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, October 18th at 10:30 AM EDT",
-                    "shortDetail": "10/18 - 10:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -36220,7 +36220,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Isabelle Haverlag (NED) & Martyna Kubka (POL) bt (2) Dominika Salkova (CZE) & Anna Siskova (CZE) 6-1 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -36231,9 +36236,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Dominika Salkova / Anna Siskova",
                       "shortDisplayName": "D. Salkova / A. Siskova",
@@ -36306,9 +36322,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Isabelle Haverlag / Martyna Kubka",
                       "shortDisplayName": "I. Haverlag / M. Kubka",
