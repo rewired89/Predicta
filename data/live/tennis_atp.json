@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-21T15:42:46.437940+00:00",
+  "fetched_at": "2026-10-21T20:23:18.933646+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-20T22:51Z"
+            "lastUpdated": "2026-10-20T23:25Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-20T22:51Z"
+            "lastUpdated": "2026-10-20T23:25Z"
           }
         ],
         "calendarType": "day",
@@ -4327,20 +4327,20 @@
               {
                 "id": "185040",
                 "uid": "s:850~l:851~e:440-2026~c:185040",
-                "date": "2026-10-21T16:00Z",
-                "startDate": "2026-10-21T16:00Z",
+                "date": "2026-10-21T16:05Z",
+                "startDate": "2026-10-21T16:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 21st at 12:00 PM EDT",
-                    "shortDetail": "10/21 - 12:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4352,7 +4352,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "David Goffin (BEL) bt Remy Bertola (SUI) 3-6 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4363,6 +4368,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "44c432c7-045f-3781-b457-b98441736c15",
                       "displayName": "Remy Bertola",
@@ -4400,6 +4420,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "b84324ee-7bc9-cb44-95d0-b4221c8658d4",
                       "displayName": "David Goffin",
@@ -4447,20 +4482,20 @@
               {
                 "id": "185060",
                 "uid": "s:850~l:851~e:440-2026~c:185060",
-                "date": "2026-10-21T17:30Z",
-                "startDate": "2026-10-21T17:30Z",
+                "date": "2026-10-21T18:35Z",
+                "startDate": "2026-10-21T18:35Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 21st at 1:30 PM EDT",
-                    "shortDetail": "10/21 - 1:30 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4472,7 +4507,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Jan-Lennard Struff (GER) bt Gauthier Onclin (BEL) 6-4 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4483,6 +4523,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "45266525-bbb6-988a-7671-e5e46567d682",
                       "displayName": "Jan-Lennard Struff",
@@ -4520,6 +4571,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "6052207b-7f8a-3bc0-b7e0-ee5fd30a5ae1",
                       "displayName": "Gauthier Onclin",
@@ -4891,16 +4953,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "1360",
+                    "uid": "s:850~l:851~a:1360",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b84324ee-7bc9-cb44-95d0-b4221c8658d4",
+                      "displayName": "David Goffin",
+                      "shortName": "D. Goffin",
+                      "fullName": "David Goffin",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1360/david-goffin",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -5408,16 +5493,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2337",
+                    "uid": "s:850~l:851~a:2337",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "45266525-bbb6-988a-7671-e5e46567d682",
+                      "displayName": "Jan-Lennard Struff",
+                      "shortName": "J. Struff",
+                      "fullName": "Jan-Lennard Struff",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                        "alt": "Germany",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2337/jan-lennard-struff",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -12877,17 +12985,17 @@
                 "date": "2026-10-21T14:35Z",
                 "startDate": "2026-10-21T14:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12901,7 +13009,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(7) Stefanos Tsitsipas (GRE) leads Mikhail Kukushkin (KAZ) 6-1 5-2",
+                    "text": "(7) Stefanos Tsitsipas (GRE) bt Mikhail Kukushkin (KAZ) 6-1 6-2",
                     "type": "event"
                   }
                 ],
@@ -12915,14 +13023,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 1.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -12962,7 +13071,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
@@ -12972,7 +13081,8 @@
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -13007,11 +13117,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 708,
                 "type": {
                   "id": "1",
@@ -13852,16 +13957,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2869",
+                    "uid": "s:850~l:851~a:2869",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "eeae43af-cdf0-43b4-7dd4-2475555a445e",
+                      "displayName": "Stefanos Tsitsipas",
+                      "shortName": "S. Tsitsipas",
+                      "fullName": "Stefanos Tsitsipas",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/gre.png",
+                        "alt": "Greece",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2869/stefanos-tsitsipas",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -20737,17 +20868,17 @@
                 "date": "2026-10-21T15:15Z",
                 "startDate": "2026-10-21T15:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -20761,7 +20892,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Corentin Moutet (FRA) leads Felix Balshaw (FRA) 3-2",
+                    "text": "Corentin Moutet (FRA) bt Felix Balshaw (FRA) 6-4 6-4",
                     "type": "event"
                   }
                 ],
@@ -20775,10 +20906,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -20818,10 +20954,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -20856,11 +20997,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 110,
                 "type": {
                   "id": "1",
@@ -20876,20 +21012,20 @@
               {
                 "id": "185088",
                 "uid": "s:850~l:851~e:110-2026~c:185088",
-                "date": "2026-10-21T17:00Z",
-                "startDate": "2026-10-21T17:00Z",
+                "date": "2026-10-21T17:10Z",
+                "startDate": "2026-10-21T17:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 21st at 1:00 PM EDT",
-                    "shortDetail": "10/21 - 1:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -20901,7 +21037,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Lorenzo Musetti (ITA) bt Moise Kouame (FRA) 6-4 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -20912,9 +21053,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
                       "displayName": "Lorenzo Musetti",
@@ -20952,6 +21104,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "de03256d-59df-32fc-b787-0a11a84f6ed9",
                       "displayName": "Moise Kouame",
@@ -20999,20 +21162,20 @@
               {
                 "id": "185101",
                 "uid": "s:850~l:851~e:110-2026~c:185101",
-                "date": "2026-10-21T18:30Z",
-                "startDate": "2026-10-21T18:30Z",
+                "date": "2026-10-21T19:20Z",
+                "startDate": "2026-10-21T19:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 21st at 2:30 PM EDT",
-                    "shortDetail": "10/21 - 2:30 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -21024,7 +21187,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Benjamin Bonzi (FRA) is tied with (4) Tommy Paul (USA) 4-6 3-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -21038,6 +21206,15 @@
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "8965d2eb-1419-a6e6-5d3f-573b8b0bc565",
                       "displayName": "Tommy Paul",
@@ -21075,6 +21252,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "5dc100a2-edfe-9613-3b56-eced2560e469",
                       "displayName": "Benjamin Bonzi",
@@ -21853,16 +22039,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2886",
+                    "uid": "s:850~l:851~a:2886",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e1e9551c-c350-ef8f-ce97-d8407b0be41d",
+                      "displayName": "Corentin Moutet",
+                      "shortName": "C. Moutet",
+                      "fullName": "Corentin Moutet",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2886/corentin-moutet",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -21913,16 +22122,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3764",
+                    "uid": "s:850~l:851~a:3764",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
+                      "displayName": "Lorenzo Musetti",
+                      "shortName": "L. Musetti",
+                      "fullName": "Lorenzo Musetti",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3764/lorenzo-musetti",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -24064,17 +24299,17 @@
                 "date": "2026-10-21T15:15Z",
                 "startDate": "2026-10-21T15:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -24088,7 +24323,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Finn Reynolds (NZL) & James Watt (NZL) leads Ariel Behar (URU) & Joshua Paris (GBR) 5-5",
+                    "text": "Ariel Behar (URU) & Joshua Paris (GBR) bt Finn Reynolds (NZL) & James Watt (NZL) 7-6 (10-8) 4-6 1-0 (10-4)",
                     "type": "event"
                   }
                 ],
@@ -24102,9 +24337,21 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 7.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -24179,9 +24426,21 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "tiebreak": 8,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 4,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -24873,30 +25132,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "3339-10646",
+                    "uid": "s:850~l:851~t:3339-10646",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Ariel Behar / Joshua Paris",
+                      "shortDisplayName": "A. Behar / J. Paris",
+                      "athletes": [
+                        {
+                          "guid": "dc795e08-2c44-e091-26f7-5959f6835b87",
+                          "displayName": "Ariel Behar",
+                          "shortName": "A. Behar",
+                          "fullName": "Ariel Behar",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/uru.png",
+                            "alt": "Uruguay",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3339/ariel-behar",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "96cca651-9d65-3d7d-bb9a-8b100931880c",
+                          "displayName": "Joshua Paris",
+                          "shortName": "J. Paris",
+                          "fullName": "Joshua Paris",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10646/joshua-paris",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   }
