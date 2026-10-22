@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-22T15:42:38.743851+00:00",
+  "fetched_at": "2026-10-22T20:19:49.813147+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-21T21:02Z"
+            "lastUpdated": "2026-10-21T22:20Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-21T21:02Z"
+            "lastUpdated": "2026-10-21T22:20Z"
           }
         ],
         "calendarType": "day",
@@ -5062,17 +5062,17 @@
                 "date": "2026-10-22T15:25Z",
                 "startDate": "2026-10-22T15:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5086,7 +5086,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(6) Zizou Bergs (BEL) leads Damir Dzumhur (BIH) 2-1",
+                    "text": "(6) Zizou Bergs (BEL) bt Damir Dzumhur (BIH) 6-2 6-4",
                     "type": "event"
                   }
                 ],
@@ -5100,13 +5100,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -5146,10 +5151,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -5184,11 +5194,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 440,
                 "type": {
                   "id": "1",
@@ -5607,16 +5612,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3356",
+                    "uid": "s:850~l:851~a:3356",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "f64b5d97-6080-dfef-5cda-95fb7375d278",
+                      "displayName": "Zizou Bergs",
+                      "shortName": "Z. Bergs",
+                      "fullName": "Zizou Bergs",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3356/zizou-bergs",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -8329,29 +8360,34 @@
                 "date": "2026-10-22T16:30Z",
                 "startDate": "2026-10-22T16:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, October 22nd at 12:30 PM EDT",
-                    "shortDetail": "10/22 - 12:30 PM EDT"
+                    "id": "40",
+                    "name": "STATUS_WALKOVER",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Walkover",
+                    "detail": "Walkover",
+                    "shortDetail": "Walkover"
                   }
                 },
                 "venue": {
                   "fullName": "Brussels, Belgium",
-                  "court": "Centre Court"
+                  "court": ""
                 },
                 "format": {
                   "regulation": {
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Constantin Frantz\u00e9n (GER) & Robert Galloway (USA) bt Raphael Collignon (BEL) & David Goffin (BEL) w/o",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -8362,6 +8398,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "roster": {
                       "displayName": "Raphael Collignon / David Goffin",
                       "shortDisplayName": "R. Collignon / D. Goffin",
@@ -8434,6 +8471,7 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "roster": {
                       "displayName": "Constantin Frantz\u00e9n / Robert Galloway",
                       "shortDisplayName": "C. Frantz\u00e9n / R. Galloway",
@@ -8619,26 +8657,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "11568-3627",
+                    "uid": "s:850~l:851~t:11568-3627",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Constantin Frantz\u00e9n / Robert Galloway",
+                      "shortDisplayName": "C. Frantz\u00e9n / R. Galloway",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "bd458045-04a6-3216-b265-59ed63ec3dd5",
+                          "displayName": "Constantin Frantz\u00e9n",
+                          "shortName": "C. Frantz\u00e9n",
+                          "fullName": "Constantin Frantz\u00e9n",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/11568/constantin-frantzen",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "a81c4ff2-442e-402c-56f0-9979f698d73c",
+                          "displayName": "Robert Galloway",
+                          "shortName": "R. Galloway",
+                          "fullName": "Robert Galloway",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3627/robert-galloway",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -22345,17 +22429,17 @@
                 "date": "2026-10-22T14:35Z",
                 "startDate": "2026-10-22T14:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -22369,7 +22453,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Taylor Fritz (USA) leads Pierre-Hugues Herbert (FRA) 6-2 3-2",
+                    "text": "(2) Taylor Fritz (USA) bt Pierre-Hugues Herbert (FRA) 6-2 7-5",
                     "type": "event"
                   }
                 ],
@@ -22383,7 +22467,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -22393,7 +22477,8 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -22433,14 +22518,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 2.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -22475,11 +22561,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 110,
                 "type": {
                   "id": "1",
@@ -22495,20 +22576,20 @@
               {
                 "id": "185097",
                 "uid": "s:850~l:851~e:110-2026~c:185097",
-                "date": "2026-10-22T17:00Z",
-                "startDate": "2026-10-22T17:00Z",
+                "date": "2026-10-22T17:05Z",
+                "startDate": "2026-10-22T17:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, October 22nd at 1:00 PM EDT",
-                    "shortDetail": "10/22 - 1:00 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -22520,7 +22601,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Flavio Cobolli (ITA) bt Stan Wawrinka (SUI) 6-2 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -22531,6 +22617,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "c6eb21e5-8a25-0cb1-fc55-8315888ef262",
                       "displayName": "Stan Wawrinka",
@@ -22568,9 +22665,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "62b541a8-4480-30f7-87a6-b45d09376f39",
                       "displayName": "Flavio Cobolli",
@@ -22618,20 +22726,20 @@
               {
                 "id": "185084",
                 "uid": "s:850~l:851~e:110-2026~c:185084",
-                "date": "2026-10-22T18:30Z",
-                "startDate": "2026-10-22T18:30Z",
+                "date": "2026-10-22T18:45Z",
+                "startDate": "2026-10-22T18:45Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, October 22nd at 2:30 PM EDT",
-                    "shortDetail": "10/22 - 2:30 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -22643,7 +22751,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Brandon Nakashima (USA) bt Kyrian Jacquet (FRA) 6-4 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -22654,9 +22767,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "b55524e2-a931-d142-f794-50b742380e8e",
                       "displayName": "Brandon Nakashima",
@@ -22694,6 +22818,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "5d2a0eb6-41be-3602-a3d7-cb0b779a3c34",
                       "displayName": "Kyrian Jacquet",
@@ -22895,16 +23030,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2946",
+                    "uid": "s:850~l:851~a:2946",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6493155f-cacc-7aa5-ba78-d952efa4c652",
+                      "displayName": "Taylor Fritz",
+                      "shortName": "T. Fritz",
+                      "fullName": "Taylor Fritz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2946/taylor-fritz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -22992,30 +23153,82 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3774",
+                    "uid": "s:850~l:851~a:3774",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 5
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b55524e2-a931-d142-f794-50b742380e8e",
+                      "displayName": "Brandon Nakashima",
+                      "shortName": "B. Nakashima",
+                      "fullName": "Brandon Nakashima",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3774/brandon-nakashima",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "7602",
+                    "uid": "s:850~l:851~a:7602",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "62b541a8-4480-30f7-87a6-b45d09376f39",
+                      "displayName": "Flavio Cobolli",
+                      "shortName": "F. Cobolli",
+                      "fullName": "Flavio Cobolli",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7602/flavio-cobolli",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
