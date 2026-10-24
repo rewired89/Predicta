@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-24T14:09:28.849759+00:00",
+  "fetched_at": "2026-10-24T19:05:47.709350+00:00",
   "data": {
     "leagues": [
       {
@@ -23032,17 +23032,17 @@
                 "date": "2026-10-24T13:00Z",
                 "startDate": "2026-10-24T13:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -23056,7 +23056,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Yihan Qu (CHN) is tied with Teodora Kostovic (SER) 3-6 5-0",
+                    "text": "Teodora Kostovic (SER) bt Yihan Qu (CHN) 6-3 0-6 6-3",
                     "type": "event"
                   }
                 ],
@@ -23070,14 +23070,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 0.0
+                        "value": 0.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -23117,14 +23122,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 3.0,
                         "winner": false
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -23159,11 +23169,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 232,
                 "type": {
                   "id": "2",
@@ -23182,17 +23187,17 @@
                 "date": "2026-10-24T13:20Z",
                 "startDate": "2026-10-24T13:20Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -23206,7 +23211,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Anastasia Zakharova (RUS) leads Ruien Zhang (CHN) 6-2 3-0",
+                    "text": "Anastasia Zakharova (RUS) bt Ruien Zhang (CHN) 6-2 6-2",
                     "type": "event"
                   }
                 ],
@@ -23220,14 +23225,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 2.0,
                         "winner": false
                       },
                       {
-                        "value": 0.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -23267,14 +23273,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -23309,11 +23316,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 232,
                 "type": {
                   "id": "2",
@@ -23929,8 +23931,8 @@
               {
                 "id": "187145",
                 "uid": "s:850~l:900~e:232-2026~c:187145",
-                "date": "2026-10-25T06:30Z",
-                "startDate": "2026-10-25T06:30Z",
+                "date": "2026-10-25T07:00Z",
+                "startDate": "2026-10-25T07:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -23941,8 +23943,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Sun, October 24th at 2:30 AM EDT",
-                    "shortDetail": "10/25 - 2:30 AM EDT"
+                    "detail": "Sun, October 25th at 3:00 AM EDT",
+                    "shortDetail": "10/25 - 3:00 AM EDT"
                   }
                 },
                 "venue": {
@@ -23960,30 +23962,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "16002",
+                    "uid": "s:850~l:900~a:16002",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "ca370891-0413-3862-9637-1cfaa120eb76",
+                      "displayName": "Teodora Kostovic",
+                      "shortName": "T. Kostovic",
+                      "fullName": "Teodora Kostovic",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ser.png",
+                        "alt": "Serbia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/16002/teodora-kostovic",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5775",
+                    "uid": "s:850~l:900~a:5775",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "cdb8b7e4-126d-360f-9a1c-56339e7c4783",
+                      "displayName": "Anastasia Zakharova",
+                      "shortName": "A. Zakharova",
+                      "fullName": "Anastasia Zakharova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5775/anastasia-zakharova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -30778,17 +30826,17 @@
                 "date": "2026-10-24T13:35Z",
                 "startDate": "2026-10-24T13:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -30802,7 +30850,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Tereza Valentova (CZE) leads En-Shuo Liang (TPO) 6-2",
+                    "text": "Tereza Valentova (CZE) bt En-Shuo Liang (TPO) 6-2 3-6 6-2",
                     "type": "event"
                   }
                 ],
@@ -30816,9 +30864,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -30858,9 +30916,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -31268,80 +31336,6 @@
                 "wasSuspended": false
               },
               {
-                "id": "187125",
-                "uid": "s:850~l:900~e:264-2026~c:187125",
-                "date": "2026-10-25T03:00Z",
-                "startDate": "2026-10-25T03:00Z",
-                "timeValid": true,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, October 24th at 11:00 PM EDT",
-                    "shortDetail": "10/24 - 11:00 PM EDT"
-                  }
-                },
-                "venue": {
-                  "fullName": "Tokyo, Japan",
-                  "court": "Court 1"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 264,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "14",
-                  "displayName": "Qualifying Final"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "187126",
                 "uid": "s:850~l:900~e:264-2026~c:187126",
                 "date": "2026-10-25T03:00Z",
@@ -31558,6 +31552,126 @@
                             "athlete"
                           ],
                           "href": "https://www.espn.com/tennis/player/_/id/11555/sayaka-ishii",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 264,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "14",
+                  "displayName": "Qualifying Final"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "187125",
+                "uid": "s:850~l:900~e:264-2026~c:187125",
+                "date": "2026-10-25T06:00Z",
+                "startDate": "2026-10-25T06:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Sun, October 24th at 2:00 AM EDT",
+                    "shortDetail": "10/25 - 2:00 AM EDT"
+                  }
+                },
+                "venue": {
+                  "fullName": "Tokyo, Japan",
+                  "court": "Court 1"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "707",
+                    "uid": "s:850~l:900~a:707",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "3663b79d-064e-ee3d-4f1c-d73c5a82d970",
+                      "displayName": "Zhang Shuai",
+                      "shortName": "Z. Shuai",
+                      "fullName": "Zhang Shuai",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                        "alt": "China",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/707/zhang-shuai",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "8419",
+                    "uid": "s:850~l:900~a:8419",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "41bd01d1-d5a9-3adb-b6b7-ceec8e439b40",
+                      "displayName": "Tereza Valentova",
+                      "shortName": "T. Valentova",
+                      "fullName": "Tereza Valentova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8419/tereza-valentova",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
