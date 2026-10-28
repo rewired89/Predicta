@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-28T16:52:02.543015+00:00",
+  "fetched_at": "2026-10-28T21:23:11.645416+00:00",
   "data": {
     "leagues": [
       {
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-28T01:40Z"
+            "lastUpdated": "2026-10-28T10:07Z"
           }
         ],
         "calendarType": "day",
@@ -101,7 +101,7 @@
             "neutralSite": false,
             "conferenceCompetition": false,
             "playByPlayAvailable": false,
-            "recent": false,
+            "recent": true,
             "wasSuspended": false,
             "venue": {
               "id": "31",
@@ -216,6 +216,70 @@
                   "logoDark": "https://a.espncdn.com/i/teamlogos/mlb/500-dark/scoreboard/tb.png"
                 },
                 "score": "0",
+                "probables": [
+                  {
+                    "name": "probableStartingPitcher",
+                    "displayName": "Probable Starting Pitcher",
+                    "shortDisplayName": "Starter",
+                    "abbreviation": "SP",
+                    "playerId": 42584,
+                    "athlete": {
+                      "id": "42584",
+                      "fullName": "Drew Rasmussen",
+                      "displayName": "Drew Rasmussen",
+                      "shortName": "D. Rasmussen",
+                      "links": [
+                        {
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/mlb/player/_/id/42584"
+                        }
+                      ],
+                      "headshot": "https://a.espncdn.com/i/headshots/mlb/players/full/42584.png",
+                      "jersey": "57",
+                      "position": "SP",
+                      "team": {
+                        "id": "30"
+                      }
+                    },
+                    "statistics": [
+                      {
+                        "name": "saves",
+                        "abbreviation": "SV",
+                        "displayValue": "0",
+                        "rankDisplayValue": "Tied-11th"
+                      },
+                      {
+                        "name": "losses",
+                        "abbreviation": "L",
+                        "displayValue": "0",
+                        "rankDisplayValue": "Tied-37th"
+                      },
+                      {
+                        "name": "wins",
+                        "abbreviation": "W",
+                        "displayValue": "2",
+                        "rankDisplayValue": "Tied-2nd"
+                      },
+                      {
+                        "name": "ERA",
+                        "abbreviation": "ERA",
+                        "displayValue": "2.19",
+                        "rankDisplayValue": "15th"
+                      },
+                      {
+                        "name": "errors",
+                        "abbreviation": "E",
+                        "displayValue": "0",
+                        "rankDisplayValue": "Tied-35th"
+                      }
+                    ],
+                    "record": "(2-0, 2.19)"
+                  }
+                ],
                 "statistics": [
                   {
                     "name": "hits",
@@ -891,8 +955,8 @@
             },
             "tickets": [
               {
-                "summary": "Tickets as low as $503",
-                "numberAvailable": 4962,
+                "summary": "Tickets as low as $344",
+                "numberAvailable": 3443,
                 "links": [
                   {
                     "href": "https://www.vividseats.com/tampa-bay-rays-tickets-tropicana-field-11-3-2026--sports-mlb-baseball/production/7371119?wsUser=717"
@@ -982,7 +1046,7 @@
                   ],
                   "displayName": "DraftKings"
                 },
-                "details": "MIL -162",
+                "details": "MIL -149",
                 "overUnder": 6.5,
                 "spread": 1.5,
                 "awayTeamOdds": {
@@ -1016,7 +1080,7 @@
                   "shortDisplayName": "ML",
                   "home": {
                     "close": {
-                      "odds": "+134",
+                      "odds": "+123",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1047,7 +1111,7 @@
                   },
                   "away": {
                     "close": {
-                      "odds": "-162",
+                      "odds": "-149",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1083,7 +1147,7 @@
                   "home": {
                     "close": {
                       "line": "+1.5",
-                      "odds": "-142",
+                      "odds": "-149",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1117,7 +1181,7 @@
                   "away": {
                     "close": {
                       "line": "-1.5",
-                      "odds": "+118",
+                      "odds": "+123",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1155,7 +1219,7 @@
                   "over": {
                     "close": {
                       "line": "o6.5",
-                      "odds": "-120",
+                      "odds": "-108",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1189,7 +1253,7 @@
                   "under": {
                     "close": {
                       "line": "u6.5",
-                      "odds": "+100",
+                      "odds": "-112",
                       "link": {
                         "language": "en-US",
                         "rel": [
@@ -1278,8 +1342,8 @@
         ],
         "weather": {
           "displayValue": "Cloudy",
-          "temperature": 78,
-          "highTemperature": 78,
+          "temperature": 77,
+          "highTemperature": 77,
           "conditionId": "7",
           "link": {
             "language": "en-US",
