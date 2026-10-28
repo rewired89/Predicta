@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-27T21:01:01.508009+00:00",
+  "fetched_at": "2026-10-28T16:52:03.293454+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-27T06:37Z"
+            "lastUpdated": "2026-10-28T05:37Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-27T06:37Z"
+            "lastUpdated": "2026-10-28T05:37Z"
           }
         ],
         "calendarType": "day",
@@ -3830,17 +3830,17 @@
                 "date": "2026-10-27T20:25Z",
                 "startDate": "2026-10-27T20:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3854,7 +3854,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(4) Flavio Cobolli (ITA) leads Grigor Dimitrov (BUL) 3-3",
+                    "text": "(4) Flavio Cobolli (ITA) bt Grigor Dimitrov (BUL) 6-4 3-6 6-3",
                     "type": "event"
                   }
                 ],
@@ -3868,10 +3868,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3911,13 +3920,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -3952,11 +3970,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 10,
                 "type": {
                   "id": "1",
@@ -3972,20 +3985,20 @@
               {
                 "id": "185191",
                 "uid": "s:850~l:851~e:10-2026~c:185191",
-                "date": "2026-10-28T12:30Z",
-                "startDate": "2026-10-28T12:30Z",
+                "date": "2026-10-28T12:40Z",
+                "startDate": "2026-10-28T12:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 8:30 AM EDT",
-                    "shortDetail": "10/28 - 8:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3997,7 +4010,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Tallon Griekspoor (NED) bt Brandon Nakashima (USA) 6-1 4-6 7-6 (7-2)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4008,6 +4026,22 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "b55524e2-a931-d142-f794-50b742380e8e",
                       "displayName": "Brandon Nakashima",
@@ -4045,6 +4079,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "46fe3f88-7728-f86f-3b35-76cafc59d397",
                       "displayName": "Tallon Griekspoor",
@@ -4092,20 +4142,20 @@
               {
                 "id": "185189",
                 "uid": "s:850~l:851~e:10-2026~c:185189",
-                "date": "2026-10-28T12:30Z",
-                "startDate": "2026-10-28T12:30Z",
+                "date": "2026-10-28T12:40Z",
+                "startDate": "2026-10-28T12:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 8:30 AM EDT",
-                    "shortDetail": "10/28 - 8:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4117,7 +4167,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Daniil Medvedev (RUS) bt Daniel Merida (ESP) 7-6 (7-5) 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4128,9 +4183,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "469710ae-79d9-770e-e3b7-d71e5148642c",
                       "displayName": "Daniil Medvedev",
@@ -4168,6 +4235,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "0564092a-c5de-3614-be36-924fc421d5c9",
                       "displayName": "Daniel Merida",
@@ -4215,20 +4294,20 @@
               {
                 "id": "185178",
                 "uid": "s:850~l:851~e:10-2026~c:185178",
-                "date": "2026-10-28T14:00Z",
-                "startDate": "2026-10-28T14:00Z",
+                "date": "2026-10-28T14:30Z",
+                "startDate": "2026-10-28T14:30Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 10:00 AM EDT",
-                    "shortDetail": "10/28 - 10:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4240,7 +4319,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Lorenzo Musetti (ITA) bt (6) Frances Tiafoe (USA) 7-6 (8-6) 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4251,9 +4335,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 6,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "f901758a-d8f2-442c-9cd3-44513fcbf31e",
                       "displayName": "Frances Tiafoe",
@@ -4291,6 +4387,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 8,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
                       "displayName": "Lorenzo Musetti",
@@ -4338,20 +4446,20 @@
               {
                 "id": "185185",
                 "uid": "s:850~l:851~e:10-2026~c:185185",
-                "date": "2026-10-28T15:30Z",
-                "startDate": "2026-10-28T15:30Z",
+                "date": "2026-10-28T16:45Z",
+                "startDate": "2026-10-28T16:45Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 11:30 AM EDT",
-                    "shortDetail": "10/28 - 11:30 AM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -4363,7 +4471,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(8) Jakub Mensik (CZE) leads Adrian Mannarino (FRA) 0-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4374,6 +4487,12 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "dbc865c9-ab39-49ff-dbb3-895a876665d3",
                       "displayName": "Adrian Mannarino",
@@ -4411,9 +4530,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 8
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "589e3a11-e409-3279-bf74-b8660578c1e7",
                       "displayName": "Jakub Mensik",
@@ -4446,6 +4571,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 10,
                 "type": {
                   "id": "1",
@@ -4461,10 +4591,10 @@
               {
                 "id": "185179",
                 "uid": "s:850~l:851~e:10-2026~c:185179",
-                "date": "2026-10-28T16:30Z",
-                "startDate": "2026-10-28T16:30Z",
+                "date": "2026-10-28T16:55Z",
+                "startDate": "2026-10-28T16:55Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -4473,8 +4603,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Wed, October 28th at 12:30 PM EDT",
-                    "shortDetail": "10/28 - 12:30 PM EDT"
+                    "detail": "Wed, October 28th at 12:55 PM EDT",
+                    "shortDetail": "10/28 - 12:55 PM EDT"
                   }
                 },
                 "venue": {
@@ -4735,16 +4865,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2383",
+                    "uid": "s:850~l:851~a:2383",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "469710ae-79d9-770e-e3b7-d71e5148642c",
+                      "displayName": "Daniil Medvedev",
+                      "shortName": "D. Medvedev",
+                      "fullName": "Daniil Medvedev",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2383/daniil-medvedev",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -4955,16 +5111,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3319",
+                    "uid": "s:850~l:851~a:3319",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "46fe3f88-7728-f86f-3b35-76cafc59d397",
+                      "displayName": "Tallon Griekspoor",
+                      "shortName": "T. Griekspoor",
+                      "fullName": "Tallon Griekspoor",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                        "alt": "Netherlands",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3319/tallon-griekspoor",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -5155,16 +5334,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3764",
+                    "uid": "s:850~l:851~a:3764",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
+                      "displayName": "Lorenzo Musetti",
+                      "shortName": "L. Musetti",
+                      "fullName": "Lorenzo Musetti",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3764/lorenzo-musetti",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -5289,16 +5491,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "7602",
+                    "uid": "s:850~l:851~a:7602",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "62b541a8-4480-30f7-87a6-b45d09376f39",
+                      "displayName": "Flavio Cobolli",
+                      "shortName": "F. Cobolli",
+                      "fullName": "Flavio Cobolli",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/7602/flavio-cobolli",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -6286,15 +6514,15 @@
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 8:00 AM EDT",
-                    "shortDetail": "10/28 - 8:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6306,7 +6534,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Maximo Gonzalez (ARG) & Andres Molteni (ARG) bt Sander Arends (NED) & Luke Johnson (GBR) 7-5 7-6 (7-5)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6317,6 +6550,18 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Maximo Gonzalez / Andres Molteni",
                       "shortDisplayName": "M. Gonzalez / A. Molteni",
@@ -6389,6 +6634,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sander Arends / Luke Johnson",
                       "shortDisplayName": "S. Arends / L. Johnson",
@@ -6469,215 +6726,22 @@
                 "wasSuspended": false
               },
               {
-                "id": "185213",
-                "uid": "s:850~l:851~e:10-2026~c:185213",
-                "date": "2026-10-28T14:00Z",
-                "startDate": "2026-10-28T14:00Z",
-                "timeValid": true,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 10:00 AM EDT",
-                    "shortDetail": "10/28 - 10:00 AM EDT"
-                  }
-                },
-                "venue": {
-                  "fullName": "Vienna, Austria",
-                  "court": "Glaubandich Court"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 5
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "1013-2375",
-                    "uid": "s:850~l:851~t:1013-2375",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
-                    "roster": {
-                      "displayName": "Marcelo Melo / Alexander Zverev",
-                      "shortDisplayName": "M. Melo / A. Zverev",
-                      "athletes": [
-                        {
-                          "guid": "e39d3984-fa11-21c5-63ca-2bcb049aeecd",
-                          "displayName": "Marcelo Melo",
-                          "shortName": "M. Melo",
-                          "fullName": "Marcelo Melo",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
-                            "alt": "Brazil",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/1013/marcelo-melo",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "fd06b6ea-593b-d5b3-da2b-767ec3e4232c",
-                          "displayName": "Alexander Zverev",
-                          "shortName": "A. Zverev",
-                          "fullName": "Alexander Zverev",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
-                            "alt": "Germany",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/2375/alexander-zverev",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "279-3548",
-                    "uid": "s:850~l:851~t:279-3548",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 4
-                    },
-                    "roster": {
-                      "displayName": "Simone Bolelli / Andrea Vavassori",
-                      "shortDisplayName": "S. Bolelli / A. Vavassori",
-                      "athletes": [
-                        {
-                          "guid": "60809731-71e1-644c-6ff3-0c72930667fd",
-                          "displayName": "Simone Bolelli",
-                          "shortName": "S. Bolelli",
-                          "fullName": "Simone Bolelli",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
-                            "alt": "Italy",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/279/simone-bolelli",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "36d1cd62-a79b-09ca-0f1d-86233eacd216",
-                          "displayName": "Andrea Vavassori",
-                          "shortName": "A. Vavassori",
-                          "fullName": "Andrea Vavassori",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
-                            "alt": "Italy",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/3548/andrea-vavassori",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 10,
-                "type": {
-                  "id": "3",
-                  "text": "Men's Doubles",
-                  "slug": "mens-doubles"
-                },
-                "round": {
-                  "id": "1",
-                  "displayName": "Round 1"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "185208",
                 "uid": "s:850~l:851~e:10-2026~c:185208",
-                "date": "2026-10-28T14:00Z",
-                "startDate": "2026-10-28T14:00Z",
+                "date": "2026-10-28T14:25Z",
+                "startDate": "2026-10-28T14:25Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 10:00 AM EDT",
-                    "shortDetail": "10/28 - 10:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6689,7 +6753,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Francisco Cerundolo (ARG) & Tomas Martin Etcheverry (ARG) bt (3) Marcelo Arevalo (ESA) & Mate Pavic (CRO) 7-6 (10-8) 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6700,9 +6769,21 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 8,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marcelo Arevalo / Mate Pavic",
                       "shortDisplayName": "M. Arevalo / M. Pavic",
@@ -6775,6 +6856,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Francisco Cerundolo / Tomas Martin Etcheverry",
                       "shortDisplayName": "F. Cerundolo / T. Etcheverry",
@@ -6855,22 +6948,244 @@
                 "wasSuspended": false
               },
               {
-                "id": "185210",
-                "uid": "s:850~l:851~e:10-2026~c:185210",
-                "date": "2026-10-28T15:30Z",
-                "startDate": "2026-10-28T15:30Z",
+                "id": "185213",
+                "uid": "s:850~l:851~e:10-2026~c:185213",
+                "date": "2026-10-28T15:05Z",
+                "startDate": "2026-10-28T15:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
+                  "period": 2,
+                  "type": {
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
+                  }
+                },
+                "venue": {
+                  "fullName": "Vienna, Austria",
+                  "court": "Glaubandich Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 5
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "(4) Simone Bolelli (ITA) & Andrea Vavassori (ITA) bt Marcelo Melo (BRA) & Alexander Zverev (GER) 7-6 (8-6) 6-2",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "1013-2375",
+                    "uid": "s:850~l:851~t:1013-2375",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 6,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Marcelo Melo / Alexander Zverev",
+                      "shortDisplayName": "M. Melo / A. Zverev",
+                      "athletes": [
+                        {
+                          "guid": "e39d3984-fa11-21c5-63ca-2bcb049aeecd",
+                          "displayName": "Marcelo Melo",
+                          "shortName": "M. Melo",
+                          "fullName": "Marcelo Melo",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                            "alt": "Brazil",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1013/marcelo-melo",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "fd06b6ea-593b-d5b3-da2b-767ec3e4232c",
+                          "displayName": "Alexander Zverev",
+                          "shortName": "A. Zverev",
+                          "fullName": "Alexander Zverev",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2375/alexander-zverev",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "279-3548",
+                    "uid": "s:850~l:851~t:279-3548",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": true,
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 8,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Simone Bolelli / Andrea Vavassori",
+                      "shortDisplayName": "S. Bolelli / A. Vavassori",
+                      "athletes": [
+                        {
+                          "guid": "60809731-71e1-644c-6ff3-0c72930667fd",
+                          "displayName": "Simone Bolelli",
+                          "shortName": "S. Bolelli",
+                          "fullName": "Simone Bolelli",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/279/simone-bolelli",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "36d1cd62-a79b-09ca-0f1d-86233eacd216",
+                          "displayName": "Andrea Vavassori",
+                          "shortName": "A. Vavassori",
+                          "fullName": "Andrea Vavassori",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3548/andrea-vavassori",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 10,
+                "type": {
+                  "id": "3",
+                  "text": "Men's Doubles",
+                  "slug": "mens-doubles"
+                },
+                "round": {
+                  "id": "1",
+                  "displayName": "Round 1"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "185210",
+                "uid": "s:850~l:851~e:10-2026~c:185210",
+                "date": "2026-10-28T16:25Z",
+                "startDate": "2026-10-28T16:25Z",
+                "timeValid": true,
+                "recent": true,
+                "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 11:30 AM EDT",
-                    "shortDetail": "10/28 - 11:30 AM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -6882,7 +7197,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Harri Heliovaara (FIN) & Henry Patten (GBR) leads Austin Krajicek (USA) & Nikola Mektic (CRO) 3-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6893,6 +7213,12 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Austin Krajicek / Nikola Mektic",
                       "shortDisplayName": "A. Krajicek / N. Mektic",
@@ -6965,9 +7291,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Harri Heliovaara / Henry Patten",
                       "shortDisplayName": "H. Heliovaara / H. Patten",
@@ -7035,6 +7367,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 10,
                 "type": {
                   "id": "3",
@@ -7050,8 +7387,8 @@
               {
                 "id": "185215",
                 "uid": "s:850~l:851~e:10-2026~c:185215",
-                "date": "2026-10-28T17:00Z",
-                "startDate": "2026-10-28T17:00Z",
+                "date": "2026-10-28T18:00Z",
+                "startDate": "2026-10-28T18:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -7062,8 +7399,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Wed, October 28th at 1:00 PM EDT",
-                    "shortDetail": "10/28 - 1:00 PM EDT"
+                    "detail": "Wed, October 28th at 2:00 PM EDT",
+                    "shortDetail": "10/28 - 2:00 PM EDT"
                   }
                 },
                 "venue": {
@@ -7271,30 +7608,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "3700-3739",
+                    "uid": "s:850~l:851~t:3700-3739",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Francisco Cerundolo / Tomas Martin Etcheverry",
+                      "shortDisplayName": "F. Cerundolo / T. Etcheverry",
+                      "athletes": [
+                        {
+                          "guid": "d24f1930-30b5-f246-e9d4-4f40c6853a90",
+                          "displayName": "Francisco Cerundolo",
+                          "shortName": "F. Cerundolo",
+                          "fullName": "Francisco Cerundolo",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                            "alt": "Argentina",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3700/francisco-cerundolo",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "b058324c-2f80-73a2-2e25-82b8abe00a76",
+                          "displayName": "Tomas Martin Etcheverry",
+                          "shortName": "T. Etcheverry",
+                          "fullName": "Tomas Martin Etcheverry",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                            "alt": "Argentina",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3739/tomas-martin-etcheverry",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -7345,30 +7752,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "279-3548",
+                    "uid": "s:850~l:851~t:279-3548",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "roster": {
+                      "displayName": "Simone Bolelli / Andrea Vavassori",
+                      "shortDisplayName": "S. Bolelli / A. Vavassori",
+                      "athletes": [
+                        {
+                          "guid": "60809731-71e1-644c-6ff3-0c72930667fd",
+                          "displayName": "Simone Bolelli",
+                          "shortName": "S. Bolelli",
+                          "fullName": "Simone Bolelli",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/279/simone-bolelli",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "36d1cd62-a79b-09ca-0f1d-86233eacd216",
+                          "displayName": "Andrea Vavassori",
+                          "shortName": "A. Vavassori",
+                          "fullName": "Andrea Vavassori",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3548/andrea-vavassori",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -8022,26 +8502,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "1045-2152",
+                    "uid": "s:850~l:851~t:1045-2152",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Maximo Gonzalez / Andres Molteni",
+                      "shortDisplayName": "M. Gonzalez / A. Molteni",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "c8ae038b-dd77-3b1a-601d-a1d2ce8561a9",
+                          "displayName": "Maximo Gonzalez",
+                          "shortName": "M. Gonzalez",
+                          "fullName": "Maximo Gonzalez",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                            "alt": "Argentina",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1045/maximo-gonzalez",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "f18a6157-556a-7aff-0f7e-00e69e54512b",
+                          "displayName": "Andres Molteni",
+                          "shortName": "A. Molteni",
+                          "fullName": "Andres Molteni",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                            "alt": "Argentina",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2152/andres-molteni",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -12149,17 +12675,17 @@
                 "date": "2026-10-27T20:10Z",
                 "startDate": "2026-10-27T20:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12173,7 +12699,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(8) Jiri Lehecka (CZE) leads Stan Wawrinka (SUI) 7-5",
+                    "text": "(8) Jiri Lehecka (CZE) bt Stan Wawrinka (SUI) 7-5 7-6 (7-2)",
                     "type": "event"
                   }
                 ],
@@ -12187,12 +12713,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 8
                     },
                     "linescores": [
                       {
-                        "value": 7.0
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -12232,9 +12765,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -12284,20 +12824,20 @@
               {
                 "id": "185135",
                 "uid": "s:850~l:851~e:23-2026~c:185135",
-                "date": "2026-10-28T11:30Z",
-                "startDate": "2026-10-28T11:30Z",
+                "date": "2026-10-28T11:40Z",
+                "startDate": "2026-10-28T11:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 7:30 AM EDT",
-                    "shortDetail": "10/28 - 7:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12309,7 +12849,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Jan-Lennard Struff (GER) bt Yannick Hanfmann (GER) 6-4 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12320,6 +12865,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "45266525-bbb6-988a-7671-e5e46567d682",
                       "displayName": "Jan-Lennard Struff",
@@ -12357,6 +12913,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "1b1186f6-c6f0-417c-26af-5280cf749499",
                       "displayName": "Yannick Hanfmann",
@@ -12404,20 +12971,20 @@
               {
                 "id": "185142",
                 "uid": "s:850~l:851~e:23-2026~c:185142",
-                "date": "2026-10-28T13:00Z",
-                "startDate": "2026-10-28T13:00Z",
+                "date": "2026-10-28T13:05Z",
+                "startDate": "2026-10-28T13:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 9:00 AM EDT",
-                    "shortDetail": "10/28 - 9:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12429,7 +12996,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Denis Shapovalov (CAN) bt Remy Bertola (SUI) 6-4 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12440,6 +13012,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "2a61af8f-50be-3754-5559-d4fa60f9fb61",
                       "displayName": "Denis Shapovalov",
@@ -12477,6 +13060,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "44c432c7-045f-3781-b457-b98441736c15",
                       "displayName": "Remy Bertola",
@@ -12524,20 +13118,20 @@
               {
                 "id": "185145",
                 "uid": "s:850~l:851~e:23-2026~c:185145",
-                "date": "2026-10-28T13:00Z",
-                "startDate": "2026-10-28T13:00Z",
+                "date": "2026-10-28T13:10Z",
+                "startDate": "2026-10-28T13:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 9:00 AM EDT",
-                    "shortDetail": "10/28 - 9:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12549,7 +13143,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Nuno Borges (POR) bt (9) Casper Ruud (NOR) 1-6 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12560,9 +13159,24 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 9
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "116ef01e-3239-e44f-9c8a-022f81012782",
                       "displayName": "Casper Ruud",
@@ -12600,6 +13214,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "3e284f90-d56e-34b2-8ac4-db0a2ab7508a",
                       "displayName": "Nuno Borges",
@@ -12647,20 +13276,20 @@
               {
                 "id": "185133",
                 "uid": "s:850~l:851~e:23-2026~c:185133",
-                "date": "2026-10-28T14:30Z",
-                "startDate": "2026-10-28T14:30Z",
+                "date": "2026-10-28T15:20Z",
+                "startDate": "2026-10-28T15:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 10:30 AM EDT",
-                    "shortDetail": "10/28 - 10:30 AM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -12672,7 +13301,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Novak Djokovic (SER) is tied with Ugo Humbert (FRA) 4-6 5-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12683,6 +13317,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
                       "displayName": "Ugo Humbert",
@@ -12720,9 +13364,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "4a27bb1c-2422-55c3-208b-9e9d8c1f30af",
                       "displayName": "Novak Djokovic",
@@ -12755,6 +13409,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 23,
                 "type": {
                   "id": "1",
@@ -12773,7 +13432,7 @@
                 "date": "2026-10-28T17:00Z",
                 "startDate": "2026-10-28T17:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -13170,16 +13829,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3754",
+                    "uid": "s:850~l:851~a:3754",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 8
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "959c133c-1c3d-1a03-182c-588ba5225a3b",
+                      "displayName": "Jiri Lehecka",
+                      "shortName": "J. Lehecka",
+                      "fullName": "Jiri Lehecka",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3754/jiri-lehecka",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -13390,16 +14075,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2337",
+                    "uid": "s:850~l:851~a:2337",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "45266525-bbb6-988a-7671-e5e46567d682",
+                      "displayName": "Jan-Lennard Struff",
+                      "shortName": "J. Struff",
+                      "fullName": "Jan-Lennard Struff",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                        "alt": "Germany",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2337/jan-lennard-struff",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -13464,16 +14172,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2860",
+                    "uid": "s:850~l:851~a:2860",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "2a61af8f-50be-3754-5559-d4fa60f9fb61",
+                      "displayName": "Denis Shapovalov",
+                      "shortName": "D. Shapovalov",
+                      "fullName": "Denis Shapovalov",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                        "alt": "Canada",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2860/denis-shapovalov",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -13883,16 +14614,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "4115",
+                    "uid": "s:850~l:851~a:4115",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "3e284f90-d56e-34b2-8ac4-db0a2ab7508a",
+                      "displayName": "Nuno Borges",
+                      "shortName": "N. Borges",
+                      "fullName": "Nuno Borges",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/por.png",
+                        "alt": "Portugal",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4115/nuno-borges",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -15479,17 +16233,17 @@
                 "date": "2026-10-27T20:00Z",
                 "startDate": "2026-10-27T20:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15503,7 +16257,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Arthur Reymond (FRA) & Luca Sanchez (FRA) is tied with (4) Francisco Cabral (POR) & JJ Tracy (USA) 3-6 4-3",
+                    "text": "(4) Francisco Cabral (POR) & JJ Tracy (USA) bt Arthur Reymond (FRA) & Luca Sanchez (FRA) 6-3 4-6 1-0 (10-7)",
                     "type": "event"
                   }
                 ],
@@ -15517,13 +16271,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 3.0,
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 7,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -15598,6 +16359,7 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
@@ -15607,7 +16369,13 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -15692,20 +16460,20 @@
               {
                 "id": "185168",
                 "uid": "s:850~l:851~e:23-2026~c:185168",
-                "date": "2026-10-28T10:00Z",
-                "startDate": "2026-10-28T10:00Z",
+                "date": "2026-10-28T10:05Z",
+                "startDate": "2026-10-28T10:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 6:00 AM EDT",
-                    "shortDetail": "10/28 - 6:00 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15717,7 +16485,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Constantin Frantz\u00e9n (GER) & Robin Haase (NED) bt Mariano Navone (ARG) & Alejandro Tabilo (CHI) 6-3 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15728,6 +16501,17 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Constantin Frantz\u00e9n / Robin Haase",
                       "shortDisplayName": "C. Frantz\u00e9n / R. Haase",
@@ -15800,6 +16584,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Mariano Navone / Alejandro Tabilo",
                       "shortDisplayName": "M. Navone / A. Tabilo",
@@ -15882,20 +16677,20 @@
               {
                 "id": "185160",
                 "uid": "s:850~l:851~e:23-2026~c:185160",
-                "date": "2026-10-28T14:30Z",
-                "startDate": "2026-10-28T14:30Z",
+                "date": "2026-10-28T14:35Z",
+                "startDate": "2026-10-28T14:35Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 10:30 AM EDT",
-                    "shortDetail": "10/28 - 10:30 AM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -15907,7 +16702,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Theo Arribage (FRA) & Albano Olivetti (FRA) bt Hugo Nys (MON) & Edouard Roger-Vasselin (FRA) 6-4 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -15918,9 +16718,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Theo Arribage / Albano Olivetti",
                       "shortDisplayName": "T. Arribage / A. Olivetti",
@@ -15993,6 +16804,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Hugo Nys / Edouard Roger-Vasselin",
                       "shortDisplayName": "H. Nys / E. Roger-Vasselin",
@@ -16075,20 +16897,20 @@
               {
                 "id": "185173",
                 "uid": "s:850~l:851~e:23-2026~c:185173",
-                "date": "2026-10-28T16:00Z",
-                "startDate": "2026-10-28T16:00Z",
+                "date": "2026-10-28T16:15Z",
+                "startDate": "2026-10-28T16:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, October 28th at 12:00 PM EDT",
-                    "shortDetail": "10/28 - 12:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -16100,7 +16922,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Robert Galloway (USA) & Andre Goransson (SWE) leads Marc Polmans (AUS) & Jan Zielinski (POL) 5-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16111,6 +16938,12 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marc Polmans / Jan Zielinski",
                       "shortDisplayName": "M. Polmans / J. Zielinski",
@@ -16183,6 +17016,12 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Robert Galloway / Andre Goransson",
                       "shortDisplayName": "R. Galloway / A. Goransson",
@@ -16250,6 +17089,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 23,
                 "type": {
                   "id": "3",
@@ -16268,7 +17112,7 @@
                 "date": "2026-10-28T17:30Z",
                 "startDate": "2026-10-28T17:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -16489,26 +17333,75 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "10882-1965",
+                    "uid": "s:850~l:851~t:10882-1965",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Theo Arribage / Albano Olivetti",
+                      "shortDisplayName": "T. Arribage / A. Olivetti",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "479a0413-c0d6-3397-bef1-933e7da879ba",
+                          "displayName": "Theo Arribage",
+                          "shortName": "T. Arribage",
+                          "fullName": "Theo Arribage",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10882/theo-arribage",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "f26396f2-0ac2-b0fe-8451-5a6120c9783f",
+                          "displayName": "Albano Olivetti",
+                          "shortName": "A. Olivetti",
+                          "fullName": "Albano Olivetti",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1965/albano-olivetti",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -16780,30 +17673,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "11568-650",
+                    "uid": "s:850~l:851~t:11568-650",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Constantin Frantz\u00e9n / Robin Haase",
+                      "shortDisplayName": "C. Frantz\u00e9n / R. Haase",
+                      "athletes": [
+                        {
+                          "guid": "bd458045-04a6-3216-b265-59ed63ec3dd5",
+                          "displayName": "Constantin Frantz\u00e9n",
+                          "shortName": "C. Frantz\u00e9n",
+                          "fullName": "Constantin Frantz\u00e9n",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/11568/constantin-frantzen",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "3b139233-dc7f-74b2-5f40-d08adca5acd3",
+                          "displayName": "Robin Haase",
+                          "shortName": "R. Haase",
+                          "fullName": "Robin Haase",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                            "alt": "Netherlands",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/650/robin-haase",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -16926,26 +17889,75 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "3825-11172",
+                    "uid": "s:850~l:851~t:3825-11172",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Francisco Cabral / JJ Tracy",
+                      "shortDisplayName": "F. Cabral / J. Tracy",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "c0eea9d0-55ff-645e-c27f-6ae5715f2b6d",
+                          "displayName": "Francisco Cabral",
+                          "shortName": "F. Cabral",
+                          "fullName": "Francisco Cabral",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/por.png",
+                            "alt": "Portugal",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3825/francisco-cabral",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "d2d3eaa2-4c14-323c-89ea-a3910a8c8a12",
+                          "displayName": "JJ Tracy",
+                          "shortName": "J. Tracy",
+                          "fullName": "JJ Tracy",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/11172/jj-tracy",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
