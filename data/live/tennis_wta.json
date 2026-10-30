@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-30T16:50:39.163265+00:00",
+  "fetched_at": "2026-10-30T21:08:47.368028+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-10-29T23:26Z"
+            "lastUpdated": "2026-10-30T14:56Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-10-29T23:26Z"
+            "lastUpdated": "2026-10-30T14:56Z"
           }
         ],
         "calendarType": "day",
@@ -25269,17 +25269,17 @@
                 "date": "2026-10-30T15:50Z",
                 "startDate": "2026-10-30T15:50Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -25293,7 +25293,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Julia Grabher (AUT) is tied with (5) Leyre Romero Gormaz (ESP) 1-6 4-2",
+                    "text": "(2) Julia Grabher (AUT) bt (5) Leyre Romero Gormaz (ESP) 1-6 6-4 7-5",
                     "type": "event"
                   }
                 ],
@@ -25307,6 +25307,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
@@ -25316,7 +25317,12 @@
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -25356,6 +25362,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 5
                     },
@@ -25365,7 +25372,12 @@
                         "winner": true
                       },
                       {
-                        "value": 2.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -25418,17 +25430,17 @@
                 "date": "2026-10-30T16:25Z",
                 "startDate": "2026-10-30T16:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -25442,7 +25454,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(3) Solana Sierra (ARG) leads (7) Julia Riera (ARG) 3-1",
+                    "text": "(7) Julia Riera (ARG) bt (3) Solana Sierra (ARG) 1-6 6-4 7-5",
                     "type": "event"
                   }
                 ],
@@ -25456,13 +25468,22 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -25502,13 +25523,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -25543,11 +25573,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1080,
                 "type": {
                   "id": "2",
@@ -25563,20 +25588,20 @@
               {
                 "id": "185776",
                 "uid": "s:850~l:900~e:1080-2026~c:185776",
-                "date": "2026-10-30T17:30Z",
-                "startDate": "2026-10-30T17:30Z",
+                "date": "2026-10-30T18:50Z",
+                "startDate": "2026-10-30T18:50Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 30th at 1:30 PM EDT",
-                    "shortDetail": "10/30 - 1:30 PM EDT"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -25588,7 +25613,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Nauhany Vitoria Leme Da Silva (BRA) bt (1) Francesca Jones (GBR) 7-5 ret",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -25599,6 +25629,13 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "216b0ba0-a1a2-305b-a180-39619c612f63",
                       "displayName": "Nauhany Vitoria Leme Da Silva",
@@ -25636,9 +25673,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "8f0c8602-1b63-3268-acee-a24712a3cadd",
                       "displayName": "Francesca Jones",
@@ -25686,20 +25730,20 @@
               {
                 "id": "185777",
                 "uid": "s:850~l:900~e:1080-2026~c:185777",
-                "date": "2026-10-30T19:00Z",
-                "startDate": "2026-10-30T19:00Z",
+                "date": "2026-10-30T20:20Z",
+                "startDate": "2026-10-30T20:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 30th at 3:00 PM EDT",
-                    "shortDetail": "10/30 - 3:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -25711,7 +25755,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Alice Tubello (FRA) is tied with (8) Jazmin Ortenzi (ARG) 2-6 2-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -25725,6 +25774,15 @@
                     "curatedRank": {
                       "current": 8
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "9dff472e-f004-3a98-b3fc-0900f6b4de41",
                       "displayName": "Jazmin Ortenzi",
@@ -25762,6 +25820,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "0d54348a-f88f-3110-a913-5b9381e2a9c3",
                       "displayName": "Alice Tubello",
@@ -25840,30 +25907,82 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2599",
+                    "uid": "s:850~l:900~a:2599",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "2d0dd3a6-dcc1-2e9b-17ea-acf966691534",
+                      "displayName": "Julia Grabher",
+                      "shortName": "J. Grabher",
+                      "fullName": "Julia Grabher",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                        "alt": "Austria",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2599/julia-grabher",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5749",
+                    "uid": "s:850~l:900~a:5749",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e9d09cae-b708-3f38-8cd7-d721730a0a46",
+                      "displayName": "Julia Riera",
+                      "shortName": "J. Riera",
+                      "fullName": "Julia Riera",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5749/julia-riera",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -25928,16 +26047,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "17009",
+                    "uid": "s:850~l:900~a:17009",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "216b0ba0-a1a2-305b-a180-39619c612f63",
+                      "displayName": "Nauhany Vitoria Leme Da Silva",
+                      "shortName": "N. Leme Da Silva",
+                      "fullName": "Nauhany Vitoria Leme Da Silva",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                        "alt": "Brazil",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/17009/nauhany-vitoria-leme-da-silva",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -26924,20 +27066,20 @@
               {
                 "id": "185788",
                 "uid": "s:850~l:900~e:1080-2026~c:185788",
-                "date": "2026-10-30T18:00Z",
-                "startDate": "2026-10-30T18:00Z",
+                "date": "2026-10-30T20:20Z",
+                "startDate": "2026-10-30T20:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 30th at 2:00 PM EDT",
-                    "shortDetail": "10/30 - 2:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -26949,7 +27091,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Dalila Jakupovic (SLO) & Nika Radisic (SLO) leads Maria Lourdes Carle (ARG) & Julia Riera (ARG) 6-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -26960,6 +27107,12 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Maria Lourdes Carle / Julia Riera",
                       "shortDisplayName": "M. Carle / J. Riera",
@@ -27032,9 +27185,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Dalila Jakupovic / Nika Radisic",
                       "shortDisplayName": "D. Jakupovic / N. Radisic",
@@ -27102,6 +27261,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1080,
                 "type": {
                   "id": "4",
@@ -27117,10 +27281,10 @@
               {
                 "id": "185784",
                 "uid": "s:850~l:900~e:1080-2026~c:185784",
-                "date": "2026-10-30T21:00Z",
-                "startDate": "2026-10-30T21:00Z",
+                "date": "2026-10-30T21:30Z",
+                "startDate": "2026-10-30T21:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -27129,8 +27293,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, October 30th at 5:00 PM EDT",
-                    "shortDetail": "10/30 - 5:00 PM EDT"
+                    "detail": "Fri, October 30th at 5:30 PM EDT",
+                    "shortDetail": "10/30 - 5:30 PM EDT"
                   }
                 },
                 "venue": {
@@ -32704,17 +32868,17 @@
                 "date": "2026-10-30T15:10Z",
                 "startDate": "2026-10-30T15:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -32728,7 +32892,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Elizara Yaneva (BUL) leads Elsa Jacquemot (FRA) 7-5 5-3",
+                    "text": "Elsa Jacquemot (FRA) bt Elizara Yaneva (BUL) 5-7 7-6 (7-4) 6-1",
                     "type": "event"
                   }
                 ],
@@ -32742,14 +32906,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 7.0,
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -32789,14 +32959,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 5.0,
                         "winner": false
                       },
                       {
-                        "value": 3.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -32831,11 +33007,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1081,
                 "type": {
                   "id": "2",
@@ -33048,16 +33219,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "6061",
+                    "uid": "s:850~l:900~a:6061",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "950bb889-e4d2-33ec-9ff6-3b0f34ec4168",
+                      "displayName": "Elsa Jacquemot",
+                      "shortName": "E. Jacquemot",
+                      "fullName": "Elsa Jacquemot",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6061/elsa-jacquemot",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -34056,20 +34250,20 @@
               {
                 "id": "185863",
                 "uid": "s:850~l:900~e:1081-2026~c:185863",
-                "date": "2026-10-30T16:50Z",
-                "startDate": "2026-10-30T16:50Z",
+                "date": "2026-10-30T18:00Z",
+                "startDate": "2026-10-30T18:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 30th at 12:50 PM EDT",
-                    "shortDetail": "10/30 - 12:50 PM EDT"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -34081,7 +34275,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Madeleine Brooks (GBR) & Lisa Zaar (SWE) bt Enola Chiesa (ITA) & Rositsa Dencheva (BUL) 6-1 4-6 1-0 (10-7)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -34092,9 +34291,25 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Madeleine Brooks / Lisa Zaar",
                       "shortDisplayName": "M. Brooks / L. Zaar",
@@ -34167,6 +34382,22 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 7,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Enola Chiesa / Rositsa Dencheva",
                       "shortDisplayName": "E. Chiesa / R. Dencheva",
@@ -34473,30 +34704,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
+                    "id": "16558-8623",
+                    "uid": "s:850~l:900~t:16558-8623",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Madeleine Brooks / Lisa Zaar",
+                      "shortDisplayName": "M. Brooks / L. Zaar",
+                      "athletes": [
+                        {
+                          "guid": "995b05a9-81c6-38e7-be77-f1492d6e4a12",
+                          "displayName": "Madeleine Brooks",
+                          "shortName": "M. Brooks",
+                          "fullName": "Madeleine Brooks",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16558/madeleine-brooks",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "d2d3a9d0-41a1-373a-adf8-42bf6746071f",
+                          "displayName": "Lisa Zaar",
+                          "shortName": "L. Zaar",
+                          "fullName": "Lisa Zaar",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/swe.png",
+                            "alt": "Sweden",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/8623/lisa-zaar",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:900~t:-3--4",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -40030,20 +40334,20 @@
               {
                 "id": "185816",
                 "uid": "s:850~l:900~e:1034-2026~c:185816",
-                "date": "2026-10-30T20:00Z",
-                "startDate": "2026-10-30T20:00Z",
+                "date": "2026-10-30T20:05Z",
+                "startDate": "2026-10-30T20:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, October 30th at 4:00 PM EDT",
-                    "shortDetail": "10/30 - 4:00 PM EDT"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -40055,7 +40359,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Tatjana Maria (GER) leads Valeriya Strakhova (UKR) 6-6",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -40066,6 +40375,11 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
                       "displayName": "Valeriya Strakhova",
@@ -40106,6 +40420,11 @@
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "4cb15c03-61f2-2d31-26af-bf7a35f85051",
                       "displayName": "Tatjana Maria",
@@ -40156,7 +40475,7 @@
                 "date": "2026-10-30T21:30Z",
                 "startDate": "2026-10-30T21:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
