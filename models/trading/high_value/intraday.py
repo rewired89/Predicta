@@ -832,9 +832,14 @@ def compute_intraday_signals(
     daily_avg_volume: float = 0,
     hold_bars: int = 6,
     symbol: Optional[str] = None,
+    hold_bars_by_label: Optional[dict] = None,
 ) -> dict:
     """
     Full intraday signal computation.
+    hold_bars_by_label (added 2026-10-31, Kimi review): when given, the hold
+    length is picked from the time-of-day label BEFORE the expected move and
+    stop/target levels are computed, so a 60-min hold gets 60-min stops
+    instead of 30-min stops. Result carries "hold_bars_used".
     hold_bars: number of 5-min bars to hold (default 6 = 30 min scalp).
     Returns signals + composite score (with liquidity & time-of-day adjustments)
     + trade levels (intraday-EM-based sizing) + intraday expected move
@@ -881,14 +886,16 @@ def compute_intraday_signals(
         score["reasons"] = [f"Spread penalty ({liquidity['spread_pct']:.3f}%)"] + score["reasons"]
 
     # ── Intraday expected move — compute before levels (used for stop sizing) ──
-    intraday_em = _intraday_expected_move(closes, hold_bars)
-
-    # ── Time-of-day modifier ───────────────────────────────────────────────────
+    # ── Time-of-day modifier (computed first so it can pick the hold length) ──
     time_info = {"modifier": 1.0, "label": "UNKNOWN", "note": ""}
     if intraday_bars:
         ts = intraday_bars[-1].get("t", "")
         if ts:
             time_info = _time_of_day_modifier(ts)
+    if hold_bars_by_label:
+        hold_bars = hold_bars_by_label.get(time_info["label"], hold_bars)
+
+    intraday_em = _intraday_expected_move(closes, hold_bars)
 
     time_mod = time_info["modifier"]
 
@@ -991,6 +998,7 @@ def compute_intraday_signals(
         "levels":                 levels,
         "liquidity":              liquidity,
         "intraday_expected_move": intraday_em,
+        "hold_bars_used":         hold_bars,
         "exit_template":          exit_template,
     }
 

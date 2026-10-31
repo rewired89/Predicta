@@ -13707,3 +13707,7 @@ called_by: high_value_runner (check_real_position_exits, close_high_value_trade)
 side_effects: Alpaca paper orders/DELETE position, UPDATE intraday_trades entry_price/qty
 flags: signal_calibration.ADAPTIVE_REWEIGHTING_ENABLED=False, NGRAM_LIVE_SCORING_ENABLED=False (read by intraday._effective_weights, thesis_tracker._effective_signal_weights, automaton learning)
 ---
+
+## models/trading/high_value/intraday.py: compute_intraday_signals (update 2026-10-31)
+new param hold_bars_by_label (dict label->bars); result key hold_bars_used; time-of-day label now computed before intraday_expected_move. Caller fetchers/high_value_runner.py run_open_scan passes _HOLD_BARS. Other callers (app.py, screener) unchanged.
+---

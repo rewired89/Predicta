@@ -738,7 +738,7 @@ def run_open_scan(
 
             avg_v  = _avg_daily_vol(daily)
             result = compute_intraday_signals(
-                intraday, daily, snap, avg_v, symbol=sym
+                intraday, daily, snap, avg_v, symbol=sym, hold_bars_by_label=_HOLD_BARS
             )
             if "error" in result:
                 continue
@@ -758,7 +758,7 @@ def run_open_scan(
 
             levels   = result.get("levels", {})
             time_lbl = result["score"].get("time_label", "UNKNOWN")
-            hold_b   = _HOLD_BARS.get(time_lbl, _DEFAULT_HOLD_BARS)
+            hold_b   = result.get("hold_bars_used") or _HOLD_BARS.get(time_lbl, _DEFAULT_HOLD_BARS)
             side     = levels.get("side", "long")
 
             if market_regime["regime"] == "EXTREME":

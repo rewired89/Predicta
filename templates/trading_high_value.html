@@ -460,6 +460,14 @@
 </main>
 
 <script>
+// Kimi review (2026-10-31): scores are unvalidated research signals, not advice.
+function friendlyLabel(l) {
+  const m = {"Strong Buy":"Research signal: strong up","Buy":"Research signal: up","Neutral":"No clear signal",
+             "Sell":"Research signal: down","Strong Sell":"Research signal: strong down",
+             "STRONG_BUY":"Research signal: strong up","BUY":"Research signal: up","NEUTRAL":"No clear signal",
+             "SELL":"Research signal: down","STRONG_SELL":"Research signal: strong down"};
+  return m[l] || l;
+}
 const STEPS = [
   {id:"parse",     label:"Parse ticker"},
   {id:"fetch",     label:"Fetch market data"},
@@ -592,7 +600,7 @@ function renderResults(d) {
 
   // ── Score ────────────────────────────────────────────────────────────────────
   const sb = document.getElementById("score-badge");
-  sb.textContent = `${score.label} (${score.value > 0 ? "+" : ""}${score.value})`;
+  sb.textContent = `${friendlyLabel(score.label)} (${score.value > 0 ? "+" : ""}${score.value})`;
   sb.className = "score-badge " + scoreClass(score.color);
   document.getElementById("score-reasons").textContent = (score.reasons || []).join(" · ");
 
@@ -849,7 +857,7 @@ function renderScanResults(d) {
       <td class="sym-cell">${r.symbol}</td>
       <td>$${fmt(r.price, 2)}</td>
       <td>${chgStr}</td>
-      <td><span class="score-chip ${chipClass(r.label)}">${r.label}<br><small>${r.score > 0 ? "+":""} ${r.score}</small></span></td>
+      <td><span class="score-chip ${chipClass(r.label)}">${friendlyLabel(r.label)}<br><small>${r.score > 0 ? "+":""} ${r.score}</small></span></td>
       <td class="lvl-entry">${r.entry ? "$"+fmt(r.entry,2) : "—"}</td>
       <td class="lvl-stop">${r.stop ? "$"+fmt(r.stop,2) : "—"}</td>
       <td class="lvl-target">${r.target1 ? "$"+fmt(r.target1,2) : "—"}</td>

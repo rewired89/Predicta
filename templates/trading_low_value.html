@@ -106,6 +106,14 @@
   </div>
 </main>
 <script>
+// Kimi review (2026-10-31): scores are unvalidated research signals, not advice.
+function friendlyLabel(l) {
+  const m = {"Strong Buy":"Research signal: strong up","Buy":"Research signal: up","Neutral":"No clear signal",
+             "Sell":"Research signal: down","Strong Sell":"Research signal: strong down",
+             "STRONG_BUY":"Research signal: strong up","BUY":"Research signal: up","NEUTRAL":"No clear signal",
+             "SELL":"Research signal: down","STRONG_SELL":"Research signal: strong down"};
+  return m[l] || l;
+}
 function predictaErrorText(data) {
   // Same helper as the dashboards' predictaAction() — FastAPI validation
   // errors put a LIST of objects in data.detail (not a string), which
@@ -212,7 +220,7 @@ function lvRenderAnalysis(results) {
     const scope = r.low_value_universe_eligible
       ? ""
       : "  [outside Low Value's sub-$20 scope — score shown for reference only]";
-    lines.push(`${r.symbol} — ${priceStr} — ${r.label || "NEUTRAL"} (composite ${r.composite_score ?? "—"})${scope}`);
+    lines.push(`${r.symbol} — ${priceStr} — ${friendlyLabel(r.label || "NEUTRAL")} (composite ${r.composite_score ?? "—"})${scope}`);
     if (r.thesis_type) lines.push(`  thesis: ${r.thesis_type}`);
     if (r.news && r.news.headline_count) lines.push(`  news: ${r.news.headline_count} headlines, sentiment ${r.news.sentiment ?? "—"}, flags ${(r.news.flags || []).join(", ") || "none"}`);
     if (r.missing_signals && r.missing_signals.length) lines.push(`  missing signals: ${r.missing_signals.join(", ")}`);
