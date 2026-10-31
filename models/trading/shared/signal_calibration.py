@@ -45,6 +45,16 @@ _BUCKETS: list[tuple[int, int, str]] = [
 ]
 
 
+
+# ── Kimi review (2026-10-31): adaptive behavior OFF until it passes out-of-sample tests ──
+# Auto-reweighting learns and is judged on the same few trades (overfits tiny samples),
+# and the n-gram blend tests ~81 patterns with no multiple-testing correction and predicts
+# the next 5-min bar, not the 30-60 min trade horizon. Both keep LOGGING so they can be
+# tested later; they just stop changing live scores. Flip to True only after a frozen
+# walk-forward test shows they help.
+ADAPTIVE_REWEIGHTING_ENABLED: bool = False
+NGRAM_LIVE_SCORING_ENABLED: bool = False
+
 def _is_winner(t: dict) -> bool:
     """True if trade was profitable. Uses pnl_r when available."""
     if t.get("pnl_r") is not None:

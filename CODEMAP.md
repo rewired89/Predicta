@@ -13698,3 +13698,12 @@ added 2026-10-17: features.py CANDLE_FEATURES + feature_cols(); backtest.py rank
 verdicts: NO EDGE / RANKING SIGNAL ONLY / POSSIBLE EDGE / NOT ENOUGH HISTORY (<24 test months)
 caveats: survivorship bias (today's tradable universe), overlapping windows; verified on synthetic data only (random walk => no edge, planted momentum => ranking signal). Not live-verified: Alpaca unreachable from sandbox.
 ---
+
+## fetchers/position_guard.py  (Kimi review fix, 2026-10-31)
+close_for_trade(symbol, trade_id, qty, side): closes only this trade's qty if another open real trade holds the symbol, else full close; returns {mode, order_id, fill_price} or {error, status_code}
+fill_price(order_id): polls Alpaca get_order for filled_avg_price
+other_open_broker_qty(symbol, exclude_trade_id); reconcile_entry_fills(engine): rewrites entry_price/qty from real fills
+called_by: high_value_runner (check_real_position_exits, close_high_value_trade), low_value_runner (check_low_value_exits, close_low_value_trade), automaton_runner (check_automaton_exits, close_automaton_trade)
+side_effects: Alpaca paper orders/DELETE position, UPDATE intraday_trades entry_price/qty
+flags: signal_calibration.ADAPTIVE_REWEIGHTING_ENABLED=False, NGRAM_LIVE_SCORING_ENABLED=False (read by intraday._effective_weights, thesis_tracker._effective_signal_weights, automaton learning)
+---

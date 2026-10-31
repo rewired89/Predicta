@@ -381,8 +381,9 @@ def _effective_signal_weights() -> dict[str, float]:
     try:
         from models.trading.shared.signal_calibration import (
             low_value_calibration_readiness, compute_low_value_dynamic_weights,
+            ADAPTIVE_REWEIGHTING_ENABLED,
         )
-        if low_value_calibration_readiness().get("dynamic_weights_ready"):
+        if ADAPTIVE_REWEIGHTING_ENABLED and low_value_calibration_readiness().get("dynamic_weights_ready"):
             result = compute_low_value_dynamic_weights(min_trades=30, min_entry_score=ENTRY_THRESHOLD)
             if result and result.get("status") == "dynamic":
                 weights = dict(result["weights"])

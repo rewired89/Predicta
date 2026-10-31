@@ -404,6 +404,11 @@ def check_automaton_exits() -> dict:
     guard only matters for the rare row whose autonomous entry order itself
     failed (see _auto_execute_entry), which has nothing to liquidate.
     """
+    try:
+        from fetchers.position_guard import reconcile_entry_fills
+        reconcile_entry_fills(ENGINE)
+    except Exception as exc:
+        log.warning(f"[AUTOMATON] entry fill reconcile failed: {exc}")
     open_positions = _load_open_positions()
     if not open_positions:
         return {"checked": 0, "closed": []}
@@ -442,11 +447,12 @@ def check_automaton_exits() -> dict:
 
         if exit_reason:
             if pos.get("alpaca_order_id"):
-                from fetchers.alpaca import close_position
-                liq = close_position(sym)
+                from fetchers.position_guard import close_for_trade
+                liq = close_for_trade(sym, pos["id"], pos.get("qty"), side)
                 if "error" in liq:
                     log.warning(f"[AUTOMATON] Real close failed for {sym} tid={pos['id']}: {liq['error']}")
                     continue
+                current_price = liq.get("fill_price") or current_price
 
             result = log_trade_exit(pos["id"], current_price, exit_reason)
             closed.append({"symbol": sym, "trade_id": pos["id"], "exit_reason": exit_reason, **result})
@@ -544,11 +550,13 @@ def close_automaton_trade(trade_id: int) -> dict:
     if current_price <= 0:
         return {"error": f"Could not get a current price for {symbol} — try again."}
 
-    result = close_position(symbol)
+    from fetchers.position_guard import close_for_trade
+    result = close_for_trade(symbol, trade_id, pos.get("qty"), pos["side"])
     if "error" in result:
         if result.get("status_code") == 404:
             return {"error": f"Alpaca has no open position for {symbol} yet — the entry order likely hasn't filled. Check Orders in your Alpaca paper dashboard, then try Sell again once it shows filled."}
         return {"error": result["error"]}
+    current_price = result.get("fill_price") or current_price
 
     exit_result = log_trade_exit(trade_id, current_price, "MANUAL_CLOSE")
     alpaca_side = "buy" if pos["side"] == "long" else "sell"

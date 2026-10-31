@@ -740,8 +740,9 @@ def _effective_weights() -> dict:
     try:
         from models.trading.shared.signal_calibration import (
             calibration_globally_active, compute_dynamic_weights, get_active_kill_switches,
+            ADAPTIVE_REWEIGHTING_ENABLED,
         )
-        if calibration_globally_active():
+        if ADAPTIVE_REWEIGHTING_ENABLED and calibration_globally_active():
             result = compute_dynamic_weights(min_trades=30)
             if result and result.get("status") == "dynamic":
                 weights = dict(result["weights"])
@@ -912,7 +913,8 @@ def compute_intraday_signals(
             from models.trading.high_value.ngram import ngram_signal, ngram_to_composite_score
             ngram = ngram_signal(symbol, closes)
             ng_score = ngram_to_composite_score(ngram)
-            if ngram.get("confidence", 0) > 20:
+            from models.trading.shared.signal_calibration import NGRAM_LIVE_SCORING_ENABLED
+            if NGRAM_LIVE_SCORING_ENABLED and ngram.get("confidence", 0) > 20:
                 existing_sign = 1 if score_val > 0 else -1
                 ngram_sign    = 1 if ng_score > 0 else -1 if ng_score < 0 else 0
                 wr = ngram.get("historical_win_rate", 0)

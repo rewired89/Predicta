@@ -888,7 +888,7 @@ def _load_open_positions() -> list[dict]:
             SELECT id, symbol, side, entry_price, entry_time,
                    stop_price, target1_price, target_price, planned_hold_bars
             FROM intraday_trades
-            WHERE is_hypothetical = 1 AND exit_time IS NULL
+            WHERE engine = 'high_value' AND is_hypothetical = 1 AND exit_time IS NULL
             """,
         ).fetchall()
     return [dict(r) for r in rows]
@@ -911,7 +911,7 @@ def _load_open_real_positions() -> list[dict]:
             SELECT id, symbol, side, entry_price, entry_time, qty,
                    stop_price, target_price, planned_hold_bars, alpaca_order_id
             FROM intraday_trades
-            WHERE is_hypothetical = 0 AND exit_time IS NULL AND alpaca_order_id IS NOT NULL
+            WHERE engine = 'high_value' AND is_hypothetical = 0 AND exit_time IS NULL AND alpaca_order_id IS NOT NULL
             """,
         ).fetchall()
     return [dict(r) for r in rows]
@@ -936,6 +936,11 @@ def check_real_position_exits(force_close: bool = False) -> dict:
         existing hypothetical FORCE_CLOSE_EOD path already uses, since a
         market liquidation's exact fill isn't returned synchronously.
     """
+    try:
+        from fetchers.position_guard import reconcile_entry_fills
+        reconcile_entry_fills("high_value")
+    except Exception as exc:
+        log.warning(f"[RUNNER] entry fill reconcile failed: {exc}")
     positions = _load_open_real_positions()
     if not positions:
         return {"checked": 0, "closed": 0}
@@ -962,11 +967,12 @@ def check_real_position_exits(force_close: bool = False) -> dict:
             current_price = snap.get("price", 0)
             if current_price <= 0:
                 continue
-            result = close_position(sym)
+            from fetchers.position_guard import close_for_trade
+            result = close_for_trade(sym, pos["id"], pos.get("qty"), pos["side"])
             if "error" in result:
                 log.warning(f"[RUNNER] Real close failed for {sym} tid={pos['id']}: {result['error']}")
                 continue
-            exit_price = current_price
+            exit_price = result.get("fill_price") or current_price
             exit_reason = "FORCE_CLOSE_EOD" if force_close else "TIME_STOP"
         else:
             order = get_order(pos["alpaca_order_id"])
@@ -1048,7 +1054,7 @@ def execute_high_value_trade(trade_id: int) -> dict:
             """
             SELECT id, symbol, side, entry_price, qty, stop_price, target_price, planned_hold_bars
             FROM intraday_trades
-            WHERE id = ? AND is_hypothetical = 1 AND exit_time IS NULL
+            WHERE id = ? AND engine = 'high_value' AND is_hypothetical = 1 AND exit_time IS NULL
             """,
             (trade_id,),
         ).fetchone()
@@ -1158,7 +1164,7 @@ def close_high_value_trade(trade_id: int) -> dict:
             """
             SELECT id, symbol, side, qty, alpaca_order_id
             FROM intraday_trades
-            WHERE id = ? AND is_hypothetical = 0 AND exit_time IS NULL
+            WHERE id = ? AND engine = 'high_value' AND is_hypothetical = 0 AND exit_time IS NULL
             """,
             (trade_id,),
         ).fetchone()
@@ -1172,11 +1178,13 @@ def close_high_value_trade(trade_id: int) -> dict:
     if current_price <= 0:
         return {"error": f"Could not get a current price for {symbol} — try again."}
 
-    result = close_position(symbol)
+    from fetchers.position_guard import close_for_trade
+    result = close_for_trade(symbol, trade_id, pos.get("qty"), pos["side"])
     if "error" in result:
         if result.get("status_code") == 404:
             return {"error": f"Alpaca has no open position for {symbol} yet — your buy order likely hasn't filled yet. Check Orders in your Alpaca paper dashboard, then try Sell again once it shows filled."}
         return {"error": result["error"]}
+    current_price = result.get("fill_price") or current_price
 
     exit_result = log_trade_exit(
         trade_id    = trade_id,

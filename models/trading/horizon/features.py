@@ -102,7 +102,18 @@ def build_panel(bars: pd.DataFrame, horizon: int) -> pd.DataFrame:
     panel = panel.drop(index=BENCH, level="symbol", errors="ignore")
     cols = feature_cols(panel)
     panel = panel.replace([np.inf, -np.inf], np.nan).dropna(subset=cols)
-    # clip extreme tails so one bad print can't dominate a linear model
-    panel[cols] = panel[cols].clip(panel[cols].quantile(0.01), panel[cols].quantile(0.99), axis=1)
+    # NOTE: tail clipping is NOT done here. It must use training rows only (see
+    # fit_clip/apply_clip) or the test period leaks into the clip thresholds.
     panel["label"] = np.where(panel["fwd_excess"].isna(), np.nan, (panel["fwd_excess"] > 0).astype(float))
     return panel
+
+
+def fit_clip(train: pd.DataFrame, cols: list[str]) -> tuple[pd.Series, pd.Series]:
+    """1st/99th percentile bounds from TRAINING rows only."""
+    return train[cols].quantile(0.01), train[cols].quantile(0.99)
+
+
+def apply_clip(df: pd.DataFrame, cols: list[str], bounds: tuple[pd.Series, pd.Series]) -> pd.DataFrame:
+    out = df.copy()
+    out[cols] = out[cols].clip(bounds[0], bounds[1], axis=1)
+    return out

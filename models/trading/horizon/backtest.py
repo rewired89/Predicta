@@ -19,7 +19,7 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
-from models.trading.horizon.features import build_panel, feature_cols, load_bars
+from models.trading.horizon.features import apply_clip, build_panel, feature_cols, fit_clip, load_bars
 
 MIN_TRAIN_ROWS = 3000
 COST_BPS_PER_SIDE = 10.0
@@ -52,6 +52,8 @@ def walk_forward(panel: pd.DataFrame, horizon: int) -> pd.DataFrame:
         test = data[idx.isin(set(test_dates))]
         if test.empty:
             continue
+        bounds = fit_clip(train, cols)
+        train, test = apply_clip(train, cols, bounds), apply_clip(test, cols, bounds)
         mdl = _model().fit(train[cols].values, train["label"].values)
         res = test[["label", "fwd_excess"]].copy()
         res["p"] = mdl.predict_proba(test[cols].values)[:, 1]
@@ -146,8 +148,9 @@ def predict_symbol(symbol: str, horizon: int = 5, bars: pd.DataFrame | None = No
     if len(train) < MIN_TRAIN_ROWS or train["label"].nunique() < 2:
         return {"status": "insufficient_data", "symbol": symbol, "detail": f"only {len(train)} labelled rows"}
     cols = feature_cols(panel)
-    mdl = _model().fit(train[cols].values, train["label"].values)
-    last = panel.xs(symbol, level=1).sort_index().iloc[-1:]
+    bounds = fit_clip(train, cols)
+    mdl = _model().fit(apply_clip(train, cols, bounds)[cols].values, train["label"].values)
+    last = apply_clip(panel.xs(symbol, level=1).sort_index().iloc[-1:], cols, bounds)
     p = float(mdl.predict_proba(last[cols].values)[0, 1])
     return {"status": "ok", "symbol": symbol, "as_of": str(last.index[0]), "horizon_days": horizon,
             "p_beats_spy": round(p, 3), "base_rate": round(float(train["label"].mean()), 3),
@@ -183,9 +186,11 @@ def run_vol_backtest(horizon: int = 5, bars: pd.DataFrame | None = None) -> dict
         test = data[idx.isin(set(td))]
         if len(train) < MIN_TRAIN_ROWS or test.empty:
             continue
-        mdl = make_pipeline(StandardScaler(), Ridge(alpha=10.0)).fit(train[cols].values, np.log(train["fwd_vol"].values))
+        bounds = fit_clip(train, cols)
+        train_c, test_c = apply_clip(train, cols, bounds), apply_clip(test, cols, bounds)
+        mdl = make_pipeline(StandardScaler(), Ridge(alpha=10.0)).fit(train_c[cols].values, np.log(train["fwd_vol"].values))
         r = test[["fwd_vol", "vol_20"]].copy()
-        r["pred"] = np.exp(mdl.predict(test[cols].values))
+        r["pred"] = np.exp(mdl.predict(test_c[cols].values))
         out.append(r)
     if not out:
         return {"status": "insufficient_data", "horizon_days": horizon}

@@ -84,7 +84,8 @@ def effective_weights() -> dict[str, float]:
         return cached["weights"]
 
     weights = dict(SIGNAL_WEIGHTS)
-    if AUTOMATON_LEARNING_ENABLED:
+    from models.trading.shared.signal_calibration import ADAPTIVE_REWEIGHTING_ENABLED
+    if AUTOMATON_LEARNING_ENABLED and ADAPTIVE_REWEIGHTING_ENABLED:
         try:
             from models.trading.shared.signal_calibration import compute_low_value_dynamic_weights
             result = compute_low_value_dynamic_weights(
