@@ -13711,3 +13711,11 @@ flags: signal_calibration.ADAPTIVE_REWEIGHTING_ENABLED=False, NGRAM_LIVE_SCORING
 ## models/trading/high_value/intraday.py: compute_intraday_signals (update 2026-10-31)
 new param hold_bars_by_label (dict label->bars); result key hold_bars_used; time-of-day label now computed before intraday_expected_move. Caller fetchers/high_value_runner.py run_open_scan passes _HOLD_BARS. Other callers (app.py, screener) unchanged.
 ---
+
+## Kimi review batch 3 (2026-11-01)
+models/trading/shared/exposure.py: get_cross_engine_exposure() now returns engines{high_value,low_value,automaton:{open,real,suggested,long_dollars,short_dollars,gross_dollars,unsized}}, gross_dollars, same_stock_overlaps, largest_symbol, automaton_open (legacy keys kept). Read by app.py (/trade/exposure + dashboard block) and fetchers/low_value_dashboard.py.
+fetchers/low_value_runner.py: LOW_VALUE_VOL_SCALED_EXITS, LOW_VALUE_VOL_K, LOW_VALUE_MIN_EXIT_PCT, vol_scaled_exit_pct(daily_bars), effective_exit_pcts(pos); _load_open_positions also selects stop_price,target1_price; check_low_value_exits uses effective_exit_pcts.
+fetchers/trading_logger.py: log_low_value_trade(..., exit_pct=None) stores side-aware stop/target at exit_pct (default 0.5).
+fetchers/low_value_dashboard.py: _target_stop_prices(entry, side, target_pct, stop_pct), _plain_exit_instructions(..., trade) reads stored levels.
+models/trading/horizon/backtest.py: portfolio_sim(res, horizon) (non-overlapping, CI, drawdown); summarize() returns "portfolio"; _verdict adds UNPROVEN.
+---

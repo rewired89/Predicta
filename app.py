@@ -3375,8 +3375,9 @@ def trade_dashboard():
     <div class="card-title">Cross-Engine Exposure</div>
     {f'''<div class="exit-item"><span>High Value</span><span class="exit-count">{cross_exposure["high_value_open"]} open / cap {cross_exposure["high_value_cap"]}</span></div>
     <div class="exit-item"><span>Low Value</span><span class="exit-count">{cross_exposure["low_value_open"]} open / cap {cross_exposure["low_value_cap"]}</span></div>
+    <div class="exit-item"><span>Automaton</span><span class="exit-count">{cross_exposure["automaton_open"]} open</span></div>
     <div class="exit-item"><span>Pairs</span><span class="exit-count">{cross_exposure["pairs_open"]} open / no cap set</span></div>
-    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines. {cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines, ${cross_exposure["gross_dollars"]:,.0f} gross dollars. {("Same stock held by 2+ engines: " + ", ".join(o["symbol"] for o in cross_exposure["same_stock_overlaps"]) + ". ") if cross_exposure["same_stock_overlaps"] else ""}{cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
   </div>
 
   <!-- Per-signal P&L attribution -->

@@ -45,7 +45,44 @@ log = logging.getLogger("low_value_runner")
 LOW_VALUE_SCAN_HOUR_ET: int = 8      # 8:00 AM ET
 LOW_VALUE_HOLD_DAYS: int = 5          # max hold, trading days
 LOW_VALUE_TARGET_PCT: float = 0.50    # +50% exit
-LOW_VALUE_STOP_PCT: float = 0.50      # -50% exit
+LOW_VALUE_STOP_PCT: float = 0.50      # -50% exit (fallback / legacy rows)
+
+# Volatility-scaled exits (2026-11-01, Kimi review): +/-50% almost never fires on
+# a 5-day hold, so the "stop" was not real risk control. New trades get a target
+# and stop set to LOW_VALUE_VOL_K x the stock's own typical 5-day move, the same
+# distance both ways (no asymmetry chosen by guesswork), kept between
+# LOW_VALUE_MIN_EXIT_PCT and the old 50%. Old open rows keep their stored levels.
+LOW_VALUE_VOL_SCALED_EXITS: bool = True
+LOW_VALUE_VOL_K: float = 1.5
+LOW_VALUE_MIN_EXIT_PCT: float = 0.05
+
+
+def vol_scaled_exit_pct(daily_bars: list) -> Optional[float]:
+    """1.5 x (daily volatility x sqrt(hold days)), clamped; None if too little data."""
+    import math
+    closes = [b.get("c") for b in daily_bars if b.get("c")]
+    if len(closes) < 16:
+        return None
+    rets = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))][-20:]
+    mean = sum(rets) / len(rets)
+    sd = math.sqrt(sum((r - mean) ** 2 for r in rets) / (len(rets) - 1))
+    if sd <= 0:
+        return None
+    pct = LOW_VALUE_VOL_K * sd * math.sqrt(LOW_VALUE_HOLD_DAYS)
+    return round(min(max(pct, LOW_VALUE_MIN_EXIT_PCT), LOW_VALUE_TARGET_PCT), 4)
+
+
+def effective_exit_pcts(pos: dict) -> tuple:
+    """(target_pct, stop_pct) for an open position, from its stored levels, else +/-50%."""
+    entry, stop, tgt = pos.get("entry_price"), pos.get("stop_price"), pos.get("target1_price")
+    if entry and stop and tgt and entry > 0:
+        if pos.get("side") == "short":
+            t_pct, s_pct = 1 - tgt / entry, stop / entry - 1
+        else:
+            t_pct, s_pct = tgt / entry - 1, 1 - stop / entry
+        if 0.01 <= t_pct <= LOW_VALUE_TARGET_PCT + 1e-6 and 0.01 <= s_pct <= LOW_VALUE_STOP_PCT + 1e-6:
+            return t_pct, s_pct
+    return LOW_VALUE_TARGET_PCT, LOW_VALUE_STOP_PCT
 NEGATIVE_THESES: set[str] = {"EARNINGS_MISS", "ANALYST_DOWNGRADE", "REGULATORY_RISK", "OPERATIONAL_CRISIS"}
 
 # Data-collection sprint mode (2026-07-12, same pattern and rationale as
@@ -318,7 +355,7 @@ def _load_open_positions() -> list[dict]:
         rows = conn.execute(
             """
             SELECT id, symbol, side, entry_price, entry_time, lv_thesis_type,
-                   qty, alpaca_order_id
+                   qty, alpaca_order_id, stop_price, target1_price
             FROM intraday_trades
             WHERE engine = 'low_value' AND exit_time IS NULL
             """,
@@ -551,6 +588,7 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
                 symbol=sym, side=side, entry_price=entry_price,
                 score_value=composite, thesis_result=thesis, thesis_type=thesis_type,
                 news_result=news_result, hold_days=LOW_VALUE_HOLD_DAYS,
+                exit_pct=vol_scaled_exit_pct(daily_bars) if LOW_VALUE_VOL_SCALED_EXITS else None,
             )
             trade_ids.append(tid)
             _run_log.append({
@@ -637,10 +675,11 @@ def check_low_value_exits() -> dict:
         if side == "short":
             pct_move = -pct_move
 
+        target_pct, stop_pct = effective_exit_pcts(pos)
         exit_reason = None
-        if pct_move >= LOW_VALUE_TARGET_PCT:
+        if pct_move >= target_pct:
             exit_reason = "TARGET"
-        elif pct_move <= -LOW_VALUE_STOP_PCT:
+        elif pct_move <= -stop_pct:
             exit_reason = "STOP"
         elif pos.get("lv_thesis_type") in NEGATIVE_THESES:
             fresh_flags = (news_by_symbol.get(sym) or {}).get("flags", [])

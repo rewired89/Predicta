@@ -391,6 +391,7 @@ def log_low_value_trade(
     is_hypothetical: int = 1,
     engine: str = "low_value",
     position_dollars: float = 25.0,
+    exit_pct: Optional[float] = None,
 ) -> int:
     """
     Log a Low Value (sub-$20 contrarian) trade — engine='low_value', same
@@ -450,10 +451,14 @@ def log_low_value_trade(
     # trade was mis-exited by this, but every short row's stored
     # stop_price/target1_price/target_price was backwards, which is exactly
     # what a raw DB read (e.g. the Signals Audit page) would show.
+    # exit_pct (2026-11-01, Kimi review): when given, target and stop sit
+    # exit_pct away from entry (volatility-scaled by the caller) instead of
+    # the fixed 50%. None keeps the old +/-50% (Automaton and old callers).
+    pct = exit_pct if exit_pct and 0 < exit_pct < 1 else 0.5
     if side == "short":
-        stop_level, target_level = entry_price * 1.5, entry_price * 0.5
+        stop_level, target_level = entry_price * (1 + pct), entry_price * (1 - pct)
     else:
-        stop_level, target_level = entry_price * 0.5, entry_price * 1.5
+        stop_level, target_level = entry_price * (1 - pct), entry_price * (1 + pct)
 
     with get_db() as conn:
         cur = conn.execute(

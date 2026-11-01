@@ -96,7 +96,9 @@ def summarize(res: pd.DataFrame, horizon: int) -> dict:
     ics = np.array([x for x in ics if np.isfinite(x)])
     rank_ic = float(ics.mean()) if len(ics) else float("nan")
     icir = float(ics.mean() / ics.std()) if len(ics) > 1 and ics.std() > 0 else float("nan")
+    port = portfolio_sim(res, horizon)
     return {
+        "portfolio": port,
         "status": "ok", "horizon_days": horizon, "test_rows": int(len(res)),
         "months_tested": int(len(mvals)), "first_month": min(monthly), "last_month": max(monthly),
         "accuracy": round(acc, 4), "accuracy_baseline": round(acc_base, 4),
@@ -109,18 +111,56 @@ def summarize(res: pd.DataFrame, horizon: int) -> dict:
         "months_positive_pct": round(float((mvals > 0).mean()) * 100, 1),
         "monthly_excess_std_pct": round(float(mvals.std()) * 100, 3),
         "cost_bps_per_side": COST_BPS_PER_SIDE,
-        "verdict": _verdict(1 - brier / brier_base, float(mvals.mean()), len(mvals), float((mvals > 0).mean())),
+        "verdict": _verdict(1 - brier / brier_base, float(mvals.mean()), len(mvals), float((mvals > 0).mean()), port.get("ci95_low_pct")),
         "caveats": ["survivorship bias if universe = today's tradable list",
                     "overlapping windows: per-row stats overstate significance; use the monthly numbers",
                     "no result here is a trading instruction"],
     }
 
 
-def _verdict(skill: float, mean_excess: float, n_months: int, pos_frac: float) -> str:
+def portfolio_sim(res: pd.DataFrame, horizon: int) -> dict:
+    """
+    Simple non-overlapping portfolio test (Kimi review, 2026-11-01): every
+    `horizon` trading days, buy the top-decile picks equal-weight, hold them
+    `horizon` days, pay round-trip costs, repeat. Because periods do not
+    overlap, the trades are (nearly) independent, so the average and its 95%
+    interval are honest, unlike the per-row stats. Return is EXCESS over SPY.
+    """
+    dates = sorted(res.index.get_level_values(0).unique())
+    picks = dates[::max(horizon, 1)]
+    cost = 2 * COST_BPS_PER_SIDE / 1e4
+    rets = []
+    for d in picks:
+        g = res.xs(d, level=0)
+        k = max(1, int(len(g) * TOP_FRAC))
+        rets.append(g.nlargest(k, "p")["fwd_excess"].mean() - cost)
+    r = np.array([x for x in rets if np.isfinite(x)])
+    if len(r) < 8:
+        return {"periods": int(len(r)), "note": "too few non-overlapping periods"}
+    curve = np.cumsum(r)
+    peak = np.maximum.accumulate(curve)
+    mdd = float((curve - peak).min())
+    se = float(r.std(ddof=1) / np.sqrt(len(r)))
+    m = float(r.mean())
+    return {
+        "periods": int(len(r)),
+        "mean_excess_per_period_pct": round(m * 100, 3),
+        "ci95_low_pct": round((m - 1.96 * se) * 100, 3),
+        "ci95_high_pct": round((m + 1.96 * se) * 100, 3),
+        "periods_beating_spy_pct": round(float((r > 0).mean()) * 100, 1),
+        "total_excess_pct": round(float(curve[-1]) * 100, 2),
+        "max_drawdown_of_excess_pct": round(mdd * 100, 2),
+        "note": "excess return over SPY, equal-weight top decile, non-overlapping holds, after costs",
+    }
+
+
+def _verdict(skill: float, mean_excess: float, n_months: int, pos_frac: float, ci_low=None) -> str:
     if n_months < 24:
         return "NOT ENOUGH HISTORY: fewer than 24 test months, no conclusion"
     if mean_excess <= 0 or pos_frac < 0.55:
         return "NO EDGE: top-ranked picks do not reliably beat SPY after costs"
+    if ci_low is not None and ci_low <= 0:
+        return "UNPROVEN: picks beat SPY on average but the 95% interval includes zero, could be luck"
     if skill <= 0.001:
         return "RANKING SIGNAL ONLY: top picks beat SPY but probabilities are not calibrated, do not read p as a real chance"
     return "POSSIBLE EDGE: beats baseline, still needs out-of-sample confirmation before any use"

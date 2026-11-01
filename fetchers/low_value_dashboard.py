@@ -64,13 +64,15 @@ def _pnl_sign(val) -> str:
 # doing routine risk management it mostly isn't; the distance itself is NOT
 # changed here (zero resolved trades exist yet to calibrate a better number
 # against — see CLAUDE.md's Low Value section), only how it's labeled/shown.
-def _target_stop_prices(entry_price: float, side: str) -> dict:
+def _target_stop_prices(entry_price: float, side: str, target_pct=None, stop_pct=None) -> dict:
+    target_pct = LOW_VALUE_TARGET_PCT if target_pct is None else target_pct
+    stop_pct = LOW_VALUE_STOP_PCT if stop_pct is None else stop_pct
     if side == "short":
-        target = entry_price * (1 - LOW_VALUE_TARGET_PCT)
-        catastrophe_cap = entry_price * (1 + LOW_VALUE_STOP_PCT)
+        target = entry_price * (1 - target_pct)
+        catastrophe_cap = entry_price * (1 + stop_pct)
     else:
-        target = entry_price * (1 + LOW_VALUE_TARGET_PCT)
-        catastrophe_cap = entry_price * (1 - LOW_VALUE_STOP_PCT)
+        target = entry_price * (1 + target_pct)
+        catastrophe_cap = entry_price * (1 - stop_pct)
     return {"target_price": round(target, 2), "catastrophe_cap_price": round(catastrophe_cap, 2)}
 
 
@@ -91,8 +93,15 @@ def _time_exit_progress(entry_time_iso: str) -> dict:
 # (2026-07-16, user-requested — the first version used trading jargon like
 # "Target," "Catastrophe cap," and percentages, which isn't usable by someone
 # who isn't already a trader; this tool is meant for non-experts too).
-def _plain_exit_instructions(entry_price: float, side: str, entry_time_iso: str) -> dict:
-    levels = _target_stop_prices(entry_price, side)
+def _plain_exit_instructions(entry_price: float, side: str, entry_time_iso: str, trade: dict = None) -> dict:
+    from fetchers.low_value_runner import effective_exit_pcts
+    t_pct = s_pct = None
+    if trade:
+        tr = dict(trade)
+        t_pct, s_pct = effective_exit_pcts({"entry_price": entry_price, "side": side,
+                                            "stop_price": tr.get("stop_price"),
+                                            "target1_price": tr.get("target1_price")})
+    levels = _target_stop_prices(entry_price, side, t_pct, s_pct)
     progress = _time_exit_progress(entry_time_iso)
     target = levels["target_price"]
     cap = levels["catastrophe_cap_price"]
@@ -130,7 +139,7 @@ def _exit_levels_html(t: dict) -> str:
     """Open-position card block telling a non-trader exactly what to do — see
     the comment above _plain_exit_instructions for why the wording is built
     there once instead of duplicated per-caller."""
-    instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"])
+    instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"], t)
     return (
         f'<div class="trade-detail" style="margin-top:4px; line-height:1.6;">'
         f'<div>✅ {instr["profit_line"]}</div>'
@@ -390,7 +399,8 @@ def get_low_value_brief(days: int = 7) -> dict:
         ).fetchall()
         open_rows = conn.execute(
             """
-            SELECT symbol, side, entry_price, entry_time, entry_score, lv_thesis_type, lv_signals_json
+            SELECT symbol, side, entry_price, entry_time, entry_score, lv_thesis_type, lv_signals_json,
+                   stop_price, target1_price
             FROM intraday_trades
             WHERE engine='low_value' AND is_hypothetical=1 AND exit_time IS NULL
             ORDER BY entry_time DESC
@@ -416,7 +426,7 @@ def get_low_value_brief(days: int = 7) -> dict:
     # levels that were previously invisible outside the dashboard HTML page.
     open_positions_detail = []
     for t in open_t:
-        instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"])
+        instr = _plain_exit_instructions(t["entry_price"], t["side"], t["entry_time"], t)
         open_positions_detail.append({
             "symbol": t["symbol"],
             "side": t["side"],
@@ -481,7 +491,8 @@ def render_low_value_dashboard() -> str:
         open_rows = conn.execute(
             """
             SELECT id, symbol, side, entry_time, entry_price, entry_score, lv_thesis_type,
-                   lv_news_flags, lv_signals_json, is_hypothetical, alpaca_order_id, qty
+                   lv_news_flags, lv_signals_json, is_hypothetical, alpaca_order_id, qty,
+                   stop_price, target1_price
             FROM intraday_trades
             WHERE engine = 'low_value' AND exit_time IS NULL
             ORDER BY entry_time DESC
@@ -801,8 +812,9 @@ def render_low_value_dashboard() -> str:
     <div class="card-title">Cross-Engine Exposure</div>
     {f'''<div class="exit-item"><span>High Value</span><span class="exit-count">{cross_exposure["high_value_open"]} open / cap {cross_exposure["high_value_cap"]}</span></div>
     <div class="exit-item"><span>Low Value</span><span class="exit-count">{cross_exposure["low_value_open"]} open / cap {cross_exposure["low_value_cap"]}</span></div>
+    <div class="exit-item"><span>Automaton</span><span class="exit-count">{cross_exposure["automaton_open"]} open</span></div>
     <div class="exit-item"><span>Pairs</span><span class="exit-count">{cross_exposure["pairs_open"]} open / no cap set</span></div>
-    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines. {cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
+    <div style="font-size:.78rem; color:var(--muted); margin-top:10px;">{cross_exposure["total_open"]} total open positions across all engines, ${cross_exposure["gross_dollars"]:,.0f} gross dollars. {("Same stock held by 2+ engines: " + ", ".join(o["symbol"] for o in cross_exposure["same_stock_overlaps"]) + ". ") if cross_exposure["same_stock_overlaps"] else ""}{cross_exposure["note"]}</div>''' if cross_exposure else "<p class='muted-note'>Unavailable.</p>"}
   </div>
 
   <div class="card">
