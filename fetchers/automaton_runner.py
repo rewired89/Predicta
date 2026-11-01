@@ -65,6 +65,7 @@ from fetchers.trading_logger import (
     log_automaton_scan_completed, get_automaton_scan_for_date,
 )
 from fetchers import hsip_client
+from models.trading.automaton import quality as automaton_quality
 from db.database import get_db
 
 from fetchers.low_value_runner import get_daily_universe, _trading_days_elapsed, NEGATIVE_THESES
@@ -95,6 +96,12 @@ AUTOMATON_SCAN_START_MINUTE: int = 15
 # codebase) — real Automaton trade history is what would ever justify
 # changing it.
 AUTOMATON_MAX_HOLD_DAYS: int = 126
+
+# Medium-term company-quality gate (2026-11-02, Kimi review): "gate" blocks entries whose
+# 6-month company-quality score is missing/too weak (see models/trading/automaton/quality.py),
+# "shadow" only records the score on each trade without blocking, "off" skips it entirely.
+AUTOMATON_QUALITY_MODE: str = "gate"
+_quality_funnel: dict = {"checked": 0, "passed": 0, "blocked": 0, "abstained": 0, "no_fundamentals": 0}
 AUTOMATON_TARGET_PCT: float = 0.50
 AUTOMATON_STOP_PCT: float = 0.50
 
@@ -276,6 +283,19 @@ def _auto_execute_entry(trade_id: int, symbol: str, side: str, qty: float) -> di
     return {"status": "SUBMITTED", "alpaca_order_id": alpaca_order_id, "symbol": symbol, "side": alpaca_side, "qty": qty}
 
 
+def _medium_term_quality(sym: str, bench_bars: list) -> dict:
+    """Fetch the long price history + Finnhub fundamentals and score them. Never raises."""
+    try:
+        from fetchers.finnhub import get_basic_financials
+        metrics = get_basic_financials(sym)
+        if not metrics:
+            _quality_funnel["no_fundamentals"] += 1
+        long_bars = get_daily_bars(sym, days=400)
+        return automaton_quality.score_medium_term(metrics, long_bars, bench_bars)
+    except Exception as exc:
+        return {"abstain": True, "abstain_reason": f"error: {exc}", "composite": None, "groups": {}}
+
+
 def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
     """
     Scans the (Low-Value-shared) daily universe PLUS today's real Alpaca
@@ -317,6 +337,7 @@ def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
     news_by_symbol = scan_universe_news(syms)
     social_by_symbol = scan_universe_social(syms)
     weights = automaton_learning.effective_weights()
+    bench_bars = get_daily_bars("SPY", days=400) if AUTOMATON_QUALITY_MODE != "off" else []
     trade_ids: list[int] = []
     min_score = AUTOMATON_SPRINT_MIN_SCORE if AUTOMATON_DATA_COLLECTION_SPRINT_MODE else ENTRY_THRESHOLD
 
@@ -347,6 +368,28 @@ def run_automaton_scan(symbols: Optional[list[str]] = None) -> list[int]:
             entry_price = daily_bars[-1].get("c")
             if not entry_price or entry_price <= 0:
                 continue
+
+            if AUTOMATON_QUALITY_MODE != "off":
+                q = _medium_term_quality(sym, bench_bars)
+                _quality_funnel["checked"] += 1
+                if q.get("abstain"):
+                    _quality_funnel["abstained"] += 1
+                ok, why = automaton_quality.passes_gate(q, side)
+                if ok:
+                    _quality_funnel["passed"] += 1
+                if not ok and AUTOMATON_QUALITY_MODE == "gate":
+                    _quality_funnel["blocked"] += 1
+                    _run_log.append({
+                        "ts": _et_now().isoformat(), "event": "QUALITY_SKIP", "sym": sym,
+                        "score": composite, "side": side, "note": why,
+                    })
+                    continue
+                thesis.setdefault("signals", {})["medium_term_quality"] = {
+                    "score": q.get("composite"), "weight": 0.0,
+                    "detail": {"gate_mode": AUTOMATON_QUALITY_MODE, "gate_ok": ok, "gate_note": why,
+                               "abstain": q.get("abstain"), "plain": q.get("plain_summary"),
+                               "groups": q.get("groups")},
+                }
 
             if side == "short":
                 shortability = get_asset_shortability(sym)
@@ -721,6 +764,9 @@ def get_runner_status() -> dict:
         "data_collection_sprint_mode": AUTOMATON_DATA_COLLECTION_SPRINT_MODE,
         "sprint_min_score": AUTOMATON_SPRINT_MIN_SCORE if AUTOMATON_DATA_COLLECTION_SPRINT_MODE else None,
         "movers_cross_check": AUTOMATON_MOVERS_CROSS_CHECK,
+        "quality_mode": AUTOMATON_QUALITY_MODE,
+        "quality_min_score": automaton_quality.AUTOMATON_MIN_QUALITY,
+        "quality_funnel": dict(_quality_funnel),
         "open_positions": len(open_pos),
         "open_symbols": [p["symbol"] for p in open_pos],
         "et_now": _et_now().isoformat(),

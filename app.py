@@ -3803,6 +3803,17 @@ def automaton_runner_status():
     return get_runner_status()
 
 
+@app.get("/trade/automaton/quality/{symbol}")
+def automaton_quality_check(symbol: str):
+    """Read-only: Automaton's 6-month company-quality score for any stock, with every input shown."""
+    from fetchers.automaton_runner import _medium_term_quality
+    from fetchers.alpaca import get_daily_bars
+    from models.trading.automaton import quality
+    sym = symbol.upper()
+    q = _medium_term_quality(sym, get_daily_bars("SPY", days=400))
+    return {"symbol": sym, "gate_long": quality.passes_gate(q, "long"), "gate_short": quality.passes_gate(q, "short"), **q}
+
+
 @app.post("/trade/automaton/runner/start")
 def automaton_runner_start():
     """Start the Automaton background runner if not already running."""

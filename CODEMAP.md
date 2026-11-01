@@ -13724,3 +13724,11 @@ models/trading/horizon/backtest.py: portfolio_sim(res, horizon) (non-overlapping
 verify_math.py: 97 independent re-computations of Elo, Glicko-2, devig, Kelly, sizing, Brier/log-loss/ECE, Dixon-Coles, NB rugby, esports/UFC helpers, High Value indicators, Low Value exits, Horizon, exposure. verify_tennis.py: game formula, exact match model, Monte Carlo.
 analyze_tennis.py: new _markov_tiebreak_prob(p_serve, p_return, a_serves_first); _markov_set_prob now calls it at 6-6 (was average point prob).
 ---
+
+## models/trading/automaton/quality.py (2026-11-02)
+score_medium_term(metrics, daily_bars, bench_bars) -> {composite, groups{value,quality,growth,safety,momentum:{score,weight,inputs}}, coverage, abstain, abstain_reason, plain_summary}; passes_gate(q, side, min_quality=25) -> (ok, reason); _band(x,bad,neutral,good)
+called_by: fetchers/automaton_runner.py _medium_term_quality() <- run_automaton_scan (gate between side decision and shortability check); GET /trade/automaton/quality/{symbol} (app.py)
+reads: fetchers/finnhub.get_basic_financials (stock/metric), fetchers/alpaca.get_daily_bars (400 days, SPY once per scan)
+flags: automaton_runner.AUTOMATON_QUALITY_MODE ("gate"|"shadow"|"off"), _quality_funnel (exposed in get_runner_status as quality_funnel)
+tests: tests/test_automaton_quality.py
+---
