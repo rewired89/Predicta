@@ -301,6 +301,34 @@ def _in_scan_window() -> bool:
     return 575 <= t < 600
 
 
+def _in_catchup_window() -> bool:
+    """
+    True from 09:35 to 14:00 ET. Added 2026-11-03: the old one-shot window
+    (09:35-09:59) meant a restart/redeploy after 9:59 silently skipped the whole
+    day. A scan that starts by 14:00 still leaves time for same-day candidates.
+    """
+    if _et_now().weekday() >= 5:
+        return False
+    return 575 <= _et_minutes() < 840
+
+
+def _scanned_today_in_db() -> bool:
+    """Durable 'did High Value already scan today (ET)?' check, from trade_scan_log,
+    so a restart does not forget a scan (manual or scheduled) that already ran."""
+    try:
+        et_now = _et_now()
+        midnight_et = et_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        since = midnight_et.astimezone(timezone.utc).isoformat()
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM trade_scan_log WHERE engine = 'high_value' AND scan_time >= ? LIMIT 1",
+                (since,),
+            ).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
 def _near_close() -> bool:
     """True at or after 15:50 ET — force-close window."""
     return _et_minutes() >= 950
@@ -1358,8 +1386,15 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
     global _runner_active
 
     today_scanned: Optional[str] = None
+    eod_done: Optional[str]      = None
     last_check_mono: float       = 0.0
     CHECK_INTERVAL_SEC: float    = 30 * 60   # 30 minutes
+
+    # Seed from the DB so a restart mid-day does not forget today's scan
+    # (same fix Low Value and Automaton got, 2026-09-15 / 2026-08-28).
+    if _scanned_today_in_db():
+        today_scanned = _et_now().strftime("%Y-%m-%d")
+        last_check_mono = time.monotonic()
 
     log.info("[RUNNER] Background loop started")
 
@@ -1374,12 +1409,20 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
                 time.sleep(60)
                 continue
 
-            # Morning scan — once per trading day, inside 9:35-9:59 window
-            if _in_scan_window() and today_scanned != today:
-                log.info(f"[RUNNER] Morning scan for {today}")
+            # Scan once per trading day, from 9:35 ET until 14:00 ET (catch-up if
+            # the app started or restarted after the normal 9:35 window).
+            if _in_catchup_window() and today_scanned != today:
+                log.info(f"[RUNNER] Scheduled scan for {today}")
                 ids           = run_open_scan(symbols=symbols, min_score=min_score)
                 today_scanned = today
                 last_check_mono = time.monotonic()
+                try:
+                    from fetchers.trading_logger import log_scan_event
+                    log_scan_event(engine="high_value", triggered_by="scheduled",
+                                   symbols_scanned=len(symbols), trade_ids_logged=ids,
+                                   notes="scheduled/catch-up scan")
+                except Exception as exc:
+                    log.warning(f"[RUNNER] could not log scheduled scan: {exc}")
                 log.info(f"[RUNNER] Scan complete — {len(ids)} trades logged")
 
             # End-of-day force close at 15:50 ET. This also covers any real
@@ -1388,10 +1431,11 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
             # a rule already agreed to the moment the human clicked Buy on a
             # same-day engine, not a new autonomous decision. See
             # check_real_position_exits' docstring.
-            elif _near_close() and today_scanned == today:
+            elif _near_close() and eod_done != today:
                 log.info("[RUNNER] EOD force-close")
                 check_and_close_positions(force_close=True)
                 check_real_position_exits(force_close=True)
+                eod_done = today
                 # Sleep until well past close so this doesn't re-trigger
                 time.sleep(15 * 60)
                 continue

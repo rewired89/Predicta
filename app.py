@@ -101,29 +101,22 @@ def startup():
             pass
     threading.Thread(target=_bg_resolve, daemon=True).start()
 
-    # High Value's automatic background runner is DELIBERATELY NOT started
-    # here (removed 2026-09-07, direct user request: "it shouldn't be
-    # active, it shouldn't activate every time it wants, it should activate
-    # ONLY if I click the scan button"). Previously this ran Mon-Fri during
-    # market hours unattended: morning scan at 9:35 ET, position checks
-    # every 30 min, force-close at 15:50 ET. Now POST /trade/paper-runner/
-    # scan-now (the dashboard's "Scan Now" button) is the ONLY thing that
-    # ever runs High Value — see fetchers/high_value_runner.py's
-    # _manual_scan_worker, which checks existing open positions for
-    # target/stop/time exits AND scans for new candidates every time it's
-    # clicked, logging both to trade_scan_log so nothing is lost by not
-    # having a background loop. start_runner()/stop_runner() and the
-    # scheduled 9:35/30-min/15:50 _runner_loop still exist in that file,
-    # unused, in case this is ever reverted — not deleted, just not called.
-    #
-    # Real consequence of this change, not hidden: a REAL (human-bought)
-    # High Value position's stop/target legs still live at Alpaca as a
-    # native bracket order and fire on their own regardless of whether
-    # this app is scanning — but the "force-close by end of day, never
-    # hold overnight" rule is Predicta-side logic, not an Alpaca order
-    # type, so it no longer happens automatically. A real position that
-    # hits neither leg by market close will sit open until the next manual
-    # Scan Now click (or a manual Sell).
+    # High Value's automatic background runner (re-enabled 2026-11-03, direct user
+    # request: "the live scan not depending on me pressing the button every time").
+    # It was switched off 2026-09-07 at her request; she has now asked for the
+    # opposite, so it runs again: scan once per trading day from 9:35 ET (catches up
+    # until 14:00 ET after a restart), position checks every 30 min, and the
+    # same-day force-close at 15:50 ET, which also restores the "never held
+    # overnight" rule. Authority is unchanged: the scan only ever logs a hypothetical
+    # candidate and never places an order. The Scan Now button still works.
+    # Turn it off again with the environment variable HIGH_VALUE_AUTOSCAN=0.
+    if os.environ.get("HIGH_VALUE_AUTOSCAN", "1") != "0":
+        try:
+            from fetchers.high_value_runner import start_runner as start_high_value_runner
+            start_high_value_runner()
+        except Exception as exc:
+            import logging as _logging
+            _logging.getLogger("high_value_runner").error(f"[RUNNER] start_runner() failed at startup: {exc}")
 
     # Start the Low Value engine's own runner (2026-07-12 fix — this call
     # was missing entirely). Without it, _runner_loop() never runs, so the

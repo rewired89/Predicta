@@ -13732,3 +13732,8 @@ reads: fetchers/finnhub.get_basic_financials (stock/metric), fetchers/alpaca.get
 flags: automaton_runner.AUTOMATON_QUALITY_MODE ("gate"|"shadow"|"off"), _quality_funnel (exposed in get_runner_status as quality_funnel)
 tests: tests/test_automaton_quality.py
 ---
+
+## High Value automatic scan (2026-11-03)
+fetchers/high_value_runner.py: _in_catchup_window() (9:35-14:00 ET), _scanned_today_in_db() (reads trade_scan_log), _runner_loop now seeds today_scanned from DB, logs scheduled scan via log_scan_event, force-closes at 15:50 ET via eod_done flag. app.py startup calls start_runner() unless HIGH_VALUE_AUTOSCAN=0.
+scripts/run_local.ps1, scripts/install_autostart.ps1: run Predicta on a Windows PC (untested on real Windows). tests/test_high_value_autoscan.py: fake-clock loop test.
+---
