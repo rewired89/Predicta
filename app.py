@@ -3585,6 +3585,19 @@ def low_value_universe(force_refresh: bool = False):
     return result
 
 
+@app.get("/trade/health", response_class=HTMLResponse)
+def trade_health_page():
+    """Plain-English health check: why scans might be doing nothing (weekend, bad keys, no data...)."""
+    from fetchers.health_check import run_health_check, render_health_page
+    return HTMLResponse(content=render_health_page(run_health_check()))
+
+
+@app.get("/trade/health.json")
+def trade_health_json():
+    from fetchers.health_check import run_health_check
+    return run_health_check()
+
+
 @app.post("/trade/low-value/scan-now")
 def low_value_scan_now():
     """
@@ -3637,7 +3650,11 @@ def horizon_backfill(years: int = 3):
 def horizon_backtest(horizon: int = 5):
     """Horizon Forecast: walk-forward test of 'beats SPY over next N trading days' (5, 20 or 60). Research only."""
     from models.trading.horizon.backtest import run_backtest
-    return run_backtest(horizon=max(1, min(horizon, 120)))
+    out = run_backtest(horizon=max(1, min(horizon, 120)))
+    if out.get("status") == "insufficient_data":
+        out["what_to_do"] = ("No price history is saved yet. Open /trade/health and press 'Backfill 3 years of "
+                             "prices' once, wait a few minutes, then reload this page.")
+    return out
 
 
 @app.get("/trade/horizon/volatility")

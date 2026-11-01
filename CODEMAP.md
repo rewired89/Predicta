@@ -13747,3 +13747,7 @@ Start Predicta.bat -> scripts/run_local.ps1 (venv, requirements, uvicorn 127.0.0
 ## Linux (Zorin/Ubuntu) launcher scripts (2026-11-04)
 scripts/run_local.sh (venv + pip + uvicorn 127.0.0.1:${PORT:-8000}, xdg-open, systemd-inhibit), scripts/install_desktop_shortcut.sh (~/Desktop/Predicta.desktop + ~/.local/share/applications), scripts/install_autostart.sh (~/.config/systemd/user/predicta.service, NO_BROWSER=1). Windows equivalents remain: Start Predicta.bat, scripts/run_local.ps1, scripts/install_autostart.ps1.
 ---
+
+## Health Check (2026-11-04)
+fetchers/health_check.py: run_health_check() -> {headline, checks[{status ok|warn|bad, title, detail}], generated_at}; render_health_page(result) -> HTML with action buttons (POST /trade/low-value/scan-now, /trade/market-data/record, /trade/horizon/backfill?years=3). Routes in app.py: GET /trade/health, GET /trade/health.json. Card on templates/trading_hub.html.
+---
