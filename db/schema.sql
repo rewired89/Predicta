@@ -373,3 +373,17 @@ CREATE TABLE IF NOT EXISTS market_bars_log (
     rows_written       INTEGER NOT NULL DEFAULT 0,
     completed_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS order_ledger (
+    id INTEGER PRIMARY KEY,
+    ts TEXT NOT NULL,
+    engine TEXT,
+    trade_id INTEGER,
+    symbol TEXT NOT NULL,
+    side TEXT,
+    qty REAL,
+    kind TEXT NOT NULL,
+    alpaca_order_id TEXT,
+    status TEXT NOT NULL,
+    detail TEXT
+);

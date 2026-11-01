@@ -837,13 +837,15 @@ def execute_low_value_trade(trade_id: int) -> dict:
                     )
                 }
 
-    order_result = place_order(
-        symbol         = symbol,
-        qty            = qty,
-        side           = alpaca_side,
-        order_type     = "market",
-        time_in_force  = "day",
-    )
+    from fetchers.order_ledger import guarded_order
+    order_result = guarded_order("low_value", trade_id, symbol, alpaca_side, qty, "entry",
+        lambda: place_order(
+            symbol         = symbol,
+            qty            = qty,
+            side           = alpaca_side,
+            order_type     = "market",
+            time_in_force  = "day",
+        ))
     if "error" in order_result:
         return {"error": friendly_order_error(order_result)}
 

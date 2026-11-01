@@ -262,9 +262,11 @@ def _auto_execute_entry(trade_id: int, symbol: str, side: str, qty: float) -> di
             if qty < 1:
                 return {"error": f"{symbol} doesn't support fractional-share orders and the position size is too small for 1 whole share."}
 
-    order_result = place_order(
-        symbol=symbol, qty=qty, side=alpaca_side, order_type="market", time_in_force="day",
-    )
+    from fetchers.order_ledger import guarded_order
+    order_result = guarded_order("automaton", trade_id, symbol, alpaca_side, qty, "entry",
+        lambda: place_order(
+            symbol=symbol, qty=qty, side=alpaca_side, order_type="market", time_in_force="day",
+        ))
     if "error" in order_result:
         return {"error": friendly_order_error(order_result)}
 

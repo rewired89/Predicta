@@ -1149,14 +1149,16 @@ def execute_high_value_trade(trade_id: int) -> dict:
             }
 
     alpaca_side = "buy" if pos["side"] == "long" else "sell"
-    order_result = place_bracket_order(
-        symbol      = symbol,
-        qty         = qty,
-        side        = alpaca_side,
-        entry_price = None,   # market entry — faster fill
-        take_profit = target,
-        stop_loss   = stop,
-    )
+    from fetchers.order_ledger import guarded_order
+    order_result = guarded_order("high_value", trade_id, symbol, alpaca_side, qty, "entry",
+        lambda: place_bracket_order(
+            symbol      = symbol,
+            qty         = qty,
+            side        = alpaca_side,
+            entry_price = None,   # market entry — faster fill
+            take_profit = target,
+            stop_loss   = stop,
+        ))
     if "error" in order_result:
         return {"error": friendly_order_error(order_result)}
 

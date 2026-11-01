@@ -53,6 +53,14 @@ def fill_price(order_id: Optional[str], tries: int = 5, wait: float = 1.5) -> Op
 
 
 def close_for_trade(symbol: str, trade_id: int, qty: Optional[float], side: str) -> dict:
+    """Locked + ledgered wrapper around _close_for_trade_unlocked."""
+    from fetchers.order_ledger import guarded_order
+    res = guarded_order("any", trade_id, symbol, side, qty, "exit",
+                        lambda: _close_for_trade_unlocked(symbol, trade_id, qty, side))
+    return res
+
+
+def _close_for_trade_unlocked(symbol: str, trade_id: int, qty: Optional[float], side: str) -> dict:
     """
     Close exactly this trade at the broker.
     - No other engine holds the symbol: close the whole position (also cancels
