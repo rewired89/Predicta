@@ -13719,3 +13719,8 @@ fetchers/trading_logger.py: log_low_value_trade(..., exit_pct=None) stores side-
 fetchers/low_value_dashboard.py: _target_stop_prices(entry, side, target_pct, stop_pct), _plain_exit_instructions(..., trade) reads stored levels.
 models/trading/horizon/backtest.py: portfolio_sim(res, horizon) (non-overlapping, CI, drawdown); summarize() returns "portfolio"; _verdict adds UNPROVEN.
 ---
+
+## tests/verify_math.py, tests/verify_tennis.py (2026-11-02)
+verify_math.py: 97 independent re-computations of Elo, Glicko-2, devig, Kelly, sizing, Brier/log-loss/ECE, Dixon-Coles, NB rugby, esports/UFC helpers, High Value indicators, Low Value exits, Horizon, exposure. verify_tennis.py: game formula, exact match model, Monte Carlo.
+analyze_tennis.py: new _markov_tiebreak_prob(p_serve, p_return, a_serves_first); _markov_set_prob now calls it at 6-6 (was average point prob).
+---
