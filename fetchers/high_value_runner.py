@@ -78,6 +78,14 @@ LOW_PRICE_WATCHLIST_CANDIDATES: list[str] = [
 # Cast wide net for data; the trade endpoint uses 40 as the action threshold
 RUNNER_MIN_SCORE: int = 20
 
+# When the automatic runner scans (user request 2026-11-03: "1 time a day is more than
+# enough and it should be when markets close"):
+#   "after_close" (default): ONE run per trading day, 16:05 ET or later. It first settles
+#                 any open positions, then scans and logs candidates. No 30-minute checks.
+#   "morning"   : the older behaviour (scan at the open, 30-minute checks, close at 15:50 ET).
+# Set with the environment variable HIGH_VALUE_SCAN_MODE.
+HV_SCAN_MODE: str = os.environ.get("HIGH_VALUE_SCAN_MODE", "after_close")
+
 # Data-collection sprint mode (Kimi review, round 4): temporarily lowers the
 # logging threshold to accelerate the path to 100 closed trades (Kimi's math:
 # ~6-12 months at the normal 20-point floor vs 4-6 weeks at 10). Explicit and
@@ -312,16 +320,19 @@ def _in_catchup_window() -> bool:
     return 575 <= _et_minutes() < 840
 
 
-def _scanned_today_in_db() -> bool:
+def _scanned_today_in_db(scheduled_only: bool = False) -> bool:
     """Durable 'did High Value already scan today (ET)?' check, from trade_scan_log,
-    so a restart does not forget a scan (manual or scheduled) that already ran."""
+    so a restart does not forget a scan that already ran. scheduled_only=True ignores
+    manual Scan Now clicks (used by the after-close mode so a noon click does not
+    cancel the daily after-close run)."""
     try:
         et_now = _et_now()
         midnight_et = et_now.replace(hour=0, minute=0, second=0, microsecond=0)
         since = midnight_et.astimezone(timezone.utc).isoformat()
         with get_db() as conn:
             row = conn.execute(
-                "SELECT 1 FROM trade_scan_log WHERE engine = 'high_value' AND scan_time >= ? LIMIT 1",
+                "SELECT 1 FROM trade_scan_log WHERE engine = 'high_value' AND scan_time >= ? "
+                + ("AND triggered_by = 'scheduled' " if scheduled_only else "") + "LIMIT 1",
                 (since,),
             ).fetchone()
         return row is not None
@@ -1378,6 +1389,49 @@ def check_and_close_positions(force_close: bool = False) -> dict:
 
 # ── Background scheduler loop ─────────────────────────────────────────────────
 
+def _after_close_tick(symbols: Optional[list[str]], min_score: int, last_done: Optional[str]) -> Optional[str]:
+    """
+    One tick of the after-close schedule. Returns the date it is done for (so the loop
+    stops trying), or last_done unchanged if it is not time yet / should retry.
+    Runs once per trading day from 16:05 ET: settle open positions, then scan.
+    """
+    now_et = _et_now()
+    today = now_et.strftime("%Y-%m-%d")
+    if now_et.weekday() >= 5 or last_done == today:
+        return last_done
+    t = _et_minutes()
+    if not (965 <= t < 1439):                       # 16:05 ET to 23:59 ET
+        return last_done
+    if _scanned_today_in_db(scheduled_only=True):   # restart-proof
+        return today
+    # Holiday / no-data guard: today's daily bar must exist for SPY. The bar can lag a
+    # little after the close, so retry until 16:40 ET, then assume it was a holiday.
+    try:
+        spy = get_daily_bars("SPY", days=5)
+        has_today = bool(spy) and str(spy[-1].get("t", ""))[:10] == today
+    except Exception:
+        has_today = False
+    if not has_today:
+        return last_done if t < 1000 else today
+    log.info(f"[RUNNER] After-close run for {today}")
+    settled = check_and_close_positions(force_close=True)      # nothing is carried past this run
+    check_real_position_exits(force_close=True)
+    ids = run_open_scan(symbols=symbols, min_score=min_score)
+    try:
+        from fetchers.trading_logger import log_scan_event
+        log_scan_event(engine="high_value", triggered_by="scheduled",
+                       symbols_scanned=len(symbols or []), trade_ids_logged=ids,
+                       positions_checked=(settled or {}).get("checked", 0),
+                       positions_closed=(settled or {}).get("closed", 0),
+                       closed_pnl_dollars=(settled or {}).get("closed_pnl_dollars"),
+                       trade_ids_closed=(settled or {}).get("closed_trade_ids"),
+                       notes="after-close run: settled open positions, then scanned for the next session")
+    except Exception as exc:
+        log.warning(f"[RUNNER] could not log after-close run: {exc}")
+    log.info(f"[RUNNER] After-close run complete, {len(ids)} candidates logged")
+    return today
+
+
 def _runner_loop(symbols: list[str], min_score: int) -> None:
     """
     Background thread body. Sleeps 60s between ticks; on each tick decides
@@ -1392,15 +1446,23 @@ def _runner_loop(symbols: list[str], min_score: int) -> None:
 
     # Seed from the DB so a restart mid-day does not forget today's scan
     # (same fix Low Value and Automaton got, 2026-09-15 / 2026-08-28).
-    if _scanned_today_in_db():
+    if HV_SCAN_MODE != "after_close" and _scanned_today_in_db():
         today_scanned = _et_now().strftime("%Y-%m-%d")
         last_check_mono = time.monotonic()
 
-    log.info("[RUNNER] Background loop started")
+    log.info(f"[RUNNER] Background loop started (mode={HV_SCAN_MODE})")
+    last_after_close: Optional[str] = None
 
     while _runner_active:
         try:
             check_review_queue_timeouts()  # cheap DB check, runs every tick regardless of market hours
+
+            if HV_SCAN_MODE == "after_close":
+                # symbols=None so the watchlist is re-read (live price filter) at scan time,
+                # not frozen at the moment the app started.
+                last_after_close = _after_close_tick(None, min_score, last_after_close)
+                time.sleep(60)
+                continue
 
             now_et  = _et_now()
             today   = now_et.strftime("%Y-%m-%d")

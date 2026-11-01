@@ -97,10 +97,12 @@ AUTOMATON_SCAN_START_MINUTE: int = 15
 # changing it.
 AUTOMATON_MAX_HOLD_DAYS: int = 126
 
-# Medium-term company-quality gate (2026-11-02, Kimi review): "gate" blocks entries whose
+# Medium-term company-quality check (2026-11-02, Kimi review). Started in "shadow" on
+# 2026-11-03 (user decision: record the score on every trade, block nothing, until real
+# data shows whether the numbers mean anything). "gate" blocks entries whose
 # 6-month company-quality score is missing/too weak (see models/trading/automaton/quality.py),
 # "shadow" only records the score on each trade without blocking, "off" skips it entirely.
-AUTOMATON_QUALITY_MODE: str = "gate"
+AUTOMATON_QUALITY_MODE: str = "shadow"
 _quality_funnel: dict = {"checked": 0, "passed": 0, "blocked": 0, "abstained": 0, "no_fundamentals": 0}
 AUTOMATON_TARGET_PCT: float = 0.50
 AUTOMATON_STOP_PCT: float = 0.50

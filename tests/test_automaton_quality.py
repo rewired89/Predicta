@@ -86,6 +86,7 @@ AR._auto_execute_entry = lambda *a, **k: {"status": "ok"}
 AR.sector_etf_for_symbol = lambda s: "SPY"
 import fetchers.finnhub as FH
 FH.get_basic_financials = lambda sym: {GOOD: good, BAD: bad}.get(sym, {})
+AR.AUTOMATON_QUALITY_MODE = "gate"      # the default is now "shadow"; test the blocking mode here
 ids = AR.run_automaton_scan([GOOD, BAD, NODATA])
 from db.database import get_db
 with get_db() as c: rows = [dict(x) for x in c.execute("select symbol, side, lv_signals_json from intraday_trades where engine='automaton'")]
@@ -97,5 +98,20 @@ evs = [e for e in AR._run_log if e.get("event") == "QUALITY_SKIP"]
 chk("weak and no-data stocks logged as QUALITY_SKIP", sorted(e["sym"] for e in evs), sorted([BAD, NODATA]))
 chk("no-data stock reason says abstain", any("abstain" in e["note"] for e in evs if e["sym"] == NODATA), True)
 chk("funnel counts", (AR._quality_funnel["checked"], AR._quality_funnel["passed"], AR._quality_funnel["blocked"]), (3, 1, 2))
+
+# ---- shadow mode (the default since 2026-11-03): records the score, blocks nothing ----
+with get_db() as c: c.execute("DELETE FROM intraday_trades")
+AR._run_log.clear(); [AR._quality_funnel.__setitem__(k, 0) for k in AR._quality_funnel]
+AR.AUTOMATON_QUALITY_MODE = "shadow"
+AR.run_automaton_scan([GOOD, BAD, NODATA])
+with get_db() as c: rows = [dict(x) for x in c.execute("select symbol, lv_signals_json from intraday_trades where engine='automaton'")]
+chk("shadow: all three stocks are bought (nothing blocked)", sorted(x["symbol"] for x in rows), sorted([GOOD, BAD, NODATA]))
+q_by = {x["symbol"]: json.loads(x["lv_signals_json"]).get("medium_term_quality") for x in rows}
+chk("shadow: a quality score is recorded on every trade", all(v is not None for v in q_by.values()), True)
+chk("shadow: weak stock recorded as would-have-been-blocked", q_by[BAD]["detail"]["gate_ok"], False)
+chk("shadow: no-data stock recorded as abstained", q_by[NODATA]["detail"]["abstain"], True)
+chk("shadow: strong stock recorded as passing", q_by[GOOD]["detail"]["gate_ok"], True)
+chk("shadow: nothing logged as QUALITY_SKIP", [e for e in AR._run_log if e.get("event") == "QUALITY_SKIP"], [])
+chk("shadow: funnel blocked count stays 0", AR._quality_funnel["blocked"], 0)
 print("\nPASS: all checks agree" if not fails else f"\n{len(fails)} FAILED: {fails}")
 sys.exit(1 if fails else 0)

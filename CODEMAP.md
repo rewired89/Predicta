@@ -13737,3 +13737,9 @@ tests: tests/test_automaton_quality.py
 fetchers/high_value_runner.py: _in_catchup_window() (9:35-14:00 ET), _scanned_today_in_db() (reads trade_scan_log), _runner_loop now seeds today_scanned from DB, logs scheduled scan via log_scan_event, force-closes at 15:50 ET via eod_done flag. app.py startup calls start_runner() unless HIGH_VALUE_AUTOSCAN=0.
 scripts/run_local.ps1, scripts/install_autostart.ps1: run Predicta on a Windows PC (untested on real Windows). tests/test_high_value_autoscan.py: fake-clock loop test.
 ---
+
+## High Value after-close schedule + Windows launcher (2026-11-03, later)
+fetchers/high_value_runner.py: HV_SCAN_MODE ("after_close" default | "morning", env HIGH_VALUE_SCAN_MODE); _after_close_tick(symbols, min_score, last_done): from 16:05 ET settle open positions (force close, hypothetical + real) then run_open_scan, log scheduled row; holiday guard via SPY daily bar; _scanned_today_in_db(scheduled_only). _runner_loop branches on HV_SCAN_MODE.
+fetchers/automaton_runner.py: AUTOMATON_QUALITY_MODE default "shadow".
+Start Predicta.bat -> scripts/run_local.ps1 (venv, requirements, uvicorn 127.0.0.1:8000, opens /trading). scripts/install_autostart.ps1 (optional Task Scheduler).
+---

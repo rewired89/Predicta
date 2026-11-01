@@ -20,6 +20,7 @@ HV.run_open_scan = lambda symbols=None, min_score=0: (calls.append("scan") or []
 HV.check_and_close_positions = lambda force_close=False: (calls.append("close_eod" if force_close else "check") or {})
 HV.check_real_position_exits = lambda force_close=False: (calls.append("real_eod" if force_close else "real_check") or {"checked": 0})
 HV._check_intraday_regime_escalation = lambda: None
+HV.HV_SCAN_MODE = "morning"      # sections 1-7 test the older morning schedule; section 8 tests after-close
 
 def run_ticks(times, fresh=True):
     """Run the real loop, one tick per fake time."""
@@ -68,5 +69,35 @@ with get_db() as c: c.execute("DELETE FROM trade_scan_log")
 run_ticks([mon(10, 0), mon(10, 1)])
 with get_db() as c: rows = [dict(r) for r in c.execute("select engine, triggered_by from trade_scan_log")]
 chk("scheduled scan logged to trade_scan_log", rows, [{"engine": "high_value", "triggered_by": "scheduled"}])
+
+# ---------------- 8. AFTER-CLOSE mode (the default): ONE run a day, after 16:05 ET ----------------
+HV.HV_SCAN_MODE = "after_close"
+bar_today = {"has": True}
+HV.get_daily_bars = lambda sym, days=5: ([{"t": mon(0, 0).strftime("%Y-%m-%dT05:00:00Z")}] if bar_today["has"] else [{"t": "2026-10-30T04:00:00Z"}])
+def clean(): 
+    with get_db() as c: c.execute("DELETE FROM trade_scan_log")
+clean(); calls.clear(); run_ticks([mon(10, 0), mon(12, 0), mon(15, 55), mon(16, 0)])
+chk("after-close: nothing during the session or before 16:05", calls, [])
+clean(); calls.clear(); run_ticks([mon(16, 6), mon(16, 7), mon(18, 0)])
+chk("after-close: exactly one scan", calls.count("scan"), 1)
+chk("after-close: open positions settled first (hypothetical + real)", (calls.count("close_eod"), calls.count("real_eod")), (1, 1))
+chk("after-close: settle happens BEFORE the scan", calls[:3], ["close_eod", "real_eod", "scan"])
+chk("after-close: never does 30-minute checks", ("check" in calls or "real_check" in calls), False)
+with get_db() as c: c.execute("UPDATE trade_scan_log SET scan_time = ?", (mon(16, 6).astimezone(timezone.utc).isoformat(),))
+calls.clear(); run_ticks([mon(19, 0), mon(19, 1)])
+chk("after-close: restart does not repeat the run", calls, [])
+clean()
+from fetchers.trading_logger import log_scan_event as _lse
+_lse(engine="high_value", triggered_by="manual", symbols_scanned=1, trade_ids_logged=[])
+with get_db() as c: c.execute("UPDATE trade_scan_log SET scan_time = ?", (mon(12, 0).astimezone(timezone.utc).isoformat(),))
+calls.clear(); run_ticks([mon(16, 10), mon(16, 11)])
+chk("after-close: a manual noon click does not cancel the daily run", calls.count("scan"), 1)
+clean(); bar_today["has"] = False; calls.clear()
+run_ticks([mon(16, 10), mon(16, 20), mon(16, 30)])
+chk("after-close: no bar for today yet (before 16:40) -> waits, no scan", calls, [])
+calls.clear(); run_ticks([mon(16, 45), mon(16, 50), mon(17, 30)])
+chk("after-close: still no bar at 16:45 -> treated as a holiday, no scan", calls, [])
+bar_today["has"] = True; clean(); calls.clear(); run_ticks([sat.replace(hour=17), sat.replace(hour=18)])
+chk("after-close: weekend does nothing", calls, [])
 print("PASS: all checks agree" if not fails else f"{len(fails)} FAILED: {fails}")
 sys.exit(1 if fails else 0)
