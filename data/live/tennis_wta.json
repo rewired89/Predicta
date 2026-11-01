@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-01T16:56:08.125479+00:00",
+  "fetched_at": "2026-11-01T20:52:41.974397+00:00",
   "data": {
     "leagues": [
       {
@@ -26803,17 +26803,17 @@
                 "date": "2026-11-01T14:10Z",
                 "startDate": "2026-11-01T14:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -26827,7 +26827,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Julia Grabher (AUT) leads Alice Tubello (FRA) 6-3 6-7 (5-7) 3-1",
+                    "text": "Alice Tubello (FRA) bt (2) Julia Grabher (AUT) 3-6 7-6 (7-5) 7-6 (7-2)",
                     "type": "event"
                   }
                 ],
@@ -26841,6 +26841,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
@@ -26855,7 +26856,9 @@
                         "winner": false
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -26895,6 +26898,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 3.0,
@@ -26906,7 +26910,9 @@
                         "winner": true
                       },
                       {
-                        "value": 1.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -43934,20 +43940,20 @@
               {
                 "id": "185823",
                 "uid": "s:850~l:900~e:1034-2026~c:185823",
-                "date": "2026-11-01T20:00Z",
-                "startDate": "2026-11-01T20:00Z",
+                "date": "2026-11-01T20:05Z",
+                "startDate": "2026-11-01T20:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 1st at 3:00 PM EST",
-                    "shortDetail": "11/1 - 3:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -43959,7 +43965,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Sofia Costoulas (BEL) & Valeriya Strakhova (UKR) leads Marian Gomez Pezuela Cano (MEX) & Nadia Podoroska (ARG) 6-1 3-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -43970,6 +43981,16 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marian Gomez Pezuela Cano / Nadia Podoroska",
                       "shortDisplayName": "M. Gomez Pezuela Cano / N. Podoroska",
@@ -44042,9 +44063,19 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sofia Costoulas / Valeriya Strakhova",
                       "shortDisplayName": "S. Costoulas / V. Strakhova",
@@ -44112,6 +44143,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1034,
                 "type": {
                   "id": "4",
@@ -58447,29 +58483,34 @@
                 "date": "2026-11-01T17:00Z",
                 "startDate": "2026-11-01T17:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 1st at 12:00 PM EST",
-                    "shortDetail": "11/1 - 12:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
                   "fullName": "Cali, Colombia",
-                  "court": "Campo 3"
+                  "court": "Campo 1"
                 },
                 "format": {
                   "regulation": {
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Polona Hercog (SLO) bt Maria Jose Rico Sanchez (COL) 6-0 6-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -58480,6 +58521,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "df6b0464-902d-32d2-90a2-174ad4719242",
                       "displayName": "Maria Jose Rico Sanchez",
@@ -58517,6 +58569,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "aeb4f263-714c-9587-d0d4-c8c2fa30a6fc",
                       "displayName": "Polona Hercog",
@@ -58567,29 +58630,34 @@
                 "date": "2026-11-01T17:00Z",
                 "startDate": "2026-11-01T17:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 1st at 12:00 PM EST",
-                    "shortDetail": "11/1 - 12:00 PM EST"
+                    "id": "40",
+                    "name": "STATUS_WALKOVER",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Walkover",
+                    "detail": "Walkover",
+                    "shortDetail": "Walkover"
                   }
                 },
                 "venue": {
                   "fullName": "Cali, Colombia",
-                  "court": "Campo 1"
+                  "court": ""
                 },
                 "format": {
                   "regulation": {
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Carolina Alves (BRA) bt Maria Paulina Perez Garcia (COL) w/o",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -58600,6 +58668,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "athlete": {
                       "guid": "e96253e5-7433-3cb6-85ab-3a953cdc0e03",
                       "displayName": "Maria Paulina Perez Garcia",
@@ -58637,6 +58706,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "athlete": {
                       "guid": "e8ee6b8e-543a-3067-b284-ae317dffb434",
                       "displayName": "Carolina Alves",
@@ -58687,17 +58757,17 @@
                 "date": "2026-11-01T19:00Z",
                 "startDate": "2026-11-01T19:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 1st at 2:00 PM EST",
-                    "shortDetail": "11/1 - 2:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -58709,7 +58779,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Elizabeth Mandlik (USA) leads Selena Janicijevic (FRA) 3-6 7-5 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -58720,6 +58795,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "9f35de6c-b5a7-4181-d7ed-2ea4a34432b6",
                       "displayName": "Selena Janicijevic",
@@ -58757,6 +58846,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "52c9e741-3a8f-34c5-8ef5-c8c203b81469",
                       "displayName": "Elizabeth Mandlik",
@@ -58789,6 +58892,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1007,
                 "type": {
                   "id": "2",
@@ -58804,20 +58912,20 @@
               {
                 "id": "187367",
                 "uid": "s:850~l:900~e:1007-2026~c:187367",
-                "date": "2026-11-01T19:00Z",
-                "startDate": "2026-11-01T19:00Z",
+                "date": "2026-11-01T19:05Z",
+                "startDate": "2026-11-01T19:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 1st at 2:00 PM EST",
-                    "shortDetail": "11/1 - 2:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -58829,7 +58937,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Katrina Scott (USA) is tied with Maria Herazo Gonzalez (COL) 6-7 (2-7) 2-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -58840,6 +58953,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "233dd572-da78-3843-bbf9-15285817adf5",
                       "displayName": "Katrina Scott",
@@ -58872,19 +58996,30 @@
                     "statistics": []
                   },
                   {
-                    "id": "2177",
-                    "uid": "s:850~l:900~a:2177",
+                    "id": "2670",
+                    "uid": "s:850~l:900~a:2670",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
-                      "guid": "f0ca7d87-6d7b-69d7-c474-dbda6125ccf6",
-                      "displayName": "Laura Pigossi",
-                      "shortName": "L. Pigossi",
-                      "fullName": "Laura Pigossi",
+                      "guid": "e254bf47-989a-8422-27f6-e230e9d77a3d",
+                      "displayName": "Maria Herazo Gonzalez",
+                      "shortName": "M. Herazo Gonzalez",
+                      "fullName": "Maria Herazo Gonzalez",
                       "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
-                        "alt": "Brazil",
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                        "alt": "Colombia",
                         "rel": [
                           "country-flag"
                         ]
@@ -58897,7 +59032,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2177/laura-pigossi",
+                          "href": "https://www.espn.com/tennis/player/_/id/2670/maria-herazo-gonzalez",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -58909,6 +59044,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1007,
                 "type": {
                   "id": "2",
@@ -58955,30 +59095,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "5161",
+                    "uid": "s:850~l:900~a:5161",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "0d54348a-f88f-3110-a913-5b9381e2a9c3",
+                      "displayName": "Alice Tubello",
+                      "shortName": "A. Tubello",
+                      "fullName": "Alice Tubello",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5161/alice-tubello",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "2984",
+                    "uid": "s:850~l:900~a:2984",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "1974ca83-b187-9eeb-8480-5d3b758db3d3",
+                      "displayName": "Rebeka Masarova",
+                      "shortName": "R. Masarova",
+                      "fullName": "Rebeka Masarova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/sui.png",
+                        "alt": "Switzerland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2984/rebeka-masarova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59029,30 +59215,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "8068",
+                    "uid": "s:850~l:900~a:8068",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "1f1b9b85-9aef-39c4-8a06-b3b234a67cbe",
+                      "displayName": "Despina Papamichail",
+                      "shortName": "D. Papamichail",
+                      "fullName": "Despina Papamichail",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/gre.png",
+                        "alt": "Greece",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8068/despina-papamichail",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "3220",
+                    "uid": "s:850~l:900~a:3220",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
+                      "displayName": "Maria Lourdes Carle",
+                      "shortName": "M. Carle",
+                      "fullName": "Maria Lourdes Carle",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3220/maria-lourdes-carle",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59103,30 +59335,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2751",
+                    "uid": "s:850~l:900~a:2751",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "9bfb142c-91cd-d97d-2fbc-85d8d2b81527",
+                      "displayName": "Renata Zarazua",
+                      "shortName": "R. Zarazua",
+                      "fullName": "Renata Zarazua",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/mex.png",
+                        "alt": "Mexico",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2751/renata-zarazua",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "3256",
+                    "uid": "s:850~l:900~a:3256",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "758c0376-af98-981e-0010-3110c5353d77",
+                      "displayName": "Nadia Podoroska",
+                      "shortName": "N. Podoroska",
+                      "fullName": "Nadia Podoroska",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3256/nadia-podoroska",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59177,30 +59458,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4546",
+                    "uid": "s:850~l:900~a:4546",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
+                      "displayName": "Irene Burillo",
+                      "shortName": "I. Burillo",
+                      "fullName": "Irene Burillo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5937",
+                    "uid": "s:850~l:900~a:5937",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e870fa1e-1965-3dd6-baee-773590f9ac6d",
+                      "displayName": "Elvina Kalieva",
+                      "shortName": "E. Kalieva",
+                      "fullName": "Elvina Kalieva",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5937/elvina-kalieva",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59251,30 +59581,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "13950",
+                    "uid": "s:850~l:900~a:13950",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "f70ef2b9-b49c-3194-8d4a-28230a585b0d",
+                      "displayName": "Luisina Giovannini",
+                      "shortName": "L. Giovannini",
+                      "fullName": "Luisina Giovannini",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/13950/luisina-giovannini",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "10236",
+                    "uid": "s:850~l:900~a:10236",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "3e9bdf95-4f83-3e83-a7d0-4c7ca86e41f3",
+                      "displayName": "Maria Camila Torres Murcia",
+                      "shortName": "M. Torres Murcia",
+                      "fullName": "Maria Camila Torres Murcia",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                        "alt": "Colombia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10236/maria-camila-torres-murcia",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59325,30 +59701,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "3436",
+                    "uid": "s:850~l:900~a:3436",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "f861243c-6f6f-12ab-34c1-cf59b67d5ea2",
+                      "displayName": "Caroline Dolehide",
+                      "shortName": "C. Dolehide",
+                      "fullName": "Caroline Dolehide",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3436/caroline-dolehide",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5746",
+                    "uid": "s:850~l:900~a:5746",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "9dff472e-f004-3a98-b3fc-0900f6b4de41",
+                      "displayName": "Jazmin Ortenzi",
+                      "shortName": "J. Ortenzi",
+                      "fullName": "Jazmin Ortenzi",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5746/jazmin-ortenzi",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59399,30 +59821,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2146",
+                    "uid": "s:850~l:900~a:2146",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "5be7aa49-0be5-be87-98e1-1e83bd6ba2b1",
+                      "displayName": "Yuliana Lizarazo",
+                      "shortName": "Y. Lizarazo",
+                      "fullName": "Yuliana Lizarazo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                        "alt": "Colombia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2146/yuliana-lizarazo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "15069",
+                    "uid": "s:850~l:900~a:15069",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 5
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
+                      "displayName": "Laura Samson",
+                      "shortName": "L. Samson",
+                      "fullName": "Laura Samson",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/15069/laura-samson",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59473,30 +59944,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "8690",
+                    "uid": "s:850~l:900~a:8690",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "c71004f4-a02e-3ae8-8a48-016f9bd0e0de",
+                      "displayName": "Marina Bassols Ribera",
+                      "shortName": "M. Bassols Ribera",
+                      "fullName": "Marina Bassols Ribera",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8690/marina-bassols-ribera",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "14562",
+                    "uid": "s:850~l:900~a:14562",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "837eea7d-01b3-3b35-8269-c244930bf14c",
+                      "displayName": "Sofia Costoulas",
+                      "shortName": "S. Costoulas",
+                      "fullName": "Sofia Costoulas",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/14562/sofia-costoulas",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59547,30 +60067,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "5749",
+                    "uid": "s:850~l:900~a:5749",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e9d09cae-b708-3f38-8cd7-d721730a0a46",
+                      "displayName": "Julia Riera",
+                      "shortName": "J. Riera",
+                      "fullName": "Julia Riera",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5749/julia-riera",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "12586",
+                    "uid": "s:850~l:900~a:12586",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "97a902df-1c85-336b-8858-0496b023b3dc",
+                      "displayName": "Valentina Mediorreal Arias",
+                      "shortName": "V. Mediorreal Arias",
+                      "fullName": "Valentina Mediorreal Arias",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                        "alt": "Colombia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/12586/valentina-mediorreal-arias",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59621,16 +60187,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "10234",
+                    "uid": "s:850~l:900~a:10234",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "e96253e5-7433-3cb6-85ab-3a953cdc0e03",
+                      "displayName": "Maria Paulina Perez Garcia",
+                      "shortName": "M. Perez Garcia",
+                      "fullName": "Maria Paulina Perez Garcia",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                        "alt": "Colombia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10234/maria-paulina-perez-garcia",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -59695,30 +60284,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2177",
+                    "uid": "s:850~l:900~a:2177",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "f0ca7d87-6d7b-69d7-c474-dbda6125ccf6",
+                      "displayName": "Laura Pigossi",
+                      "shortName": "L. Pigossi",
+                      "fullName": "Laura Pigossi",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                        "alt": "Brazil",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2177/laura-pigossi",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "2599",
+                    "uid": "s:850~l:900~a:2599",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 6
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "2d0dd3a6-dcc1-2e9b-17ea-acf966691534",
+                      "displayName": "Julia Grabher",
+                      "shortName": "J. Grabher",
+                      "fullName": "Julia Grabher",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                        "alt": "Austria",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2599/julia-grabher",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59769,30 +60407,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4666",
+                    "uid": "s:850~l:900~a:4666",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b89e8ea6-ef2c-32e6-b209-74cd0a5d6f1c",
+                      "displayName": "Lucia Bronzetti",
+                      "shortName": "L. Bronzetti",
+                      "fullName": "Lucia Bronzetti",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4666/lucia-bronzetti",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "4453",
+                    "uid": "s:850~l:900~a:4453",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "d7309ed9-b61f-3624-8657-bb72feec433e",
+                      "displayName": "Leolia Jeanjean",
+                      "shortName": "L. Jeanjean",
+                      "fullName": "Leolia Jeanjean",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4453/leolia-jeanjean",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59843,30 +60530,79 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2979",
+                    "uid": "s:850~l:900~a:2979",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 8
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6fd6b28f-61b2-9ac1-4a0e-cd5bd4a3aa20",
+                      "displayName": "Bianca Andreescu",
+                      "shortName": "B. Andreescu",
+                      "fullName": "Bianca Andreescu",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                        "alt": "Canada",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2979/bianca-andreescu",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "3034",
+                    "uid": "s:850~l:900~a:3034",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "cbd35839-14e1-f838-21f6-d94a2b1c8e38",
+                      "displayName": "Tamara Zidansek",
+                      "shortName": "T. Zidansek",
+                      "fullName": "Tamara Zidansek",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                        "alt": "Slovenia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3034/tamara-zidansek",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59931,16 +60667,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "5299",
+                    "uid": "s:850~l:900~a:5299",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "8ae7596e-be40-3f15-b307-e71734a3fece",
+                      "displayName": "Carole Monnet",
+                      "shortName": "C. Monnet",
+                      "fullName": "Carole Monnet",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5299/carole-monnet",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -59991,16 +60750,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "10676",
+                    "uid": "s:850~l:900~a:10676",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "4698cc67-8d6e-3ef4-9d6a-2b152e8f0be0",
+                      "displayName": "Leyre Romero Gormaz",
+                      "shortName": "L. Romero Gormaz",
+                      "fullName": "Leyre Romero Gormaz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10676/leyre-romero-gormaz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -60065,16 +60847,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "6500",
+                    "uid": "s:850~l:900~a:6500",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "31cbb00a-2dc3-3125-9f59-806fb020e7c4",
+                      "displayName": "Solana Sierra",
+                      "shortName": "S. Sierra",
+                      "fullName": "Solana Sierra",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6500/solana-sierra",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -61746,15 +62554,15 @@
           }
         ],
         "status": {
-          "period": 1,
+          "period": 2,
           "type": {
-            "id": "1",
-            "name": "STATUS_SCHEDULED",
-            "state": "pre",
-            "completed": false,
-            "description": "Scheduled",
-            "detail": "Sun, November 1st at 12:00 PM EST",
-            "shortDetail": "11/1 - 12:00 PM EST"
+            "id": "3",
+            "name": "STATUS_FINAL",
+            "state": "post",
+            "completed": true,
+            "description": "Final",
+            "detail": "Final",
+            "shortDetail": "Final"
           }
         },
         "venue": {
