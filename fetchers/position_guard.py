@@ -63,6 +63,11 @@ def close_for_trade(symbol: str, trade_id: int, qty: Optional[float], side: str)
     """
     _alp._assert_paper_mode()
     others = other_open_broker_qty(symbol, trade_id)
+    if others > 0 and not (qty and qty > 0):
+        # Unknown size + another engine holds the symbol: a full close would
+        # sell the other engine's shares too. Refuse instead of guessing.
+        log.error(f"[GUARD] {symbol} tid={trade_id}: qty unknown and another open trade holds it - refusing full close")
+        return {"error": f"{symbol}: this trade's share count is unknown and another open trade holds the same stock; not closing to avoid selling its shares."}
     if others > 0 and qty and qty > 0:
         close_side = "sell" if side == "long" else "buy"
         order = _alp.place_order(symbol, qty, close_side, "market")
