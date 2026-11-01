@@ -23,7 +23,7 @@ from typing import Optional
 try:
     from zoneinfo import ZoneInfo as _ZI
     _EASTERN = _ZI("America/New_York")
-except ImportError:
+except Exception:      # ImportError, or ZoneInfoNotFoundError on Windows without the tzdata package
     _EASTERN = None  # fallback: use UTC offset approximation
 
 from fetchers.alpaca import get_snapshots, get_bars, get_daily_bars, place_bracket_order, get_order, close_position, friendly_order_error, get_top_movers, get_most_active

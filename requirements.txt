@@ -19,3 +19,5 @@ xgboost>=2.0.0
 cloudscraper>=1.2.71
 lxml>=4.9.0
 vaderSentiment>=3.3.2
+
+tzdata>=2024.1  # Windows has no built-in timezone database; the runners schedule in America/New_York

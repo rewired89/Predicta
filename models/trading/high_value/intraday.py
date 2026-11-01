@@ -25,7 +25,7 @@ from typing import Optional
 try:
     from zoneinfo import ZoneInfo as _ZoneInfo
     _ET = _ZoneInfo("America/New_York")
-except ImportError:
+except Exception:      # ImportError, or ZoneInfoNotFoundError on Windows without the tzdata package
     _ET = None  # fallback: use UTC-4 approximation
 
 
