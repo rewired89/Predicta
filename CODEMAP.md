@@ -13743,3 +13743,7 @@ fetchers/high_value_runner.py: HV_SCAN_MODE ("after_close" default | "morning", 
 fetchers/automaton_runner.py: AUTOMATON_QUALITY_MODE default "shadow".
 Start Predicta.bat -> scripts/run_local.ps1 (venv, requirements, uvicorn 127.0.0.1:8000, opens /trading). scripts/install_autostart.ps1 (optional Task Scheduler).
 ---
+
+## Linux (Zorin/Ubuntu) launcher scripts (2026-11-04)
+scripts/run_local.sh (venv + pip + uvicorn 127.0.0.1:${PORT:-8000}, xdg-open, systemd-inhibit), scripts/install_desktop_shortcut.sh (~/Desktop/Predicta.desktop + ~/.local/share/applications), scripts/install_autostart.sh (~/.config/systemd/user/predicta.service, NO_BROWSER=1). Windows equivalents remain: Start Predicta.bat, scripts/run_local.ps1, scripts/install_autostart.ps1.
+---
