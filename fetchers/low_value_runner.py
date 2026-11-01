@@ -557,6 +557,8 @@ def run_low_value_scan(symbols: Optional[list[str]] = None) -> list[int]:
             thesis = compute_thesis_score(sym, daily_bars, sector_bars, news_result, social_result=social_result)
             composite = thesis.get("composite")
             if composite is None or abs(composite) < min_score:
+                from fetchers.maintenance import log_candidate
+                log_candidate("low_value", sym, composite, min_score, "BELOW_THRESHOLD" if composite is not None else "NO_SCORE")
                 continue
 
             side = "long" if composite > 0 else "short"
@@ -1009,6 +1011,12 @@ def _runner_loop() -> None:
                 _log_scan_event("scheduled", ids, exit_result)
         except Exception as exc:
             log.error(f"[LOW_VALUE] Loop error: {exc}")
+        try:
+            from fetchers.maintenance import heartbeat, backup_db
+            heartbeat("low_value_loop")
+            backup_db()
+        except Exception as exc:
+            log.error(f"[LOW_VALUE] Heartbeat/backup error: {exc}")
         # Daily market-data recording (2026-10-08) — independent of the scan
         # above so a scan failure or cap never blocks it. Own try so a bars
         # failure can't mask scan errors either.

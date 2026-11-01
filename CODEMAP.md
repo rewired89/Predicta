@@ -13751,3 +13751,8 @@ scripts/run_local.sh (venv + pip + uvicorn 127.0.0.1:${PORT:-8000}, xdg-open, sy
 ## Health Check (2026-11-04)
 fetchers/health_check.py: run_health_check() -> {headline, checks[{status ok|warn|bad, title, detail}], generated_at}; render_health_page(result) -> HTML with action buttons (POST /trade/low-value/scan-now, /trade/market-data/record, /trade/horizon/backfill?years=3). Routes in app.py: GET /trade/health, GET /trade/health.json. Card on templates/trading_hub.html.
 ---
+
+
+## Order ledger & maintenance (2026-11-01)
+- `fetchers/order_ledger.py`: `guarded_order(engine, trade_id, symbol, side, qty, kind, send)` per-symbol lock + duplicate-entry refusal + `order_ledger` table. Used by `execute_high_value_trade`, `execute_low_value_trade`, `_auto_execute_entry`, `position_guard.close_for_trade`.
+- `fetchers/maintenance.py`: `backup_db`, `heartbeat`, `get_heartbeats`, `log_candidate`, `evaluation`. Routes in `app.py`: `/trade/evaluation`, `/trade/candidates`, `/trade/backup-now`. Called from `low_value_runner._runner_loop`.

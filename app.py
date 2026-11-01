@@ -3592,6 +3592,31 @@ def trade_health_page():
     return HTMLResponse(content=render_health_page(run_health_check()))
 
 
+@app.get("/trade/evaluation")
+def trade_evaluation():
+    from fetchers.maintenance import evaluation, get_heartbeats
+    r = evaluation()
+    r["heartbeats"] = get_heartbeats()
+    return r
+
+
+@app.get("/trade/candidates")
+def trade_candidates(limit: int = 200):
+    from db.database import get_db
+    with get_db() as c:
+        try:
+            rows = [dict(r) for r in c.execute("SELECT * FROM candidate_log ORDER BY id DESC LIMIT ?", (min(limit, 1000),))]
+        except Exception:
+            rows = []
+    return {"rejected_candidates": rows}
+
+
+@app.post("/trade/backup-now")
+def trade_backup_now():
+    from fetchers.maintenance import backup_db
+    return backup_db()
+
+
 @app.get("/trade/health.json")
 def trade_health_json():
     from fetchers.health_check import run_health_check
