@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-02T20:33:00.006231+00:00",
+  "fetched_at": "2026-11-02T23:42:44.499810+00:00",
   "data": {
     "leagues": [
       {
@@ -5218,17 +5218,17 @@
                 "date": "2026-11-02T18:20Z",
                 "startDate": "2026-11-02T18:20Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -5242,7 +5242,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Denis Shapovalov (CAN) leads Karen Khachanov (RUS) 3-6 7-6 (8-6) 4-1",
+                    "text": "Karen Khachanov (RUS) bt Denis Shapovalov (CAN) 6-3 6-7 (6-8) 1-4 ret",
                     "type": "event"
                   }
                 ],
@@ -5256,7 +5256,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
@@ -5268,7 +5268,8 @@
                         "winner": false
                       },
                       {
-                        "value": 1.0
+                        "value": 1.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -5308,7 +5309,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 3.0,
@@ -5320,7 +5321,8 @@
                         "winner": true
                       },
                       {
-                        "value": 4.0
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -5355,11 +5357,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 13,
                 "type": {
                   "id": "1",
@@ -5375,20 +5372,20 @@
               {
                 "id": "186453",
                 "uid": "s:850~l:851~e:13-2026~c:186453",
-                "date": "2026-11-02T20:45Z",
-                "startDate": "2026-11-02T20:45Z",
+                "date": "2026-11-02T20:55Z",
+                "startDate": "2026-11-02T20:55Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Mon, November 2nd at 3:45 PM EST",
-                    "shortDetail": "11/2 - 3:45 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5400,7 +5397,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ugo Humbert (FRA) bt Botic Van De Zandschulp (NED) 7-6 (7-5) 6-7 (9-11) 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5411,6 +5413,23 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 11,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "b62489df-354f-1590-4b60-31c6ef7c0daa",
                       "displayName": "Botic Van De Zandschulp",
@@ -5448,6 +5467,23 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 9,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
                       "displayName": "Ugo Humbert",
@@ -7113,16 +7149,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "2367",
+                    "uid": "s:850~l:851~a:2367",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "aae45cb6-e828-7434-5515-9c6d810ea14a",
+                      "displayName": "Karen Khachanov",
+                      "shortName": "K. Khachanov",
+                      "fullName": "Karen Khachanov",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2367/karen-khachanov",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -8218,16 +8277,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3085",
+                    "uid": "s:850~l:851~a:3085",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
+                      "displayName": "Ugo Humbert",
+                      "shortName": "U. Humbert",
+                      "fullName": "Ugo Humbert",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3085/ugo-humbert",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
