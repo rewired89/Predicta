@@ -3661,6 +3661,59 @@ def market_data_forward_returns(symbol: str = None, limit: int = 500):
     return {"count": len(rows), "rows": rows[-limit:]}
 
 
+_FX_PAIRS = ("EUR_USD", "GBP_USD", "USD_JPY")
+
+
+def _fx_bars(pair: str):
+    from fetchers.oanda import load_bars
+    pair = pair.upper().replace("/", "_")
+    if pair not in _FX_PAIRS:
+        return pair, None
+    return pair, load_bars(pair)
+
+
+@app.get("/trade/fx/status")
+def fx_status():
+    from fetchers.oanda import status
+    return status()
+
+
+@app.post("/trade/fx/backfill")
+def fx_backfill():
+    """Pull up to ~19 years of daily bars for EUR/USD, GBP/USD, USD/JPY from OANDA (read-only)."""
+    from fetchers.oanda import backfill, has_key
+    if not has_key():
+        return {"status": "no_key", "what_to_do": "Set OANDA_API_KEY in .env (OANDA practice account), restart Predicta."}
+    return backfill()
+
+
+@app.get("/trade/fx/backtest")
+def fx_backtest(pair: str = "EUR_USD", horizon: int = 5):
+    from models.trading.fx.forecast import run_direction
+    pair, bars = _fx_bars(pair)
+    if bars is None or bars.empty:
+        return {"status": "no_data", "what_to_do": "POST /trade/fx/backfill first (needs OANDA_API_KEY)."}
+    return run_direction(bars, h=max(1, min(horizon, 60)), pair=pair)
+
+
+@app.get("/trade/fx/volatility")
+def fx_volatility(pair: str = "EUR_USD", horizon: int = 5):
+    from models.trading.fx.forecast import run_volatility
+    pair, bars = _fx_bars(pair)
+    if bars is None or bars.empty:
+        return {"status": "no_data", "what_to_do": "POST /trade/fx/backfill first (needs OANDA_API_KEY)."}
+    return run_volatility(bars, h=max(2, min(horizon, 60)), pair=pair)
+
+
+@app.get("/trade/fx/predict")
+def fx_predict(pair: str = "EUR_USD", horizon: int = 5):
+    from models.trading.fx.forecast import predict_now
+    pair, bars = _fx_bars(pair)
+    if bars is None or bars.empty:
+        return {"status": "no_data", "what_to_do": "POST /trade/fx/backfill first (needs OANDA_API_KEY)."}
+    return predict_now(bars, h=max(1, min(horizon, 60)), pair=pair)
+
+
 @app.post("/trade/horizon/backfill")
 def horizon_backfill(years: int = 3):
     """Horizon Forecast: backfill multi-year daily bars (background). Poll /trade/market-data/coverage."""

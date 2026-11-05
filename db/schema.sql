@@ -387,3 +387,9 @@ CREATE TABLE IF NOT EXISTS order_ledger (
     status TEXT NOT NULL,
     detail TEXT
 );
+
+CREATE TABLE IF NOT EXISTS fx_daily_bars (
+    pair TEXT NOT NULL, date TEXT NOT NULL,
+    o REAL, h REAL, l REAL, c REAL, spread REAL,
+    PRIMARY KEY (pair, date)
+);

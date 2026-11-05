@@ -13756,3 +13756,9 @@ fetchers/health_check.py: run_health_check() -> {headline, checks[{status ok|war
 ## Order ledger & maintenance (2026-11-01)
 - `fetchers/order_ledger.py`: `guarded_order(engine, trade_id, symbol, side, qty, kind, send)` per-symbol lock + duplicate-entry refusal + `order_ledger` table. Used by `execute_high_value_trade`, `execute_low_value_trade`, `_auto_execute_entry`, `position_guard.close_for_trade`.
 - `fetchers/maintenance.py`: `backup_db`, `heartbeat`, `get_heartbeats`, `log_candidate`, `evaluation`. Routes in `app.py`: `/trade/evaluation`, `/trade/candidates`, `/trade/backup-now`. Called from `low_value_runner._runner_loop`.
+
+
+## FX Forecast (2026-11-05)
+- `fetchers/oanda.py`: `fetch_daily`, `parse_candles`, `save_bars`, `backfill`, `load_bars`, `status` (read-only, table `fx_daily_bars`).
+- `models/trading/fx/forecast.py`: `build`, `_walk`, `run_direction`, `run_volatility`, `predict_now`.
+- Routes in `app.py`: `/trade/fx/status|backfill|backtest|volatility|predict`. Test: `tests/test_fx_forecast.py`.
