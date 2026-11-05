@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-05T18:22:06.762628+00:00",
+  "fetched_at": "2026-11-05T22:24:42.699331+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-04T08:59Z"
+            "lastUpdated": "2026-11-05T01:25Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-04T08:59Z"
+            "lastUpdated": "2026-11-05T01:25Z"
           }
         ],
         "calendarType": "day",
@@ -10582,17 +10582,17 @@
                 "date": "2026-11-05T18:15Z",
                 "startDate": "2026-11-05T18:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -10606,7 +10606,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(11) Taylor Fritz (USA) leads (6) Arthur Fils (FRA) 1-0",
+                    "text": "(11) Taylor Fritz (USA) bt (6) Arthur Fils (FRA) 6-3 6-4",
                     "type": "event"
                   }
                 ],
@@ -10620,12 +10620,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 11
                     },
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -10665,12 +10671,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 6
                     },
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -10720,20 +10732,20 @@
               {
                 "id": "186495",
                 "uid": "s:850~l:851~e:13-2026~c:186495",
-                "date": "2026-11-05T19:30Z",
-                "startDate": "2026-11-05T19:30Z",
+                "date": "2026-11-05T19:50Z",
+                "startDate": "2026-11-05T19:50Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 5th at 2:30 PM EST",
-                    "shortDetail": "11/5 - 2:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -10745,7 +10757,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Casper Ruud (NOR) bt Jan-Lennard Struff (GER) 6-3 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -10756,6 +10773,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "116ef01e-3239-e44f-9c8a-022f81012782",
                       "displayName": "Casper Ruud",
@@ -10793,6 +10821,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "45266525-bbb6-988a-7671-e5e46567d682",
                       "displayName": "Jan-Lennard Struff",
@@ -11157,16 +11196,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2946",
+                    "uid": "s:850~l:851~a:2946",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 11
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6493155f-cacc-7aa5-ba78-d952efa4c652",
+                      "displayName": "Taylor Fritz",
+                      "shortName": "T. Fritz",
+                      "fullName": "Taylor Fritz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2946/taylor-fritz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -11254,16 +11319,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "2989",
+                    "uid": "s:850~l:851~a:2989",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "116ef01e-3239-e44f-9c8a-022f81012782",
+                      "displayName": "Casper Ruud",
+                      "shortName": "C. Ruud",
+                      "fullName": "Casper Ruud",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/nor.png",
+                        "alt": "Norway",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2989/casper-ruud",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
