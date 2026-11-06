@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-06T17:43:26.858165+00:00",
+  "fetched_at": "2026-11-06T21:47:57.060156+00:00",
   "data": {
     "leagues": [
       {
@@ -16068,17 +16068,17 @@
                 "date": "2026-11-06T16:45Z",
                 "startDate": "2026-11-06T16:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -16092,7 +16092,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(7) Anastasia Zakharova (RUS) is tied with (10) Lucrezia Stefanini (ITA) 6-2 0-0",
+                    "text": "(7) Anastasia Zakharova (RUS) bt (10) Lucrezia Stefanini (ITA) 6-2 5-2 ret",
                     "type": "event"
                   }
                 ],
@@ -16106,7 +16106,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "curatedRank": {
                       "current": 10
                     },
@@ -16116,7 +16116,8 @@
                         "winner": false
                       },
                       {
-                        "value": 0.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -16156,7 +16157,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
@@ -16166,7 +16167,8 @@
                         "winner": true
                       },
                       {
-                        "value": 0.0
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -16201,11 +16203,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 889,
                 "type": {
                   "id": "2",
@@ -16375,16 +16372,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "5775",
+                    "uid": "s:850~l:900~a:5775",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "cdb8b7e4-126d-360f-9a1c-56339e7c4783",
+                      "displayName": "Anastasia Zakharova",
+                      "shortName": "A. Zakharova",
+                      "fullName": "Anastasia Zakharova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5775/anastasia-zakharova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -24492,17 +24515,17 @@
                 "date": "2026-11-06T17:10Z",
                 "startDate": "2026-11-06T17:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -24516,7 +24539,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Leyre Romero Gormaz (ESP) leads Julia Riera (ARG) 3-3",
+                    "text": "Leyre Romero Gormaz (ESP) bt Julia Riera (ARG) 3-6 7-5 6-4",
                     "type": "event"
                   }
                 ],
@@ -24530,9 +24553,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -24572,9 +24605,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -24624,20 +24667,20 @@
               {
                 "id": "186735",
                 "uid": "s:850~l:900~e:1007-2026~c:186735",
-                "date": "2026-11-06T18:30Z",
-                "startDate": "2026-11-06T18:30Z",
+                "date": "2026-11-06T20:10Z",
+                "startDate": "2026-11-06T20:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "8",
+                    "name": "STATUS_SUSPENDED",
+                    "state": "post",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 1:30 PM EST",
-                    "shortDetail": "11/6 - 1:30 PM EST"
+                    "description": "Suspended",
+                    "detail": "Suspended",
+                    "shortDetail": "Suspended"
                   }
                 },
                 "venue": {
@@ -24649,7 +24692,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(8) Bianca Andreescu (CAN) bt Alice Tubello (FRA) 6-0 5-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -24663,6 +24711,16 @@
                     "curatedRank": {
                       "current": 8
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "6fd6b28f-61b2-9ac1-4a0e-cd5bd4a3aa20",
                       "displayName": "Bianca Andreescu",
@@ -24700,6 +24758,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "0d54348a-f88f-3110-a913-5b9381e2a9c3",
                       "displayName": "Alice Tubello",
@@ -24747,9 +24815,9 @@
               {
                 "id": "186741",
                 "uid": "s:850~l:900~e:1007-2026~c:186741",
-                "date": "2026-11-07T05:00Z",
-                "startDate": "2026-11-07T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-07T16:30Z",
+                "startDate": "2026-11-07T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -24759,13 +24827,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 7th at 11:30 AM EST",
+                    "shortDetail": "11/7 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Cali, Colombia",
-                  "court": ""
+                  "court": "Campo 1"
                 },
                 "format": {
                   "regulation": {
@@ -24778,16 +24846,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "10676",
+                    "uid": "s:850~l:900~a:10676",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "4698cc67-8d6e-3ef4-9d6a-2b152e8f0be0",
+                      "displayName": "Leyre Romero Gormaz",
+                      "shortName": "L. Romero Gormaz",
+                      "fullName": "Leyre Romero Gormaz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10676/leyre-romero-gormaz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -25492,17 +25583,17 @@
                 "date": "2026-11-06T17:00Z",
                 "startDate": "2026-11-06T17:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -25516,7 +25607,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Tenika McGiffin (AUS) & Alexandra Osborne (AUS) leads Valentina Mediorreal Arias (COL) & Maria Paulina Perez Garcia (COL) 7-6 (7-2) 6-7 (2-7) 0-0",
+                    "text": "Valentina Mediorreal Arias (COL) & Maria Paulina Perez Garcia (COL) bt Tenika McGiffin (AUS) & Alexandra Osborne (AUS) 6-7 (2-7) 7-6 (7-2) 1-0 (11-9)",
                     "type": "event"
                   }
                 ],
@@ -25530,6 +25621,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
@@ -25542,7 +25634,9 @@
                         "winner": true
                       },
                       {
-                        "value": 0.0
+                        "value": 1.0,
+                        "tiebreak": 11,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -25617,6 +25711,7 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 7.0,
@@ -25629,7 +25724,9 @@
                         "winner": false
                       },
                       {
-                        "value": 0.0
+                        "value": 0.0,
+                        "tiebreak": 9,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -25714,20 +25811,20 @@
               {
                 "id": "186738",
                 "uid": "s:850~l:900~e:1007-2026~c:186738",
-                "date": "2026-11-06T18:00Z",
-                "startDate": "2026-11-06T18:00Z",
+                "date": "2026-11-06T18:05Z",
+                "startDate": "2026-11-06T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 1:00 PM EST",
-                    "shortDetail": "11/6 - 1:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -25739,7 +25836,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Maria Lourdes Carle (ARG) & Laura Pigossi (BRA) bt (1) Dalila Jakupovic (SLO) & Nika Radisic (SLO) 7-5 6-7 (4-7) 1-0 (10-3)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -25750,6 +25852,23 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Maria Lourdes Carle / Laura Pigossi",
                       "shortDisplayName": "M. Carle / L. Pigossi",
@@ -25822,9 +25941,26 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Dalila Jakupovic / Nika Radisic",
                       "shortDisplayName": "D. Jakupovic / N. Radisic",
@@ -25907,10 +26043,10 @@
               {
                 "id": "186739",
                 "uid": "s:850~l:900~e:1007-2026~c:186739",
-                "date": "2026-11-06T20:00Z",
-                "startDate": "2026-11-06T20:00Z",
+                "date": "2026-11-06T21:50Z",
+                "startDate": "2026-11-06T21:50Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -25919,8 +26055,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, November 6th at 3:00 PM EST",
-                    "shortDetail": "11/6 - 3:00 PM EST"
+                    "detail": "Fri, November 6th at 4:50 PM EST",
+                    "shortDetail": "11/6 - 4:50 PM EST"
                   }
                 },
                 "venue": {
@@ -26013,26 +26149,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "12586-10234",
+                    "uid": "s:850~l:900~t:12586-10234",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Valentina Mediorreal Arias / Maria Paulina Perez Garcia",
+                      "shortDisplayName": "V. Mediorreal Arias / M. Perez Garcia",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "97a902df-1c85-336b-8858-0496b023b3dc",
+                          "displayName": "Valentina Mediorreal Arias",
+                          "shortName": "V. Mediorreal Arias",
+                          "fullName": "Valentina Mediorreal Arias",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                            "alt": "Colombia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/12586/valentina-mediorreal-arias",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "e96253e5-7433-3cb6-85ab-3a953cdc0e03",
+                          "displayName": "Maria Paulina Perez Garcia",
+                          "shortName": "M. Perez Garcia",
+                          "fullName": "Maria Paulina Perez Garcia",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/col.png",
+                            "alt": "Colombia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10234/maria-paulina-perez-garcia",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -26054,9 +26236,9 @@
               {
                 "id": "186740",
                 "uid": "s:850~l:900~e:1007-2026~c:186740",
-                "date": "2026-11-07T05:00Z",
-                "startDate": "2026-11-07T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-07T15:00Z",
+                "startDate": "2026-11-07T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -26066,13 +26248,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 7th at 10:00 AM EST",
+                    "shortDetail": "11/7 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Cali, Colombia",
-                  "court": ""
+                  "court": "Campo 1"
                 },
                 "format": {
                   "regulation": {
@@ -26085,30 +26267,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:900~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
+                    "id": "3220-2177",
+                    "uid": "s:850~l:900~t:3220-2177",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Maria Lourdes Carle / Laura Pigossi",
+                      "shortDisplayName": "M. Carle / L. Pigossi",
+                      "athletes": [
+                        {
+                          "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
+                          "displayName": "Maria Lourdes Carle",
+                          "shortName": "M. Carle",
+                          "fullName": "Maria Lourdes Carle",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                            "alt": "Argentina",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3220/maria-lourdes-carle",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "f0ca7d87-6d7b-69d7-c474-dbda6125ccf6",
+                          "displayName": "Laura Pigossi",
+                          "shortName": "L. Pigossi",
+                          "fullName": "Laura Pigossi",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                            "alt": "Brazil",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2177/laura-pigossi",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
