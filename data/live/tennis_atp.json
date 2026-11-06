@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-05T22:24:42.699331+00:00",
+  "fetched_at": "2026-11-06T17:43:26.839681+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-05T01:25Z"
+            "lastUpdated": "2026-11-05T06:36Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-05T01:25Z"
+            "lastUpdated": "2026-11-05T06:36Z"
           }
         ],
         "calendarType": "day",
@@ -10879,20 +10879,20 @@
               {
                 "id": "186500",
                 "uid": "s:850~l:851~e:13-2026~c:186500",
-                "date": "2026-11-06T13:00Z",
-                "startDate": "2026-11-06T13:00Z",
+                "date": "2026-11-06T13:10Z",
+                "startDate": "2026-11-06T13:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 8:00 AM EST",
-                    "shortDetail": "11/6 - 8:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -10904,7 +10904,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Ben Shelton (USA) bt (12) Tommy Paul (USA) 6-4 4-6 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -10915,9 +10920,24 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 12
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "8965d2eb-1419-a6e6-5d3f-573b8b0bc565",
                       "displayName": "Tommy Paul",
@@ -10955,9 +10975,24 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "2358bec1-f6f0-3540-a37e-13bc322d2c08",
                       "displayName": "Ben Shelton",
@@ -11005,20 +11040,20 @@
               {
                 "id": "186501",
                 "uid": "s:850~l:851~e:13-2026~c:186501",
-                "date": "2026-11-06T14:30Z",
-                "startDate": "2026-11-06T14:30Z",
+                "date": "2026-11-06T15:20Z",
+                "startDate": "2026-11-06T15:20Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 9:30 AM EST",
-                    "shortDetail": "11/6 - 9:30 AM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -11030,7 +11065,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Luca Van Assche (FRA) leads Rinky Hijikata (AUS) 6-4 6-7 (4-7) 4-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -11041,6 +11081,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "a3565a03-7c82-893a-9835-1731783c3e77",
                       "displayName": "Rinky Hijikata",
@@ -11078,6 +11132,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "835af718-cb8c-3abe-a70d-b5c0ebed4e87",
                       "displayName": "Luca Van Assche",
@@ -11128,7 +11196,7 @@
                 "date": "2026-11-06T18:00Z",
                 "startDate": "2026-11-06T18:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -11402,16 +11470,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "9250",
+                    "uid": "s:850~l:851~a:9250",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "2358bec1-f6f0-3540-a37e-13bc322d2c08",
+                      "displayName": "Ben Shelton",
+                      "shortName": "B. Shelton",
+                      "fullName": "Ben Shelton",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/9250/ben-shelton",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -16033,20 +16127,20 @@
               {
                 "id": "186521",
                 "uid": "s:850~l:851~e:13-2026~c:186521",
-                "date": "2026-11-06T13:00Z",
-                "startDate": "2026-11-06T13:00Z",
+                "date": "2026-11-06T13:05Z",
+                "startDate": "2026-11-06T13:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 8:00 AM EST",
-                    "shortDetail": "11/6 - 8:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -16058,7 +16152,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Christian Harrison (USA) & Neal Skupski (GBR) bt Robert Cash (USA) & Brandon Nakashima (USA) 7-6 (7-5) 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16069,9 +16168,21 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Christian Harrison / Neal Skupski",
                       "shortDisplayName": "C. Harrison / N. Skupski",
@@ -16144,6 +16255,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Robert Cash / Brandon Nakashima",
                       "shortDisplayName": "R. Cash / B. Nakashima",
@@ -16226,20 +16349,20 @@
               {
                 "id": "186509",
                 "uid": "s:850~l:851~e:13-2026~c:186509",
-                "date": "2026-11-06T14:30Z",
-                "startDate": "2026-11-06T14:30Z",
+                "date": "2026-11-06T14:50Z",
+                "startDate": "2026-11-06T14:50Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 9:30 AM EST",
-                    "shortDetail": "11/6 - 9:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -16251,7 +16374,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Lucas Miedler (AUT) & Neil Oberleitner (AUT) bt Petr Nouza (CZE) & Michael Venus (NZL) 6-7 (12-14) 6-4 1-0 (10-5)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16262,6 +16390,23 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 14,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Petr Nouza / Michael Venus",
                       "shortDisplayName": "P. Nouza / M. Venus",
@@ -16334,6 +16479,23 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 12,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Lucas Miedler / Neil Oberleitner",
                       "shortDisplayName": "L. Miedler / N. Oberleitner",
@@ -16416,20 +16578,20 @@
               {
                 "id": "186510",
                 "uid": "s:850~l:851~e:13-2026~c:186510",
-                "date": "2026-11-06T16:00Z",
-                "startDate": "2026-11-06T16:00Z",
+                "date": "2026-11-06T16:45Z",
+                "startDate": "2026-11-06T16:45Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 6th at 11:00 AM EST",
-                    "shortDetail": "11/6 - 11:00 AM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -16441,7 +16603,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Quentin Halys (FRA) & Pierre-Hugues Herbert (FRA) leads Theo Arribage (FRA) & Albano Olivetti (FRA) 7-5 4-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -16452,6 +16619,16 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Theo Arribage / Albano Olivetti",
                       "shortDisplayName": "T. Arribage / A. Olivetti",
@@ -16524,6 +16701,16 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Quentin Halys / Pierre-Hugues Herbert",
                       "shortDisplayName": "Q. Halys / P. Herbert",
@@ -16591,6 +16778,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 13,
                 "type": {
                   "id": "3",
@@ -16606,10 +16798,10 @@
               {
                 "id": "186511",
                 "uid": "s:850~l:851~e:13-2026~c:186511",
-                "date": "2026-11-06T17:30Z",
-                "startDate": "2026-11-06T17:30Z",
+                "date": "2026-11-06T18:00Z",
+                "startDate": "2026-11-06T18:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -16618,8 +16810,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, November 6th at 12:30 PM EST",
-                    "shortDetail": "11/6 - 12:30 PM EST"
+                    "detail": "Fri, November 6th at 1:00 PM EST",
+                    "shortDetail": "11/6 - 1:00 PM EST"
                   }
                 },
                 "venue": {
@@ -16830,30 +17022,149 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "2293-2699",
+                    "uid": "s:850~l:851~t:2293-2699",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Christian Harrison / Neal Skupski",
+                      "shortDisplayName": "C. Harrison / N. Skupski",
+                      "athletes": [
+                        {
+                          "guid": "a5000f02-7f69-d6d4-1418-14c82984713d",
+                          "displayName": "Christian Harrison",
+                          "shortName": "C. Harrison",
+                          "fullName": "Christian Harrison",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2293/christian-harrison",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "3acfe257-730f-4bf6-37c6-d2f3b89ff7fa",
+                          "displayName": "Neal Skupski",
+                          "shortName": "N. Skupski",
+                          "fullName": "Neal Skupski",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                            "alt": "Great Britain",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2699/neal-skupski",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "2354-8878",
+                    "uid": "s:850~l:851~t:2354-8878",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Lucas Miedler / Neil Oberleitner",
+                      "shortDisplayName": "L. Miedler / N. Oberleitner",
+                      "athletes": [
+                        {
+                          "guid": "7b027ce9-cda8-ff60-4f5e-49989e3d8dea",
+                          "displayName": "Lucas Miedler",
+                          "shortName": "L. Miedler",
+                          "fullName": "Lucas Miedler",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                            "alt": "Austria",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2354/lucas-miedler",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "5c07bffe-d50c-30d0-a6ba-9999fd294eba",
+                          "displayName": "Neil Oberleitner",
+                          "shortName": "N. Oberleitner",
+                          "fullName": "Neil Oberleitner",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                            "alt": "Austria",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/8878/neil-oberleitner",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
