@@ -39,7 +39,7 @@ def build(bars: pd.DataFrame, h: int) -> pd.DataFrame:
     d["range_pct"] = (d["h"] - d["l"]) / d["c"]
     d["body"] = (d["c"] - d["o"]) / (d["h"] - d["l"]).replace(0, np.nan)
     d["fwd_ret"] = lc.shift(-h) - lc                      # log return over next h days
-    d["y"] = (d["fwd_ret"] > 0).astype(float)
+    d["y"] = (d["fwd_ret"] > 0).astype(float).where(d["fwd_ret"].notna())   # unknown future stays unknown
     d["fwd_vol"] = r.rolling(h).std().shift(-h) if h >= 2 else np.nan
     d["cost"] = d["spread"] / d["c"]                      # round trip ~ one full spread
     return d
@@ -47,7 +47,7 @@ def build(bars: pd.DataFrame, h: int) -> pd.DataFrame:
 
 def _walk(d: pd.DataFrame, h: int, kind: str) -> pd.DataFrame:
     tgt = "y" if kind == "dir" else "fwd_vol"
-    ok = d.dropna(subset=FEATURES + [tgt]).reset_index(drop=True)
+    ok = d.replace([np.inf, -np.inf], np.nan).dropna(subset=FEATURES + [tgt, "fwd_ret", "cost"]).reset_index(drop=True)
     out = []
     i = MIN_TRAIN
     while i < len(ok):
@@ -71,6 +71,21 @@ def _walk(d: pd.DataFrame, h: int, kind: str) -> pd.DataFrame:
     return pd.concat(out) if out else pd.DataFrame()
 
 
+def clean(x):
+    """Make results JSON-safe: NaN/inf become None."""
+    if isinstance(x, dict):
+        return {k: clean(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [clean(v) for v in x]
+    if isinstance(x, (float, np.floating)):
+        return None if not math.isfinite(x) else float(x)
+    if isinstance(x, np.integer):
+        return int(x)
+    if isinstance(x, np.bool_):
+        return bool(x)
+    return x
+
+
 def _boot(xs, n=2000, seed=1):
     rnd = np.random.default_rng(seed)
     xs = np.asarray(xs)
@@ -88,6 +103,10 @@ def _acc_ci(hits: np.ndarray):
 
 
 def run_direction(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
+    return clean(_run_direction(bars, h, pair))
+
+
+def _run_direction(bars: pd.DataFrame, h: int, pair: str) -> dict:
     d = build(bars, h)
     res = _walk(d, h, "dir")
     if res.empty:
@@ -138,6 +157,10 @@ def run_direction(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
 
 
 def run_volatility(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
+    return clean(_run_volatility(bars, h, pair))
+
+
+def _run_volatility(bars: pd.DataFrame, h: int, pair: str) -> dict:
     d = build(bars, max(h, 2))
     res = _walk(d, max(h, 2), "vol")
     if res.empty:
@@ -154,6 +177,10 @@ def run_volatility(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
 
 
 def predict_now(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
+    return clean(_predict_now(bars, h, pair))
+
+
+def _predict_now(bars: pd.DataFrame, h: int, pair: str) -> dict:
     d = build(bars, h)
     tr = d.dropna(subset=FEATURES + ["y"])
     tr = tr.iloc[: max(len(tr) - h, 0)]

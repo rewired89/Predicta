@@ -44,3 +44,12 @@ pl = {"candles": [{"complete": True, "time": "2026-01-02T22:00:00Z", "mid": {"o"
       "bid": {"c": "1.1499"}, "ask": {"c": "1.1501"}}, {"complete": False, "time": "2026-01-03T22:00:00Z"}]}
 rows = parse_candles(pl); assert len(rows) == 1 and abs(rows[0]["spread"] - 0.0002) < 1e-9
 print("FX tests OK")
+
+# 6) regression: the last h days have no known future; results must be JSON-safe (real-data crash 2026-11-06)
+import json
+for sd in (7, 8):
+    json.dumps(run_direction(make(4999, 0.0, sd), 5, "J"), allow_nan=False)
+    json.dumps(run_volatility(make(4999, 0.0, sd), 5, "J"), allow_nan=False)
+d2 = build(make(1500, 0.0, 9), 5)
+assert d2["y"].iloc[-5:].isna().all() and d2["y"].iloc[:-5].notna().all()
+print("FX json-safety OK")
