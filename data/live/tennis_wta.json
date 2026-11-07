@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-07T16:40:02.199115+00:00",
+  "fetched_at": "2026-11-07T20:34:11.224217+00:00",
   "data": {
     "leagues": [
       {
@@ -25301,17 +25301,17 @@
                 "date": "2026-11-07T16:35Z",
                 "startDate": "2026-11-07T16:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -25325,7 +25325,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(8) Bianca Andreescu (CAN) leads Leyre Romero Gormaz (ESP) 0-0",
+                    "text": "Leyre Romero Gormaz (ESP) bt (8) Bianca Andreescu (CAN) 7-6 (7-4) 6-3",
                     "type": "event"
                   }
                 ],
@@ -25339,10 +25339,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -25382,13 +25388,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 8
                     },
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -25423,11 +25435,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1007,
                 "type": {
                   "id": "2",
@@ -26794,32 +26801,37 @@
               {
                 "id": "186740",
                 "uid": "s:850~l:900~e:1007-2026~c:186740",
-                "date": "2026-11-07T18:00Z",
-                "startDate": "2026-11-07T18:00Z",
+                "date": "2026-11-07T18:05Z",
+                "startDate": "2026-11-07T18:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 7th at 1:00 PM EST",
-                    "shortDetail": "11/7 - 1:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
                   "fullName": "Cali, Colombia",
-                  "court": "Campo 1"
+                  "court": "Campo 3"
                 },
                 "format": {
                   "regulation": {
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Anna Rogers (USA) & Allura Zamarripa (USA) bt Maria Lourdes Carle (ARG) & Laura Pigossi (BRA) 7-6 (7-5) 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -26830,9 +26842,21 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Anna Rogers / Allura Zamarripa",
                       "shortDisplayName": "A. Rogers / A. Zamarripa",
@@ -26905,6 +26929,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Maria Lourdes Carle / Laura Pigossi",
                       "shortDisplayName": "M. Carle / L. Pigossi",
@@ -32421,17 +32457,17 @@
                 "date": "2026-11-07T15:05Z",
                 "startDate": "2026-11-07T15:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -32445,7 +32481,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(1) Anna Blinkova (FRA) is tied with Gina Feistel (POL) 5-7 4-2",
+                    "text": "(1) Anna Blinkova (FRA) bt Gina Feistel (POL) 5-7 6-4 6-2",
                     "type": "event"
                   }
                 ],
@@ -32459,14 +32495,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 7.0,
                         "winner": true
                       },
                       {
-                        "value": 2.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -32506,7 +32547,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
@@ -32516,7 +32557,12 @@
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -32551,11 +32597,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1082,
                 "type": {
                   "id": "2",
@@ -32642,16 +32683,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "2902",
+                    "uid": "s:850~l:900~a:2902",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "593f9215-e57e-b6d2-5985-26405c504503",
+                      "displayName": "Anna Blinkova",
+                      "shortName": "A. Blinkova",
+                      "fullName": "Anna Blinkova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2902/anna-blinkova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -35288,20 +35355,20 @@
               {
                 "id": "186705",
                 "uid": "s:850~l:900~e:1082-2026~c:186705",
-                "date": "2026-11-07T16:50Z",
-                "startDate": "2026-11-07T16:50Z",
+                "date": "2026-11-07T18:00Z",
+                "startDate": "2026-11-07T18:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 7th at 11:50 AM EST",
-                    "shortDetail": "11/7 - 11:50 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -35313,7 +35380,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Sada Nahimana (BDI) & Angella Okutoyi (KEN) bt (2) Martyna Kubka (POL) & Justina Mikulskyte (LTU) 6-4 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -35324,9 +35396,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Martyna Kubka / Justina Mikulskyte",
                       "shortDisplayName": "M. Kubka / J. Mikulskyte",
@@ -35399,6 +35482,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sada Nahimana / Angella Okutoyi",
                       "shortDisplayName": "S. Nahimana / A. Okutoyi",

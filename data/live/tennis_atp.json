@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-07T16:40:02.173670+00:00",
+  "fetched_at": "2026-11-07T20:34:11.186578+00:00",
   "data": {
     "leagues": [
       {
@@ -11671,17 +11671,17 @@
                 "date": "2026-11-07T16:25Z",
                 "startDate": "2026-11-07T16:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -11695,7 +11695,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Casper Ruud (NOR) leads (2) Carlos Alcaraz (ESP) 1-1",
+                    "text": "(2) Carlos Alcaraz (ESP) bt Casper Ruud (NOR) 6-4 6-4",
                     "type": "event"
                   }
                 ],
@@ -11709,13 +11709,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -11755,10 +11760,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -11793,11 +11803,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 13,
                 "type": {
                   "id": "1",
@@ -11813,9 +11818,9 @@
               {
                 "id": "186507",
                 "uid": "s:850~l:851~e:13-2026~c:186507",
-                "date": "2026-11-08T05:00Z",
-                "startDate": "2026-11-08T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-08T14:00Z",
+                "startDate": "2026-11-08T14:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -11825,13 +11830,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sun, November 8th at 9:00 AM EST",
+                    "shortDetail": "11/8 - 9:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Paris, France",
-                  "court": ""
+                  "court": "Court Central"
                 },
                 "format": {
                   "regulation": {
@@ -11844,16 +11849,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3782",
+                    "uid": "s:850~l:851~a:3782",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "07843754-8bdf-63b0-5983-24252738169e",
+                      "displayName": "Carlos Alcaraz",
+                      "shortName": "C. Alcaraz",
+                      "fullName": "Carlos Alcaraz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3782/carlos-alcaraz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -17461,20 +17492,20 @@
               {
                 "id": "186520",
                 "uid": "s:850~l:851~e:13-2026~c:186520",
-                "date": "2026-11-07T17:30Z",
-                "startDate": "2026-11-07T17:30Z",
+                "date": "2026-11-07T18:15Z",
+                "startDate": "2026-11-07T18:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 7th at 12:30 PM EST",
-                    "shortDetail": "11/7 - 12:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -17486,7 +17517,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Quentin Halys (FRA) & Pierre-Hugues Herbert (FRA) bt (1) Harri Heliovaara (FIN) & Henry Patten (GBR) 6-4 7-6 (7-3)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -17497,6 +17533,18 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Quentin Halys / Pierre-Hugues Herbert",
                       "shortDisplayName": "Q. Halys / P. Herbert",
@@ -17569,9 +17617,21 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Harri Heliovaara / Henry Patten",
                       "shortDisplayName": "H. Heliovaara / H. Patten",
@@ -17654,9 +17714,9 @@
               {
                 "id": "186517",
                 "uid": "s:850~l:851~e:13-2026~c:186517",
-                "date": "2026-11-08T05:00Z",
-                "startDate": "2026-11-08T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-08T11:30Z",
+                "startDate": "2026-11-08T11:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -17666,13 +17726,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sun, November 8th at 6:30 AM EST",
+                    "shortDetail": "11/8 - 6:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Paris, France",
-                  "court": ""
+                  "court": "Court Central"
                 },
                 "format": {
                   "regulation": {
@@ -17760,26 +17820,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "2362-1613",
+                    "uid": "s:850~l:851~t:2362-1613",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Quentin Halys / Pierre-Hugues Herbert",
+                      "shortDisplayName": "Q. Halys / P. Herbert",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "b3d58fa1-ed92-b1ea-89e6-11e2d9c3ac6a",
+                          "displayName": "Quentin Halys",
+                          "shortName": "Q. Halys",
+                          "fullName": "Quentin Halys",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2362/quentin-halys",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "8ca87ada-8709-c82f-7294-510f00cd8c6f",
+                          "displayName": "Pierre-Hugues Herbert",
+                          "shortName": "P. Herbert",
+                          "fullName": "Pierre-Hugues Herbert",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1613/pierre-hugues-herbert",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -18865,17 +18971,17 @@
                 "date": "2026-11-07T14:30Z",
                 "startDate": "2026-11-07T14:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 7th at 9:30 AM EST",
-                    "shortDetail": "11/7 - 9:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -18887,7 +18993,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Adrian Mannarino (FRA) bt Jan Simonsson (SWE) 6-4 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -18898,6 +19009,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "df1f5783-1d23-32ba-92df-70fb93d65a70",
                       "displayName": "Jan Simonsson",
@@ -18935,6 +19057,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "dbc865c9-ab39-49ff-dbb3-895a876665d3",
                       "displayName": "Adrian Mannarino",
@@ -18985,17 +19118,17 @@
                 "date": "2026-11-07T14:30Z",
                 "startDate": "2026-11-07T14:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 7th at 9:30 AM EST",
-                    "shortDetail": "11/7 - 9:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -19007,7 +19140,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Jacob Fearnley (GBR) bt Arthur Nagel (FRA) 6-0 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -19018,6 +19156,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "dc9f2db4-bd8a-37a4-80cd-7b03fc4bcded",
                       "displayName": "Arthur Nagel",
@@ -19055,6 +19204,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "dbf5766d-f283-30f0-8b52-778dd47c684d",
                       "displayName": "Jacob Fearnley",
@@ -19410,16 +19570,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "1266",
+                    "uid": "s:850~l:851~a:1266",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "dbc865c9-ab39-49ff-dbb3-895a876665d3",
+                      "displayName": "Adrian Mannarino",
+                      "shortName": "A. Mannarino",
+                      "fullName": "Adrian Mannarino",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1266/adrian-mannarino",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -19507,16 +19690,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
+                    "id": "11685",
+                    "uid": "s:850~l:851~a:11685",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "dbf5766d-f283-30f0-8b52-778dd47c684d",
+                      "displayName": "Jacob Fearnley",
+                      "shortName": "J. Fearnley",
+                      "fullName": "Jacob Fearnley",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                        "alt": "Great Britain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/11685/jacob-fearnley",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
