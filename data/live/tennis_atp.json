@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-08T16:48:41.711816+00:00",
+  "fetched_at": "2026-11-08T20:48:27.654191+00:00",
   "data": {
     "leagues": [
       {
@@ -19933,17 +19933,17 @@
                 "date": "2026-11-08T15:40Z",
                 "startDate": "2026-11-08T15:40Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -19957,7 +19957,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Elias Ymer (SWE) leads Juan Manuel Cerundolo (ARG) 1-6 4-4",
+                    "text": "Juan Manuel Cerundolo (ARG) bt Elias Ymer (SWE) 6-1 7-6 (7-4)",
                     "type": "event"
                   }
                 ],
@@ -19971,14 +19971,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 4.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -20018,14 +20020,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 1.0,
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -20060,11 +20064,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 148,
                 "type": {
                   "id": "1",
@@ -20080,20 +20079,20 @@
               {
                 "id": "186528",
                 "uid": "s:850~l:851~e:148-2026~c:186528",
-                "date": "2026-11-08T17:00Z",
-                "startDate": "2026-11-08T17:00Z",
+                "date": "2026-11-08T17:35Z",
+                "startDate": "2026-11-08T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 8th at 12:00 PM EST",
-                    "shortDetail": "11/8 - 12:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -20105,7 +20104,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Thiago Agustin Tirante (ARG) bt Jaume Munar (ESP) 7-6 (7-3) 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -20116,6 +20120,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "cecb9d28-c424-9d69-b7cd-9018460d5aff",
                       "displayName": "Jaume Munar",
@@ -20153,6 +20169,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "d7013896-f27c-1590-01c8-3df0a2781e16",
                       "displayName": "Thiago Agustin Tirante",
@@ -21060,16 +21088,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "4010",
+                    "uid": "s:850~l:851~a:4010",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "d7013896-f27c-1590-01c8-3df0a2781e16",
+                      "displayName": "Thiago Agustin Tirante",
+                      "shortName": "T. Tirante",
+                      "fullName": "Thiago Agustin Tirante",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4010/thiago-agustin-tirante",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -22065,16 +22116,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "4008",
+                    "uid": "s:850~l:851~a:4008",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "cede1b70-c5c9-9e18-9df8-47bde545ddd4",
+                      "displayName": "Juan Manuel Cerundolo",
+                      "shortName": "J. Cerundolo",
+                      "fullName": "Juan Manuel Cerundolo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4008/juan-manuel-cerundolo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -22865,17 +22939,17 @@
                 "date": "2026-11-08T16:15Z",
                 "startDate": "2026-11-08T16:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -22889,7 +22963,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Adam Pavlasek (CZE) & Patrik Rikl (CZE) leads (3) Jakob Schnaitter (GER) & Mark Wallner (GER) 5-4",
+                    "text": "Adam Pavlasek (CZE) & Patrik Rikl (CZE) bt (3) Jakob Schnaitter (GER) & Mark Wallner (GER) 6-4 6-3",
                     "type": "event"
                   }
                 ],
@@ -22903,10 +22977,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -22981,13 +23060,18 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
                     "linescores": [
                       {
-                        "value": 4.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -23057,11 +23141,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 148,
                 "type": {
                   "id": "3",
@@ -23753,26 +23832,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "2842-3159",
+                    "uid": "s:850~l:851~t:2842-3159",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Adam Pavlasek / Patrik Rikl",
+                      "shortDisplayName": "A. Pavlasek / P. Rikl",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "9f23adb6-690b-7ff5-c283-7a773f6d32b4",
+                          "displayName": "Adam Pavlasek",
+                          "shortName": "A. Pavlasek",
+                          "fullName": "Adam Pavlasek",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2842/adam-pavlasek",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "9ae13b77-5a08-751e-8c14-f92a645a3709",
+                          "displayName": "Patrik Rikl",
+                          "shortName": "P. Rikl",
+                          "fullName": "Patrik Rikl",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3159/patrik-rikl",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
