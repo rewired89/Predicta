@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-10T18:20:30.502860+00:00",
+  "fetched_at": "2026-11-10T21:59:32.486586+00:00",
   "data": {
     "leagues": [
       {
@@ -1034,20 +1034,20 @@
               {
                 "id": "187372",
                 "uid": "s:850~l:900~e:382-2026~c:187372",
-                "date": "2026-11-10T20:00Z",
-                "startDate": "2026-11-10T20:00Z",
+                "date": "2026-11-10T20:15Z",
+                "startDate": "2026-11-10T20:15Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, November 10th at 3:00 PM EST",
-                    "shortDetail": "11/10 - 3:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -1059,7 +1059,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Jessica Pegula (USA) bt (9) Marta Kostyuk (UKR) 6-2 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -1070,9 +1075,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "63f9c1e5-14bd-003f-c269-31543931ad1d",
                       "displayName": "Jessica Pegula",
@@ -1110,9 +1126,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 9
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "16648ecb-3a46-7021-7d78-c6d56b134745",
                       "displayName": "Marta Kostyuk",
@@ -1160,10 +1187,10 @@
               {
                 "id": "187375",
                 "uid": "s:850~l:900~e:382-2026~c:187375",
-                "date": "2026-11-10T21:30Z",
-                "startDate": "2026-11-10T21:30Z",
+                "date": "2026-11-10T22:00Z",
+                "startDate": "2026-11-10T22:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -1172,8 +1199,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Tue, November 10th at 4:30 PM EST",
-                    "shortDetail": "11/10 - 4:30 PM EST"
+                    "detail": "Tue, November 10th at 5:00 PM EST",
+                    "shortDetail": "11/10 - 5:00 PM EST"
                   }
                 },
                 "venue": {
@@ -7495,17 +7522,17 @@
                 "date": "2026-11-10T17:30Z",
                 "startDate": "2026-11-10T17:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -7519,7 +7546,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Katrina Scott (USA) leads Andrea Lazaro Garcia (ESP) 6-6",
+                    "text": "Andrea Lazaro Garcia (ESP) bt Katrina Scott (USA) 6-7 (3-7) 7-5 6-4",
                     "type": "event"
                   }
                 ],
@@ -7533,9 +7560,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -7575,9 +7613,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -7630,17 +7679,17 @@
                 "date": "2026-11-10T17:55Z",
                 "startDate": "2026-11-10T17:55Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -7654,7 +7703,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(3) Bianca Andreescu (CAN) leads Rebeka Masarova (SUI) 2-2",
+                    "text": "(3) Bianca Andreescu (CAN) bt Rebeka Masarova (SUI) 3-6 6-3 6-4",
                     "type": "event"
                   }
                 ],
@@ -7668,10 +7717,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -7711,13 +7769,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -7752,11 +7819,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "2",
@@ -7775,17 +7837,17 @@
                 "date": "2026-11-10T18:20Z",
                 "startDate": "2026-11-10T18:20Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, November 10th at 1:20 PM EST",
-                    "shortDetail": "11/10 - 1:20 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -7797,7 +7859,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Jazmin Ortenzi (ARG) bt Maria Camila Torres Murcia (COL) 6-2 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -7808,6 +7875,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "3e9bdf95-4f83-3e83-a7d0-4c7ca86e41f3",
                       "displayName": "Maria Camila Torres Murcia",
@@ -7845,6 +7923,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "9dff472e-f004-3a98-b3fc-0900f6b4de41",
                       "displayName": "Jazmin Ortenzi",
@@ -7892,32 +7981,37 @@
               {
                 "id": "186757",
                 "uid": "s:850~l:900~e:1084-2026~c:186757",
-                "date": "2026-11-10T19:00Z",
-                "startDate": "2026-11-10T19:00Z",
+                "date": "2026-11-10T19:55Z",
+                "startDate": "2026-11-10T19:55Z",
                 "timeValid": true,
                 "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, November 10th at 2:00 PM EST",
-                    "shortDetail": "11/10 - 2:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": "Court 1"
+                  "court": "Court 2"
                 },
                 "format": {
                   "regulation": {
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Carolina Alves (BRA) leads (5) Laura Samson (CZE) 7-6 (7-3) 5-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -7928,6 +8022,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "e8ee6b8e-543a-3067-b284-ae317dffb434",
                       "displayName": "Carolina Alves",
@@ -7965,9 +8070,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
                       "displayName": "Laura Samson",
@@ -8000,6 +8116,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "2",
@@ -8015,20 +8136,20 @@
               {
                 "id": "186759",
                 "uid": "s:850~l:900~e:1084-2026~c:186759",
-                "date": "2026-11-10T19:15Z",
-                "startDate": "2026-11-10T19:15Z",
+                "date": "2026-11-10T20:30Z",
+                "startDate": "2026-11-10T20:30Z",
                 "timeValid": true,
                 "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Tue, November 10th at 2:15 PM EST",
-                    "shortDetail": "11/10 - 2:15 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -8040,7 +8161,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Valentina Mediorreal Arias (COL) is tied with Maria Lourdes Carle (ARG) 3-6 4-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -8051,6 +8177,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "97a902df-1c85-336b-8858-0496b023b3dc",
                       "displayName": "Valentina Mediorreal Arias",
@@ -8088,6 +8224,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
                       "displayName": "Maria Lourdes Carle",
@@ -8120,6 +8266,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "2",
@@ -8133,11 +8284,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "186762",
-                "uid": "s:850~l:900~e:1084-2026~c:186762",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
+                "id": "186760",
+                "uid": "s:850~l:900~e:1084-2026~c:186760",
+                "date": "2026-11-11T15:00Z",
+                "startDate": "2026-11-11T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -8147,13 +8298,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Wed, November 11th at 10:00 AM EST",
+                    "shortDetail": "11/11 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 2"
                 },
                 "format": {
                   "regulation": {
@@ -8166,22 +8317,19 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "2599",
-                    "uid": "s:850~l:900~a:2599",
+                    "id": "5746",
+                    "uid": "s:850~l:900~a:5746",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "curatedRank": {
-                      "current": 4
-                    },
                     "athlete": {
-                      "guid": "2d0dd3a6-dcc1-2e9b-17ea-acf966691534",
-                      "displayName": "Julia Grabher",
-                      "shortName": "J. Grabher",
-                      "fullName": "Julia Grabher",
+                      "guid": "9dff472e-f004-3a98-b3fc-0900f6b4de41",
+                      "displayName": "Jazmin Ortenzi",
+                      "shortName": "J. Ortenzi",
+                      "fullName": "Jazmin Ortenzi",
                       "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
-                        "alt": "Austria",
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
                         "rel": [
                           "country-flag"
                         ]
@@ -8194,7 +8342,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2599/julia-grabher",
+                          "href": "https://www.espn.com/tennis/player/_/id/5746/jazmin-ortenzi",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -8206,16 +8354,16 @@
                     "statistics": []
                   },
                   {
-                    "id": "4546",
-                    "uid": "s:850~l:900~a:4546",
+                    "id": "4291",
+                    "uid": "s:850~l:900~a:4291",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
-                      "displayName": "Irene Burillo",
-                      "shortName": "I. Burillo",
-                      "fullName": "Irene Burillo",
+                      "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
+                      "displayName": "Andrea Lazaro Garcia",
+                      "shortName": "A. Lazaro Garcia",
+                      "fullName": "Andrea Lazaro Garcia",
                       "flag": {
                         "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
                         "alt": "Spain",
@@ -8231,7 +8379,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
+                          "href": "https://www.espn.com/tennis/player/_/id/4291/andrea-lazaro-garcia",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -8256,11 +8404,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "186760",
-                "uid": "s:850~l:900~e:1084-2026~c:186760",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
+                "id": "186766",
+                "uid": "s:850~l:900~e:1084-2026~c:186766",
+                "date": "2026-11-11T15:00Z",
+                "startDate": "2026-11-11T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -8270,13 +8418,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Wed, November 11th at 10:00 AM EST",
+                    "shortDetail": "11/11 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 1"
                 },
                 "format": {
                   "regulation": {
@@ -8289,30 +8437,76 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "5299",
+                    "uid": "s:850~l:900~a:5299",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "8ae7596e-be40-3f15-b307-e71734a3fece",
+                      "displayName": "Carole Monnet",
+                      "shortName": "C. Monnet",
+                      "fullName": "Carole Monnet",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                        "alt": "France",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5299/carole-monnet",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "1095",
+                    "uid": "s:850~l:900~a:1095",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "aeb4f263-714c-9587-d0d4-c8c2fa30a6fc",
+                      "displayName": "Polona Hercog",
+                      "shortName": "P. Hercog",
+                      "fullName": "Polona Hercog",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                        "alt": "Slovenia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1095/polona-hercog",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -8332,9 +8526,9 @@
               {
                 "id": "186767",
                 "uid": "s:850~l:900~e:1084-2026~c:186767",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-11T15:00Z",
+                "startDate": "2026-11-11T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -8344,13 +8538,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Wed, November 11th at 10:00 AM EST",
+                    "shortDetail": "11/11 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -8453,11 +8647,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "186766",
-                "uid": "s:850~l:900~e:1084-2026~c:186766",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
+                "id": "186762",
+                "uid": "s:850~l:900~e:1084-2026~c:186762",
+                "date": "2026-11-11T16:30Z",
+                "startDate": "2026-11-11T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -8467,13 +8661,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Wed, November 11th at 11:30 AM EST",
+                    "shortDetail": "11/11 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 2"
                 },
                 "format": {
                   "regulation": {
@@ -8486,236 +8680,56 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "5299",
-                    "uid": "s:850~l:900~a:5299",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "8ae7596e-be40-3f15-b307-e71734a3fece",
-                      "displayName": "Carole Monnet",
-                      "shortName": "C. Monnet",
-                      "fullName": "Carole Monnet",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
-                        "alt": "France",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/5299/carole-monnet",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "1095",
-                    "uid": "s:850~l:900~a:1095",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "guid": "aeb4f263-714c-9587-d0d4-c8c2fa30a6fc",
-                      "displayName": "Polona Hercog",
-                      "shortName": "P. Hercog",
-                      "fullName": "Polona Hercog",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
-                        "alt": "Slovenia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/1095/polona-hercog",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186765",
-                "uid": "s:850~l:900~e:1084-2026~c:186765",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "2177",
-                    "uid": "s:850~l:900~a:2177",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "f0ca7d87-6d7b-69d7-c474-dbda6125ccf6",
-                      "displayName": "Laura Pigossi",
-                      "shortName": "L. Pigossi",
-                      "fullName": "Laura Pigossi",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
-                        "alt": "Brazil",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2177/laura-pigossi",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186764",
-                "uid": "s:850~l:900~e:1084-2026~c:186764",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "8690",
-                    "uid": "s:850~l:900~a:8690",
+                    "id": "2599",
+                    "uid": "s:850~l:900~a:2599",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "curatedRank": {
-                      "current": 6
+                      "current": 4
                     },
                     "athlete": {
-                      "guid": "c71004f4-a02e-3ae8-8a48-016f9bd0e0de",
-                      "displayName": "Marina Bassols Ribera",
-                      "shortName": "M. Bassols Ribera",
-                      "fullName": "Marina Bassols Ribera",
+                      "guid": "2d0dd3a6-dcc1-2e9b-17ea-acf966691534",
+                      "displayName": "Julia Grabher",
+                      "shortName": "J. Grabher",
+                      "fullName": "Julia Grabher",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/aut.png",
+                        "alt": "Austria",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2599/julia-grabher",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "4546",
+                    "uid": "s:850~l:900~a:4546",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
+                      "displayName": "Irene Burillo",
+                      "shortName": "I. Burillo",
+                      "fullName": "Irene Burillo",
                       "flag": {
                         "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
                         "alt": "Spain",
@@ -8731,7 +8745,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/8690/marina-bassols-ribera",
+                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -8739,117 +8753,6 @@
                           "isHidden": false
                         }
                       ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186763",
-                "uid": "s:850~l:900~e:1084-2026~c:186763",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "14562",
-                    "uid": "s:850~l:900~a:14562",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "837eea7d-01b3-3b35-8269-c244930bf14c",
-                      "displayName": "Sofia Costoulas",
-                      "shortName": "S. Costoulas",
-                      "fullName": "Sofia Costoulas",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
-                        "alt": "Belgium",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/14562/sofia-costoulas",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
                     },
                     "statistics": []
                   }
@@ -8869,9 +8772,9 @@
               {
                 "id": "186761",
                 "uid": "s:850~l:900~e:1084-2026~c:186761",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-11T16:30Z",
+                "startDate": "2026-11-11T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -8881,13 +8784,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Wed, November 11th at 11:30 AM EST",
+                    "shortDetail": "11/11 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -8990,8 +8893,328 @@
                 "wasSuspended": false
               },
               {
-                "id": "186770",
-                "uid": "s:850~l:900~e:1084-2026~c:186770",
+                "id": "186763",
+                "uid": "s:850~l:900~e:1084-2026~c:186763",
+                "date": "2026-11-11T16:30Z",
+                "startDate": "2026-11-11T16:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Wed, November 11th at 11:30 AM EST",
+                    "shortDetail": "11/11 - 11:30 AM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": "Court 1"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "14562",
+                    "uid": "s:850~l:900~a:14562",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "837eea7d-01b3-3b35-8269-c244930bf14c",
+                      "displayName": "Sofia Costoulas",
+                      "shortName": "S. Costoulas",
+                      "fullName": "Sofia Costoulas",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/14562/sofia-costoulas",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186764",
+                "uid": "s:850~l:900~e:1084-2026~c:186764",
+                "date": "2026-11-11T18:00Z",
+                "startDate": "2026-11-11T18:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Wed, November 11th at 1:00 PM EST",
+                    "shortDetail": "11/11 - 1:00 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": "Main Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "8690",
+                    "uid": "s:850~l:900~a:8690",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
+                    "athlete": {
+                      "guid": "c71004f4-a02e-3ae8-8a48-016f9bd0e0de",
+                      "displayName": "Marina Bassols Ribera",
+                      "shortName": "M. Bassols Ribera",
+                      "fullName": "Marina Bassols Ribera",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8690/marina-bassols-ribera",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186765",
+                "uid": "s:850~l:900~e:1084-2026~c:186765",
+                "date": "2026-11-11T18:00Z",
+                "startDate": "2026-11-11T18:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Wed, November 11th at 1:00 PM EST",
+                    "shortDetail": "11/11 - 1:00 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": "Court 1"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "2177",
+                    "uid": "s:850~l:900~a:2177",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "f0ca7d87-6d7b-69d7-c474-dbda6125ccf6",
+                      "displayName": "Laura Pigossi",
+                      "shortName": "L. Pigossi",
+                      "fullName": "Laura Pigossi",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                        "alt": "Brazil",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2177/laura-pigossi",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "2979",
+                    "uid": "s:850~l:900~a:2979",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "athlete": {
+                      "guid": "6fd6b28f-61b2-9ac1-4a0e-cd5bd4a3aa20",
+                      "displayName": "Bianca Andreescu",
+                      "shortName": "B. Andreescu",
+                      "fullName": "Bianca Andreescu",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                        "alt": "Canada",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2979/bianca-andreescu",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186768",
+                "uid": "s:850~l:900~e:1084-2026~c:186768",
                 "date": "2026-11-12T05:00Z",
                 "startDate": "2026-11-12T05:00Z",
                 "timeValid": false,
@@ -9138,6 +9361,80 @@
                 "wasSuspended": false
               },
               {
+                "id": "186770",
+                "uid": "s:850~l:900~e:1084-2026~c:186770",
+                "date": "2026-11-12T05:00Z",
+                "startDate": "2026-11-12T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "-4",
+                    "uid": "s:850~l:900~a:-4",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
                 "id": "186769",
                 "uid": "s:850~l:900~e:1084-2026~c:186769",
                 "date": "2026-11-12T05:00Z",
@@ -9212,82 +9509,8 @@
                 "wasSuspended": false
               },
               {
-                "id": "186768",
-                "uid": "s:850~l:900~e:1084-2026~c:186768",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186773",
-                "uid": "s:850~l:900~e:1084-2026~c:186773",
+                "id": "186774",
+                "uid": "s:850~l:900~e:1084-2026~c:186774",
                 "date": "2026-11-13T05:00Z",
                 "startDate": "2026-11-13T05:00Z",
                 "timeValid": false,
@@ -9360,8 +9583,8 @@
                 "wasSuspended": false
               },
               {
-                "id": "186774",
-                "uid": "s:850~l:900~e:1084-2026~c:186774",
+                "id": "186773",
+                "uid": "s:850~l:900~e:1084-2026~c:186773",
                 "date": "2026-11-13T05:00Z",
                 "startDate": "2026-11-13T05:00Z",
                 "timeValid": false,
@@ -9517,158 +9740,10 @@
             },
             "competitions": [
               {
-                "id": "186779",
-                "uid": "s:850~l:900~e:1084-2026~c:186779",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186778",
-                "uid": "s:850~l:900~e:1084-2026~c:186778",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "186777",
                 "uid": "s:850~l:900~e:1084-2026~c:186777",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
+                "date": "2026-11-12T05:00Z",
+                "startDate": "2026-11-12T05:00Z",
                 "timeValid": false,
                 "recent": false,
                 "status": {
@@ -9739,82 +9814,8 @@
                 "wasSuspended": false
               },
               {
-                "id": "186776",
-                "uid": "s:850~l:900~e:1084-2026~c:186776",
-                "date": "2026-11-11T05:00Z",
-                "startDate": "2026-11-11T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186775",
-                "uid": "s:850~l:900~e:1084-2026~c:186775",
+                "id": "186781",
+                "uid": "s:850~l:900~e:1084-2026~c:186781",
                 "date": "2026-11-12T05:00Z",
                 "startDate": "2026-11-12T05:00Z",
                 "timeValid": false,
@@ -9887,8 +9888,230 @@
                 "wasSuspended": false
               },
               {
-                "id": "186781",
-                "uid": "s:850~l:900~e:1084-2026~c:186781",
+                "id": "186779",
+                "uid": "s:850~l:900~e:1084-2026~c:186779",
+                "date": "2026-11-12T05:00Z",
+                "startDate": "2026-11-12T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "-4",
+                    "uid": "s:850~l:900~a:-4",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186778",
+                "uid": "s:850~l:900~e:1084-2026~c:186778",
+                "date": "2026-11-12T05:00Z",
+                "startDate": "2026-11-12T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "-4",
+                    "uid": "s:850~l:900~a:-4",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186776",
+                "uid": "s:850~l:900~e:1084-2026~c:186776",
+                "date": "2026-11-12T05:00Z",
+                "startDate": "2026-11-12T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "-4",
+                    "uid": "s:850~l:900~a:-4",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186775",
+                "uid": "s:850~l:900~e:1084-2026~c:186775",
                 "date": "2026-11-12T05:00Z",
                 "startDate": "2026-11-12T05:00Z",
                 "timeValid": false,
