@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-09T21:09:46.139878+00:00",
+  "fetched_at": "2026-11-10T00:27:44.420260+00:00",
   "data": {
     "leagues": [
       {
@@ -3231,17 +3231,17 @@
                 "date": "2026-11-09T20:00Z",
                 "startDate": "2026-11-09T20:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3255,7 +3255,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Toby Samuel (GBR) leads Leo Borg (SWE) 6-3 5-2",
+                    "text": "Toby Samuel (GBR) bt Leo Borg (SWE) 6-3 6-2",
                     "type": "event"
                   }
                 ],
@@ -3269,14 +3269,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -3316,14 +3317,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 3.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3358,11 +3360,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 148,
                 "type": {
                   "id": "1",
@@ -4138,16 +4135,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "10645",
+                    "uid": "s:850~l:851~a:10645",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6e1d3d0c-3766-37e5-be13-596245f579ff",
+                      "displayName": "Toby Samuel",
+                      "shortName": "T. Samuel",
+                      "fullName": "Toby Samuel",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                        "alt": "Great Britain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10645/toby-samuel",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
