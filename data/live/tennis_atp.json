@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-11T18:10:20.398968+00:00",
+  "fetched_at": "2026-11-11T23:08:06.569946+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-10T16:13Z"
+            "lastUpdated": "2026-11-11T08:25Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-10T16:13Z"
+            "lastUpdated": "2026-11-11T08:25Z"
           }
         ],
         "calendarType": "day",
@@ -4873,17 +4873,17 @@
                 "date": "2026-11-11T17:05Z",
                 "startDate": "2026-11-11T17:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4897,7 +4897,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Casper Ruud (NOR) leads Aleksandr Shevchenko (KAZ) 7-6 (7-5)",
+                    "text": "Aleksandr Shevchenko (KAZ) bt (2) Casper Ruud (NOR) 6-7 (5-7) 6-4 6-3",
                     "type": "event"
                   }
                 ],
@@ -4911,13 +4911,23 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
                         "value": 7.0,
-                        "tiebreak": 7
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4957,10 +4967,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
-                        "tiebreak": 5
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -5010,20 +5030,20 @@
               {
                 "id": "186544",
                 "uid": "s:850~l:851~e:148-2026~c:186544",
-                "date": "2026-11-11T18:30Z",
-                "startDate": "2026-11-11T18:30Z",
+                "date": "2026-11-11T19:45Z",
+                "startDate": "2026-11-11T19:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 11th at 1:30 PM EST",
-                    "shortDetail": "11/11 - 1:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5035,7 +5055,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Holger Rune (DEN) bt Miomir Kecmanovic (SER) 2-6 6-1 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5046,6 +5071,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "b147e841-a236-2e4b-5f4d-01bdba396310",
                       "displayName": "Holger Rune",
@@ -5083,6 +5123,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "6972f310-caca-a4fc-3e06-78b5cefa7387",
                       "displayName": "Miomir Kecmanovic",
@@ -5287,16 +5342,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "8710",
+                    "uid": "s:850~l:851~a:8710",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "de169e60-0a75-3e19-944b-9b685744b9ce",
+                      "displayName": "Aleksandr Shevchenko",
+                      "shortName": "A. Shevchenko",
+                      "fullName": "Aleksandr Shevchenko",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/kaz.png",
+                        "alt": "Kazakhstan",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8710/aleksandr-shevchenko",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -5384,16 +5462,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3659",
+                    "uid": "s:850~l:851~a:3659",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b147e841-a236-2e4b-5f4d-01bdba396310",
+                      "displayName": "Holger Rune",
+                      "shortName": "H. Rune",
+                      "fullName": "Holger Rune",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/den.png",
+                        "alt": "Denmark",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3659/holger-rune",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -7810,17 +7911,17 @@
                 "date": "2026-11-11T16:35Z",
                 "startDate": "2026-11-11T16:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -7834,7 +7935,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Hendrik Jebens (GER) & Ryan Seggerman (USA) leads Erik Grevelius (SWE) & Adam Heinonen (SWE) 4-6 7-6 (12-10) 0-0 (0-1)",
+                    "text": "Erik Grevelius (SWE) & Adam Heinonen (SWE) bt Hendrik Jebens (GER) & Ryan Seggerman (USA) 6-4 6-7 (10-12) 1-0 (10-6)",
                     "type": "event"
                   }
                 ],
@@ -7848,6 +7949,7 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
@@ -7859,8 +7961,9 @@
                         "winner": false
                       },
                       {
-                        "value": 0.0,
-                        "tiebreak": 1
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -7935,6 +8038,7 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 4.0,
@@ -7947,7 +8051,8 @@
                       },
                       {
                         "value": 0.0,
-                        "tiebreak": 0
+                        "tiebreak": 6,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -8590,30 +8695,100 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:851~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:851~a:-3",
-                    "type": "athlete",
+                    "id": "16096-16066",
+                    "uid": "s:850~l:851~t:16096-16066",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "Erik Grevelius / Adam Heinonen",
+                      "shortDisplayName": "E. Grevelius / A. Heinonen",
+                      "athletes": [
+                        {
+                          "guid": "74a0123b-0b70-3bfd-a01b-5aae4b7b24b0",
+                          "displayName": "Erik Grevelius",
+                          "shortName": "E. Grevelius",
+                          "fullName": "Erik Grevelius",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/swe.png",
+                            "alt": "Sweden",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16096/erik-grevelius",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "54a66b3d-ca78-3a7e-b6ff-8d28b82b68ad",
+                          "displayName": "Adam Heinonen",
+                          "shortName": "A. Heinonen",
+                          "fullName": "Adam Heinonen",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/swe.png",
+                            "alt": "Sweden",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16066/adam-heinonen",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }

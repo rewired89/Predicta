@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-11T18:10:20.413380+00:00",
+  "fetched_at": "2026-11-11T23:08:06.583388+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-10T16:13Z"
+            "lastUpdated": "2026-11-11T08:25Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-10T16:13Z"
+            "lastUpdated": "2026-11-11T08:25Z"
           }
         ],
         "calendarType": "day",
@@ -1340,20 +1340,20 @@
               {
                 "id": "187385",
                 "uid": "s:850~l:900~e:382-2026~c:187385",
-                "date": "2026-11-11T20:00Z",
-                "startDate": "2026-11-11T20:00Z",
+                "date": "2026-11-11T20:10Z",
+                "startDate": "2026-11-11T20:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 11th at 3:00 PM EST",
-                    "shortDetail": "11/11 - 3:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -1365,7 +1365,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Elina Svitolina (UKR) bt (7) Karolina Muchova (CZE) 3-6 6-2 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -1376,9 +1381,24 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "cc2cea69-f75c-09ea-f698-55b98e0a5b97",
                       "displayName": "Karolina Muchova",
@@ -1416,9 +1436,24 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "33125b01-8f6a-90c1-1c46-141cca252e50",
                       "displayName": "Elina Svitolina",
@@ -1466,20 +1501,20 @@
               {
                 "id": "187378",
                 "uid": "s:850~l:900~e:382-2026~c:187378",
-                "date": "2026-11-11T21:30Z",
-                "startDate": "2026-11-11T21:30Z",
+                "date": "2026-11-11T22:35Z",
+                "startDate": "2026-11-11T22:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 11th at 4:30 PM EST",
-                    "shortDetail": "11/11 - 4:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -1491,7 +1526,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Aryna Sabalenka (BLR) leads (3) Mirra Andreeva (RUS) 4-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -1502,9 +1542,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "734dd570-209d-349d-8de8-7ce7c9206163",
                       "displayName": "Mirra Andreeva",
@@ -1542,9 +1588,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "c91d133a-526a-ea8d-654c-7ef6915ad63b",
                       "displayName": "Aryna Sabalenka",
@@ -1577,6 +1629,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 382,
                 "type": {
                   "id": "2",
@@ -3699,10 +3756,10 @@
               {
                 "id": "187377",
                 "uid": "s:850~l:900~e:382-2026~c:187377",
-                "date": "2026-11-11T23:00Z",
-                "startDate": "2026-11-11T23:00Z",
+                "date": "2026-11-11T23:45Z",
+                "startDate": "2026-11-11T23:45Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -3711,8 +3768,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Wed, November 11th at 6:00 PM EST",
-                    "shortDetail": "11/11 - 6:00 PM EST"
+                    "detail": "Wed, November 11th at 6:45 PM EST",
+                    "shortDetail": "11/11 - 6:45 PM EST"
                   }
                 },
                 "venue": {
@@ -3895,8 +3952,8 @@
               {
                 "id": "187388",
                 "uid": "s:850~l:900~e:382-2026~c:187388",
-                "date": "2026-11-12T00:30Z",
-                "startDate": "2026-11-12T00:30Z",
+                "date": "2026-11-12T01:00Z",
+                "startDate": "2026-11-12T01:00Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -3907,8 +3964,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Wed, November 11th at 7:30 PM EST",
-                    "shortDetail": "11/11 - 7:30 PM EST"
+                    "detail": "Wed, November 11th at 8:00 PM EST",
+                    "shortDetail": "11/11 - 8:00 PM EST"
                   }
                 },
                 "venue": {
@@ -8997,17 +9054,17 @@
                 "date": "2026-11-11T16:55Z",
                 "startDate": "2026-11-11T16:55Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9021,7 +9078,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Elizabeth Mandlik (USA) leads (8) Lucia Bronzetti (ITA) 7-6 (7-5)",
+                    "text": "Elizabeth Mandlik (USA) bt (8) Lucia Bronzetti (ITA) 7-6 (7-5) 6-3",
                     "type": "event"
                   }
                 ],
@@ -9035,10 +9092,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 7.0,
-                        "tiebreak": 7
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -9078,13 +9141,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 8
                     },
                     "linescores": [
                       {
                         "value": 6.0,
-                        "tiebreak": 5
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -9137,17 +9206,17 @@
                 "date": "2026-11-11T17:35Z",
                 "startDate": "2026-11-11T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9161,7 +9230,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Irene Burillo (ESP) leads (4) Julia Grabher (AUT) 4-3",
+                    "text": "Irene Burillo (ESP) bt (4) Julia Grabher (AUT) 7-5 7-6 (7-4)",
                     "type": "event"
                   }
                 ],
@@ -9175,13 +9244,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 4
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -9221,10 +9296,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 4.0
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -9259,11 +9340,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "2",
@@ -9282,17 +9358,17 @@
                 "date": "2026-11-11T17:50Z",
                 "startDate": "2026-11-11T17:50Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9306,7 +9382,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(3) Bianca Andreescu (CAN) leads Laura Pigossi (BRA) 2-1",
+                    "text": "(3) Bianca Andreescu (CAN) bt Laura Pigossi (BRA) 6-1 7-5",
                     "type": "event"
                   }
                 ],
@@ -9320,10 +9396,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -9363,13 +9444,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -9404,11 +9490,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "2",
@@ -9424,20 +9505,20 @@
               {
                 "id": "186764",
                 "uid": "s:850~l:900~e:1084-2026~c:186764",
-                "date": "2026-11-11T18:25Z",
-                "startDate": "2026-11-11T18:25Z",
+                "date": "2026-11-11T19:05Z",
+                "startDate": "2026-11-11T19:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 11th at 1:25 PM EST",
-                    "shortDetail": "11/11 - 1:25 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9449,7 +9530,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Marina Bassols Ribera (ESP) bt Maria Lourdes Carle (ARG) 7-5 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -9460,9 +9546,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "c71004f4-a02e-3ae8-8a48-016f9bd0e0de",
                       "displayName": "Marina Bassols Ribera",
@@ -9500,6 +9597,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
                       "displayName": "Maria Lourdes Carle",
@@ -9547,9 +9655,9 @@
               {
                 "id": "186770",
                 "uid": "s:850~l:900~e:1084-2026~c:186770",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T15:00Z",
+                "startDate": "2026-11-12T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -9559,13 +9667,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 10:00 AM EST",
+                    "shortDetail": "11/12 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 1"
                 },
                 "format": {
                   "regulation": {
@@ -9615,16 +9723,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "1955",
+                    "uid": "s:850~l:900~a:1955",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "52c9e741-3a8f-34c5-8ef5-c8c203b81469",
+                      "displayName": "Elizabeth Mandlik",
+                      "shortName": "E. Mandlik",
+                      "fullName": "Elizabeth Mandlik",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1955/elizabeth-mandlik",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -9644,9 +9775,9 @@
               {
                 "id": "186771",
                 "uid": "s:850~l:900~e:1084-2026~c:186771",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T15:00Z",
+                "startDate": "2026-11-12T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -9656,13 +9787,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 10:00 AM EST",
+                    "shortDetail": "11/12 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -9675,16 +9806,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4546",
+                    "uid": "s:850~l:900~a:4546",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
+                      "displayName": "Irene Burillo",
+                      "shortName": "I. Burillo",
+                      "fullName": "Irene Burillo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -9744,9 +9898,9 @@
               {
                 "id": "186769",
                 "uid": "s:850~l:900~e:1084-2026~c:186769",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T16:30Z",
+                "startDate": "2026-11-12T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -9756,13 +9910,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 11:30 AM EST",
+                    "shortDetail": "11/12 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 1"
                 },
                 "format": {
                   "regulation": {
@@ -9864,9 +10018,9 @@
               {
                 "id": "186768",
                 "uid": "s:850~l:900~e:1084-2026~c:186768",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T16:30Z",
+                "startDate": "2026-11-12T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -9876,13 +10030,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 11:30 AM EST",
+                    "shortDetail": "11/12 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -9895,30 +10049,82 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "8690",
+                    "uid": "s:850~l:900~a:8690",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "c71004f4-a02e-3ae8-8a48-016f9bd0e0de",
+                      "displayName": "Marina Bassols Ribera",
+                      "shortName": "M. Bassols Ribera",
+                      "fullName": "Marina Bassols Ribera",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/8690/marina-bassols-ribera",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "2979",
+                    "uid": "s:850~l:900~a:2979",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "6fd6b28f-61b2-9ac1-4a0e-cd5bd4a3aa20",
+                      "displayName": "Bianca Andreescu",
+                      "shortName": "B. Andreescu",
+                      "fullName": "Bianca Andreescu",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                        "alt": "Canada",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2979/bianca-andreescu",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -10167,85 +10373,11 @@
             },
             "competitions": [
               {
-                "id": "186775",
-                "uid": "s:850~l:900~e:1084-2026~c:186775",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Sopo, Colombia",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 1084,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "186776",
                 "uid": "s:850~l:900~e:1084-2026~c:186776",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T15:00Z",
+                "startDate": "2026-11-12T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -10255,13 +10387,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 10:00 AM EST",
+                    "shortDetail": "11/12 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 2"
                 },
                 "format": {
                   "regulation": {
@@ -10436,9 +10568,9 @@
               {
                 "id": "186777",
                 "uid": "s:850~l:900~e:1084-2026~c:186777",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T16:30Z",
+                "startDate": "2026-11-12T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -10448,13 +10580,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 11:30 AM EST",
+                    "shortDetail": "11/12 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 2"
                 },
                 "format": {
                   "regulation": {
@@ -10626,9 +10758,9 @@
               {
                 "id": "186778",
                 "uid": "s:850~l:900~e:1084-2026~c:186778",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T18:00Z",
+                "startDate": "2026-11-12T18:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -10638,13 +10770,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 1:00 PM EST",
+                    "shortDetail": "11/12 - 1:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -10816,9 +10948,9 @@
               {
                 "id": "186779",
                 "uid": "s:850~l:900~e:1084-2026~c:186779",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-12T18:00Z",
+                "startDate": "2026-11-12T18:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -10828,13 +10960,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 12th at 1:00 PM EST",
+                    "shortDetail": "11/12 - 1:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Court 1"
                 },
                 "format": {
                   "regulation": {
@@ -11007,10 +11139,84 @@
                 "wasSuspended": false
               },
               {
+                "id": "186775",
+                "uid": "s:850~l:900~e:1084-2026~c:186775",
+                "date": "2026-11-13T05:00Z",
+                "startDate": "2026-11-13T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Sopo, Colombia",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "-4",
+                    "uid": "s:850~l:900~a:-4",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "-3",
+                    "uid": "s:850~l:900~a:-3",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "displayName": "TBD",
+                      "shortName": "TBD",
+                      "fullName": "TBD",
+                      "links": []
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 1084,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "6",
+                  "displayName": "Semifinal"
+                },
+                "wasSuspended": false
+              },
+              {
                 "id": "186781",
                 "uid": "s:850~l:900~e:1084-2026~c:186781",
-                "date": "2026-11-12T05:00Z",
-                "startDate": "2026-11-12T05:00Z",
+                "date": "2026-11-13T05:00Z",
+                "startDate": "2026-11-13T05:00Z",
                 "timeValid": false,
                 "recent": false,
                 "status": {
