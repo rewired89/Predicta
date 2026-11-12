@@ -62,7 +62,7 @@ def fetch_series(series_id: str, start: str = "2000-01-01") -> list[tuple[str, f
 
 
 def backfill() -> dict:
-    if not os.environ.get("FRED_API_KEY"):
+    if not os.environ.get("FRED_API_KEY") or os.environ.get("FRED_API_KEY", "").startswith("your_"):
         return {"status": "no_key", "what_to_do": "Set FRED_API_KEY in .env (free at fred.stlouisfed.org), restart Predicta."}
     res = {}
     for sid in SERIES:
@@ -74,7 +74,12 @@ def backfill() -> dict:
                     conn.execute("INSERT OR REPLACE INTO fx_macro_series (series_id,date,value) VALUES (?,?,?)", (sid, d, v))
             res[sid] = {"saved": len(rows)}
         except Exception as e:
-            res[sid] = {"error": str(e)[:160]}
+            msg = str(e)
+            key = os.environ.get("FRED_API_KEY", "")
+            if key:
+                msg = msg.replace(key, "***")
+            msg = msg.split("api_key=")[0] + ("(key hidden)" if "api_key=" in msg else "")
+            res[sid] = {"error": msg[:160], "hint": "400/403 usually means FRED_API_KEY in .env is missing, a placeholder, or wrong"}
     return res
 
 
