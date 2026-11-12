@@ -208,6 +208,35 @@ def _latest_forecast(symbol: str):
     return float(r["forecast_vol"]) if r else None
 
 
+_hist_lock = [0.0]
+
+
+def missing_history_symbols() -> list:
+    """Symbols the engines hold or suggest that have no (or too little) price history loaded."""
+    with get_db() as conn:
+        open_syms = [r["symbol"] for r in conn.execute(
+            "SELECT DISTINCT symbol FROM intraday_trades WHERE exit_time IS NULL AND engine IN ('low_value','automaton','high_value')")]
+        if not open_syms:
+            return []
+        q = ",".join("?" * len(open_syms))
+        have = {r["symbol"] for r in conn.execute(
+            f"SELECT symbol FROM market_daily_bars WHERE symbol IN ({q}) GROUP BY symbol HAVING COUNT(*) >= 70", open_syms)}
+    return sorted(set(open_syms) - have)
+
+
+def ensure_history(force: bool = False) -> dict:
+    """Download 3 years of daily prices for every stock an engine holds or suggests (once per 10 minutes at most)."""
+    import time
+    if not force and time.time() - _hist_lock[0] < 600:
+        return {"status": "throttled"}
+    miss = missing_history_symbols()
+    if not miss:
+        return {"status": "nothing_missing"}
+    _hist_lock[0] = time.time()
+    from fetchers.horizon_backfill import backfill
+    return {"status": "ok", "symbols": miss, **backfill(years=3, symbols=miss + ["SPY"])}
+
+
 def _idea_lines(t: dict) -> str:
     """One trade idea in plain words: what to do, where the stop and the sell price are, how risky, and what could happen."""
     from models.trading.shared.plain import risk_label, days_word
@@ -217,6 +246,8 @@ def _idea_lines(t: dict) -> str:
     hold = {"low_value": 5, "automaton": 126, "high_value": 1}.get(t["engine"], 5)
     action = f"BUY {sym} around ${px:,.2f}" if side == "long" else f"SELL SHORT {sym} around ${px:,.2f} (you profit if it falls)"
     lines = [f"{action}   [{engine} idea]"]
+    if px and px < 1.0:
+        lines.append("  - WARNING: this costs under $1 a share. Very cheap stocks (and warrants, whose tickers often end in W) can jump around a lot and be hard to sell.")
     stop, tgt = t.get("stop_price"), t.get("target1_price")
     if stop and tgt:
         if side == "long":
@@ -333,6 +364,10 @@ def daily_job(force: bool = False) -> dict:
         return {"status": "throttled"}
     _last_run[0] = time.time()
     res = {}
+    try:
+        res["history"] = ensure_history(force=True)
+    except Exception as e:
+        res["history"] = {"error": type(e).__name__}
     bars = load_bars()
     if not bars.empty:
         latest = bars["bar_date"].max()

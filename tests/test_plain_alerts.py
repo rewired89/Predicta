@@ -79,3 +79,22 @@ from models.trading.shared.vol_sizing import fx_readout
 fr = fx_readout("EUR_USD", 5, 5, 25); print(fr.get("plain"))
 assert fr["status"] == "ok" and "no reliable call" in fr["direction_note"] and "pips" in fr["plain"]
 print("plain alerts OK")
+
+# aliases: 'EUR' typed alone means the EUR/USD pair
+from models.trading.shared.plain import is_fx, norm_fx
+assert is_fx("EUR") and norm_fx("eur/usd") == "EUR_USD" and norm_fx("USDJPY") == "USD_JPY" and norm_fx("jpy") == "USD_JPY" and not is_fx("AAPL")
+# penny warning + open-position history helper
+with get_db() as c:
+    c.execute("INSERT INTO intraday_trades (symbol, side, engine, is_hypothetical, entry_time, entry_price, stop_price, target1_price, entry_score, logged_at) "
+              "VALUES ('PEN','long','automaton',0,'2026-11-10',0.01,0.005,0.02,50,'2026-11-10')")
+    c.execute("DELETE FROM market_daily_bars")
+assert "PEN" in vt.missing_history_symbols()
+txt = vt._idea_lines({"symbol": "PEN", "side": "long", "engine": "automaton", "entry_price": 0.01, "stop_price": 0.005, "target1_price": 0.02})
+assert "WARNING" in txt and "under $1" in txt
+import fetchers.horizon_backfill as hb
+asked = []
+hb.backfill = lambda years=3, symbols=None: (asked.append(symbols) or {"symbols_with_data": 1})
+vt._hist_lock[0] = 0.0
+r = vt.ensure_history(); assert r["status"] == "ok" and "SPY" in asked[0] and "PEN" in asked[0], (r, asked)
+assert vt.ensure_history()["status"] == "throttled"
+print("aliases / penny / history OK")

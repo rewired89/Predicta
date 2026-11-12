@@ -3,12 +3,17 @@
 PAIRS = ("EUR_USD", "GBP_USD", "USD_JPY")
 
 
-def is_fx(symbol: str) -> bool:
-    return symbol.upper().replace("/", "_") in PAIRS
+_ALIASES = {"EUR": "EUR_USD", "EURUSD": "EUR_USD", "EUR USD": "EUR_USD", "GBP": "GBP_USD", "GBPUSD": "GBP_USD", "GBP USD": "GBP_USD",
+            "JPY": "USD_JPY", "YEN": "USD_JPY", "USDJPY": "USD_JPY", "USD JPY": "USD_JPY"}
 
 
 def norm_fx(symbol: str) -> str:
-    return symbol.upper().replace("/", "_")
+    s = symbol.strip().upper().replace("-", "/")
+    return _ALIASES.get(s, s.replace("/", "_"))
+
+
+def is_fx(symbol: str) -> bool:
+    return norm_fx(symbol) in PAIRS
 
 
 def risk_label(daily_vol: float, kind: str = "stock") -> tuple[str, str]:

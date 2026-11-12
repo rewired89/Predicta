@@ -3706,9 +3706,15 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
             from fetchers.horizon_backfill import backfill
             got = backfill(years=3, symbols=[sym, "SPY"])
             res = readout(sym, **kw)
-            if res.get("status") != "ok" and not got.get("symbols_with_data"):
-                res["detail"] = (f"No price history came back for {sym}. Check the spelling, or that Alpaca keys work "
-                                 f"(Health Check page).")
+            if res.get("status") != "ok":
+                from db.database import get_db as _gdb
+                try:
+                    with _gdb() as _c:
+                        have_it = _c.execute("SELECT COUNT(*) n FROM market_daily_bars WHERE symbol=?", (sym,)).fetchone()["n"]
+                except Exception:
+                    have_it = 0
+                if have_it == 0:
+                    res["detail"] = (f"I couldn't find a stock called '{sym}'. Check the spelling. For forex type EUR/USD, GBP/USD or USD/JPY.")
         except Exception as e:
             res["detail"] = f"Tried to download {sym}'s history and failed: {str(e)[:120]}"
     if res.get("status") == "ok":
@@ -3767,8 +3773,12 @@ def trade_notify_test():
 @app.get("/trade/ideas/data")
 def trade_ideas_data():
     """Every open idea from all three engines, written in plain English."""
-    from models.trading.shared.vol_tracking import open_ideas
-    return {"ideas": open_ideas()}
+    from models.trading.shared.vol_tracking import open_ideas, missing_history_symbols, ensure_history
+    miss = missing_history_symbols()
+    if miss:   # load their price history in the background so the risk lines fill in a few minutes later
+        import threading
+        threading.Thread(target=ensure_history, daemon=True, name="ideas-history").start()
+    return {"ideas": open_ideas(), "loading_history_for": miss}
 
 
 @app.get("/trade/ideas", response_class=HTMLResponse)

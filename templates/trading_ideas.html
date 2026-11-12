@@ -33,7 +33,8 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
   try{
     const d=await (await fetch('/trade/ideas/data')).json();
     if(!d.ideas.length){el.innerHTML='<div class="box">No open ideas right now. The scans run on weekdays (Low Value at 8:00 AM New York time, High Value after the market closes). If you expected ideas, open the <a href="/trade/health" style="font-size:inherit;color:#38bdf8">Health Check</a>.</div>';return;}
-    el.innerHTML=d.ideas.map(i=>'<div class="box"><span class="tag '+(i.you_hold_it?'hold':'idea')+'">'+(i.you_hold_it?'YOU HOLD THIS':'IDEA')+'</span>'+esc(i.text).replace(/\n/g,'<br>')+'</div>').join('');
+    const note=(d.loading_history_for&&d.loading_history_for.length)?'<div class="box">Loading price history for '+esc(d.loading_history_for.join(', '))+' so the risk lines can fill in. Reload this page in a few minutes.</div>':'';
+    el.innerHTML=note+d.ideas.map(i=>'<div class="box"><span class="tag '+(i.you_hold_it?'hold':'idea')+'">'+(i.you_hold_it?'BOUGHT IN PRACTICE ACCOUNT':'NOT BOUGHT')+'</span>'+esc(i.text).replace(/\n/g,'<br>')+'</div>').join('');
   }catch(e){el.innerHTML='<div class="box">Could not load: '+esc(e)+'</div>';}
 })();
 </script>

@@ -1,6 +1,8 @@
-import os, sys
+import os, sys, tempfile
+os.environ["PREDICTA_DB_PATH"] = tempfile.mkdtemp() + "/t.db"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, pandas as pd, json
+import db.database as _d; _d.init_db()
 from models.trading.shared.vol_sizing import size_from_vol, readout
 
 # pure math, by hand: daily vol 2%, 5 days -> 1 sigma = 4.47%; stop = 1.5x = 6.71%; $5 risk on $10 stock -> 7.45 sh = $74.5 -> capped at $25
@@ -42,5 +44,5 @@ vs.load_bars = lambda: bars
 import app as _app
 from fastapi.testclient import TestClient
 r = TestClient(_app.app).get("/trade/volatility/data?symbol=ZZZZ").json()
-assert calls == [["ZZZZ", "SPY"]] and r["status"] == "insufficient_data" and "No price history came back" in r["detail"], (calls, r)
+assert calls == [["ZZZZ", "SPY"]] and r["status"] == "insufficient_data" and "find a stock called" in r["detail"], (calls, r)
 print("on-demand fetch OK")
