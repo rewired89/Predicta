@@ -3678,7 +3678,21 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
     from models.trading.shared.vol_sizing import readout
     if not symbol.strip():
         return {"status": "error", "detail": "give a symbol, e.g. ?symbol=AAPL"}
-    return readout(symbol.strip(), horizon=max(2, min(horizon, 60)), risk_dollars=max(risk, 0.5), max_position_dollars=max(max_position, 1.0))
+    sym = symbol.strip().upper()
+    kw = dict(horizon=max(2, min(horizon, 60)), risk_dollars=max(risk, 0.5), max_position_dollars=max(max_position, 1.0))
+    res = readout(sym, **kw)
+    if res.get("status") == "insufficient_data" and res.get("reason") == "symbol_missing":
+        # Not in the tracked list: fetch just this one symbol's 3-year history on demand, then retry once.
+        try:
+            from fetchers.horizon_backfill import backfill
+            got = backfill(years=3, symbols=[sym, "SPY"])
+            res = readout(sym, **kw)
+            if res.get("status") != "ok" and not got.get("symbols_with_data"):
+                res["detail"] = (f"No price history came back for {sym}. Check the spelling, or that Alpaca keys work "
+                                 f"(Health Check page).")
+        except Exception as e:
+            res["detail"] = f"Tried to download {sym}'s history and failed: {str(e)[:120]}"
+    return res
 
 
 @app.get("/trade/volatility", response_class=HTMLResponse)

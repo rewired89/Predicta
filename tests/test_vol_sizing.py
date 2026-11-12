@@ -30,3 +30,17 @@ assert w["sizing"]["stop_distance_pct"] > c["sizing"]["stop_distance_pct"]
 json.dumps(w, allow_nan=False)
 assert readout("NOPE", 5, 5, 25, bars=bars)["status"] == "insufficient_data"
 print("vol sizing OK")
+
+# endpoint: missing symbol triggers one on-demand fetch, then retries (fetch mocked)
+import fetchers.horizon_backfill as hb
+calls = []
+def fake_backfill(years=3, symbols=None):
+    calls.append(symbols); return {"symbols_with_data": 0}
+hb.backfill = fake_backfill
+import models.trading.shared.vol_sizing as vs
+vs.load_bars = lambda: bars
+import app as _app
+from fastapi.testclient import TestClient
+r = TestClient(_app.app).get("/trade/volatility/data?symbol=ZZZZ").json()
+assert calls == [["ZZZZ", "SPY"]] and r["status"] == "insufficient_data" and "No price history came back" in r["detail"], (calls, r)
+print("on-demand fetch OK")

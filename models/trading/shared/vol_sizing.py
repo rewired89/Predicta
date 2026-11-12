@@ -46,13 +46,15 @@ def readout(symbol: str, horizon: int = 5, risk_dollars: float = 5.0, max_positi
     bars = load_bars() if bars is None else bars
     panel = build_panel(bars, horizon)
     if panel.empty or symbol not in set(panel.index.get_level_values(1)):
-        return {"status": "insufficient_data", "symbol": symbol,
-                "detail": "symbol not in recorded price history (or under 70 days). Use the Health Check page to load history."}
+        return {"status": "insufficient_data", "symbol": symbol, "reason": "symbol_missing",
+                "detail": "This symbol (or SPY, the market benchmark) is not in the recorded price history, or has under 70 days."}
     cols = feature_cols(panel)
     train = panel.dropna(subset=["fwd_vol"])
     train = train[train["fwd_vol"] > 0]
     if len(train) < MIN_TRAIN_ROWS:
-        return {"status": "insufficient_data", "symbol": symbol, "detail": f"only {len(train)} usable history rows, need {MIN_TRAIN_ROWS}"}
+        return {"status": "insufficient_data", "symbol": symbol, "reason": "too_little_history",
+                "detail": f"The forecast needs a bigger price history than is loaded now ({len(train)} rows, needs {MIN_TRAIN_ROWS}). "
+                          f"Load the 3-year history for the whole list first (Health Check page, or POST /trade/horizon/backfill?years=3) and let it finish, then try again."}
     bounds = fit_clip(train, cols)
     mdl = make_pipeline(StandardScaler(), Ridge(alpha=10.0)).fit(
         apply_clip(train, cols, bounds)[cols].values, np.log(train["fwd_vol"].values))
