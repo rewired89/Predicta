@@ -13762,3 +13762,4 @@ fetchers/health_check.py: run_health_check() -> {headline, checks[{status ok|war
 - `fetchers/oanda.py`: `fetch_daily`, `parse_candles`, `save_bars`, `backfill`, `load_bars`, `status` (read-only, table `fx_daily_bars`).
 - `models/trading/fx/forecast.py`: `build`, `_walk`, `run_direction`, `run_volatility`, `predict_now`.
 - Routes in `app.py`: `/trade/fx/status|backfill|backtest|volatility|predict`. Test: `tests/test_fx_forecast.py`.
+- FX carry/macro (2026-11-12): `fetchers/fx_macro.py` (`SERIES`, `CARRY`, `backfill`, `load_series`, `attach`), `models/trading/fx/compare.py: compare`, `forecast.py: carry_trade_baseline`; routes `/trade/fx/macro-backfill`, `/trade/fx/compare`.

@@ -3696,6 +3696,23 @@ def fx_backtest(pair: str = "EUR_USD", horizon: int = 5):
     return run_direction(bars, h=max(1, min(horizon, 60)), pair=pair)
 
 
+@app.post("/trade/fx/macro-backfill")
+def fx_macro_backfill():
+    """Download interest rates + risk/dollar/oil/yield series from FRED (needs FRED_API_KEY)."""
+    from fetchers.fx_macro import backfill
+    return backfill()
+
+
+@app.get("/trade/fx/compare")
+def fx_compare(pair: str = "EUR_USD", horizon: int = 5):
+    """Price only vs price+carry vs price+carry+macro, plus the plain no-model carry trade."""
+    from models.trading.fx.compare import compare
+    pair, bars = _fx_bars(pair)
+    if bars is None or bars.empty:
+        return {"status": "no_data", "what_to_do": "POST /trade/fx/backfill first (needs OANDA_API_KEY)."}
+    return compare(bars, pair, h=max(1, min(horizon, 60)))
+
+
 @app.get("/trade/fx/volatility")
 def fx_volatility(pair: str = "EUR_USD", horizon: int = 5):
     from models.trading.fx.forecast import run_volatility

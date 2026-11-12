@@ -45,9 +45,10 @@ def build(bars: pd.DataFrame, h: int) -> pd.DataFrame:
     return d
 
 
-def _walk(d: pd.DataFrame, h: int, kind: str) -> pd.DataFrame:
+def _walk(d: pd.DataFrame, h: int, kind: str, feats=None) -> pd.DataFrame:
+    feats = feats or FEATURES
     tgt = "y" if kind == "dir" else "fwd_vol"
-    ok = d.replace([np.inf, -np.inf], np.nan).dropna(subset=FEATURES + [tgt, "fwd_ret", "cost"]).reset_index(drop=True)
+    ok = d.replace([np.inf, -np.inf], np.nan).dropna(subset=feats + [tgt, "fwd_ret", "cost"]).reset_index(drop=True)
     out = []
     i = MIN_TRAIN
     while i < len(ok):
@@ -55,9 +56,9 @@ def _walk(d: pd.DataFrame, h: int, kind: str) -> pd.DataFrame:
         te = ok.iloc[i: i + RETRAIN_EVERY]
         if len(tr) < 300 or te.empty:
             break
-        lo, hi = tr[FEATURES].quantile(0.01), tr[FEATURES].quantile(0.99)
-        Xtr = tr[FEATURES].clip(lo, hi, axis=1)
-        Xte = te[FEATURES].clip(lo, hi, axis=1)
+        lo, hi = tr[feats].quantile(0.01), tr[feats].quantile(0.99)
+        Xtr = tr[feats].clip(lo, hi, axis=1)
+        Xte = te[feats].clip(lo, hi, axis=1)
         sc = StandardScaler().fit(Xtr)
         if kind == "dir":
             m = LogisticRegression(C=0.05, max_iter=500).fit(sc.transform(Xtr), tr["y"])
@@ -102,13 +103,14 @@ def _acc_ci(hits: np.ndarray):
     return float(a), float(a - 1.96 * se), float(a + 1.96 * se)
 
 
-def run_direction(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
-    return clean(_run_direction(bars, h, pair))
+def run_direction(bars: pd.DataFrame, h: int = 5, pair: str = "", frame=None, feats=None) -> dict:
+    return clean(_run_direction(bars, h, pair, frame, feats))
 
 
-def _run_direction(bars: pd.DataFrame, h: int, pair: str) -> dict:
-    d = build(bars, h)
-    res = _walk(d, h, "dir")
+def _run_direction(bars: pd.DataFrame, h: int, pair: str, frame=None, feats=None) -> dict:
+    d = frame if frame is not None else build(bars, h)
+    feats = feats or FEATURES
+    res = _walk(d, h, "dir", feats)
     if res.empty:
         return {"pair": pair, "horizon_days": h, "verdict": "TOO LITTLE DATA",
                 "detail": f"need more than {MIN_TRAIN + 300} daily bars; have {len(d)}"}
@@ -195,3 +197,25 @@ def _predict_now(bars: pd.DataFrame, h: int, pair: str) -> dict:
             "prob_higher": round(p, 3),
             "lean": "UP" if p > 0.5 else "DOWN",
             "warning": "Research output only. Check /trade/fx/backtest first: if its verdict is not POSSIBLE EDGE, ignore this number."}
+
+
+def carry_trade_baseline(frame: pd.DataFrame, h: int = 5) -> dict:
+    """
+    The classic carry trade with NO model: hold the higher-yielding currency for h days,
+    earn the rate gap, pay the spread. Interbank rates are optimistic vs real broker
+    financing, so treat this as the best case.
+    """
+    d = frame.replace([np.inf, -np.inf], np.nan).dropna(subset=["carry", "fwd_ret", "cost"]).iloc[::h]
+    if len(d) < 30:
+        return {"verdict": "TOO LITTLE DATA", "periods": int(len(d))}
+    side = np.where(d["carry"] > 0, 1.0, -1.0)
+    net = side * d["fwd_ret"].to_numpy() + side * d["carry"].to_numpy() / 100.0 * h / 365.0 - d["cost"].to_numpy()
+    lo, hi = _boot(net)
+    return clean({
+        "periods": int(len(d)),
+        "mean_net_return_pct_per_trade": round(float(net.mean()) * 100, 4),
+        "net_return_95ci_pct": [round(lo * 100, 4), round(hi * 100, 4)],
+        "win_rate": round(float((net > 0).mean()), 3),
+        "verdict": ("POSSIBLE EDGE (needs forward confirmation)" if lo > 0
+                    else "NO EDGE (loses after spreads)" if hi < 0 else "UNPROVEN (profit range includes zero)"),
+    })
