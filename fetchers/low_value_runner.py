@@ -1015,6 +1015,8 @@ def _runner_loop() -> None:
             from fetchers.maintenance import heartbeat, backup_db
             heartbeat("low_value_loop")
             backup_db()
+            from models.trading.shared.vol_tracking import daily_job
+            daily_job()   # throttled to once an hour inside; forecasts all stocks, scores finished ones, sends due emails
         except Exception as exc:
             log.error(f"[LOW_VALUE] Heartbeat/backup error: {exc}")
         # Daily market-data recording (2026-10-08) — independent of the scan

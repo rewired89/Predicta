@@ -3692,7 +3692,39 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
                                  f"(Health Check page).")
         except Exception as e:
             res["detail"] = f"Tried to download {sym}'s history and failed: {str(e)[:120]}"
+    if res.get("status") == "ok":
+        try:   # remember this check so it is scored automatically and she is emailed when it finishes
+            from models.trading.shared.vol_tracking import log_forecast
+            log_forecast(sym, res["as_of"], res["horizon_days"], res["forecast_daily_swing_pct"] / 100,
+                         res["last_20_days_daily_swing_pct"] / 100, res["last_price"], "manual")
+            res["tracked"] = "This check is being tracked. It is scored automatically after the days pass" + (
+                ", and you will be emailed." if __import__("fetchers.notify", fromlist=["x"]).email_configured()
+                else ". Email is not set up yet, see the scorecard below.")
+        except Exception as e:
+            res["tracked"] = f"Could not save this check for scoring: {str(e)[:80]}"
     return res
+
+
+@app.get("/trade/volatility/scorecard")
+def trade_volatility_scorecard():
+    from models.trading.shared.vol_tracking import scorecard
+    from fetchers.notify import email_configured
+    s = scorecard()
+    s["email_set_up"] = email_configured()
+    return s
+
+
+@app.post("/trade/volatility/run-now")
+def trade_volatility_run_now():
+    """Forecast every tracked stock now, score anything finished, and send due emails."""
+    from models.trading.shared.vol_tracking import daily_job
+    return daily_job(force=True)
+
+
+@app.post("/trade/notify/test")
+def trade_notify_test():
+    from fetchers.notify import send_email
+    return send_email("Predicta test email", "If you can read this, Predicta can email you.")
 
 
 @app.get("/trade/volatility", response_class=HTMLResponse)

@@ -37,6 +37,7 @@
     <button id="go">Check</button>
   </div>
   <div id="out"></div>
+  <div class="box" id="score">Loading scorecard…</div>
 </main>
 <script>
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -60,9 +61,20 @@ async function go(){
       '<tr><td>Shares</td><td>'+esc(s.shares)+'</td></tr>'+
       '<tr><td>Position size</td><td>$'+esc(s.position_dollars)+'</td></tr>'+
       '<tr><td>Lost if stopped out</td><td>$'+esc(s.dollars_lost_if_stopped)+'</td></tr></table>'+
-      '<p class="muted">As of '+esc(d.as_of)+'. The forecast is a small improvement over "same as the last 20 days", not a prediction of direction.</p></div>';
+      '<p class="muted">'+esc(d.tracked||'')+'</p><p class="muted">As of '+esc(d.as_of)+'. The forecast is a small improvement over "same as the last 20 days", not a prediction of direction.</p></div>';
   }catch(e){out.innerHTML='<div class="box">Something went wrong: '+esc(e)+'</div>';}
 }
+async function score(){
+  const el=document.getElementById('score');
+  try{
+    const d=await (await fetch('/trade/volatility/scorecard')).json();
+    let h='<b>Scorecard (checked automatically)</b><br>Forecasts scored: '+esc(d.scored)+' · still waiting for days to pass: '+esc(d.waiting_for_days_to_pass)+'<br>Verdict: '+esc(d.verdict);
+    if(d.model_avg_error!==undefined) h+='<br>Predicta average miss: '+esc(d.model_avg_error)+'% a day · simple guess: '+esc(d.last_20_days_guess_avg_error)+'% a day · Predicta closer '+Math.round(d.model_closer_share*100)+'% of the time';
+    h+='<br><span class="muted">'+(d.email_set_up?'Email alerts are on.':'Email alerts are off (not set up yet).')+' Every stock Predicta tracks is forecast once a day and scored 5 days later.</span>';
+    el.innerHTML=h;
+  }catch(e){el.textContent='Scorecard not available: '+e;}
+}
+score();
 document.getElementById('go').onclick=go;
 document.getElementById('sym').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
 </script>
