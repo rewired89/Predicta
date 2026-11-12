@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-12T18:38:11.659835+00:00",
+  "fetched_at": "2026-11-12T22:28:08.298081+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-11T13:48Z"
+            "lastUpdated": "2026-11-12T05:54Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-11T13:48Z"
+            "lastUpdated": "2026-11-12T05:54Z"
           }
         ],
         "calendarType": "day",
@@ -5634,20 +5634,20 @@
               {
                 "id": "186550",
                 "uid": "s:850~l:851~e:148-2026~c:186550",
-                "date": "2026-11-12T19:00Z",
-                "startDate": "2026-11-12T19:00Z",
+                "date": "2026-11-12T19:25Z",
+                "startDate": "2026-11-12T19:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 12th at 2:00 PM EST",
-                    "shortDetail": "11/12 - 2:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5659,7 +5659,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Lorenzo Musetti (ITA) bt (7) Ugo Humbert (FRA) 7-6 (7-5) 3-6 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5670,9 +5675,25 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "75e39239-2578-cc45-a536-6a59ddee1f9a",
                       "displayName": "Ugo Humbert",
@@ -5710,9 +5731,25 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
                       "displayName": "Lorenzo Musetti",
@@ -5914,16 +5951,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:851~a:-4",
+                    "id": "3764",
+                    "uid": "s:850~l:851~a:3764",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "9b79e506-da5f-e10a-6b4e-9a2a93ed34bb",
+                      "displayName": "Lorenzo Musetti",
+                      "shortName": "L. Musetti",
+                      "fullName": "Lorenzo Musetti",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3764/lorenzo-musetti",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -8515,17 +8578,17 @@
                 "date": "2026-11-12T17:45Z",
                 "startDate": "2026-11-12T17:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -8539,7 +8602,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Constantin Frantz\u00e9n (GER) & Bart Stevens (NED) is tied with Robert Galloway (USA) & Andre Goransson (SWE) 6-4 2-2",
+                    "text": "Constantin Frantz\u00e9n (GER) & Bart Stevens (NED) bt Robert Galloway (USA) & Andre Goransson (SWE) 6-4 7-6 (7-2)",
                     "type": "event"
                   }
                 ],
@@ -8553,14 +8616,16 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 4.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -8635,14 +8700,16 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 2.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -8712,11 +8779,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 148,
                 "type": {
                   "id": "3",
@@ -8956,26 +9018,72 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "11568-3162",
+                    "uid": "s:850~l:851~t:11568-3162",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Constantin Frantz\u00e9n / Bart Stevens",
+                      "shortDisplayName": "C. Frantz\u00e9n / B. Stevens",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "bd458045-04a6-3216-b265-59ed63ec3dd5",
+                          "displayName": "Constantin Frantz\u00e9n",
+                          "shortName": "C. Frantz\u00e9n",
+                          "fullName": "Constantin Frantz\u00e9n",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+                            "alt": "Germany",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/11568/constantin-frantzen",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "0d4bb041-7f83-86ab-ad50-222df421c851",
+                          "displayName": "Bart Stevens",
+                          "shortName": "B. Stevens",
+                          "fullName": "Bart Stevens",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                            "alt": "Netherlands",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3162/bart-stevens",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
