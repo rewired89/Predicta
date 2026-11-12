@@ -3672,6 +3672,20 @@ def _fx_bars(pair: str):
     return pair, load_bars(pair)
 
 
+@app.get("/trade/volatility/data")
+def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0, max_position: float = 25.0):
+    """Swing forecast + suggested stop distance and share count for one stock (read-only)."""
+    from models.trading.shared.vol_sizing import readout
+    if not symbol.strip():
+        return {"status": "error", "detail": "give a symbol, e.g. ?symbol=AAPL"}
+    return readout(symbol.strip(), horizon=max(2, min(horizon, 60)), risk_dollars=max(risk, 0.5), max_position_dollars=max(max_position, 1.0))
+
+
+@app.get("/trade/volatility", response_class=HTMLResponse)
+def trade_volatility_page():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_volatility.html").read_text(encoding="utf-8"))
+
+
 @app.get("/trade/fx/status")
 def fx_status():
     from fetchers.oanda import status

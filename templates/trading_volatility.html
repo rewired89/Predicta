@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta — How Much To Buy</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#0b1120; --surface:#131d30; --border:#1e2d47; --blue:#38bdf8; --text:#e2e8f0; --muted:#64748b; --green:#22c55e; --red:#ef4444; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; min-height:100vh; }
+  main { max-width:640px; margin:0 auto; padding:32px 16px; }
+  a { color:var(--muted); font-size:.8rem; text-decoration:none; }
+  h1 { font-size:1.6rem; margin:14px 0 6px; }
+  .sub { color:var(--muted); margin-bottom:22px; font-size:.92rem; line-height:1.5; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  label { font-size:.75rem; color:var(--muted); display:block; margin-bottom:3px; }
+  input { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px 12px; font-size:1rem; width:130px; }
+  input.sym { text-transform:uppercase; }
+  button { background:var(--blue); color:#06121f; border:0; border-radius:8px; padding:10px 18px; font-weight:700; font-size:1rem; cursor:pointer; align-self:flex-end; }
+  .box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-top:18px; line-height:1.55; }
+  .big { font-size:1.05rem; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:.9rem; }
+  td { padding:6px 0; border-top:1px solid var(--border); } td:last-child { text-align:right; font-weight:600; }
+  .muted { color:var(--muted); font-size:.8rem; margin-top:12px; }
+</style>
+</head>
+<body>
+<main>
+  <a href="/trading">← Stock Market</a>
+  <h1>How Much To Buy</h1>
+  <p class="sub">Type a stock. Predicta forecasts how much it will swing over the next few days, then suggests where to put the stop and how many shares keep a bad outcome near the dollars you are willing to lose. A guide only. It changes nothing in the engines and never places an order.</p>
+  <div class="row">
+    <div><label>Stock symbol</label><input class="sym" id="sym" placeholder="AAPL" autocomplete="off"></div>
+    <div><label>Days to hold</label><input id="h" type="number" value="5" min="2" max="60"></div>
+    <div><label>Most I'd lose ($)</label><input id="risk" type="number" value="5" min="0.5" step="0.5"></div>
+    <div><label>Max position ($)</label><input id="maxp" type="number" value="25" min="1"></div>
+    <button id="go">Check</button>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function go(){
+  const sym=document.getElementById('sym').value.trim();
+  const out=document.getElementById('out');
+  if(!sym){out.innerHTML='<div class="box">Type a symbol first.</div>';return;}
+  out.innerHTML='<div class="box">Working…</div>';
+  const q=new URLSearchParams({symbol:sym,horizon:document.getElementById('h').value,risk:document.getElementById('risk').value,max_position:document.getElementById('maxp').value});
+  try{
+    const r=await fetch('/trade/volatility/data?'+q); const d=await r.json();
+    if(d.status!=='ok'){out.innerHTML='<div class="box">'+esc(d.detail||d.status||'No answer')+'</div>';return;}
+    const s=d.sizing;
+    out.innerHTML='<div class="box big">'+esc(d.plain)+'</div>'+
+      '<div class="box"><table>'+
+      '<tr><td>Last price</td><td>$'+esc(d.last_price)+'</td></tr>'+
+      '<tr><td>Forecast daily swing</td><td>'+esc(d.forecast_daily_swing_pct)+'%</td></tr>'+
+      '<tr><td>Swing over the last 20 days</td><td>'+esc(d.last_20_days_daily_swing_pct)+'%</td></tr>'+
+      '<tr><td>Stop distance</td><td>'+esc(s.stop_distance_pct)+'%</td></tr>'+
+      '<tr><td>Stop price (if you buy)</td><td>$'+esc(s.stop_price_long)+'</td></tr>'+
+      '<tr><td>Shares</td><td>'+esc(s.shares)+'</td></tr>'+
+      '<tr><td>Position size</td><td>$'+esc(s.position_dollars)+'</td></tr>'+
+      '<tr><td>Lost if stopped out</td><td>$'+esc(s.dollars_lost_if_stopped)+'</td></tr></table>'+
+      '<p class="muted">As of '+esc(d.as_of)+'. The forecast is a small improvement over "same as the last 20 days", not a prediction of direction.</p></div>';
+  }catch(e){out.innerHTML='<div class="box">Something went wrong: '+esc(e)+'</div>';}
+}
+document.getElementById('go').onclick=go;
+document.getElementById('sym').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+</script>
+</body>
+</html>
