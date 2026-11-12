@@ -3673,7 +3673,7 @@ def _fx_bars(pair: str):
 
 
 @app.get("/trade/volatility/data")
-def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0, max_position: float = 25.0):
+def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0, max_position: float = 25.0, track: int = 1):
     """Swing forecast + suggested stop distance and share count for one stock (read-only)."""
     from models.trading.shared.vol_sizing import readout
     if not symbol.strip():
@@ -3687,7 +3687,8 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
         res = fx_readout(sym, **kw)
         if res.get("status") == "ok":
             try:
-                from models.trading.shared.vol_tracking import log_forecast
+                from models.trading.shared.vol_tracking import log_forecast as _lf
+                log_forecast = _lf if track else (lambda *a, **k: None)
                 from models.trading.shared.scenario import simulate, plain as sim_plain
                 log_forecast(sym, res["as_of"], res["horizon_days"], res["forecast_daily_swing_pct"] / 100,
                              res["last_20_days_daily_swing_pct"] / 100, res["last_price"], "manual")
@@ -3712,7 +3713,8 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
             res["detail"] = f"Tried to download {sym}'s history and failed: {str(e)[:120]}"
     if res.get("status") == "ok":
         try:   # remember this check so it is scored automatically and she is emailed when it finishes
-            from models.trading.shared.vol_tracking import log_forecast
+            from models.trading.shared.vol_tracking import log_forecast as _lf
+            log_forecast = _lf if track else (lambda *a, **k: None)
             log_forecast(sym, res["as_of"], res["horizon_days"], res["forecast_daily_swing_pct"] / 100,
                          res["last_20_days_daily_swing_pct"] / 100, res["last_price"], "manual")
             lab, why = risk_label(res["forecast_daily_swing_pct"] / 100, "stock")
@@ -3760,6 +3762,23 @@ def trade_volatility_run_now():
 def trade_notify_test():
     from fetchers.notify import send_email
     return send_email("Predicta test email", "If you can read this, Predicta can email you.")
+
+
+@app.get("/trade/ideas/data")
+def trade_ideas_data():
+    """Every open idea from all three engines, written in plain English."""
+    from models.trading.shared.vol_tracking import open_ideas
+    return {"ideas": open_ideas()}
+
+
+@app.get("/trade/ideas", response_class=HTMLResponse)
+def trade_ideas_page():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_ideas.html").read_text(encoding="utf-8"))
+
+
+@app.get("/trade/forex", response_class=HTMLResponse)
+def trade_forex_page():
+    return HTMLResponse(content=(TEMPLATES_DIR / "trading_forex.html").read_text(encoding="utf-8"))
 
 
 @app.get("/trade/volatility", response_class=HTMLResponse)

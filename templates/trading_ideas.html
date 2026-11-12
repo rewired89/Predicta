@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta — Today's Ideas</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#0b1120; --surface:#131d30; --border:#1e2d47; --blue:#38bdf8; --text:#e2e8f0; --muted:#64748b; --green:#22c55e; --red:#ef4444; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; min-height:100vh; }
+  main { max-width:680px; margin:0 auto; padding:32px 16px; }
+  a { color:var(--muted); font-size:.8rem; text-decoration:none; }
+  h1 { font-size:1.6rem; margin:14px 0 6px; }
+  .sub { color:var(--muted); margin-bottom:18px; font-size:.92rem; line-height:1.5; }
+  .box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-top:12px; line-height:1.55; font-size:.95rem; }
+  .tag { display:inline-block; font-size:.7rem; font-weight:700; padding:2px 9px; border-radius:99px; margin-right:6px; }
+  .hold { background:#14532d; color:#bbf7d0; } .idea { background:#1e3a5f; color:#bae6fd; }
+  .warn { border-color:#7c2d12; color:#fed7aa; }
+</style>
+</head>
+<body>
+<main>
+  <a href="/trading">← Stock Market</a>
+  <h1>Today's Ideas</h1>
+  <p class="sub">Everything Predicta's three engines are suggesting right now, in plain words. Nothing is bought for you. You decide.</p>
+  <div class="box warn">These are research ideas from a program that has <b>not yet proven</b> it can pick winners. Only use money you can afford to lose.</div>
+  <div id="list"><div class="box">Loading…</div></div>
+</main>
+<script>
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+(async()=>{
+  const el=document.getElementById('list');
+  try{
+    const d=await (await fetch('/trade/ideas/data')).json();
+    if(!d.ideas.length){el.innerHTML='<div class="box">No open ideas right now. The scans run on weekdays (Low Value at 8:00 AM New York time, High Value after the market closes). If you expected ideas, open the <a href="/trade/health" style="font-size:inherit;color:#38bdf8">Health Check</a>.</div>';return;}
+    el.innerHTML=d.ideas.map(i=>'<div class="box"><span class="tag '+(i.you_hold_it?'hold':'idea')+'">'+(i.you_hold_it?'YOU HOLD THIS':'IDEA')+'</span>'+esc(i.text).replace(/\n/g,'<br>')+'</div>').join('');
+  }catch(e){el.innerHTML='<div class="box">Could not load: '+esc(e)+'</div>';}
+})();
+</script>
+</body>
+</html>

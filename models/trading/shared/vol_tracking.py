@@ -384,3 +384,17 @@ def automaton_scenarios() -> list:
         sim = simulate(v, left, t["side"], sp, tp, 25.0)
         out.append({"symbol": t["symbol"], "side": t["side"], "days_left": left, "text": sim_plain(sim, 25.0), "sim": sim})
     return out
+
+
+def open_ideas(limit: int = 40) -> list:
+    """All open ideas/positions across the three engines with plain text, strongest first."""
+    with get_db() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, symbol, side, engine, entry_price, stop_price, target1_price, entry_score, is_hypothetical FROM intraday_trades "
+            "WHERE exit_time IS NULL AND COALESCE(is_copy_trade,0)=0 AND engine IN ('low_value','automaton','high_value') "
+            "ORDER BY ABS(COALESCE(entry_score,0)) DESC LIMIT ?", (limit,))]
+    out = []
+    for t in rows:
+        out.append({"symbol": t["symbol"], "engine": t["engine"], "side": t["side"], "you_hold_it": not t["is_hypothetical"],
+                    "text": _idea_lines(t)})
+    return out

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicta — Forex</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#0b1120; --surface:#131d30; --border:#1e2d47; --blue:#38bdf8; --text:#e2e8f0; --muted:#64748b; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; min-height:100vh; }
+  main { max-width:680px; margin:0 auto; padding:32px 16px; }
+  a { color:var(--muted); font-size:.8rem; text-decoration:none; }
+  h1 { font-size:1.6rem; margin:14px 0 6px; } h2 { font-size:1.1rem; margin-bottom:6px; }
+  .sub { color:var(--muted); margin-bottom:18px; font-size:.92rem; line-height:1.5; }
+  .box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-top:12px; line-height:1.55; font-size:.95rem; }
+  .warn { border-color:#7c2d12; color:#fed7aa; }
+  .muted { color:var(--muted); font-size:.82rem; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <a href="/trading">← Stock Market</a>
+  <h1>Forex</h1>
+  <p class="sub">EUR/USD, GBP/USD and USD/JPY. Predicta shows how risky each pair is right now and how far to put a stop. Practice-account prices only. Nothing is bought for you.</p>
+  <div class="box warn"><b>Up or down?</b> Predicta has no reliable call on that. We tested 15 years of prices, interest rates, fear, oil and the dollar, and nothing beat guessing after trading costs. So there is no "buy now" or "sell now" signal here, on purpose. You can still use the risk level and the stop to size a trade you choose yourself.</div>
+  <div id="pairs"></div>
+  <p class="muted">Want one pair with your own risk numbers? Use <a href="/trade/volatility" style="font-size:inherit;color:#38bdf8">How Much To Buy</a> and type EUR/USD. If prices are missing, run: POST /trade/fx/backfill (see Health Check).</p>
+</main>
+<script>
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+(async()=>{
+  const host=document.getElementById('pairs');
+  for(const p of ['EUR_USD','GBP_USD','USD_JPY']){
+    const box=document.createElement('div'); box.className='box'; box.textContent='Loading '+p.replace('_','/')+'…'; host.appendChild(box);
+    try{
+      const d=await (await fetch('/trade/volatility/data?symbol='+p+'&track=0')).json();
+      if(d.status!=='ok'){box.innerHTML='<h2>'+esc(p.replace('_','/'))+'</h2>'+esc(d.detail||'No data yet.');continue;}
+      const col={LOW:'#22c55e',MEDIUM:'#f59e0b',HIGH:'#ef4444'}[d.risk_label]||'#94a3b8';
+      box.innerHTML='<h2>'+esc(p.replace('_','/'))+' <span style="font-size:.9rem;color:'+col+'">Risk: '+esc(d.risk_label)+'</span></h2>'+
+        esc(d.plain)+'<div class="muted">Price '+esc(d.last_price)+' as of '+esc(d.as_of)+'. '+esc(d.what_could_happen||'')+'</div>';
+    }catch(e){box.textContent='Could not load '+p+': '+e;}
+  }
+})();
+</script>
+</body>
+</html>
