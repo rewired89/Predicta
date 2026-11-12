@@ -30,7 +30,7 @@
   <h1>How Much To Buy</h1>
   <p class="sub">Type a stock. Predicta forecasts how much it will swing over the next few days, then suggests where to put the stop and how many shares keep a bad outcome near the dollars you are willing to lose. A guide only. It changes nothing in the engines and never places an order.</p>
   <div class="row">
-    <div><label>Stock symbol</label><input class="sym" id="sym" placeholder="AAPL" autocomplete="off"></div>
+    <div><label>Stock or pair (AAPL, EUR/USD)</label><input class="sym" id="sym" placeholder="AAPL" autocomplete="off"></div>
     <div><label>Days to hold</label><input id="h" type="number" value="5" min="2" max="60"></div>
     <div><label>Most I'd lose ($)</label><input id="risk" type="number" value="5" min="0.5" step="0.5"></div>
     <div><label>Max position ($)</label><input id="maxp" type="number" value="25" min="1"></div>
@@ -38,6 +38,7 @@
   </div>
   <div id="out"></div>
   <div class="box" id="score">Loading scorecard…</div>
+  <div class="box" id="auto" style="display:none"></div>
 </main>
 <script>
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -50,15 +51,20 @@ async function go(){
   try{
     const r=await fetch('/trade/volatility/data?'+q); const d=await r.json();
     if(d.status!=='ok'){out.innerHTML='<div class="box">'+esc(d.detail||d.status||'No answer')+'</div>';return;}
-    const s=d.sizing;
-    out.innerHTML='<div class="box big">'+esc(d.plain)+'</div>'+
+    const s=d.sizing; const fx=d.kind==='fx';
+    const col={LOW:'#22c55e',MEDIUM:'#f59e0b',HIGH:'#ef4444'}[d.risk_label]||'#94a3b8';
+    const nl=t=>esc(t||'').replace(/\n/g,'<br>');
+    out.innerHTML=(d.risk_label?'<div class="box big"><b style="color:'+col+'">Risk: '+esc(d.risk_label)+'</b><br>'+esc(d.risk_text)+'</div>':'')+
+      (d.direction_note?'<div class="box"><b>Up or down?</b><br>'+nl(d.direction_note)+'</div>':'')+
+      (d.what_could_happen?'<div class="box"><b>What could happen</b><br>'+esc(d.what_could_happen)+'</div>':'')+'<div class="box big">'+esc(d.plain)+'</div>'+
       '<div class="box"><table>'+
-      '<tr><td>Last price</td><td>$'+esc(d.last_price)+'</td></tr>'+
+      '<tr><td>Last price</td><td>'+(fx?'':'$')+esc(d.last_price)+'</td></tr>'+
       '<tr><td>Forecast daily swing</td><td>'+esc(d.forecast_daily_swing_pct)+'%</td></tr>'+
       '<tr><td>Swing over the last 20 days</td><td>'+esc(d.last_20_days_daily_swing_pct)+'%</td></tr>'+
-      '<tr><td>Stop distance</td><td>'+esc(s.stop_distance_pct)+'%</td></tr>'+
-      '<tr><td>Stop price (if you buy)</td><td>$'+esc(s.stop_price_long)+'</td></tr>'+
-      '<tr><td>Shares</td><td>'+esc(s.shares)+'</td></tr>'+
+      '<tr><td>Stop distance</td><td>'+esc(s.stop_distance_pct)+'%'+(fx?' ('+esc(s.stop_distance_pips)+' pips)':'')+'</td></tr>'+
+      '<tr><td>Stop price (if you buy)</td><td>'+(fx?esc(s.stop_price_if_buying):'$'+esc(s.stop_price_long))+'</td></tr>'+
+      (fx?'<tr><td>Stop price (if you sell)</td><td>'+esc(s.stop_price_if_selling)+'</td></tr>':'')+
+      '<tr><td>'+(fx?'Units':'Shares')+'</td><td>'+esc(fx?s.units:s.shares)+'</td></tr>'+
       '<tr><td>Position size</td><td>$'+esc(s.position_dollars)+'</td></tr>'+
       '<tr><td>Lost if stopped out</td><td>$'+esc(s.dollars_lost_if_stopped)+'</td></tr></table>'+
       '<p class="muted">'+esc(d.tracked||'')+'</p><p class="muted">As of '+esc(d.as_of)+'. The forecast is a small improvement over "same as the last 20 days", not a prediction of direction.</p></div>';
@@ -74,7 +80,16 @@ async function score(){
     el.innerHTML=h;
   }catch(e){el.textContent='Scorecard not available: '+e;}
 }
-score();
+async function auto(){
+  try{
+    const d=await (await fetch('/trade/automaton/scenarios')).json();
+    if(!d.scenarios||!d.scenarios.length) return;
+    const el=document.getElementById('auto'); el.style.display='block';
+    el.innerHTML='<b>Automaton: what could happen to its open ideas</b><br><span class="muted">A what-if only. It changes nothing Automaton does and is not a prediction of direction.</span>'+
+      d.scenarios.map(s=>'<p style="margin-top:10px"><b>'+esc(s.symbol)+'</b> '+esc(s.side||'')+': '+esc(s.text)+'</p>').join('');
+  }catch(e){}
+}
+score(); auto();
 document.getElementById('go').onclick=go;
 document.getElementById('sym').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
 </script>

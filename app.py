@@ -3680,6 +3680,24 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
         return {"status": "error", "detail": "give a symbol, e.g. ?symbol=AAPL"}
     sym = symbol.strip().upper()
     kw = dict(horizon=max(2, min(horizon, 60)), risk_dollars=max(risk, 0.5), max_position_dollars=max(max_position, 1.0))
+    from models.trading.shared.plain import is_fx, norm_fx, risk_label
+    if is_fx(sym):
+        from models.trading.shared.vol_sizing import fx_readout
+        sym = norm_fx(sym)
+        res = fx_readout(sym, **kw)
+        if res.get("status") == "ok":
+            try:
+                from models.trading.shared.vol_tracking import log_forecast
+                from models.trading.shared.scenario import simulate, plain as sim_plain
+                log_forecast(sym, res["as_of"], res["horizon_days"], res["forecast_daily_swing_pct"] / 100,
+                             res["last_20_days_daily_swing_pct"] / 100, res["last_price"], "manual")
+                sp = res["sizing"]["stop_distance_pct"] / 100
+                sim = simulate(res["forecast_daily_swing_pct"] / 100, res["horizon_days"], "long", sp, sp, res["sizing"]["position_dollars"])
+                res["what_could_happen"] = sim_plain(sim, res["sizing"]["position_dollars"])
+                res["tracked"] = "This check is being tracked and scored automatically."
+            except Exception as e:
+                res["tracked"] = f"Could not save this check: {str(e)[:80]}"
+        return res
     res = readout(sym, **kw)
     if res.get("status") == "insufficient_data" and res.get("reason") == "symbol_missing":
         # Not in the tracked list: fetch just this one symbol's 3-year history on demand, then retry once.
@@ -3697,6 +3715,15 @@ def trade_volatility_data(symbol: str = "", horizon: int = 5, risk: float = 5.0,
             from models.trading.shared.vol_tracking import log_forecast
             log_forecast(sym, res["as_of"], res["horizon_days"], res["forecast_daily_swing_pct"] / 100,
                          res["last_20_days_daily_swing_pct"] / 100, res["last_price"], "manual")
+            lab, why = risk_label(res["forecast_daily_swing_pct"] / 100, "stock")
+            res["risk_label"], res["risk_text"] = lab, why
+            from models.trading.shared.vol_tracking import current_ideas_text
+            from models.trading.shared.scenario import simulate, plain as sim_plain
+            sz = res["sizing"]
+            sp = sz["stop_distance_pct"] / 100
+            sim = simulate(res["forecast_daily_swing_pct"] / 100, res["horizon_days"], "long", sp, sp, sz["position_dollars"])
+            res["what_could_happen"] = sim_plain(sim, sz["position_dollars"])
+            res["direction_note"] = current_ideas_text(sym)
             res["tracked"] = "This check is being tracked. It is scored automatically after the days pass" + (
                 ", and you will be emailed." if __import__("fetchers.notify", fromlist=["x"]).email_configured()
                 else ". Email is not set up yet, see the scorecard below.")
@@ -3712,6 +3739,14 @@ def trade_volatility_scorecard():
     s = scorecard()
     s["email_set_up"] = email_configured()
     return s
+
+
+@app.get("/trade/automaton/scenarios")
+def trade_automaton_scenarios():
+    """What-if ranges for Automaton's open positions and ideas, before anything happens (read-only)."""
+    from models.trading.shared.vol_tracking import automaton_scenarios
+    return {"scenarios": automaton_scenarios(),
+            "note": "A what-if from price swings only. It does not change what Automaton does and is not a prediction of direction."}
 
 
 @app.post("/trade/volatility/run-now")

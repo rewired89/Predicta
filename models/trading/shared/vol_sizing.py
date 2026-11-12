@@ -77,3 +77,45 @@ def readout(symbol: str, horizon: int = 5, risk_dollars: float = 5.0, max_positi
                     f"${s['dollars_lost_if_stopped']} on a ${s['position_dollars']} position ({s['shares']} shares)."
                     + (" The position was capped by your max-position limit, so the real risk is smaller." if s["capped_by_max_position"] else ""))
     return out
+
+
+def fx_size(pair: str, price: float, daily_vol: float, horizon: int, risk_dollars: float, max_position_dollars: float) -> dict:
+    pip = 0.01 if pair.endswith("JPY") else 0.0001
+    one_sigma = daily_vol * math.sqrt(horizon)
+    stop_pct = min(max(STOP_K * one_sigma, 0.002), 0.05)
+    if pair.startswith("USD_"):                       # units are US dollars (USD/JPY)
+        units = risk_dollars / stop_pct
+        dollars = units
+    else:                                              # units of EUR or GBP priced in dollars
+        units = risk_dollars / (price * stop_pct)
+        dollars = units * price
+    capped = dollars > max_position_dollars
+    if capped:
+        units *= max_position_dollars / dollars
+        dollars = max_position_dollars
+    dist = price * stop_pct
+    return {"expected_move_pct_1sigma": round(one_sigma * 100, 3), "stop_distance_pct": round(stop_pct * 100, 3),
+            "stop_distance_pips": round(dist / pip, 1), "stop_price_if_buying": round(price - dist, 5),
+            "stop_price_if_selling": round(price + dist, 5), "units": round(units, 2), "position_dollars": round(dollars, 2),
+            "dollars_lost_if_stopped": round(dollars * stop_pct, 2), "capped_by_max_position": bool(capped)}
+
+
+def fx_readout(pair: str, horizon: int = 5, risk_dollars: float = 5.0, max_position_dollars: float = 25.0) -> dict:
+    from fetchers.oanda import load_bars
+    from models.trading.fx.forecast import predict_vol_now
+    from models.trading.shared.plain import risk_label
+    bars = load_bars(pair)
+    if bars.empty:
+        return {"status": "insufficient_data", "symbol": pair, "detail": "No forex prices loaded yet. Run the OANDA download first (POST /trade/fx/backfill)."}
+    f = predict_vol_now(bars, horizon, pair)
+    if f.get("status") != "ok":
+        return {"status": "insufficient_data", "symbol": pair, "detail": "Not enough forex history to forecast."}
+    sz = fx_size(pair, f["last_price"], f["forecast_daily_vol"], f["horizon_days"], risk_dollars, max_position_dollars)
+    label, why = risk_label(f["forecast_daily_vol"], "fx")
+    return {"status": "ok", "kind": "fx", "symbol": pair, "as_of": f["as_of"], "horizon_days": f["horizon_days"], "last_price": round(f["last_price"], 5),
+            "forecast_daily_swing_pct": round(f["forecast_daily_vol"] * 100, 3), "last_20_days_daily_swing_pct": round(f["trailing_daily_vol"] * 100, 3),
+            "sizing": sz, "risk_label": label, "risk_text": why,
+            "direction_note": "Predicta has no reliable call on whether this pair goes up or down. Tests on 15 years of prices found none. This only tells you how big the moves are likely to be.",
+            "plain": (f"{why} A stop {sz['stop_distance_pips']} pips away ({sz['stop_distance_pct']}%) keeps a bad outcome near ${sz['dollars_lost_if_stopped']} "
+                      f"on a ${sz['position_dollars']} position. Buying: stop at {sz['stop_price_if_buying']}. Selling: stop at {sz['stop_price_if_selling']}."
+                      + (" The size was capped by your max-position limit." if sz["capped_by_max_position"] else ""))}

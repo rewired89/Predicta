@@ -219,3 +219,20 @@ def carry_trade_baseline(frame: pd.DataFrame, h: int = 5) -> dict:
         "verdict": ("POSSIBLE EDGE (needs forward confirmation)" if lo > 0
                     else "NO EDGE (loses after spreads)" if hi < 0 else "UNPROVEN (profit range includes zero)"),
     })
+
+
+def predict_vol_now(bars: pd.DataFrame, h: int = 5, pair: str = "") -> dict:
+    """Forecast the next h days' daily swing (fraction) for one pair, trained on resolved history only."""
+    h = max(h, 2)
+    d = build(bars, h).replace([np.inf, -np.inf], np.nan)
+    tr = d.dropna(subset=FEATURES + ["fwd_vol"])
+    tr = tr[tr["fwd_vol"] > 0]
+    last = d.dropna(subset=FEATURES).iloc[-1:]
+    if len(tr) < 300 or last.empty:
+        return {"status": "insufficient_data", "pair": pair}
+    lo, hi = tr[FEATURES].quantile(0.01), tr[FEATURES].quantile(0.99)
+    sc = StandardScaler().fit(tr[FEATURES].clip(lo, hi, axis=1))
+    m = Ridge(alpha=50.0).fit(sc.transform(tr[FEATURES].clip(lo, hi, axis=1)), np.log(tr["fwd_vol"]))
+    pred = float(np.exp(m.predict(sc.transform(last[FEATURES].clip(lo, hi, axis=1)))[0]))
+    return clean({"status": "ok", "pair": pair, "horizon_days": h, "as_of": str(last["date"].iloc[0].date()),
+                  "forecast_daily_vol": pred, "trailing_daily_vol": float(last["vol20"].iloc[0]), "last_price": float(last["c"].iloc[0])})
