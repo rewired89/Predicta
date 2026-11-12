@@ -50,10 +50,40 @@ def parse_observations(payload: dict) -> list[tuple[str, float]]:
     return out
 
 
+def parse_csv(text: str) -> list[tuple[str, float]]:
+    """FRED's public 'Download Data' CSV: header 'observation_date,SERIES' (or 'DATE,SERIES'); '.' or blank = missing."""
+    out = []
+    for i, line in enumerate(text.strip().splitlines()):
+        parts = line.strip().split(",")
+        if i == 0 or len(parts) < 2:
+            continue
+        try:
+            if parts[1] in ("", "."):
+                continue
+            out.append((parts[0], float(parts[1])))
+        except ValueError:
+            continue
+    return out
+
+
+def fetch_series_csv(series_id: str, start: str = "2000-01-01") -> list[tuple[str, float]]:
+    """No-key path: the same CSV the 'Download Data' button on a FRED chart page gives."""
+    r = requests.get("https://fred.stlouisfed.org/graph/fredgraph.csv", timeout=30,
+                     params={"id": series_id, "cosd": start},
+                     headers={"User-Agent": "Predicta-research/1.0"})
+    r.raise_for_status()
+    return parse_csv(r.text)
+
+
+def _has_key() -> bool:
+    k = os.environ.get("FRED_API_KEY", "")
+    return bool(k) and not k.startswith("your_")
+
+
 def fetch_series(series_id: str, start: str = "2000-01-01") -> list[tuple[str, float]]:
-    key = os.environ.get("FRED_API_KEY")
-    if not key:
-        return []
+    if not _has_key():
+        return fetch_series_csv(series_id, start)
+    key = os.environ["FRED_API_KEY"]
     r = requests.get("https://api.stlouisfed.org/fred/series/observations", timeout=30,
                      params={"series_id": series_id, "api_key": key, "file_type": "json",
                              "observation_start": start})
@@ -62,24 +92,24 @@ def fetch_series(series_id: str, start: str = "2000-01-01") -> list[tuple[str, f
 
 
 def backfill() -> dict:
-    if not os.environ.get("FRED_API_KEY") or os.environ.get("FRED_API_KEY", "").startswith("your_"):
-        return {"status": "no_key", "what_to_do": "Set FRED_API_KEY in .env (free at fred.stlouisfed.org), restart Predicta."}
-    res = {}
+    import time
+    res = {"_source": "FRED API key" if _has_key() else "FRED public CSV download (no key needed)"}
     for sid in SERIES:
         try:
             rows = fetch_series(sid)
+            time.sleep(0.5)
             with get_db() as conn:
                 conn.execute(_DDL)
                 for d, v in rows:
                     conn.execute("INSERT OR REPLACE INTO fx_macro_series (series_id,date,value) VALUES (?,?,?)", (sid, d, v))
-            res[sid] = {"saved": len(rows)}
+            res[sid] = {"saved": len(rows)} if rows else {"saved": 0, "note": "FRED returned no rows for this series"}
         except Exception as e:
             msg = str(e)
             key = os.environ.get("FRED_API_KEY", "")
             if key:
                 msg = msg.replace(key, "***")
             msg = msg.split("api_key=")[0] + ("(key hidden)" if "api_key=" in msg else "")
-            res[sid] = {"error": msg[:160], "hint": "400/403 usually means FRED_API_KEY in .env is missing, a placeholder, or wrong"}
+            res[sid] = {"error": msg[:160], "hint": "If a key is set it may be wrong; remove FRED_API_KEY from .env to use the no-key download instead"}
     return res
 
 

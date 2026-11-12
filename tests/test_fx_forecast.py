@@ -113,3 +113,6 @@ import json; json.dumps(res, allow_nan=False)
 # parser
 assert fx_macro.parse_observations({"observations": [{"date": "2020-01-01", "value": "1.5"}, {"date": "2020-02-01", "value": "."}]}) == [("2020-01-01", 1.5)]
 print("FX carry tests OK")
+
+assert fx_macro.parse_csv("observation_date,DGS10\n2020-01-02,1.88\n2020-01-03,.\n2020-01-06,\n2020-01-07,1.83\n") == [("2020-01-02", 1.88), ("2020-01-07", 1.83)]
+print("FRED csv parser OK")
