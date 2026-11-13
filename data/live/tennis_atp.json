@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-13T18:14:13.910861+00:00",
+  "fetched_at": "2026-11-13T22:15:44.832894+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-12T11:20Z"
+            "lastUpdated": "2026-11-13T03:22Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-12T11:20Z"
+            "lastUpdated": "2026-11-13T03:22Z"
           }
         ],
         "calendarType": "day",
@@ -9102,17 +9102,17 @@
                 "date": "2026-11-13T17:35Z",
                 "startDate": "2026-11-13T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9126,7 +9126,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Erik Grevelius (SWE) & Adam Heinonen (SWE) leads Constantin Frantz\u00e9n (GER) & Bart Stevens (NED) 6-4",
+                    "text": "Erik Grevelius (SWE) & Adam Heinonen (SWE) bt Constantin Frantz\u00e9n (GER) & Bart Stevens (NED) 6-4 6-2",
                     "type": "event"
                   }
                 ],
@@ -9140,9 +9140,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 4.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -9217,9 +9223,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -9335,26 +9347,72 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:851~t:-3--4",
+                    "id": "16096-16066",
+                    "uid": "s:850~l:851~t:16096-16066",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Erik Grevelius / Adam Heinonen",
+                      "shortDisplayName": "E. Grevelius / A. Heinonen",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "74a0123b-0b70-3bfd-a01b-5aae4b7b24b0",
+                          "displayName": "Erik Grevelius",
+                          "shortName": "E. Grevelius",
+                          "fullName": "Erik Grevelius",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/swe.png",
+                            "alt": "Sweden",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16096/erik-grevelius",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "54a66b3d-ca78-3a7e-b6ff-8d28b82b68ad",
+                          "displayName": "Adam Heinonen",
+                          "shortName": "A. Heinonen",
+                          "fullName": "Adam Heinonen",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/swe.png",
+                            "alt": "Sweden",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/16066/adam-heinonen",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },

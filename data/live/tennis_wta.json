@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-13T18:14:13.925030+00:00",
+  "fetched_at": "2026-11-13T22:15:44.847258+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-12T11:20Z"
+            "lastUpdated": "2026-11-13T03:22Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-12T11:20Z"
+            "lastUpdated": "2026-11-13T03:22Z"
           }
         ],
         "calendarType": "day",
@@ -1970,20 +1970,20 @@
               {
                 "id": "187384",
                 "uid": "s:850~l:900~e:382-2026~c:187384",
-                "date": "2026-11-13T20:00Z",
-                "startDate": "2026-11-13T20:00Z",
+                "date": "2026-11-13T20:10Z",
+                "startDate": "2026-11-13T20:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 13th at 3:00 PM EST",
-                    "shortDetail": "11/13 - 3:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -1995,28 +1995,41 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Mirra Andreeva (RUS) bt Diana Shnaider (RUS) 6-2 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "3039",
-                    "uid": "s:850~l:900~a:3039",
+                    "id": "8017",
+                    "uid": "s:850~l:900~a:8017",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "curatedRank": {
-                      "current": 7
-                    },
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
-                      "guid": "cc2cea69-f75c-09ea-f698-55b98e0a5b97",
-                      "displayName": "Karolina Muchova",
-                      "shortName": "K. Muchova",
-                      "fullName": "Karolina Muchova",
+                      "guid": "8af6b36d-7d61-3c1d-8134-c7b52a123dcf",
+                      "displayName": "Diana Shnaider",
+                      "shortName": "D. Shnaider",
+                      "fullName": "Diana Shnaider",
                       "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                        "alt": "Czechia",
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
                         "rel": [
                           "country-flag"
                         ]
@@ -2029,7 +2042,7 @@
                             "desktop",
                             "athlete"
                           ],
-                          "href": "https://www.espn.com/tennis/player/_/id/3039/karolina-muchova",
+                          "href": "https://www.espn.com/tennis/player/_/id/8017/diana-shnaider",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -2046,9 +2059,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "734dd570-209d-349d-8de8-7ce7c9206163",
                       "displayName": "Mirra Andreeva",
@@ -2099,17 +2123,17 @@
                 "date": "2026-11-13T21:30Z",
                 "startDate": "2026-11-13T21:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 13th at 4:30 PM EST",
-                    "shortDetail": "11/13 - 4:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -2121,7 +2145,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Elina Svitolina (UKR) leads (2) Aryna Sabalenka (BLR) 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2135,6 +2164,11 @@
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "33125b01-8f6a-90c1-1c46-141cca252e50",
                       "displayName": "Elina Svitolina",
@@ -2175,6 +2209,11 @@
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "c91d133a-526a-ea8d-654c-7ef6915ad63b",
                       "displayName": "Aryna Sabalenka",
@@ -4810,7 +4849,7 @@
                 "date": "2026-11-13T23:00Z",
                 "startDate": "2026-11-13T23:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -10967,9 +11006,9 @@
               {
                 "id": "186772",
                 "uid": "s:850~l:900~e:1084-2026~c:186772",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-14T17:00Z",
+                "startDate": "2026-11-14T17:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -10979,13 +11018,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 14th at 12:00 PM EST",
+                    "shortDetail": "11/14 - 12:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -12206,17 +12245,17 @@
                 "date": "2026-11-13T18:10Z",
                 "startDate": "2026-11-13T18:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -12230,7 +12269,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Carole Monnet (FRA) & Laura Pigossi (BRA) leads Laura Samson (CZE) & Tamara Zidansek (SLO) 0-0",
+                    "text": "Laura Samson (CZE) & Tamara Zidansek (SLO) bt Carole Monnet (FRA) & Laura Pigossi (BRA) 3-6 6-4 1-0 (10-6)",
                     "type": "event"
                   }
                 ],
@@ -12244,10 +12283,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -12322,10 +12371,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 6,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -12395,11 +12454,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 1084,
                 "type": {
                   "id": "4",
@@ -12415,9 +12469,9 @@
               {
                 "id": "186780",
                 "uid": "s:850~l:900~e:1084-2026~c:186780",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-14T15:00Z",
+                "startDate": "2026-11-14T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -12427,13 +12481,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 14th at 10:00 AM EST",
+                    "shortDetail": "11/14 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Sopo, Colombia",
-                  "court": ""
+                  "court": "Main Court"
                 },
                 "format": {
                   "regulation": {
@@ -12518,26 +12572,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "15069-3034",
+                    "uid": "s:850~l:900~t:15069-3034",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Laura Samson / Tamara Zidansek",
+                      "shortDisplayName": "L. Samson / T. Zidansek",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
+                          "displayName": "Laura Samson",
+                          "shortName": "L. Samson",
+                          "fullName": "Laura Samson",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/15069/laura-samson",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "cbd35839-14e1-f838-21f6-d94a2b1c8e38",
+                          "displayName": "Tamara Zidansek",
+                          "shortName": "T. Zidansek",
+                          "fullName": "Tamara Zidansek",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                            "alt": "Slovenia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3034/tamara-zidansek",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
