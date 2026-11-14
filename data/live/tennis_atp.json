@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-13T22:15:44.832894+00:00",
+  "fetched_at": "2026-11-14T16:46:17.569391+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-13T03:22Z"
+            "lastUpdated": "2026-11-14T00:52Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-13T03:22Z"
+            "lastUpdated": "2026-11-14T00:52Z"
           }
         ],
         "calendarType": "day",
@@ -6102,20 +6102,20 @@
               {
                 "id": "186552",
                 "uid": "s:850~l:851~e:148-2026~c:186552",
-                "date": "2026-11-14T12:00Z",
-                "startDate": "2026-11-14T12:00Z",
+                "date": "2026-11-14T12:10Z",
+                "startDate": "2026-11-14T12:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 14th at 7:00 AM EST",
-                    "shortDetail": "11/14 - 7:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6127,7 +6127,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Taylor Fritz (USA) bt Thiago Agustin Tirante (ARG) 6-2 4-6 7-6 (7-3)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6138,6 +6143,22 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "d7013896-f27c-1590-01c8-3df0a2781e16",
                       "displayName": "Thiago Agustin Tirante",
@@ -6175,9 +6196,25 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "6493155f-cacc-7aa5-ba78-d952efa4c652",
                       "displayName": "Taylor Fritz",
@@ -9316,20 +9353,20 @@
               {
                 "id": "186567",
                 "uid": "s:850~l:851~e:148-2026~c:186567",
-                "date": "2026-11-14T13:30Z",
-                "startDate": "2026-11-14T13:30Z",
+                "date": "2026-11-14T15:15Z",
+                "startDate": "2026-11-14T15:15Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 14th at 8:30 AM EST",
-                    "shortDetail": "11/14 - 8:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -9341,7 +9378,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Erik Grevelius (SWE) & Adam Heinonen (SWE) bt (1) Nikola Mektic (CRO) & Edouard Roger-Vasselin (FRA) 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -9352,6 +9394,17 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Erik Grevelius / Adam Heinonen",
                       "shortDisplayName": "E. Grevelius / A. Heinonen",
@@ -9424,9 +9477,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Nikola Mektic / Edouard Roger-Vasselin",
                       "shortDisplayName": "N. Mektic / E. Roger-Vasselin",

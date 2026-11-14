@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-13T22:15:44.847258+00:00",
+  "fetched_at": "2026-11-14T16:46:17.584420+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-13T03:22Z"
+            "lastUpdated": "2026-11-14T00:52Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-13T03:22Z"
+            "lastUpdated": "2026-11-14T00:52Z"
           }
         ],
         "calendarType": "day",
@@ -2123,17 +2123,17 @@
                 "date": "2026-11-13T21:30Z",
                 "startDate": "2026-11-13T21:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -2147,7 +2147,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(6) Elina Svitolina (UKR) leads (2) Aryna Sabalenka (BLR) 6-3",
+                    "text": "(6) Elina Svitolina (UKR) bt (2) Aryna Sabalenka (BLR) 6-3 3-6 6-1",
                     "type": "event"
                   }
                 ],
@@ -2161,12 +2161,22 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -2206,12 +2216,22 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -2259,111 +2279,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "187440",
-                "uid": "s:850~l:900~e:382-2026~c:187440",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Indian Wells, USA",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "6970",
-                    "uid": "s:850~l:900~a:6970",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 8
-                    },
-                    "athlete": {
-                      "guid": "d977d8a8-0fe9-3057-9ad6-efc456b0e397",
-                      "displayName": "Linda Noskova",
-                      "shortName": "L. Noskova",
-                      "fullName": "Linda Noskova",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                        "alt": "Czechia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/6970/linda-noskova",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 382,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "187441",
                 "uid": "s:850~l:900~e:382-2026~c:187441",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-14T20:00Z",
+                "startDate": "2026-11-14T20:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -2373,13 +2293,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 14th at 3:00 PM EST",
+                    "shortDetail": "11/14 - 3:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Indian Wells, USA",
-                  "court": ""
+                  "court": "Indian Wells Tennis Garden"
                 },
                 "format": {
                   "regulation": {
@@ -2461,6 +2381,132 @@
                             "athlete"
                           ],
                           "href": "https://www.espn.com/tennis/player/_/id/2113/jessica-pegula",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 382,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "6",
+                  "displayName": "Semifinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "187440",
+                "uid": "s:850~l:900~e:382-2026~c:187440",
+                "date": "2026-11-14T21:30Z",
+                "startDate": "2026-11-14T21:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Sat, November 14th at 4:30 PM EST",
+                    "shortDetail": "11/14 - 4:30 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Indian Wells, USA",
+                  "court": "Indian Wells Tennis Garden"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "1797",
+                    "uid": "s:850~l:900~a:1797",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
+                    "athlete": {
+                      "guid": "33125b01-8f6a-90c1-1c46-141cca252e50",
+                      "displayName": "Elina Svitolina",
+                      "shortName": "E. Svitolina",
+                      "fullName": "Elina Svitolina",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
+                        "alt": "Ukraine",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1797/elina-svitolina",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "6970",
+                    "uid": "s:850~l:900~a:6970",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 8
+                    },
+                    "athlete": {
+                      "guid": "d977d8a8-0fe9-3057-9ad6-efc456b0e397",
+                      "displayName": "Linda Noskova",
+                      "shortName": "L. Noskova",
+                      "fullName": "Linda Noskova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6970/linda-noskova",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
@@ -4846,20 +4892,20 @@
               {
                 "id": "187380",
                 "uid": "s:850~l:900~e:382-2026~c:187380",
-                "date": "2026-11-13T23:00Z",
-                "startDate": "2026-11-13T23:00Z",
+                "date": "2026-11-14T00:00Z",
+                "startDate": "2026-11-14T00:00Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 13th at 6:00 PM EST",
-                    "shortDetail": "11/13 - 6:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4871,7 +4917,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Gabriela Dabrowski (CAN) & Luisa Stefani (BRA) bt (5) Su-Wei Hsieh (TPO) & Jelena Ostapenko (LAT) 2-6 7-6 (7-2) 1-0 (10-3)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4882,9 +4933,26 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Su-Wei Hsieh / Jelena Ostapenko",
                       "shortDisplayName": "S. Hsieh / J. Ostapenko",
@@ -4939,6 +5007,454 @@
                                 "athlete"
                               ],
                               "href": "https://www.espn.com/tennis/player/_/id/2195/jelena-ostapenko",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "1375-2732",
+                    "uid": "s:850~l:900~t:1375-2732",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": true,
+                    "curatedRank": {
+                      "current": 1
+                    },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Gabriela Dabrowski / Luisa Stefani",
+                      "shortDisplayName": "G. Dabrowski / L. Stefani",
+                      "athletes": [
+                        {
+                          "guid": "af988a18-3d76-2476-c9e4-55d2c7412a98",
+                          "displayName": "Gabriela Dabrowski",
+                          "shortName": "G. Dabrowski",
+                          "fullName": "Gabriela Dabrowski",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/can.png",
+                            "alt": "Canada",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1375/gabriela-dabrowski",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "ff5b69f2-a873-06e6-639b-c014ab3ebac8",
+                          "displayName": "Luisa Stefani",
+                          "shortName": "L. Stefani",
+                          "fullName": "Luisa Stefani",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                            "alt": "Brazil",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2732/luisa-stefani",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 382,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "15",
+                  "displayName": "Group Stage"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "187387",
+                "uid": "s:850~l:900~e:382-2026~c:187387",
+                "date": "2026-11-14T02:10Z",
+                "startDate": "2026-11-14T02:10Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 3,
+                  "type": {
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
+                  }
+                },
+                "venue": {
+                  "fullName": "Indian Wells, USA",
+                  "court": "Indian Wells Tennis Garden"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [
+                  {
+                    "text": "(3) Hanyu Guo (CHN) & Kristina Mladenovic (FRA) bt (7) Elise Mertens (BEL) & Zhang Shuai (CHN) 6-7 (4-7) 6-3 1-0 (12-10)",
+                    "type": "event"
+                  }
+                ],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "2221-707",
+                    "uid": "s:850~l:900~t:2221-707",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "winner": false,
+                    "curatedRank": {
+                      "current": 7
+                    },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 10,
+                        "winner": false
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Elise Mertens / Zhang Shuai",
+                      "shortDisplayName": "E. Mertens / Z. Shuai",
+                      "athletes": [
+                        {
+                          "guid": "5aacb93a-68ef-f2e4-1e9e-1bbff5dd6c3b",
+                          "displayName": "Elise Mertens",
+                          "shortName": "E. Mertens",
+                          "fullName": "Elise Mertens",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                            "alt": "Belgium",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2221/elise-mertens",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "3663b79d-064e-ee3d-4f1c-d73c5a82d970",
+                          "displayName": "Zhang Shuai",
+                          "shortName": "Z. Shuai",
+                          "fullName": "Zhang Shuai",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/707/zhang-shuai",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "3149-1273",
+                    "uid": "s:850~l:900~t:3149-1273",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "winner": true,
+                    "curatedRank": {
+                      "current": 3
+                    },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 12,
+                        "winner": true
+                      }
+                    ],
+                    "roster": {
+                      "displayName": "Guo Hanyu / Kristina Mladenovic",
+                      "shortDisplayName": "H. Guo / K. Mladenovic",
+                      "athletes": [
+                        {
+                          "guid": "75e42130-d572-1fbe-08bb-1d529277f6bf",
+                          "displayName": "Guo Hanyu",
+                          "shortName": "H. Guo",
+                          "fullName": "Guo Hanyu",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3149/guo-hanyu",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "549b9c79-8dc2-b381-96be-1ba46ede0811",
+                          "displayName": "Kristina Mladenovic",
+                          "shortName": "K. Mladenovic",
+                          "fullName": "Kristina Mladenovic",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/1273/kristina-mladenovic",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 382,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "15",
+                  "displayName": "Group Stage"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "187444",
+                "uid": "s:850~l:900~e:382-2026~c:187444",
+                "date": "2026-11-14T23:00Z",
+                "startDate": "2026-11-14T23:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Sat, November 14th at 6:00 PM EST",
+                    "shortDetail": "11/14 - 6:00 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Indian Wells, USA",
+                  "court": "Indian Wells Tennis Garden"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "2248-2114",
+                    "uid": "s:850~l:900~t:2248-2114",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Katerina Siniakova / Taylor Townsend",
+                      "shortDisplayName": "K. Siniakova / T. Townsend",
+                      "athletes": [
+                        {
+                          "guid": "fe013c03-6a8a-a745-4e09-e2bc7adc74bc",
+                          "displayName": "Katerina Siniakova",
+                          "shortName": "K. Siniakova",
+                          "fullName": "Katerina Siniakova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                            "alt": "Czechia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2248/katerina-siniakova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "a4287837-099c-33e5-009f-6ab8763da8a4",
+                          "displayName": "Taylor Townsend",
+                          "shortName": "T. Townsend",
+                          "fullName": "Taylor Townsend",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/2114/taylor-townsend",
                               "text": "Player Card",
                               "shortText": "Player Card",
                               "isExternal": false,
@@ -5034,16 +5550,16 @@
                   "slug": "womens-doubles"
                 },
                 "round": {
-                  "id": "15",
-                  "displayName": "Group Stage"
+                  "id": "6",
+                  "displayName": "Semifinal"
                 },
                 "wasSuspended": false
               },
               {
-                "id": "187387",
-                "uid": "s:850~l:900~e:382-2026~c:187387",
-                "date": "2026-11-14T00:30Z",
-                "startDate": "2026-11-14T00:30Z",
+                "id": "187443",
+                "uid": "s:850~l:900~e:382-2026~c:187443",
+                "date": "2026-11-15T00:30Z",
+                "startDate": "2026-11-15T00:30Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
@@ -5054,209 +5570,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, November 13th at 7:30 PM EST",
-                    "shortDetail": "11/13 - 7:30 PM EST"
+                    "detail": "Sat, November 14th at 7:30 PM EST",
+                    "shortDetail": "11/14 - 7:30 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Indian Wells, USA",
                   "court": "Indian Wells Tennis Garden"
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "2221-707",
-                    "uid": "s:850~l:900~t:2221-707",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
-                    "curatedRank": {
-                      "current": 7
-                    },
-                    "roster": {
-                      "displayName": "Elise Mertens / Zhang Shuai",
-                      "shortDisplayName": "E. Mertens / Z. Shuai",
-                      "athletes": [
-                        {
-                          "guid": "5aacb93a-68ef-f2e4-1e9e-1bbff5dd6c3b",
-                          "displayName": "Elise Mertens",
-                          "shortName": "E. Mertens",
-                          "fullName": "Elise Mertens",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
-                            "alt": "Belgium",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/2221/elise-mertens",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "3663b79d-064e-ee3d-4f1c-d73c5a82d970",
-                          "displayName": "Zhang Shuai",
-                          "shortName": "Z. Shuai",
-                          "fullName": "Zhang Shuai",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
-                            "alt": "China",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/707/zhang-shuai",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "3149-1273",
-                    "uid": "s:850~l:900~t:3149-1273",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 3
-                    },
-                    "roster": {
-                      "displayName": "Guo Hanyu / Kristina Mladenovic",
-                      "shortDisplayName": "H. Guo / K. Mladenovic",
-                      "athletes": [
-                        {
-                          "guid": "75e42130-d572-1fbe-08bb-1d529277f6bf",
-                          "displayName": "Guo Hanyu",
-                          "shortName": "H. Guo",
-                          "fullName": "Guo Hanyu",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
-                            "alt": "China",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/3149/guo-hanyu",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "549b9c79-8dc2-b381-96be-1ba46ede0811",
-                          "displayName": "Kristina Mladenovic",
-                          "shortName": "K. Mladenovic",
-                          "fullName": "Kristina Mladenovic",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
-                            "alt": "France",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/1273/kristina-mladenovic",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 382,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "15",
-                  "displayName": "Group Stage"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "187443",
-                "uid": "s:850~l:900~e:382-2026~c:187443",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Indian Wells, USA",
-                  "court": ""
                 },
                 "format": {
                   "regulation": {
@@ -5344,98 +5664,26 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "3149-1273",
+                    "uid": "s:850~l:900~t:3149-1273",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
-                      "athletes": [
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        },
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 382,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "187444",
-                "uid": "s:850~l:900~e:382-2026~c:187444",
-                "date": "2026-11-14T05:00Z",
-                "startDate": "2026-11-14T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Indian Wells, USA",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "2248-2114",
-                    "uid": "s:850~l:900~t:2248-2114",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
                     "curatedRank": {
-                      "current": 2
+                      "current": 3
                     },
                     "roster": {
-                      "displayName": "Katerina Siniakova / Taylor Townsend",
-                      "shortDisplayName": "K. Siniakova / T. Townsend",
+                      "displayName": "Guo Hanyu / Kristina Mladenovic",
+                      "shortDisplayName": "H. Guo / K. Mladenovic",
                       "athletes": [
                         {
-                          "guid": "fe013c03-6a8a-a745-4e09-e2bc7adc74bc",
-                          "displayName": "Katerina Siniakova",
-                          "shortName": "K. Siniakova",
-                          "fullName": "Katerina Siniakova",
+                          "guid": "75e42130-d572-1fbe-08bb-1d529277f6bf",
+                          "displayName": "Guo Hanyu",
+                          "shortName": "H. Guo",
+                          "fullName": "Guo Hanyu",
                           "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
-                            "alt": "Czechia",
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+                            "alt": "China",
                             "rel": [
                               "country-flag"
                             ]
@@ -5448,7 +5696,7 @@
                                 "desktop",
                                 "athlete"
                               ],
-                              "href": "https://www.espn.com/tennis/player/_/id/2248/katerina-siniakova",
+                              "href": "https://www.espn.com/tennis/player/_/id/3149/guo-hanyu",
                               "text": "Player Card",
                               "shortText": "Player Card",
                               "isExternal": false,
@@ -5458,13 +5706,13 @@
                           ]
                         },
                         {
-                          "guid": "a4287837-099c-33e5-009f-6ab8763da8a4",
-                          "displayName": "Taylor Townsend",
-                          "shortName": "T. Townsend",
-                          "fullName": "Taylor Townsend",
+                          "guid": "549b9c79-8dc2-b381-96be-1ba46ede0811",
+                          "displayName": "Kristina Mladenovic",
+                          "shortName": "K. Mladenovic",
+                          "fullName": "Kristina Mladenovic",
                           "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
-                            "alt": "USA",
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                            "alt": "France",
                             "rel": [
                               "country-flag"
                             ]
@@ -5477,7 +5725,7 @@
                                 "desktop",
                                 "athlete"
                               ],
-                              "href": "https://www.espn.com/tennis/player/_/id/2114/taylor-townsend",
+                              "href": "https://www.espn.com/tennis/player/_/id/1273/kristina-mladenovic",
                               "text": "Player Card",
                               "shortText": "Player Card",
                               "isExternal": false,
@@ -5485,32 +5733,6 @@
                               "isHidden": false
                             }
                           ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
-                      "athletes": [
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        },
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
                         }
                       ]
                     },
@@ -11009,7 +11231,7 @@
                 "date": "2026-11-14T17:00Z",
                 "startDate": "2026-11-14T17:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -12469,20 +12691,20 @@
               {
                 "id": "186780",
                 "uid": "s:850~l:900~e:1084-2026~c:186780",
-                "date": "2026-11-14T15:00Z",
-                "startDate": "2026-11-14T15:00Z",
+                "date": "2026-11-14T15:05Z",
+                "startDate": "2026-11-14T15:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 14th at 10:00 AM EST",
-                    "shortDetail": "11/14 - 10:00 AM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -12494,7 +12716,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Laura Samson (CZE) & Tamara Zidansek (SLO) leads Veronika Erjavec (SLO) & Zhibek Kulambayeva (KAZ) 7-5 2-6 0-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -12505,6 +12732,19 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
                       "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
@@ -12577,6 +12817,19 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Laura Samson / Tamara Zidansek",
                       "shortDisplayName": "L. Samson / T. Zidansek",
