@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-15T17:28:32.132561+00:00",
+  "fetched_at": "2026-11-15T21:22:26.051069+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-15T05:42Z"
+            "lastUpdated": "2026-11-15T20:02Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-15T05:42Z"
+            "lastUpdated": "2026-11-15T20:02Z"
           }
         ],
         "calendarType": "day",
@@ -629,17 +629,17 @@
                 "date": "2026-11-15T17:10Z",
                 "startDate": "2026-11-15T17:10Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -653,7 +653,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(4) Marcelo Arevalo (ESA) & Mate Pavic (CRO) leads (6) Theo Arribage (FRA) & Albano Olivetti (FRA) 3-2",
+                    "text": "(4) Marcelo Arevalo (ESA) & Mate Pavic (CRO) bt (6) Theo Arribage (FRA) & Albano Olivetti (FRA) 7-6 (9-7) 6-4",
                     "type": "event"
                   }
                 ],
@@ -667,13 +667,19 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "curatedRank": {
                       "current": 6
                     },
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "tiebreak": 7,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -748,13 +754,19 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 7.0,
+                        "tiebreak": 9,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -824,11 +836,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 339,
                 "type": {
                   "id": "3",
@@ -3188,20 +3195,20 @@
               {
                 "id": "187506",
                 "uid": "s:850~l:851~e:339-2026~c:187506",
-                "date": "2026-11-15T19:30Z",
-                "startDate": "2026-11-15T19:30Z",
+                "date": "2026-11-15T19:40Z",
+                "startDate": "2026-11-15T19:40Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 15th at 2:30 PM EST",
-                    "shortDetail": "11/15 - 2:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -3213,7 +3220,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Ben Shelton (USA) leads (6) Arthur Fils (FRA) 6-2 3-6 3-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -3224,9 +3236,23 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "911397bc-b02d-3987-94ce-642b3aeac50d",
                       "displayName": "Arthur Fils",
@@ -3264,9 +3290,23 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "2358bec1-f6f0-3540-a37e-13bc322d2c08",
                       "displayName": "Ben Shelton",
@@ -3299,6 +3339,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 339,
                 "type": {
                   "id": "1",

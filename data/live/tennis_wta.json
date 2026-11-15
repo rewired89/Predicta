@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-15T17:28:32.138715+00:00",
+  "fetched_at": "2026-11-15T21:22:26.058789+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-15T05:42Z"
+            "lastUpdated": "2026-11-15T20:02Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-15T05:42Z"
+            "lastUpdated": "2026-11-15T20:02Z"
           }
         ],
         "calendarType": "day",
@@ -2587,20 +2587,20 @@
               {
                 "id": "187442",
                 "uid": "s:850~l:900~e:382-2026~c:187442",
-                "date": "2026-11-15T20:00Z",
-                "startDate": "2026-11-15T20:00Z",
+                "date": "2026-11-15T20:10Z",
+                "startDate": "2026-11-15T20:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 15th at 3:00 PM EST",
-                    "shortDetail": "11/15 - 3:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -2612,7 +2612,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Mirra Andreeva (RUS) leads (6) Elina Svitolina (UKR) 7-5 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2623,9 +2628,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "734dd570-209d-349d-8de8-7ce7c9206163",
                       "displayName": "Mirra Andreeva",
@@ -2663,9 +2678,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "33125b01-8f6a-90c1-1c46-141cca252e50",
                       "displayName": "Elina Svitolina",
@@ -2698,6 +2723,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 382,
                 "type": {
                   "id": "2",
@@ -5919,7 +5949,7 @@
                 "date": "2026-11-15T22:15Z",
                 "startDate": "2026-11-15T22:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -6528,17 +6558,17 @@
                 "date": "2026-11-15T17:25Z",
                 "startDate": "2026-11-15T17:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 15th at 12:25 PM EST",
-                    "shortDetail": "11/15 - 12:25 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6550,7 +6580,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Martina Trevisan (ITA) bt Samantha Alvarez (CHI) 6-1 6-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6561,6 +6596,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "9bb03fdc-e221-3e7e-9f48-6c1a14f580ad",
                       "displayName": "Samantha Alvarez",
@@ -6598,6 +6644,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "dfc051ee-8221-37d2-b33b-1f1466e50425",
                       "displayName": "Martina Trevisan",
@@ -6648,17 +6705,17 @@
                 "date": "2026-11-15T17:35Z",
                 "startDate": "2026-11-15T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 15th at 12:35 PM EST",
-                    "shortDetail": "11/15 - 12:35 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6670,7 +6727,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ariana Geerlings (ESP) bt Camila Rodero Contreras (CHI) 6-3 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6681,6 +6743,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "bc24b1d1-4dfe-393d-a0d1-7dfebfccfcd3",
                       "displayName": "Camila Rodero Contreras",
@@ -6718,6 +6791,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "3049a5ef-2f97-3526-9f92-a97507eac343",
                       "displayName": "Ariana Geerlings",
@@ -6765,20 +6849,20 @@
               {
                 "id": "187536",
                 "uid": "s:850~l:900~e:904-2026~c:187536",
-                "date": "2026-11-15T18:30Z",
-                "startDate": "2026-11-15T18:30Z",
+                "date": "2026-11-15T18:35Z",
+                "startDate": "2026-11-15T18:35Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 15th at 1:30 PM EST",
-                    "shortDetail": "11/15 - 1:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6790,7 +6874,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Valeriya Strakhova (UKR) bt Zhibek Kulambayeva (KAZ) 7-5 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6801,6 +6890,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
                       "displayName": "Valeriya Strakhova",
@@ -6838,6 +6938,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "b607541d-4036-3b31-893b-b7521d6e3d01",
                       "displayName": "Zhibek Kulambayeva",
@@ -6953,16 +7064,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "3042",
+                    "uid": "s:850~l:900~a:3042",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
+                      "displayName": "Valeriya Strakhova",
+                      "shortName": "V. Strakhova",
+                      "fullName": "Valeriya Strakhova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
+                        "alt": "Ukraine",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3042/valeriya-strakhova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -7013,16 +7147,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "1374",
+                    "uid": "s:850~l:900~a:1374",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "dfc051ee-8221-37d2-b33b-1f1466e50425",
+                      "displayName": "Martina Trevisan",
+                      "shortName": "M. Trevisan",
+                      "fullName": "Martina Trevisan",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/1374/martina-trevisan",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -8208,16 +8365,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "11455",
+                    "uid": "s:850~l:900~a:11455",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "1b1be780-9d14-3452-9535-f5e222055987",
+                      "displayName": "Diletta Cherubini",
+                      "shortName": "D. Cherubini",
+                      "fullName": "Diletta Cherubini",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/11455/diletta-cherubini",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -8548,16 +8728,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "14607",
+                    "uid": "s:850~l:900~a:14607",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "3049a5ef-2f97-3526-9f92-a97507eac343",
+                      "displayName": "Ariana Geerlings",
+                      "shortName": "A. Geerlings",
+                      "fullName": "Ariana Geerlings",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/14607/ariana-geerlings",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
