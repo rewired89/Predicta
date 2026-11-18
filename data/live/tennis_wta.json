@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-18T19:09:55.620757+00:00",
+  "fetched_at": "2026-11-18T23:10:36.115282+00:00",
   "data": {
     "leagues": [
       {
@@ -3737,17 +3737,17 @@
                 "date": "2026-11-18T18:40Z",
                 "startDate": "2026-11-18T18:40Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3761,7 +3761,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(1) Leyre Romero Gormaz (ESP) leads Nadia Podoroska (ARG) 3-3",
+                    "text": "(1) Leyre Romero Gormaz (ESP) bt Nadia Podoroska (ARG) 6-3 6-4",
                     "type": "event"
                   }
                 ],
@@ -3775,10 +3775,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3818,13 +3823,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -3859,11 +3869,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -3879,20 +3884,20 @@
               {
                 "id": "186802",
                 "uid": "s:850~l:900~e:904-2026~c:186802",
-                "date": "2026-11-18T22:30Z",
-                "startDate": "2026-11-18T22:30Z",
+                "date": "2026-11-18T23:00Z",
+                "startDate": "2026-11-18T23:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 18th at 5:30 PM EST",
-                    "shortDetail": "11/18 - 5:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -3904,7 +3909,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ariana Geerlings (ESP) leads (2) Laura Samson (CZE) 1-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -3915,9 +3925,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
                       "displayName": "Laura Samson",
@@ -3955,6 +3971,12 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "3049a5ef-2f97-3526-9f92-a97507eac343",
                       "displayName": "Ariana Geerlings",
@@ -3987,372 +4009,11 @@
                     "statistics": []
                   }
                 ],
-                "tournamentId": 904,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
                 },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186808",
-                "uid": "s:850~l:900~e:904-2026~c:186808",
-                "date": "2026-11-19T05:00Z",
-                "startDate": "2026-11-19T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Colina, Chile",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "5878",
-                    "uid": "s:850~l:900~a:5878",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "curatedRank": {
-                      "current": 7
-                    },
-                    "athlete": {
-                      "guid": "45a384a9-ebbe-3616-baf7-28421f08dbda",
-                      "displayName": "Veronika Erjavec",
-                      "shortName": "V. Erjavec",
-                      "fullName": "Veronika Erjavec",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
-                        "alt": "Slovenia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/5878/veronika-erjavec",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "3042",
-                    "uid": "s:850~l:900~a:3042",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
-                      "displayName": "Valeriya Strakhova",
-                      "shortName": "V. Strakhova",
-                      "fullName": "Valeriya Strakhova",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
-                        "alt": "Ukraine",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/3042/valeriya-strakhova",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 904,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186804",
-                "uid": "s:850~l:900~e:904-2026~c:186804",
-                "date": "2026-11-19T05:00Z",
-                "startDate": "2026-11-19T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Colina, Chile",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "4291",
-                    "uid": "s:850~l:900~a:4291",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "curatedRank": {
-                      "current": 4
-                    },
-                    "athlete": {
-                      "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
-                      "displayName": "Andrea Lazaro Garcia",
-                      "shortName": "A. Lazaro Garcia",
-                      "fullName": "Andrea Lazaro Garcia",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
-                        "alt": "Spain",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/4291/andrea-lazaro-garcia",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "11971",
-                    "uid": "s:850~l:900~a:11971",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "guid": "215b5132-ba41-3918-bc39-1c75835f959c",
-                      "displayName": "Fernanda Labrana",
-                      "shortName": "F. Labrana",
-                      "fullName": "Fernanda Labrana",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/chi.png",
-                        "alt": "Chile",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/11971/fernanda-labrana",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 904,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "2",
-                  "displayName": "Round 2"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186806",
-                "uid": "s:850~l:900~e:904-2026~c:186806",
-                "date": "2026-11-19T05:00Z",
-                "startDate": "2026-11-19T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Colina, Chile",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "4546",
-                    "uid": "s:850~l:900~a:4546",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
-                      "displayName": "Irene Burillo",
-                      "shortName": "I. Burillo",
-                      "fullName": "Irene Burillo",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
-                        "alt": "Spain",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "6209",
-                    "uid": "s:850~l:900~a:6209",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "guid": "4b98457b-5c5b-3d96-ae18-580534048e76",
-                      "displayName": "Anastasia Zolotareva",
-                      "shortName": "A. Zolotareva",
-                      "fullName": "Anastasia Zolotareva",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                        "alt": "Russia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/6209/anastasia-zolotareva",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -4368,9 +4029,9 @@
               {
                 "id": "186809",
                 "uid": "s:850~l:900~e:904-2026~c:186809",
-                "date": "2026-11-19T05:00Z",
-                "startDate": "2026-11-19T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-19T14:30Z",
+                "startDate": "2026-11-19T14:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4380,13 +4041,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 19th at 9:30 AM EST",
+                    "shortDetail": "11/19 - 9:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -4489,6 +4150,372 @@
                 "wasSuspended": false
               },
               {
+                "id": "186808",
+                "uid": "s:850~l:900~e:904-2026~c:186808",
+                "date": "2026-11-19T16:00Z",
+                "startDate": "2026-11-19T16:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, November 19th at 11:00 AM EST",
+                    "shortDetail": "11/19 - 11:00 AM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Colina, Chile",
+                  "court": "Center Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "5878",
+                    "uid": "s:850~l:900~a:5878",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
+                    "athlete": {
+                      "guid": "45a384a9-ebbe-3616-baf7-28421f08dbda",
+                      "displayName": "Veronika Erjavec",
+                      "shortName": "V. Erjavec",
+                      "fullName": "Veronika Erjavec",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                        "alt": "Slovenia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/5878/veronika-erjavec",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "3042",
+                    "uid": "s:850~l:900~a:3042",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
+                      "displayName": "Valeriya Strakhova",
+                      "shortName": "V. Strakhova",
+                      "fullName": "Valeriya Strakhova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
+                        "alt": "Ukraine",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3042/valeriya-strakhova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 904,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186806",
+                "uid": "s:850~l:900~e:904-2026~c:186806",
+                "date": "2026-11-19T18:30Z",
+                "startDate": "2026-11-19T18:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, November 19th at 1:30 PM EST",
+                    "shortDetail": "11/19 - 1:30 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Colina, Chile",
+                  "court": "Grandstand"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "4546",
+                    "uid": "s:850~l:900~a:4546",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
+                      "displayName": "Irene Burillo",
+                      "shortName": "I. Burillo",
+                      "fullName": "Irene Burillo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "6209",
+                    "uid": "s:850~l:900~a:6209",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "4b98457b-5c5b-3d96-ae18-580534048e76",
+                      "displayName": "Anastasia Zolotareva",
+                      "shortName": "A. Zolotareva",
+                      "fullName": "Anastasia Zolotareva",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/6209/anastasia-zolotareva",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 904,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186804",
+                "uid": "s:850~l:900~e:904-2026~c:186804",
+                "date": "2026-11-19T22:00Z",
+                "startDate": "2026-11-19T22:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Thu, November 19th at 5:00 PM EST",
+                    "shortDetail": "11/19 - 5:00 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Colina, Chile",
+                  "court": "Center Court"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "4291",
+                    "uid": "s:850~l:900~a:4291",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "athlete": {
+                      "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
+                      "displayName": "Andrea Lazaro Garcia",
+                      "shortName": "A. Lazaro Garcia",
+                      "fullName": "Andrea Lazaro Garcia",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4291/andrea-lazaro-garcia",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "11971",
+                    "uid": "s:850~l:900~a:11971",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "215b5132-ba41-3918-bc39-1c75835f959c",
+                      "displayName": "Fernanda Labrana",
+                      "shortName": "F. Labrana",
+                      "fullName": "Fernanda Labrana",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/chi.png",
+                        "alt": "Chile",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/11971/fernanda-labrana",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 904,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "2",
+                  "displayName": "Round 2"
+                },
+                "wasSuspended": false
+              },
+              {
                 "id": "186801",
                 "uid": "s:850~l:900~e:904-2026~c:186801",
                 "date": "2026-11-20T05:00Z",
@@ -4536,16 +4563,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "10676",
+                    "uid": "s:850~l:900~a:10676",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "4698cc67-8d6e-3ef4-9d6a-2b152e8f0be0",
+                      "displayName": "Leyre Romero Gormaz",
+                      "shortName": "L. Romero Gormaz",
+                      "fullName": "Leyre Romero Gormaz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10676/leyre-romero-gormaz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -5727,20 +5780,20 @@
               {
                 "id": "186964",
                 "uid": "s:850~l:900~e:904-2026~c:186964",
-                "date": "2026-11-18T21:00Z",
-                "startDate": "2026-11-18T21:00Z",
+                "date": "2026-11-18T21:05Z",
+                "startDate": "2026-11-18T21:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 18th at 4:00 PM EST",
-                    "shortDetail": "11/18 - 4:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5752,7 +5805,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Tenika McGiffin (AUS) & Alexandra Osborne (AUS) bt Victoria Jimenez Kasintseva (AND) & Varvara Lepchenko (USA) 7-5 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5763,6 +5821,17 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Tenika McGiffin / Alexandra Osborne",
                       "shortDisplayName": "T. McGiffin / A. Osborne",
@@ -5835,6 +5904,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Victoria Jimenez Kasintseva / Varvara Lepchenko",
                       "shortDisplayName": "V. Jimenez Kasintseva / V. Lepchenko",
@@ -5915,158 +5995,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "186965",
-                "uid": "s:850~l:900~e:904-2026~c:186965",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Colina, Chile",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "5878-4926",
-                    "uid": "s:850~l:900~t:5878-4926",
-                    "type": "team",
-                    "order": 2,
-                    "homeAway": "away",
-                    "curatedRank": {
-                      "current": 2
-                    },
-                    "roster": {
-                      "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
-                      "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
-                      "athletes": [
-                        {
-                          "guid": "45a384a9-ebbe-3616-baf7-28421f08dbda",
-                          "displayName": "Veronika Erjavec",
-                          "shortName": "V. Erjavec",
-                          "fullName": "Veronika Erjavec",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
-                            "alt": "Slovenia",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/5878/veronika-erjavec",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        },
-                        {
-                          "guid": "b607541d-4036-3b31-893b-b7521d6e3d01",
-                          "displayName": "Zhibek Kulambayeva",
-                          "shortName": "Z. Kulambayeva",
-                          "fullName": "Zhibek Kulambayeva",
-                          "flag": {
-                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/kaz.png",
-                            "alt": "Kazakhstan",
-                            "rel": [
-                              "country-flag"
-                            ]
-                          },
-                          "links": [
-                            {
-                              "language": "en-US",
-                              "rel": [
-                                "playercard",
-                                "desktop",
-                                "athlete"
-                              ],
-                              "href": "https://www.espn.com/tennis/player/_/id/4926/zhibek-kulambayeva",
-                              "text": "Player Card",
-                              "shortText": "Player Card",
-                              "isExternal": false,
-                              "isPremium": false,
-                              "isHidden": false
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
-                    "type": "team",
-                    "order": 1,
-                    "homeAway": "home",
-                    "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
-                      "athletes": [
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        },
-                        {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 904,
-                "type": {
-                  "id": "4",
-                  "text": "Women's Doubles",
-                  "slug": "womens-doubles"
-                },
-                "round": {
-                  "id": "6",
-                  "displayName": "Semifinal"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "187541",
                 "uid": "s:850~l:900~e:904-2026~c:187541",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-19T20:00Z",
+                "startDate": "2026-11-19T20:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -6076,13 +6009,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Thu, November 19th at 3:00 PM EST",
+                    "shortDetail": "11/19 - 3:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Grandstand"
                 },
                 "format": {
                   "regulation": {
@@ -6229,6 +6162,199 @@
                                 "athlete"
                               ],
                               "href": "https://www.espn.com/tennis/player/_/id/5626/anastasia-tikhonova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 904,
+                "type": {
+                  "id": "4",
+                  "text": "Women's Doubles",
+                  "slug": "womens-doubles"
+                },
+                "round": {
+                  "id": "6",
+                  "displayName": "Semifinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186965",
+                "uid": "s:850~l:900~e:904-2026~c:186965",
+                "date": "2026-11-20T05:00Z",
+                "startDate": "2026-11-20T05:00Z",
+                "timeValid": false,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "M/d - 'TBD'",
+                    "shortDetail": "TBD"
+                  }
+                },
+                "venue": {
+                  "fullName": "Colina, Chile",
+                  "court": ""
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "5878-4926",
+                    "uid": "s:850~l:900~t:5878-4926",
+                    "type": "team",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "roster": {
+                      "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
+                      "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
+                      "athletes": [
+                        {
+                          "guid": "45a384a9-ebbe-3616-baf7-28421f08dbda",
+                          "displayName": "Veronika Erjavec",
+                          "shortName": "V. Erjavec",
+                          "fullName": "Veronika Erjavec",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                            "alt": "Slovenia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5878/veronika-erjavec",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "b607541d-4036-3b31-893b-b7521d6e3d01",
+                          "displayName": "Zhibek Kulambayeva",
+                          "shortName": "Z. Kulambayeva",
+                          "fullName": "Zhibek Kulambayeva",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/kaz.png",
+                            "alt": "Kazakhstan",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4926/zhibek-kulambayeva",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "17836-4484",
+                    "uid": "s:850~l:900~t:17836-4484",
+                    "type": "team",
+                    "order": 1,
+                    "homeAway": "home",
+                    "roster": {
+                      "displayName": "Tenika McGiffin / Alexandra Osborne",
+                      "shortDisplayName": "T. McGiffin / A. Osborne",
+                      "athletes": [
+                        {
+                          "guid": "99fb5164-4a71-3352-ae94-23b1e7616be1",
+                          "displayName": "Tenika McGiffin",
+                          "shortName": "T. McGiffin",
+                          "fullName": "Tenika McGiffin",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/aus.png",
+                            "alt": "Australia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/17836/tenika-mcgiffin",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "f4932eb9-8034-3c53-a6b7-08e828e066fd",
+                          "displayName": "Alexandra Osborne",
+                          "shortName": "A. Osborne",
+                          "fullName": "Alexandra Osborne",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/aus.png",
+                            "alt": "Australia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4484/alexandra-osborne",
                               "text": "Player Card",
                               "shortText": "Player Card",
                               "isExternal": false,

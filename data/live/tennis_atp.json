@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-18T19:09:55.611481+00:00",
+  "fetched_at": "2026-11-18T23:10:36.108336+00:00",
   "data": {
     "leagues": [
       {
@@ -2610,9 +2610,9 @@
               {
                 "id": "187521",
                 "uid": "s:850~l:851~e:339-2026~c:187521",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T10:30Z",
+                "startDate": "2026-11-20T10:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -2622,13 +2622,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 5:30 AM EST",
+                    "shortDetail": "11/20 - 5:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Turin, Italy",
-                  "court": ""
+                  "court": "Inalpi Arena"
                 },
                 "format": {
                   "regulation": {
@@ -2806,9 +2806,9 @@
               {
                 "id": "187526",
                 "uid": "s:850~l:851~e:339-2026~c:187526",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T17:00Z",
+                "startDate": "2026-11-20T17:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -2818,13 +2818,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 12:00 PM EST",
+                    "shortDetail": "11/20 - 12:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Turin, Italy",
-                  "court": ""
+                  "court": "Inalpi Arena"
                 },
                 "format": {
                   "regulation": {
@@ -4324,20 +4324,20 @@
               {
                 "id": "187514",
                 "uid": "s:850~l:851~e:339-2026~c:187514",
-                "date": "2026-11-18T19:30Z",
-                "startDate": "2026-11-18T19:30Z",
+                "date": "2026-11-18T19:40Z",
+                "startDate": "2026-11-18T19:40Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Wed, November 18th at 2:30 PM EST",
-                    "shortDetail": "11/18 - 2:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4349,7 +4349,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(7) Frances Tiafoe (USA) bt (5) Flavio Cobolli (ITA) 7-6 (8-6) 6-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4360,9 +4365,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 8,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "f901758a-d8f2-442c-9cd3-44513fcbf31e",
                       "displayName": "Frances Tiafoe",
@@ -4400,9 +4417,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 6,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "62b541a8-4480-30f7-87a6-b45d09376f39",
                       "displayName": "Flavio Cobolli",
@@ -4700,137 +4729,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "187513",
-                "uid": "s:850~l:851~e:339-2026~c:187513",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Turin, Italy",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 5
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "2708",
-                    "uid": "s:850~l:851~a:2708",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "curatedRank": {
-                      "current": 7
-                    },
-                    "athlete": {
-                      "guid": "f901758a-d8f2-442c-9cd3-44513fcbf31e",
-                      "displayName": "Frances Tiafoe",
-                      "shortName": "F. Tiafoe",
-                      "fullName": "Frances Tiafoe",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
-                        "alt": "USA",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2708/frances-tiafoe",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "2383",
-                    "uid": "s:850~l:851~a:2383",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "curatedRank": {
-                      "current": 4
-                    },
-                    "athlete": {
-                      "guid": "469710ae-79d9-770e-e3b7-d71e5148642c",
-                      "displayName": "Daniil Medvedev",
-                      "shortName": "D. Medvedev",
-                      "fullName": "Daniil Medvedev",
-                      "flag": {
-                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
-                        "alt": "Russia",
-                        "rel": [
-                          "country-flag"
-                        ]
-                      },
-                      "links": [
-                        {
-                          "language": "en-US",
-                          "rel": [
-                            "playercard",
-                            "desktop",
-                            "athlete"
-                          ],
-                          "href": "https://www.espn.com/tennis/player/_/id/2383/daniil-medvedev",
-                          "text": "Player Card",
-                          "shortText": "Player Card",
-                          "isExternal": false,
-                          "isPremium": false,
-                          "isHidden": false
-                        }
-                      ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 339,
-                "type": {
-                  "id": "1",
-                  "text": "Men's Singles",
-                  "slug": "mens-singles"
-                },
-                "round": {
-                  "id": "15",
-                  "displayName": "Group Stage"
-                },
-                "wasSuspended": false
-              },
-              {
                 "id": "187510",
                 "uid": "s:850~l:851~e:339-2026~c:187510",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T13:00Z",
+                "startDate": "2026-11-20T13:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4840,13 +4743,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 8:00 AM EST",
+                    "shortDetail": "11/20 - 8:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Turin, Italy",
-                  "court": ""
+                  "court": "Inalpi Arena"
                 },
                 "format": {
                   "regulation": {
@@ -4928,6 +4831,132 @@
                             "athlete"
                           ],
                           "href": "https://www.espn.com/tennis/player/_/id/3782/carlos-alcaraz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 339,
+                "type": {
+                  "id": "1",
+                  "text": "Men's Singles",
+                  "slug": "mens-singles"
+                },
+                "round": {
+                  "id": "15",
+                  "displayName": "Group Stage"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "187513",
+                "uid": "s:850~l:851~e:339-2026~c:187513",
+                "date": "2026-11-20T19:30Z",
+                "startDate": "2026-11-20T19:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Fri, November 20th at 2:30 PM EST",
+                    "shortDetail": "11/20 - 2:30 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Turin, Italy",
+                  "court": "Inalpi Arena"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 5
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "2708",
+                    "uid": "s:850~l:851~a:2708",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 7
+                    },
+                    "athlete": {
+                      "guid": "f901758a-d8f2-442c-9cd3-44513fcbf31e",
+                      "displayName": "Frances Tiafoe",
+                      "shortName": "F. Tiafoe",
+                      "fullName": "Frances Tiafoe",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2708/frances-tiafoe",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "2383",
+                    "uid": "s:850~l:851~a:2383",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 4
+                    },
+                    "athlete": {
+                      "guid": "469710ae-79d9-770e-e3b7-d71e5148642c",
+                      "displayName": "Daniil Medvedev",
+                      "shortName": "D. Medvedev",
+                      "fullName": "Daniil Medvedev",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                        "alt": "Russia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2383/daniil-medvedev",
                           "text": "Player Card",
                           "shortText": "Player Card",
                           "isExternal": false,
