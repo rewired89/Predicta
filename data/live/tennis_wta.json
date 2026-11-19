@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-19T19:13:09.953242+00:00",
+  "fetched_at": "2026-11-19T23:17:24.723246+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-19T10:24Z"
+            "lastUpdated": "2026-11-18T20:07Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-19T10:24Z"
+            "lastUpdated": "2026-11-18T20:07Z"
           }
         ],
         "calendarType": "day",
@@ -4205,17 +4205,17 @@
                 "date": "2026-11-19T17:35Z",
                 "startDate": "2026-11-19T17:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4229,7 +4229,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Valeriya Strakhova (UKR) leads (7) Veronika Erjavec (SLO) 6-3 5-4",
+                    "text": "Valeriya Strakhova (UKR) bt (7) Veronika Erjavec (SLO) 6-3 7-6 (7-3)",
                     "type": "event"
                   }
                 ],
@@ -4243,7 +4243,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "curatedRank": {
                       "current": 7
                     },
@@ -4253,7 +4253,9 @@
                         "winner": false
                       },
                       {
-                        "value": 4.0
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4293,14 +4295,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4335,11 +4339,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -4358,17 +4357,17 @@
                 "date": "2026-11-19T18:35Z",
                 "startDate": "2026-11-19T18:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4382,7 +4381,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Irene Burillo (ESP) leads Anastasia Zolotareva (RUS) 5-3",
+                    "text": "Irene Burillo (ESP) bt Anastasia Zolotareva (RUS) 6-4 6-4",
                     "type": "event"
                   }
                 ],
@@ -4396,10 +4395,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4439,10 +4443,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4477,11 +4486,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -4497,20 +4501,20 @@
               {
                 "id": "186804",
                 "uid": "s:850~l:900~e:904-2026~c:186804",
-                "date": "2026-11-19T22:00Z",
-                "startDate": "2026-11-19T22:00Z",
+                "date": "2026-11-19T22:05Z",
+                "startDate": "2026-11-19T22:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 19th at 5:00 PM EST",
-                    "shortDetail": "11/19 - 5:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -4522,7 +4526,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Fernanda Labrana (CHI) leads (4) Andrea Lazaro Garcia (ESP) 2-6 3-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4536,6 +4545,15 @@
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
                       "displayName": "Andrea Lazaro Garcia",
@@ -4573,6 +4591,15 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "215b5132-ba41-3918-bc39-1c75835f959c",
                       "displayName": "Fernanda Labrana",
@@ -4620,9 +4647,9 @@
               {
                 "id": "186801",
                 "uid": "s:850~l:900~e:904-2026~c:186801",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T15:00Z",
+                "startDate": "2026-11-20T15:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4632,13 +4659,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 10:00 AM EST",
+                    "shortDetail": "11/20 - 10:00 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -4651,16 +4678,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4546",
+                    "uid": "s:850~l:900~a:4546",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
+                      "displayName": "Irene Burillo",
+                      "shortName": "I. Burillo",
+                      "fullName": "Irene Burillo",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4546/irene-burillo",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -4720,9 +4770,9 @@
               {
                 "id": "186800",
                 "uid": "s:850~l:900~e:904-2026~c:186800",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T16:30Z",
+                "startDate": "2026-11-20T16:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4732,13 +4782,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 11:30 AM EST",
+                    "shortDetail": "11/20 - 11:30 AM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -4751,16 +4801,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "3042",
+                    "uid": "s:850~l:900~a:3042",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
+                      "displayName": "Valeriya Strakhova",
+                      "shortName": "V. Strakhova",
+                      "fullName": "Valeriya Strakhova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
+                        "alt": "Ukraine",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3042/valeriya-strakhova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -4820,9 +4893,9 @@
               {
                 "id": "186799",
                 "uid": "s:850~l:900~e:904-2026~c:186799",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T20:30Z",
+                "startDate": "2026-11-20T20:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4832,13 +4905,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 3:30 PM EST",
+                    "shortDetail": "11/20 - 3:30 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -4920,9 +4993,9 @@
               {
                 "id": "186798",
                 "uid": "s:850~l:900~e:904-2026~c:186798",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T22:00Z",
+                "startDate": "2026-11-20T22:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4932,13 +5005,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 5:00 PM EST",
+                    "shortDetail": "11/20 - 5:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -6151,20 +6224,20 @@
               {
                 "id": "187541",
                 "uid": "s:850~l:900~e:904-2026~c:187541",
-                "date": "2026-11-19T20:00Z",
-                "startDate": "2026-11-19T20:00Z",
+                "date": "2026-11-19T21:20Z",
+                "startDate": "2026-11-19T21:20Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 19th at 3:00 PM EST",
-                    "shortDetail": "11/19 - 3:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6176,7 +6249,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Valeriya Strakhova (UKR) & Anastasia Tikhonova (RUS) bt Nuria Brancaccio (ITA) & Guiomar Maristany Zuleta De Reales (ESP) 0-6 7-6 (7-4) 1-0 (10-8)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6187,6 +6265,23 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 8,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Nuria Brancaccio / Guiomar Maristany Zuleta De Reales",
                       "shortDisplayName": "N. Brancaccio / G. Maristany Zuleta De Reales",
@@ -6259,9 +6354,26 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Valeriya Strakhova / Anastasia Tikhonova",
                       "shortDisplayName": "V. Strakhova / A. Tikhonova",
@@ -6344,9 +6456,9 @@
               {
                 "id": "186965",
                 "uid": "s:850~l:900~e:904-2026~c:186965",
-                "date": "2026-11-20T05:00Z",
-                "startDate": "2026-11-20T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-20T18:30Z",
+                "startDate": "2026-11-20T18:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -6356,13 +6468,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 20th at 1:30 PM EST",
+                    "shortDetail": "11/20 - 1:30 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Grandstand"
                 },
                 "format": {
                   "regulation": {
@@ -6568,30 +6680,103 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
+                    "id": "-3--4",
+                    "uid": "s:850~l:900~t:-3--4",
+                    "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "roster": {
+                      "displayName": "TBD / TBD",
+                      "shortDisplayName": "TBD / TBD",
+                      "athletes": [
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        },
+                        {
+                          "displayName": "TBD",
+                          "shortName": "TBD",
+                          "fullName": "TBD",
+                          "links": []
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
+                    "id": "3042-5626",
+                    "uid": "s:850~l:900~t:3042-5626",
+                    "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                    "curatedRank": {
+                      "current": 1
+                    },
+                    "roster": {
+                      "displayName": "Valeriya Strakhova / Anastasia Tikhonova",
+                      "shortDisplayName": "V. Strakhova / A. Tikhonova",
+                      "athletes": [
+                        {
+                          "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
+                          "displayName": "Valeriya Strakhova",
+                          "shortName": "V. Strakhova",
+                          "fullName": "Valeriya Strakhova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ukr.png",
+                            "alt": "Ukraine",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/3042/valeriya-strakhova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        },
+                        {
+                          "guid": "2571111c-4ebb-32ac-872c-38058bf49c90",
+                          "displayName": "Anastasia Tikhonova",
+                          "shortName": "A. Tikhonova",
+                          "fullName": "Anastasia Tikhonova",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/rus.png",
+                            "alt": "Russia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5626/anastasia-tikhonova",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
+                        }
+                      ]
                     },
                     "statistics": []
                   }
