@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-18T23:10:36.108336+00:00",
+  "fetched_at": "2026-11-19T19:13:09.944823+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-18T06:48Z"
+            "lastUpdated": "2026-11-19T10:24Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-18T06:48Z"
+            "lastUpdated": "2026-11-19T10:24Z"
           }
         ],
         "calendarType": "day",
@@ -2218,20 +2218,20 @@
               {
                 "id": "187519",
                 "uid": "s:850~l:851~e:339-2026~c:187519",
-                "date": "2026-11-19T10:30Z",
-                "startDate": "2026-11-19T10:30Z",
+                "date": "2026-11-19T10:40Z",
+                "startDate": "2026-11-19T10:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 19th at 5:30 AM EST",
-                    "shortDetail": "11/19 - 5:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -2243,7 +2243,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(4) Marcelo Arevalo (ESA) & Mate Pavic (CRO) bt (8) Orlando Luz (BRA) & Rafael Matos (BRA) 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2254,9 +2259,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 8
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Orlando Luz / Rafael Matos",
                       "shortDisplayName": "O. Luz / R. Matos",
@@ -2329,9 +2345,20 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marcelo Arevalo / Mate Pavic",
                       "shortDisplayName": "M. Arevalo / M. Pavic",
@@ -2414,20 +2441,20 @@
               {
                 "id": "187516",
                 "uid": "s:850~l:851~e:339-2026~c:187516",
-                "date": "2026-11-19T17:00Z",
-                "startDate": "2026-11-19T17:00Z",
+                "date": "2026-11-19T17:10Z",
+                "startDate": "2026-11-19T17:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 19th at 12:00 PM EST",
-                    "shortDetail": "11/19 - 12:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -2439,7 +2466,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Theo Arribage (FRA) & Albano Olivetti (FRA) bt (1) Harri Heliovaara (FIN) & Henry Patten (GBR) 7-6 (7-5) 7-6 (7-3)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2450,9 +2482,22 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Theo Arribage / Albano Olivetti",
                       "shortDisplayName": "T. Arribage / A. Olivetti",
@@ -2525,9 +2570,22 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Harri Heliovaara / Henry Patten",
                       "shortDisplayName": "H. Heliovaara / H. Patten",
@@ -4479,20 +4537,20 @@
               {
                 "id": "187507",
                 "uid": "s:850~l:851~e:339-2026~c:187507",
-                "date": "2026-11-19T13:00Z",
-                "startDate": "2026-11-19T13:00Z",
+                "date": "2026-11-19T13:10Z",
+                "startDate": "2026-11-19T13:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 19th at 8:00 AM EST",
-                    "shortDetail": "11/19 - 8:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4504,7 +4562,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Ben Shelton (USA) bt (8) Rafael Jodar (ESP) 7-6 (10-8) 7-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4515,9 +4578,21 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 8
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 8,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "14a740e2-9290-3b00-84d2-8a65c9754208",
                       "displayName": "Rafael Jodar",
@@ -4555,9 +4630,21 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "2358bec1-f6f0-3540-a37e-13bc322d2c08",
                       "displayName": "Ben Shelton",
@@ -4608,7 +4695,7 @@
                 "date": "2026-11-19T19:30Z",
                 "startDate": "2026-11-19T19:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
