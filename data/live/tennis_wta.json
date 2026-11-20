@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-20T18:53:43.162931+00:00",
+  "fetched_at": "2026-11-20T22:50:44.256419+00:00",
   "data": {
     "leagues": [
       {
@@ -4812,17 +4812,17 @@
                 "date": "2026-11-20T17:25Z",
                 "startDate": "2026-11-20T17:25Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4836,7 +4836,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(3) Lucia Bronzetti (ITA) leads Valeriya Strakhova (UKR) 6-4 3-2",
+                    "text": "(3) Lucia Bronzetti (ITA) bt Valeriya Strakhova (UKR) 6-4 6-2",
                     "type": "event"
                   }
                 ],
@@ -4850,14 +4850,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 4.0,
                         "winner": false
                       },
                       {
-                        "value": 2.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4897,7 +4898,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 3
                     },
@@ -4907,7 +4908,8 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4942,11 +4944,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -4962,20 +4959,20 @@
               {
                 "id": "186799",
                 "uid": "s:850~l:900~e:904-2026~c:186799",
-                "date": "2026-11-20T20:30Z",
-                "startDate": "2026-11-20T20:30Z",
+                "date": "2026-11-20T20:35Z",
+                "startDate": "2026-11-20T20:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 3:30 PM EST",
-                    "shortDetail": "11/20 - 3:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -4987,7 +4984,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Guiomar Maristany Zuleta De Reales (ESP) leads (4) Andrea Lazaro Garcia (ESP) 6-2 3-6 3-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4998,9 +5000,23 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
                       "displayName": "Andrea Lazaro Garcia",
@@ -5038,9 +5054,23 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "11dd9669-ff02-3c8b-b611-fd33ced01346",
                       "displayName": "Guiomar Maristany Zuleta De Reales",
@@ -5073,6 +5103,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -5088,10 +5123,10 @@
               {
                 "id": "186798",
                 "uid": "s:850~l:900~e:904-2026~c:186798",
-                "date": "2026-11-20T22:00Z",
-                "startDate": "2026-11-20T22:00Z",
+                "date": "2026-11-20T22:50Z",
+                "startDate": "2026-11-20T22:50Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -5100,8 +5135,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Fri, November 20th at 5:00 PM EST",
-                    "shortDetail": "11/20 - 5:00 PM EST"
+                    "detail": "Fri, November 20th at 5:50 PM EST",
+                    "shortDetail": "11/20 - 5:50 PM EST"
                   }
                 },
                 "venue": {
@@ -5214,9 +5249,9 @@
               {
                 "id": "186811",
                 "uid": "s:850~l:900~e:904-2026~c:186811",
-                "date": "2026-11-21T05:00Z",
-                "startDate": "2026-11-21T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-21T20:00Z",
+                "startDate": "2026-11-21T20:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -5226,13 +5261,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 21st at 3:00 PM EST",
+                    "shortDetail": "11/21 - 3:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -5245,16 +5280,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4666",
+                    "uid": "s:850~l:900~a:4666",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 3
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b89e8ea6-ef2c-32e6-b209-74cd0a5d6f1c",
+                      "displayName": "Lucia Bronzetti",
+                      "shortName": "L. Bronzetti",
+                      "fullName": "Lucia Bronzetti",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                        "alt": "Italy",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4666/lucia-bronzetti",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -5314,9 +5375,9 @@
               {
                 "id": "186810",
                 "uid": "s:850~l:900~e:904-2026~c:186810",
-                "date": "2026-11-21T05:00Z",
-                "startDate": "2026-11-21T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-21T21:30Z",
+                "startDate": "2026-11-21T21:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -5326,13 +5387,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 21st at 4:30 PM EST",
+                    "shortDetail": "11/21 - 4:30 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -6580,17 +6641,17 @@
                 "date": "2026-11-20T18:35Z",
                 "startDate": "2026-11-20T18:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6604,7 +6665,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Tenika McGiffin (AUS) & Alexandra Osborne (AUS) leads (2) Veronika Erjavec (SLO) & Zhibek Kulambayeva (KAZ) 2-1",
+                    "text": "(2) Veronika Erjavec (SLO) & Zhibek Kulambayeva (KAZ) bt Tenika McGiffin (AUS) & Alexandra Osborne (AUS) 7-6 (9-7) 3-6 1-0 (10-4)",
                     "type": "event"
                   }
                 ],
@@ -6618,13 +6679,24 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
-                        "value": 1.0
+                        "value": 7.0,
+                        "tiebreak": 9,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
                       }
                     ],
                     "roster": {
@@ -6699,10 +6771,21 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 6.0,
+                        "tiebreak": 7,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 4,
+                        "winner": false
                       }
                     ],
                     "roster": {
@@ -6772,11 +6855,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "4",
@@ -6792,9 +6870,9 @@
               {
                 "id": "187540",
                 "uid": "s:850~l:900~e:904-2026~c:187540",
-                "date": "2026-11-22T05:00Z",
-                "startDate": "2026-11-22T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-21T17:30Z",
+                "startDate": "2026-11-21T17:30Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -6804,13 +6882,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Sat, November 21st at 12:30 PM EST",
+                    "shortDetail": "11/21 - 12:30 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Colina, Chile",
-                  "court": ""
+                  "court": "Center Court"
                 },
                 "format": {
                   "regulation": {
@@ -6823,26 +6901,75 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "5878-4926",
+                    "uid": "s:850~l:900~t:5878-4926",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
+                      "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "45a384a9-ebbe-3616-baf7-28421f08dbda",
+                          "displayName": "Veronika Erjavec",
+                          "shortName": "V. Erjavec",
+                          "fullName": "Veronika Erjavec",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/slo.png",
+                            "alt": "Slovenia",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5878/veronika-erjavec",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "b607541d-4036-3b31-893b-b7521d6e3d01",
+                          "displayName": "Zhibek Kulambayeva",
+                          "shortName": "Z. Kulambayeva",
+                          "fullName": "Zhibek Kulambayeva",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/kaz.png",
+                            "alt": "Kazakhstan",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/4926/zhibek-kulambayeva",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
