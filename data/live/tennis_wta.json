@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-19T23:17:24.723246+00:00",
+  "fetched_at": "2026-11-20T18:53:43.162931+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-18T20:07Z"
+            "lastUpdated": "2026-11-19T12:30Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-18T20:07Z"
+            "lastUpdated": "2026-11-19T12:30Z"
           }
         ],
         "calendarType": "day",
@@ -4504,17 +4504,17 @@
                 "date": "2026-11-19T22:05Z",
                 "startDate": "2026-11-19T22:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4528,7 +4528,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Fernanda Labrana (CHI) leads (4) Andrea Lazaro Garcia (ESP) 2-6 3-3",
+                    "text": "(4) Andrea Lazaro Garcia (ESP) bt Fernanda Labrana (CHI) 6-2 3-6 6-0",
                     "type": "event"
                   }
                 ],
@@ -4542,6 +4542,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 4
                     },
@@ -4551,7 +4552,12 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4591,13 +4597,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 2.0,
                         "winner": false
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4652,15 +4664,15 @@
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 10:00 AM EST",
-                    "shortDetail": "11/20 - 10:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4672,7 +4684,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(1) Leyre Romero Gormaz (ESP) bt Irene Burillo (ESP) 6-4 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4683,6 +4700,17 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
                       "displayName": "Irene Burillo",
@@ -4720,9 +4748,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "4698cc67-8d6e-3ef4-9d6a-2b152e8f0be0",
                       "displayName": "Leyre Romero Gormaz",
@@ -4770,20 +4809,20 @@
               {
                 "id": "186800",
                 "uid": "s:850~l:900~e:904-2026~c:186800",
-                "date": "2026-11-20T16:30Z",
-                "startDate": "2026-11-20T16:30Z",
+                "date": "2026-11-20T17:25Z",
+                "startDate": "2026-11-20T17:25Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 11:30 AM EST",
-                    "shortDetail": "11/20 - 11:30 AM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -4795,7 +4834,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(3) Lucia Bronzetti (ITA) leads Valeriya Strakhova (UKR) 6-4 3-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4806,6 +4850,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "0f4fc00e-a347-a248-085e-97c76b46b057",
                       "displayName": "Valeriya Strakhova",
@@ -4843,9 +4897,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "b89e8ea6-ef2c-32e6-b209-74cd0a5d6f1c",
                       "displayName": "Lucia Bronzetti",
@@ -4878,6 +4942,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -4924,16 +4993,42 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "4291",
+                    "uid": "s:850~l:900~a:4291",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 4
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "b335644a-7bee-3665-824a-c61bddbddcc7",
+                      "displayName": "Andrea Lazaro Garcia",
+                      "shortName": "A. Lazaro Garcia",
+                      "fullName": "Andrea Lazaro Garcia",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/4291/andrea-lazaro-garcia",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -5164,16 +5259,42 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "10676",
+                    "uid": "s:850~l:900~a:10676",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 1
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "4698cc67-8d6e-3ef4-9d6a-2b152e8f0be0",
+                      "displayName": "Leyre Romero Gormaz",
+                      "shortName": "L. Romero Gormaz",
+                      "fullName": "Leyre Romero Gormaz",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/10676/leyre-romero-gormaz",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -6456,20 +6577,20 @@
               {
                 "id": "186965",
                 "uid": "s:850~l:900~e:904-2026~c:186965",
-                "date": "2026-11-20T18:30Z",
-                "startDate": "2026-11-20T18:30Z",
+                "date": "2026-11-20T18:35Z",
+                "startDate": "2026-11-20T18:35Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 1:30 PM EST",
-                    "shortDetail": "11/20 - 1:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -6481,7 +6602,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Tenika McGiffin (AUS) & Alexandra Osborne (AUS) leads (2) Veronika Erjavec (SLO) & Zhibek Kulambayeva (KAZ) 2-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6492,9 +6618,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
                       "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
@@ -6567,6 +6699,12 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Tenika McGiffin / Alexandra Osborne",
                       "shortDisplayName": "T. McGiffin / A. Osborne",
@@ -6634,6 +6772,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 904,
                 "type": {
                   "id": "4",

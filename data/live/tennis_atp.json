@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-19T23:17:24.716680+00:00",
+  "fetched_at": "2026-11-20T18:53:43.153938+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-18T20:07Z"
+            "lastUpdated": "2026-11-19T12:30Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-18T20:07Z"
+            "lastUpdated": "2026-11-19T12:30Z"
           }
         ],
         "calendarType": "day",
@@ -2668,20 +2668,20 @@
               {
                 "id": "187521",
                 "uid": "s:850~l:851~e:339-2026~c:187521",
-                "date": "2026-11-20T10:30Z",
-                "startDate": "2026-11-20T10:30Z",
+                "date": "2026-11-20T10:40Z",
+                "startDate": "2026-11-20T10:40Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 5:30 AM EST",
-                    "shortDetail": "11/20 - 5:30 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -2693,7 +2693,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Christian Harrison (USA) & Neal Skupski (GBR) bt (3) Marcel Granollers (ESP) & Horacio Zeballos (ARG) 7-6 (7-5) 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2704,9 +2709,21 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 5,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marcel Granollers / Horacio Zeballos",
                       "shortDisplayName": "M. Granollers / H. Zeballos",
@@ -2779,9 +2796,21 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Christian Harrison / Neal Skupski",
                       "shortDisplayName": "C. Harrison / N. Skupski",
@@ -2864,20 +2893,20 @@
               {
                 "id": "187526",
                 "uid": "s:850~l:851~e:339-2026~c:187526",
-                "date": "2026-11-20T17:00Z",
-                "startDate": "2026-11-20T17:00Z",
+                "date": "2026-11-20T17:10Z",
+                "startDate": "2026-11-20T17:10Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 12:00 PM EST",
-                    "shortDetail": "11/20 - 12:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -2889,7 +2918,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(5) Simone Bolelli (ITA) & Andrea Vavassori (ITA) leads (7) Kevin Krawietz (GER) & Tim Puetz (GER) 7-6 (7-4) 6-7 (3-7) 0-0 (1-0)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -2903,6 +2937,22 @@
                     "curatedRank": {
                       "current": 7
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Kevin Krawietz / Tim Puetz",
                       "shortDisplayName": "K. Krawietz / T. Puetz",
@@ -2978,6 +3028,22 @@
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 3,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 1
+                      }
+                    ],
                     "roster": {
                       "displayName": "Simone Bolelli / Andrea Vavassori",
                       "shortDisplayName": "S. Bolelli / A. Vavassori",
@@ -4993,20 +5059,20 @@
               {
                 "id": "187510",
                 "uid": "s:850~l:851~e:339-2026~c:187510",
-                "date": "2026-11-20T13:00Z",
-                "startDate": "2026-11-20T13:00Z",
+                "date": "2026-11-20T13:10Z",
+                "startDate": "2026-11-20T13:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 8:00 AM EST",
-                    "shortDetail": "11/20 - 8:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5018,7 +5084,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Carlos Alcaraz (ESP) bt (5) Flavio Cobolli (ITA) 6-4 6-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5029,9 +5100,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 5
                     },
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "62b541a8-4480-30f7-87a6-b45d09376f39",
                       "displayName": "Flavio Cobolli",
@@ -5069,9 +5151,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "07843754-8bdf-63b0-5983-24252738169e",
                       "displayName": "Carlos Alcaraz",
@@ -5122,7 +5215,7 @@
                 "date": "2026-11-20T19:30Z",
                 "startDate": "2026-11-20T19:30Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
