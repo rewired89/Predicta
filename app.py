@@ -3876,6 +3876,13 @@ def horizon_backtest(horizon: int = 5):
     return out
 
 
+@app.get("/trade/horizon/levels-test")
+def horizon_levels_test(horizon: int = 5):
+    """Do prime-number (or round-number) price levels improve the stock forecast? Compared with random levels of equal spacing."""
+    from models.trading.horizon.levels import run_levels_test
+    return run_levels_test(horizon=max(1, min(horizon, 60)))
+
+
 @app.get("/trade/horizon/volatility")
 def horizon_volatility(horizon: int = 5):
     """Horizon Forecast: can we forecast next N days of price swings better than 'same as last 20 days'? Research only."""

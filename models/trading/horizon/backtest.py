@@ -30,9 +30,9 @@ def _model():
     return make_pipeline(StandardScaler(), LogisticRegression(C=0.1, max_iter=300))
 
 
-def walk_forward(panel: pd.DataFrame, horizon: int) -> pd.DataFrame:
+def walk_forward(panel: pd.DataFrame, horizon: int, cols=None) -> pd.DataFrame:
     data = panel.dropna(subset=["label"])
-    cols = feature_cols(panel)
+    cols = list(cols) if cols else feature_cols(panel)
     dates = sorted(data.index.get_level_values(0).unique())
     if len(dates) < 120:
         return pd.DataFrame()
