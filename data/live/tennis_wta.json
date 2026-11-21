@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-20T22:50:44.256419+00:00",
+  "fetched_at": "2026-11-21T17:49:01.299883+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-19T12:30Z"
+            "lastUpdated": "2026-11-21T04:54Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-19T12:30Z"
+            "lastUpdated": "2026-11-21T04:54Z"
           }
         ],
         "calendarType": "day",
@@ -4962,17 +4962,17 @@
                 "date": "2026-11-20T20:35Z",
                 "startDate": "2026-11-20T20:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4986,7 +4986,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(5) Guiomar Maristany Zuleta De Reales (ESP) leads (4) Andrea Lazaro Garcia (ESP) 6-2 3-6 3-3",
+                    "text": "(5) Guiomar Maristany Zuleta De Reales (ESP) bt (4) Andrea Lazaro Garcia (ESP) 6-2 3-6 6-4",
                     "type": "event"
                   }
                 ],
@@ -5000,7 +5000,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": false,
                     "curatedRank": {
                       "current": 4
                     },
@@ -5014,7 +5014,8 @@
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -5054,7 +5055,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": true,
                     "curatedRank": {
                       "current": 5
                     },
@@ -5068,7 +5069,8 @@
                         "winner": false
                       },
                       {
-                        "value": 3.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -5103,11 +5105,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 904,
                 "type": {
                   "id": "2",
@@ -5123,20 +5120,20 @@
               {
                 "id": "186798",
                 "uid": "s:850~l:900~e:904-2026~c:186798",
-                "date": "2026-11-20T22:50Z",
-                "startDate": "2026-11-20T22:50Z",
+                "date": "2026-11-20T23:35Z",
+                "startDate": "2026-11-20T23:35Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Fri, November 20th at 5:50 PM EST",
-                    "shortDetail": "11/20 - 5:50 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5148,7 +5145,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Rebeka Masarova (SUI) bt (2) Laura Samson (CZE) 6-3 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5159,9 +5161,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 2.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
                       "displayName": "Laura Samson",
@@ -5199,9 +5212,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "1974ca83-b187-9eeb-8480-5d3b758db3d3",
                       "displayName": "Rebeka Masarova",
@@ -5406,30 +5430,82 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "2984",
+                    "uid": "s:850~l:900~a:2984",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "curatedRank": {
+                      "current": 6
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "1974ca83-b187-9eeb-8480-5d3b758db3d3",
+                      "displayName": "Rebeka Masarova",
+                      "shortName": "R. Masarova",
+                      "fullName": "Rebeka Masarova",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/sui.png",
+                        "alt": "Switzerland",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/2984/rebeka-masarova",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "12957",
+                    "uid": "s:850~l:900~a:12957",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "curatedRank": {
+                      "current": 5
+                    },
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "11dd9669-ff02-3c8b-b611-fd33ced01346",
+                      "displayName": "Guiomar Maristany Zuleta De Reales",
+                      "shortName": "G. Maristany Zuleta De Reales",
+                      "fullName": "Guiomar Maristany Zuleta De Reales",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/12957/guiomar-maristany-zuleta-de-reales",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
@@ -6870,20 +6946,20 @@
               {
                 "id": "187540",
                 "uid": "s:850~l:900~e:904-2026~c:187540",
-                "date": "2026-11-21T17:30Z",
-                "startDate": "2026-11-21T17:30Z",
+                "date": "2026-11-21T17:40Z",
+                "startDate": "2026-11-21T17:40Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sat, November 21st at 12:30 PM EST",
-                    "shortDetail": "11/21 - 12:30 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -6895,7 +6971,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Veronika Erjavec (SLO) & Zhibek Kulambayeva (KAZ) leads (1) Valeriya Strakhova (UKR) & Anastasia Tikhonova (RUS) 1-0",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6906,9 +6987,15 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Veronika Erjavec / Zhibek Kulambayeva",
                       "shortDisplayName": "V. Erjavec / Z. Kulambayeva",
@@ -6981,9 +7068,15 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0
+                      }
+                    ],
                     "roster": {
                       "displayName": "Valeriya Strakhova / Anastasia Tikhonova",
                       "shortDisplayName": "V. Strakhova / A. Tikhonova",
@@ -7051,6 +7144,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 904,
                 "type": {
                   "id": "4",
