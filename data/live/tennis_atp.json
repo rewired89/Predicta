@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-21T21:56:14.878696+00:00",
+  "fetched_at": "2026-11-22T18:06:59.964376+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-21T05:37Z"
+            "lastUpdated": "2026-11-22T02:31Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-21T05:37Z"
+            "lastUpdated": "2026-11-22T02:31Z"
           }
         ],
         "calendarType": "day",
@@ -3604,20 +3604,20 @@
               {
                 "id": "187532",
                 "uid": "s:850~l:851~e:339-2026~c:187532",
-                "date": "2026-11-22T14:00Z",
-                "startDate": "2026-11-22T14:00Z",
+                "date": "2026-11-22T14:10Z",
+                "startDate": "2026-11-22T14:10Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 22nd at 9:00 AM EST",
-                    "shortDetail": "11/22 - 9:00 AM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3629,7 +3629,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Theo Arribage (FRA) & Albano Olivetti (FRA) bt (4) Marcelo Arevalo (ESA) & Mate Pavic (CRO) 3-6 7-6 (7-2) 1-0 (10-6)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -3640,9 +3645,26 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 1.0,
+                        "tiebreak": 10,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Theo Arribage / Albano Olivetti",
                       "shortDisplayName": "T. Arribage / A. Olivetti",
@@ -3715,9 +3737,26 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 4
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 2,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "tiebreak": 6,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Marcelo Arevalo / Mate Pavic",
                       "shortDisplayName": "M. Arevalo / M. Pavic",
@@ -5989,20 +6028,20 @@
               {
                 "id": "187529",
                 "uid": "s:850~l:851~e:339-2026~c:187529",
-                "date": "2026-11-22T17:00Z",
-                "startDate": "2026-11-22T17:00Z",
+                "date": "2026-11-22T17:15Z",
+                "startDate": "2026-11-22T17:15Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Sun, November 22nd at 12:00 PM EST",
-                    "shortDetail": "11/22 - 12:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "1st Set",
+                    "shortDetail": "1st"
                   }
                 },
                 "venue": {
@@ -6014,7 +6053,12 @@
                     "periods": 5
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Carlos Alcaraz (ESP) leads (1) Alexander Zverev (GER) 6-2",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -6028,6 +6072,11 @@
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "07843754-8bdf-63b0-5983-24252738169e",
                       "displayName": "Carlos Alcaraz",
@@ -6068,6 +6117,11 @@
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 2.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "fd06b6ea-593b-d5b3-da2b-767ec3e4232c",
                       "displayName": "Alexander Zverev",
