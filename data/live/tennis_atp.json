@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-22T18:06:59.964376+00:00",
+  "fetched_at": "2026-11-22T22:10:54.382527+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-22T02:31Z"
+            "lastUpdated": "2026-11-22T03:13Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-22T02:31Z"
+            "lastUpdated": "2026-11-22T03:13Z"
           }
         ],
         "calendarType": "day",
@@ -6031,17 +6031,17 @@
                 "date": "2026-11-22T17:15Z",
                 "startDate": "2026-11-22T17:15Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -6055,7 +6055,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(2) Carlos Alcaraz (ESP) leads (1) Alexander Zverev (GER) 6-2",
+                    "text": "(2) Carlos Alcaraz (ESP) bt (1) Alexander Zverev (GER) 6-2 7-6 (9-7)",
                     "type": "event"
                   }
                 ],
@@ -6069,12 +6069,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
                     "linescores": [
                       {
-                        "value": 6.0
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 9,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -6114,12 +6121,19 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
                     "linescores": [
                       {
-                        "value": 2.0
+                        "value": 2.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 7,
+                        "winner": false
                       }
                     ],
                     "athlete": {
