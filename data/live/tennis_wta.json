@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-24T20:54:53.976032+00:00",
+  "fetched_at": "2026-11-25T01:07:50.787055+00:00",
   "data": {
     "leagues": [
       {
@@ -2944,17 +2944,17 @@
                 "date": "2026-11-24T19:45Z",
                 "startDate": "2026-11-24T19:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -2968,7 +2968,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Sofia Costoulas (BEL) leads (9) Polona Hercog (SLO) 6-2 3-1",
+                    "text": "Sofia Costoulas (BEL) bt (9) Polona Hercog (SLO) 6-2 4-2 ret",
                     "type": "event"
                   }
                 ],
@@ -2982,14 +2982,15 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 3.0
+                        "value": 4.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3029,7 +3030,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 9
                     },
@@ -3039,7 +3040,8 @@
                         "winner": false
                       },
                       {
-                        "value": 1.0
+                        "value": 2.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3074,11 +3076,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -3097,17 +3094,17 @@
                 "date": "2026-11-24T20:30Z",
                 "startDate": "2026-11-24T20:30Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "1st Set",
-                    "shortDetail": "1st"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -3121,7 +3118,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Nadia Podoroska (ARG) leads (3) Leyre Romero Gormaz (ESP) 3-0",
+                    "text": "Nadia Podoroska (ARG) bt (3) Leyre Romero Gormaz (ESP) 7-6 (7-4) 6-0",
                     "type": "event"
                   }
                 ],
@@ -3135,13 +3132,19 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "curatedRank": {
                       "current": 3
                     },
                     "linescores": [
                       {
-                        "value": 0.0
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      },
+                      {
+                        "value": 0.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -3181,10 +3184,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
-                        "value": 3.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -3219,11 +3228,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -3879,16 +3883,39 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
+                    "id": "3256",
+                    "uid": "s:850~l:900~a:3256",
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "758c0376-af98-981e-0010-3110c5353d77",
+                      "displayName": "Nadia Podoroska",
+                      "shortName": "N. Podoroska",
+                      "fullName": "Nadia Podoroska",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3256/nadia-podoroska",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   },
@@ -4236,16 +4263,39 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
+                    "id": "14562",
+                    "uid": "s:850~l:900~a:14562",
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
                     "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
+                      "guid": "837eea7d-01b3-3b35-8269-c244930bf14c",
+                      "displayName": "Sofia Costoulas",
+                      "shortName": "S. Costoulas",
+                      "fullName": "Sofia Costoulas",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/bel.png",
+                        "alt": "Belgium",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/14562/sofia-costoulas",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
                     },
                     "statistics": []
                   }
