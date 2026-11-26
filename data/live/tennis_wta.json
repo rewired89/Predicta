@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-26T00:42:48.877568+00:00",
+  "fetched_at": "2026-11-26T19:54:17.682105+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-24T21:10Z"
+            "lastUpdated": "2026-11-25T16:55Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-24T21:10Z"
+            "lastUpdated": "2026-11-25T16:55Z"
           }
         ],
         "calendarType": "day",
@@ -384,9 +384,15 @@
           "2026-11-29T08:00Z",
           "2026-11-30T08:00Z",
           "2026-12-02T08:00Z",
+          "2026-12-03T08:00Z",
           "2026-12-04T08:00Z",
           "2026-12-05T08:00Z",
-          "2026-12-06T08:00Z"
+          "2026-12-06T08:00Z",
+          "2026-12-14T08:00Z",
+          "2026-12-16T08:00Z",
+          "2026-12-18T08:00Z",
+          "2026-12-19T08:00Z",
+          "2026-12-20T08:00Z"
         ]
       }
     ],
@@ -3995,20 +4001,20 @@
               {
                 "id": "186836",
                 "uid": "s:850~l:900~e:867-2026~c:186836",
-                "date": "2026-11-26T18:00Z",
-                "startDate": "2026-11-26T18:00Z",
+                "date": "2026-11-26T18:05Z",
+                "startDate": "2026-11-26T18:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 3,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 1:00 PM EST",
-                    "shortDetail": "11/26 - 1:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "3rd Set",
+                    "shortDetail": "3rd"
                   }
                 },
                 "venue": {
@@ -4020,7 +4026,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(6) Guiomar Maristany Zuleta De Reales (ESP) leads Nuria Brancaccio (ITA) 1-6 6-3 5-1",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4031,6 +4042,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 1.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "e3f277f8-68b4-3312-b720-4be8ebe45e0c",
                       "displayName": "Nuria Brancaccio",
@@ -4068,9 +4093,23 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": true,
                     "curatedRank": {
                       "current": 6
                     },
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "11dd9669-ff02-3c8b-b611-fd33ced01346",
                       "displayName": "Guiomar Maristany Zuleta De Reales",
@@ -4103,6 +4142,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -4118,20 +4162,20 @@
               {
                 "id": "186834",
                 "uid": "s:850~l:900~e:867-2026~c:186834",
-                "date": "2026-11-26T18:00Z",
-                "startDate": "2026-11-26T18:00Z",
+                "date": "2026-11-26T18:05Z",
+                "startDate": "2026-11-26T18:05Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
+                    "id": "2",
+                    "name": "STATUS_IN_PROGRESS",
+                    "state": "in",
                     "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 1:00 PM EST",
-                    "shortDetail": "11/26 - 1:00 PM EST"
+                    "description": "In Progress",
+                    "detail": "2nd Set",
+                    "shortDetail": "2nd"
                   }
                 },
                 "venue": {
@@ -4143,7 +4187,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Sofia Costoulas (BEL) leads Varvara Lepchenko (USA) 3-6 5-5",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4154,6 +4203,16 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "possession": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "abb46dba-4c61-b31d-df08-cfa4a24403d1",
                       "displayName": "Varvara Lepchenko",
@@ -4191,6 +4250,16 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "possession": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 5.0
+                      }
+                    ],
                     "athlete": {
                       "guid": "837eea7d-01b3-3b35-8269-c244930bf14c",
                       "displayName": "Sofia Costoulas",
@@ -4223,6 +4292,11 @@
                     "statistics": []
                   }
                 ],
+                "situation": {
+                  "onFirst": false,
+                  "onSecond": false,
+                  "onThird": false
+                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -4238,10 +4312,10 @@
               {
                 "id": "186833",
                 "uid": "s:850~l:900~e:867-2026~c:186833",
-                "date": "2026-11-26T19:30Z",
-                "startDate": "2026-11-26T19:30Z",
+                "date": "2026-11-26T20:00Z",
+                "startDate": "2026-11-26T20:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
@@ -4250,8 +4324,8 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "Thu, November 26th at 2:30 PM EST",
-                    "shortDetail": "11/26 - 2:30 PM EST"
+                    "detail": "Thu, November 26th at 3:00 PM EST",
+                    "shortDetail": "11/26 - 3:00 PM EST"
                   }
                 },
                 "venue": {
@@ -5553,7 +5627,7 @@
                 "date": "2026-11-26T20:00Z",
                 "startDate": "2026-11-26T20:00Z",
                 "timeValid": true,
-                "recent": false,
+                "recent": true,
                 "status": {
                   "period": 1,
                   "type": {
