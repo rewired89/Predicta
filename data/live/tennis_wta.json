@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-26T19:54:17.682105+00:00",
+  "fetched_at": "2026-11-27T00:50:14.698656+00:00",
   "data": {
     "leagues": [
       {
@@ -31,7 +31,7 @@
               "full",
               "default"
             ],
-            "lastUpdated": "2026-11-25T16:55Z"
+            "lastUpdated": "2026-11-26T16:22Z"
           },
           {
             "href": "https://a.espncdn.com/combiner/i?img=/redesign/assets/img/icons/ESPN-icon-tennis.png",
@@ -42,7 +42,7 @@
               "full",
               "dark"
             ],
-            "lastUpdated": "2026-11-25T16:55Z"
+            "lastUpdated": "2026-11-26T16:22Z"
           }
         ],
         "calendarType": "day",
@@ -4004,17 +4004,17 @@
                 "date": "2026-11-26T18:05Z",
                 "startDate": "2026-11-26T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "3rd Set",
-                    "shortDetail": "3rd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4028,7 +4028,7 @@
                 },
                 "notes": [
                   {
-                    "text": "(6) Guiomar Maristany Zuleta De Reales (ESP) leads Nuria Brancaccio (ITA) 1-6 6-3 5-1",
+                    "text": "(6) Guiomar Maristany Zuleta De Reales (ESP) bt Nuria Brancaccio (ITA) 1-6 6-3 6-1",
                     "type": "event"
                   }
                 ],
@@ -4042,7 +4042,7 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 6.0,
@@ -4053,7 +4053,8 @@
                         "winner": false
                       },
                       {
-                        "value": 1.0
+                        "value": 1.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4093,7 +4094,7 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": true,
+                    "winner": true,
                     "curatedRank": {
                       "current": 6
                     },
@@ -4107,7 +4108,8 @@
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4142,11 +4144,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -4165,17 +4162,17 @@
                 "date": "2026-11-26T18:05Z",
                 "startDate": "2026-11-26T18:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 2,
+                  "period": 3,
                   "type": {
-                    "id": "2",
-                    "name": "STATUS_IN_PROGRESS",
-                    "state": "in",
-                    "completed": false,
-                    "description": "In Progress",
-                    "detail": "2nd Set",
-                    "shortDetail": "2nd"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4189,7 +4186,7 @@
                 },
                 "notes": [
                   {
-                    "text": "Sofia Costoulas (BEL) leads Varvara Lepchenko (USA) 3-6 5-5",
+                    "text": "Varvara Lepchenko (USA) bt Sofia Costoulas (BEL) 6-3 6-7 (0-7) 7-5",
                     "type": "event"
                   }
                 ],
@@ -4203,14 +4200,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
-                    "possession": true,
+                    "winner": true,
                     "linescores": [
                       {
                         "value": 6.0,
                         "winner": true
                       },
                       {
-                        "value": 5.0
+                        "value": 6.0,
+                        "tiebreak": 0,
+                        "winner": false
+                      },
+                      {
+                        "value": 7.0,
+                        "winner": true
                       }
                     ],
                     "athlete": {
@@ -4250,14 +4253,20 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
-                    "possession": false,
+                    "winner": false,
                     "linescores": [
                       {
                         "value": 3.0,
                         "winner": false
                       },
                       {
-                        "value": 5.0
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      },
+                      {
+                        "value": 5.0,
+                        "winner": false
                       }
                     ],
                     "athlete": {
@@ -4292,11 +4301,6 @@
                     "statistics": []
                   }
                 ],
-                "situation": {
-                  "onFirst": false,
-                  "onSecond": false,
-                  "onThird": false
-                },
                 "tournamentId": 867,
                 "type": {
                   "id": "2",
@@ -4312,20 +4316,20 @@
               {
                 "id": "186833",
                 "uid": "s:850~l:900~e:867-2026~c:186833",
-                "date": "2026-11-26T20:00Z",
-                "startDate": "2026-11-26T20:00Z",
+                "date": "2026-11-26T20:05Z",
+                "startDate": "2026-11-26T20:05Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 3:00 PM EST",
-                    "shortDetail": "11/26 - 3:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4337,7 +4341,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "(2) Laura Samson (CZE) bt Irene Burillo (ESP) 6-3 6-3",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4348,9 +4357,20 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
                       "displayName": "Laura Samson",
@@ -4388,6 +4408,17 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "8092c62e-da9f-3421-b4e8-a112a2712b28",
                       "displayName": "Irene Burillo",
@@ -4435,20 +4466,20 @@
               {
                 "id": "186835",
                 "uid": "s:850~l:900~e:867-2026~c:186835",
-                "date": "2026-11-26T21:00Z",
-                "startDate": "2026-11-26T21:00Z",
+                "date": "2026-11-26T21:50Z",
+                "startDate": "2026-11-26T21:50Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 4:00 PM EST",
-                    "shortDetail": "11/26 - 4:00 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -4460,7 +4491,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Maria Lourdes Carle (ARG) bt Nadia Podoroska (ARG) 6-4 7-6 (7-4)",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -4471,6 +4507,18 @@
                     "type": "athlete",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
+                    "linescores": [
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 6.0,
+                        "tiebreak": 4,
+                        "winner": false
+                      }
+                    ],
                     "athlete": {
                       "guid": "758c0376-af98-981e-0010-3110c5353d77",
                       "displayName": "Nadia Podoroska",
@@ -4508,6 +4556,18 @@
                     "type": "athlete",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 7.0,
+                        "tiebreak": 7,
+                        "winner": true
+                      }
+                    ],
                     "athlete": {
                       "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
                       "displayName": "Maria Lourdes Carle",
@@ -4555,9 +4615,9 @@
               {
                 "id": "186832",
                 "uid": "s:850~l:900~e:867-2026~c:186832",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-27T18:00Z",
+                "startDate": "2026-11-27T18:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4567,13 +4627,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 27th at 1:00 PM EST",
+                    "shortDetail": "11/27 - 1:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Buenos Aires, Argentina",
-                  "court": ""
+                  "court": "Cancha Central"
                 },
                 "format": {
                   "regulation": {
@@ -4676,11 +4736,11 @@
                 "wasSuspended": false
               },
               {
-                "id": "186831",
-                "uid": "s:850~l:900~e:867-2026~c:186831",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
-                "timeValid": false,
+                "id": "186829",
+                "uid": "s:850~l:900~e:867-2026~c:186829",
+                "date": "2026-11-27T18:00Z",
+                "startDate": "2026-11-27T18:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -4690,13 +4750,259 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 27th at 1:00 PM EST",
+                    "shortDetail": "11/27 - 1:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Buenos Aires, Argentina",
-                  "court": ""
+                  "court": "Cancha 3"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "15069",
+                    "uid": "s:850~l:900~a:15069",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "curatedRank": {
+                      "current": 2
+                    },
+                    "athlete": {
+                      "guid": "2d5a4329-7cd8-3d8c-89db-ad55953745e8",
+                      "displayName": "Laura Samson",
+                      "shortName": "L. Samson",
+                      "fullName": "Laura Samson",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/cze.png",
+                        "alt": "Czechia",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/15069/laura-samson",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "423",
+                    "uid": "s:850~l:900~a:423",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "athlete": {
+                      "guid": "abb46dba-4c61-b31d-df08-cfa4a24403d1",
+                      "displayName": "Varvara Lepchenko",
+                      "shortName": "V. Lepchenko",
+                      "fullName": "Varvara Lepchenko",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                        "alt": "USA",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/423/varvara-lepchenko",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 867,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186830",
+                "uid": "s:850~l:900~e:867-2026~c:186830",
+                "date": "2026-11-27T19:30Z",
+                "startDate": "2026-11-27T19:30Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Fri, November 27th at 2:30 PM EST",
+                    "shortDetail": "11/27 - 2:30 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Buenos Aires, Argentina",
+                  "court": "Cancha Central"
+                },
+                "format": {
+                  "regulation": {
+                    "periods": 3
+                  }
+                },
+                "notes": [],
+                "geoBroadcasts": [],
+                "broadcasts": [],
+                "broadcast": "",
+                "competitors": [
+                  {
+                    "id": "3220",
+                    "uid": "s:850~l:900~a:3220",
+                    "type": "athlete",
+                    "order": 2,
+                    "homeAway": "away",
+                    "athlete": {
+                      "guid": "85224ed0-f8c1-9f90-1ed7-3bd0e13ca870",
+                      "displayName": "Maria Lourdes Carle",
+                      "shortName": "M. Carle",
+                      "fullName": "Maria Lourdes Carle",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/arg.png",
+                        "alt": "Argentina",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/3220/maria-lourdes-carle",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  },
+                  {
+                    "id": "12957",
+                    "uid": "s:850~l:900~a:12957",
+                    "type": "athlete",
+                    "order": 1,
+                    "homeAway": "home",
+                    "curatedRank": {
+                      "current": 6
+                    },
+                    "athlete": {
+                      "guid": "11dd9669-ff02-3c8b-b611-fd33ced01346",
+                      "displayName": "Guiomar Maristany Zuleta De Reales",
+                      "shortName": "G. Maristany Zuleta De Reales",
+                      "fullName": "Guiomar Maristany Zuleta De Reales",
+                      "flag": {
+                        "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+                        "alt": "Spain",
+                        "rel": [
+                          "country-flag"
+                        ]
+                      },
+                      "links": [
+                        {
+                          "language": "en-US",
+                          "rel": [
+                            "playercard",
+                            "desktop",
+                            "athlete"
+                          ],
+                          "href": "https://www.espn.com/tennis/player/_/id/12957/guiomar-maristany-zuleta-de-reales",
+                          "text": "Player Card",
+                          "shortText": "Player Card",
+                          "isExternal": false,
+                          "isPremium": false,
+                          "isHidden": false
+                        }
+                      ]
+                    },
+                    "statistics": []
+                  }
+                ],
+                "tournamentId": 867,
+                "type": {
+                  "id": "2",
+                  "text": "Women's Singles",
+                  "slug": "womens-singles"
+                },
+                "round": {
+                  "id": "5",
+                  "displayName": "Quarterfinal"
+                },
+                "wasSuspended": false
+              },
+              {
+                "id": "186831",
+                "uid": "s:850~l:900~e:867-2026~c:186831",
+                "date": "2026-11-27T21:00Z",
+                "startDate": "2026-11-27T21:00Z",
+                "timeValid": true,
+                "recent": false,
+                "status": {
+                  "period": 1,
+                  "type": {
+                    "id": "1",
+                    "name": "STATUS_SCHEDULED",
+                    "state": "pre",
+                    "completed": false,
+                    "description": "Scheduled",
+                    "detail": "Fri, November 27th at 4:00 PM EST",
+                    "shortDetail": "11/27 - 4:00 PM EST"
+                  }
+                },
+                "venue": {
+                  "fullName": "Buenos Aires, Argentina",
+                  "court": "Cancha Central"
                 },
                 "format": {
                   "regulation": {
@@ -4782,154 +5088,6 @@
                           "isHidden": false
                         }
                       ]
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 867,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186830",
-                "uid": "s:850~l:900~e:867-2026~c:186830",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Buenos Aires, Argentina",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  }
-                ],
-                "tournamentId": 867,
-                "type": {
-                  "id": "2",
-                  "text": "Women's Singles",
-                  "slug": "womens-singles"
-                },
-                "round": {
-                  "id": "5",
-                  "displayName": "Quarterfinal"
-                },
-                "wasSuspended": false
-              },
-              {
-                "id": "186829",
-                "uid": "s:850~l:900~e:867-2026~c:186829",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
-                "timeValid": false,
-                "recent": false,
-                "status": {
-                  "period": 1,
-                  "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
-                  }
-                },
-                "venue": {
-                  "fullName": "Buenos Aires, Argentina",
-                  "court": ""
-                },
-                "format": {
-                  "regulation": {
-                    "periods": 3
-                  }
-                },
-                "notes": [],
-                "geoBroadcasts": [],
-                "broadcasts": [],
-                "broadcast": "",
-                "competitors": [
-                  {
-                    "id": "-4",
-                    "uid": "s:850~l:900~a:-4",
-                    "type": "athlete",
-                    "order": 2,
-                    "homeAway": "away",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
-                    },
-                    "statistics": []
-                  },
-                  {
-                    "id": "-3",
-                    "uid": "s:850~l:900~a:-3",
-                    "type": "athlete",
-                    "order": 1,
-                    "homeAway": "home",
-                    "athlete": {
-                      "displayName": "TBD",
-                      "shortName": "TBD",
-                      "fullName": "TBD",
-                      "links": []
                     },
                     "statistics": []
                   }
@@ -5624,20 +5782,20 @@
               {
                 "id": "186845",
                 "uid": "s:850~l:900~e:867-2026~c:186845",
-                "date": "2026-11-26T20:00Z",
-                "startDate": "2026-11-26T20:00Z",
+                "date": "2026-11-26T21:45Z",
+                "startDate": "2026-11-26T21:45Z",
                 "timeValid": true,
-                "recent": true,
+                "recent": false,
                 "status": {
                   "period": 1,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 3:00 PM EST",
-                    "shortDetail": "11/26 - 3:00 PM EST"
+                    "id": "38",
+                    "name": "STATUS_RETIRED",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Retired",
+                    "detail": "Retired",
+                    "shortDetail": "Retired"
                   }
                 },
                 "venue": {
@@ -5649,7 +5807,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Nuria Brancaccio (ITA) & Ipek Oz (TUR) bt (1) Zhibek Kulambayeva (KAZ) & Carole Monnet (FRA) 1-0 ret",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5660,6 +5823,13 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 1.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Nuria Brancaccio / Ipek Oz",
                       "shortDisplayName": "N. Brancaccio / I. Oz",
@@ -5732,9 +5902,16 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": false,
                     "curatedRank": {
                       "current": 1
                     },
+                    "linescores": [
+                      {
+                        "value": 0.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Zhibek Kulambayeva / Carole Monnet",
                       "shortDisplayName": "Z. Kulambayeva / C. Monnet",
@@ -5817,20 +5994,20 @@
               {
                 "id": "186844",
                 "uid": "s:850~l:900~e:867-2026~c:186844",
-                "date": "2026-11-26T21:30Z",
-                "startDate": "2026-11-26T21:30Z",
+                "date": "2026-11-26T23:05Z",
+                "startDate": "2026-11-26T23:05Z",
                 "timeValid": true,
                 "recent": false,
                 "status": {
-                  "period": 1,
+                  "period": 2,
                   "type": {
-                    "id": "1",
-                    "name": "STATUS_SCHEDULED",
-                    "state": "pre",
-                    "completed": false,
-                    "description": "Scheduled",
-                    "detail": "Thu, November 26th at 4:30 PM EST",
-                    "shortDetail": "11/26 - 4:30 PM EST"
+                    "id": "3",
+                    "name": "STATUS_FINAL",
+                    "state": "post",
+                    "completed": true,
+                    "description": "Final",
+                    "detail": "Final",
+                    "shortDetail": "Final"
                   }
                 },
                 "venue": {
@@ -5842,7 +6019,12 @@
                     "periods": 3
                   }
                 },
-                "notes": [],
+                "notes": [
+                  {
+                    "text": "Ayana Akli (USA) & Abigail Rencheli (USA) bt (2) Sofia Costoulas (BEL) & Despina Papamichail (GRE) 6-3 6-4",
+                    "type": "event"
+                  }
+                ],
                 "geoBroadcasts": [],
                 "broadcasts": [],
                 "broadcast": "",
@@ -5853,9 +6035,20 @@
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
+                    "winner": false,
                     "curatedRank": {
                       "current": 2
                     },
+                    "linescores": [
+                      {
+                        "value": 3.0,
+                        "winner": false
+                      },
+                      {
+                        "value": 4.0,
+                        "winner": false
+                      }
+                    ],
                     "roster": {
                       "displayName": "Sofia Costoulas / Despina Papamichail",
                       "shortDisplayName": "S. Costoulas / D. Papamichail",
@@ -5928,6 +6121,17 @@
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
+                    "winner": true,
+                    "linescores": [
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      },
+                      {
+                        "value": 6.0,
+                        "winner": true
+                      }
+                    ],
                     "roster": {
                       "displayName": "Ayana Akli / Abigail Rencheli",
                       "shortDisplayName": "A. Akli / A. Rencheli",
@@ -6010,9 +6214,9 @@
               {
                 "id": "186847",
                 "uid": "s:850~l:900~e:867-2026~c:186847",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
-                "timeValid": false,
+                "date": "2026-11-27T21:00Z",
+                "startDate": "2026-11-27T21:00Z",
+                "timeValid": true,
                 "recent": false,
                 "status": {
                   "period": 1,
@@ -6022,13 +6226,13 @@
                     "state": "pre",
                     "completed": false,
                     "description": "Scheduled",
-                    "detail": "M/d - 'TBD'",
-                    "shortDetail": "TBD"
+                    "detail": "Fri, November 27th at 4:00 PM EST",
+                    "shortDetail": "11/27 - 4:00 PM EST"
                   }
                 },
                 "venue": {
                   "fullName": "Buenos Aires, Argentina",
-                  "court": ""
+                  "court": "Cancha 3"
                 },
                 "format": {
                   "regulation": {
@@ -6113,26 +6317,72 @@
                     "statistics": []
                   },
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "5168-10197",
+                    "uid": "s:850~l:900~t:5168-10197",
                     "type": "team",
                     "order": 1,
                     "homeAway": "home",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Nuria Brancaccio / Ipek Oz",
+                      "shortDisplayName": "N. Brancaccio / I. Oz",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "e3f277f8-68b4-3312-b720-4be8ebe45e0c",
+                          "displayName": "Nuria Brancaccio",
+                          "shortName": "N. Brancaccio",
+                          "fullName": "Nuria Brancaccio",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                            "alt": "Italy",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/5168/nuria-brancaccio",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "9ef2ba0c-8712-3836-b6d4-8e684a924ba4",
+                          "displayName": "Ipek Oz",
+                          "shortName": "I. Oz",
+                          "fullName": "Ipek Oz",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/tur.png",
+                            "alt": "T\u00fcrkiye",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/10197/ipek-oz",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
@@ -6154,8 +6404,8 @@
               {
                 "id": "186848",
                 "uid": "s:850~l:900~e:867-2026~c:186848",
-                "date": "2026-11-27T05:00Z",
-                "startDate": "2026-11-27T05:00Z",
+                "date": "2026-11-28T05:00Z",
+                "startDate": "2026-11-28T05:00Z",
                 "timeValid": false,
                 "recent": false,
                 "status": {
@@ -6185,26 +6435,72 @@
                 "broadcast": "",
                 "competitors": [
                   {
-                    "id": "-3--4",
-                    "uid": "s:850~l:900~t:-3--4",
+                    "id": "15775-17328",
+                    "uid": "s:850~l:900~t:15775-17328",
                     "type": "team",
                     "order": 2,
                     "homeAway": "away",
                     "roster": {
-                      "displayName": "TBD / TBD",
-                      "shortDisplayName": "TBD / TBD",
+                      "displayName": "Ayana Akli / Abigail Rencheli",
+                      "shortDisplayName": "A. Akli / A. Rencheli",
                       "athletes": [
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "b0ba0c4b-35c8-3698-9430-0dccd042bcec",
+                          "displayName": "Ayana Akli",
+                          "shortName": "A. Akli",
+                          "fullName": "Ayana Akli",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/15775/ayana-akli",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         },
                         {
-                          "displayName": "TBD",
-                          "shortName": "TBD",
-                          "fullName": "TBD",
-                          "links": []
+                          "guid": "9a8c2e34-33a8-3660-af5e-a5b94903fbeb",
+                          "displayName": "Abigail Rencheli",
+                          "shortName": "A. Rencheli",
+                          "fullName": "Abigail Rencheli",
+                          "flag": {
+                            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                            "alt": "USA",
+                            "rel": [
+                              "country-flag"
+                            ]
+                          },
+                          "links": [
+                            {
+                              "language": "en-US",
+                              "rel": [
+                                "playercard",
+                                "desktop",
+                                "athlete"
+                              ],
+                              "href": "https://www.espn.com/tennis/player/_/id/17328/abigail-rencheli",
+                              "text": "Player Card",
+                              "shortText": "Player Card",
+                              "isExternal": false,
+                              "isPremium": false,
+                              "isHidden": false
+                            }
+                          ]
                         }
                       ]
                     },
